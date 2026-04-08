@@ -1,4 +1,5 @@
 {
     "Catalog": true,
-    "Cart": true
+    "Cart": true,
+    "Checkout": true
 }

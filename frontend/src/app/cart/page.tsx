@@ -101,12 +101,12 @@ export default function CartPage() {
                 <div className="text-lg font-medium mb-2">Итого</div>
                 <div className="text-2xl font-semibold mb-4">{cart.subtotal} руб.</div>
 
-                <button
-                    type="button"
-                    className="rounded-xl px-5 py-3 border bg-black text-white"
+                <Link
+                    href="/checkout"
+                    className="inline-block rounded-xl px-5 py-3 border bg-black text-white"
                 >
                     Перейти к оформлению
-                </button>
+                </Link>
             </div>
         </main>
     );
