@@ -68,7 +68,14 @@ post_max_size = 64M
 
 ## Frontend (Next.js)
 
+## Frontend env
+Используются переменные окружения:
+`.env.local`:
+- `NEXT_PUBLIC_API_URL` — базовый URL backend API
+- `NEXT_ALLOWED_DEV_ORIGINS` — список dev origins для Next.js HMR, через запятую
+
 ### Development (рекомендуется)
+
 Запуск с авто-пересборкой (hot reload):
 make dev
 
@@ -110,3 +117,13 @@ make status
 •	Dev режим (make dev) — для разработки, без build
 •	Prod режим (make prod) — для продакшена
 •	Не запускать одновременно dev и prod на одном порту
+
+make dev
+make dev-stop
+make prod
+make prod-restart
+make logs
+make logs-dev
+make backend-clear
+make backend-migrate
+make backend-seed

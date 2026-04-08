@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="perfumer.by" autoUploadExternalChanges="true">
+  <component name="PublishConfigData" autoUpload="Always" serverName="perfumer.by" confirmBeforeDeletion="false" autoUploadExternalChanges="true">
+    <option name="confirmBeforeDeletion" value="false" />
     <serverData>
       <paths name="perfumer.by">
         <serverdata>
           <mappings>
-            <mapping deploy="/frontend" local="$PROJECT_DIR$/frontend" web="/" />
-            <mapping deploy="/backend" local="$PROJECT_DIR$/backend" web="/" />
+            <mapping deploy="/perfumer-by" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

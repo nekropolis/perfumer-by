@@ -1,5 +1,8 @@
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.25/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_API_URL is not defined");
+}
 
 export async function apiFetch<T>(path: string): Promise<T> {
     const res = await fetch(`${API_BASE}${path}`, {

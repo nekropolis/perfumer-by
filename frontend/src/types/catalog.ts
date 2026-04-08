@@ -73,3 +73,62 @@ export type ProductDetail = {
     }[];
     variants: ProductVariant[];
 };
+
+const CART_TOKEN_KEY = "cart_token";
+
+function generateCartToken(): string {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+        return crypto.randomUUID();
+    }
+
+    return `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+export function getCartToken(): string {
+    if (typeof window === "undefined") {
+        return "";
+    }
+
+    let token = localStorage.getItem(CART_TOKEN_KEY);
+
+    if (!token) {
+        token = generateCartToken();
+        localStorage.setItem(CART_TOKEN_KEY, token);
+    }
+
+    return token;
+}
+
+export type CartItem = {
+    id: number;
+    qty: number;
+    product: {
+        id: number;
+        name: string;
+        slug: string;
+        brand: string | null;
+    } | null;
+    variant: {
+        id: number;
+        title: string;
+        sku: string | null;
+        price: string;
+        old_price: string | null;
+        stock: number;
+    } | null;
+    price: string;
+    total: string;
+};
+
+export type CartData = {
+    id: number;
+    token: string;
+    qty: number;
+    subtotal: string;
+    items: CartItem[];
+};
+
+export type CartResponse = {
+    data: CartData;
+};
+
