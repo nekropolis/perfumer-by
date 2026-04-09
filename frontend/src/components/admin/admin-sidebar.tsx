@@ -14,9 +14,9 @@ import {
 const items = [
     { href: "/admin", label: "Дашборд", icon: LayoutDashboard },
     { href: "/admin/orders", label: "Заказы", icon: ShoppingBag },
-    { href: "/admin/brands", label: "Бренды", icon: Tags },
-    { href: "/admin/pages", label: "Страницы", icon: FileText },
-    { href: "/admin/settings/footer", label: "Футер", icon: Settings },
+    { href: "#", label: "Бренды", icon: Tags },
+    { href: "#", label: "Страницы", icon: FileText },
+    { href: "#", label: "Футер", icon: Settings },
     { href: "/admin/users", label: "Пользователи", icon: Users },
 ];
 
