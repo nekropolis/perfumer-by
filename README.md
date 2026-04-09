@@ -36,6 +36,8 @@ frontend/   # Next.js
 ## env
 APP_URL=
 
+AUTH_MODEL=Modules\\Users\\Models\\User
+
 DB_DATABASE=perfumer
 DB_USERNAME=perfumer
 DB_PASSWORD=password

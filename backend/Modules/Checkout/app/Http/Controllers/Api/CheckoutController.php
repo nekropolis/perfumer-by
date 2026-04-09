@@ -2,6 +2,7 @@
 
 namespace Modules\Checkout\Http\Controllers\Api;
 
+use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -16,9 +17,12 @@ class CheckoutController extends Controller
     {
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:32'],
-            'comment' => ['nullable', 'string'],
+            'phone'         => ['required', "regex:" . Phone::REGEX],
+            'comment'       => ['nullable', 'string'],
         ]);
+
+        $phone = $this->normalizePhone($validated['phone']);
+        $user = $request->user();
 
         $cartToken = $request->header('X-Cart-Token') ?: $request->input('cart_token');
 
@@ -39,10 +43,10 @@ class CheckoutController extends Controller
         $itemsQty = 0;
 
         $order = Order::query()->create([
-            'user_id' => null,
+            'user_id' => $user?->id,
             'cart_token' => $cartToken,
             'customer_name' => $validated['customer_name'] ?? null,
-            'phone' => $validated['phone'],
+            'phone' => $phone,
             'comment' => $validated['comment'] ?? null,
             'status' => 'new',
             'items_qty' => 0,
@@ -87,4 +91,10 @@ class CheckoutController extends Controller
             'message' => 'Order created successfully',
         ]);
     }
+
+    protected function normalizePhone(string $phone): string
+    {
+        return preg_replace('/\D+/', '', $phone) ?? '';
+    }
 }
+

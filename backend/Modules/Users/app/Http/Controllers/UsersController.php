@@ -1,18 +1,18 @@
 <?php
 
-namespace Modules\Checkout\Http\Controllers;
+namespace Modules\Users\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
-class CheckoutController extends Controller
+class UsersController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        return view('checkout::index');
+        return view('users::index');
     }
 
     /**
@@ -20,7 +20,7 @@ class CheckoutController extends Controller
      */
     public function create()
     {
-        return view('checkout::create');
+        return view('users::create');
     }
 
     /**
@@ -33,7 +33,7 @@ class CheckoutController extends Controller
      */
     public function show($id)
     {
-        return view('checkout::show');
+        return view('users::show');
     }
 
     /**
@@ -41,7 +41,7 @@ class CheckoutController extends Controller
      */
     public function edit($id)
     {
-        return view('checkout::edit');
+        return view('users::edit');
     }
 
     /**

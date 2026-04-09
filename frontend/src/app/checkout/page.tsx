@@ -1,24 +1,32 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useState, useTransition } from "react";
 import { createOrder } from "@/lib/checkout-api";
 import { useCart } from "@/components/cart/cart-provider";
+import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
 
 export default function CheckoutPage() {
+    const router = useRouter();
     const { cart, setCartState } = useCart();
+
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
     const [comment, setComment] = useState("");
-    const [successMessage, setSuccessMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isPending, startTransition] = useTransition();
 
+    const phoneIsValid = isBelarusPhoneComplete(phone);
+
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
-
-        setSuccessMessage("");
         setErrorMessage("");
+
+        if (!phoneIsValid) {
+            setErrorMessage("Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX");
+            return;
+        }
 
         startTransition(async () => {
             try {
@@ -36,10 +44,7 @@ export default function CheckoutPage() {
                     items: [],
                 });
 
-                setSuccessMessage(`Заказ #${response.data.id} успешно оформлен`);
-                setCustomerName("");
-                setPhone("");
-                setComment("");
+                router.push(`/checkout/success?order=${response.data.id}`);
             } catch (error) {
                 console.error(error);
                 setErrorMessage("Не удалось оформить заказ");
@@ -78,14 +83,7 @@ export default function CheckoutPage() {
 
                     <div className="mb-5">
                         <label className="mb-2 block text-sm font-medium">Телефон *</label>
-                        <input
-                            type="text"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="w-full rounded-xl border px-4 py-3 outline-none"
-                            placeholder="+375..."
-                            required
-                        />
+                        <PhoneInput value={phone} onChange={setPhone} />
                     </div>
 
                     <div className="mb-5">
@@ -105,12 +103,6 @@ export default function CheckoutPage() {
                     >
                         {isPending ? "Оформление..." : "Подтвердить заказ"}
                     </button>
-
-                    {successMessage && (
-                        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                            {successMessage}
-                        </div>
-                    )}
 
                     {errorMessage && (
                         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
