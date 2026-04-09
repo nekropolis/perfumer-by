@@ -12,8 +12,25 @@ class OrderController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $search = trim((string) $request->get('search', ''));
+        $status = trim((string) $request->get('status', ''));
+
         $orders = Order::query()
             ->with('items')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($subQuery) use ($search) {
+                    if (is_numeric($search)) {
+                        $subQuery->orWhere('id', (int) $search);
+                    }
+
+                    $subQuery
+                        ->orWhere('customer_name', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%");
+                });
+            })
+            ->when($status !== '', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
             ->latest('id')
             ->paginate(20);
 

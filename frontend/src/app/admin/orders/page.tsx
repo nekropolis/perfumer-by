@@ -1,55 +1,112 @@
-import Link from "next/link";
-import { fetchOrders } from "@/lib/admin-orders-api";
+"use client";
 
-export default async function AdminOrdersPage() {
-    const response = await fetchOrders();
-    const orders = response.data;
+import { useEffect, useState } from "react";
+import { fetchOrders } from "@/lib/admin-orders-api";
+import type { OrderData } from "@/types/catalog";
+import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import AdminOrdersTable from "@/components/admin/admin-orders-table";
+import AdminSearchInput from "@/components/admin/ui/admin-search-input";
+import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
+import useDebouncedValue from "@/hooks/use-debounced-value";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import {AdminToast} from "@/types/admin";
+
+export default function AdminOrdersPage() {
+    const [orders, setOrders] = useState<OrderData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [toast, setToast] = useState<AdminToast | null>(null);
+
+    const [searchInput, setSearchInput] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+
+    const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+    useEffect(() => {
+        const loadOrders = async () => {
+            try {
+                setLoading(true);
+                setToast(null);
+
+                const response = await fetchOrders({
+                    search: debouncedSearch,
+                    status: statusFilter,
+                });
+
+                setOrders(response.data);
+            } catch (error) {
+                console.error(error);
+                setToast({ type: "error", message: "Не удалось загрузить заказы" });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void loadOrders();
+    }, [debouncedSearch, statusFilter]);
+
+    const handleReset = () => {
+        setSearchInput("");
+        setStatusFilter("");
+        setToast(null);
+    };
 
     return (
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-            <div className="mb-8">
-                <h1 className="text-3xl font-semibold">Заказы</h1>
-                <p className="mt-2 text-gray-600">
-                    Всего заказов: {response.meta.total}
-                </p>
-            </div>
+        <AdminPageCard>
+            <AdminTableToolbar
+                title="Заказы"
+                description="Поиск по номеру заказа, имени клиента или телефону"
+            >
+                <AdminSearchInput
+                    value={searchInput}
+                    onChange={setSearchInput}
+                    placeholder="ID, имя, телефон"
+                />
 
-            <div className="overflow-x-auto rounded-2xl border">
-                <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 text-left">
-                    <tr>
-                        <th className="px-4 py-3">ID</th>
-                        <th className="px-4 py-3">Имя</th>
-                        <th className="px-4 py-3">Телефон</th>
-                        <th className="px-4 py-3">Статус</th>
-                        <th className="px-4 py-3">Товаров</th>
-                        <th className="px-4 py-3">Сумма</th>
-                        <th className="px-4 py-3">Действия</th>
-                    </tr>
-                    </thead>
+                <AdminFilterSelect
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    label="Статус"
+                    options={ORDER_STATUS_OPTIONS}
+                    placeholder="Все статусы"
+                />
 
-                    <tbody>
-                    {orders.map((order) => (
-                        <tr key={order.id} className="border-t">
-                            <td className="px-4 py-3">#{order.id}</td>
-                            <td className="px-4 py-3">{order.customer_name || "—"}</td>
-                            <td className="px-4 py-3">{order.phone}</td>
-                            <td className="px-4 py-3">{order.status}</td>
-                            <td className="px-4 py-3">{order.items_qty}</td>
-                            <td className="px-4 py-3">{order.total} руб.</td>
-                            <td className="px-4 py-3">
-                                <Link
-                                    href={`/admin/orders/${order.id}`}
-                                    className="underline"
-                                >
-                                    Открыть
-                                </Link>
-                            </td>
-                        </tr>
-                    ))}
-                    </tbody>
-                </table>
-            </div>
-        </main>
+                <button
+                    type="button"
+                    onClick={handleReset}
+                    className="rounded-xl border px-4 py-2 text-sm"
+                >
+                    Сбросить
+                </button>
+            </AdminTableToolbar>
+
+            {loading && <AdminLoadingState text="Загрузка заказов..." />}
+
+            {!loading && orders.length === 0 && (
+                <AdminEmptyState
+                    title="Заказы не найдены"
+                    description="Попробуйте изменить поиск или фильтр по статусу."
+                />
+            )}
+
+            {!loading && orders.length > 0 && (
+                <AdminOrdersTable
+                    initialOrders={orders}
+                    onSuccessMessage={(message) => setToast({ type: "success", message })}
+                    onErrorMessage={(message) => setToast({ type: "error", message })}
+                />
+            )}
+
+            {toast && (
+                <AdminFeedbackMessage
+                    type={toast.type}
+                    message={toast.message}
+                    onCloseAction={() => setToast(null)}
+                />
+            )}
+        </AdminPageCard>
     );
 }

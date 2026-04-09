@@ -9,7 +9,7 @@ Route::prefix('checkout')->group(function () {
     Route::post('/', [CheckoutController::class, 'checkout']);
 });
 
-Route::prefix('admin/orders')->group(function () {
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/orders')->group(function () {
     Route::get('/', [OrderController::class, 'index']);
     Route::get('/{id}', [OrderController::class, 'show']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);

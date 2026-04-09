@@ -4,9 +4,20 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import UserAccount from "@/components/account/user-account";
 import OrdersAccount from "@/components/account/orders-account";
+import {useRouter} from "next/navigation";
+import {useEffect} from "react";
+import {isPrivilegedRole} from "@/constants/admin-roles";
 
 export default function AccountPage() {
     const { user, isAuthenticated, loading, logout } = useAuth();
+
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && isAuthenticated && isPrivilegedRole(user?.role)) {
+            router.replace("/admin");
+        }
+    }, [loading, isAuthenticated, user?.role, router]);
 
     if (loading) {
         return (

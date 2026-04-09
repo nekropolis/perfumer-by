@@ -1,3 +1,4 @@
+import { getAuthToken } from "@/lib/auth-token";
 import type { OrderResponse, OrdersResponse } from "@/types/catalog";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -6,8 +7,34 @@ if (!API_BASE) {
     throw new Error("NEXT_PUBLIC_API_URL is not defined");
 }
 
-export async function fetchOrders(): Promise<OrdersResponse> {
-    const res = await fetch(`${API_BASE}/admin/orders`, {
+function getAdminHeaders() {
+    const token = typeof window !== "undefined" ? getAuthToken() : "";
+
+    return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+}
+
+export async function fetchOrders(params?: {
+    search?: string;
+    status?: string;
+}): Promise<OrdersResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.search) {
+        searchParams.set("search", params.search);
+    }
+
+    if (params?.status) {
+        searchParams.set("status", params.status);
+    }
+
+    const query = searchParams.toString();
+    const url = `${API_BASE}/admin/orders${query ? `?${query}` : ""}`;
+
+    const res = await fetch(url, {
+        headers: getAdminHeaders(),
         cache: "no-store",
     });
 
@@ -20,6 +47,7 @@ export async function fetchOrders(): Promise<OrdersResponse> {
 
 export async function fetchOrder(id: number): Promise<OrderResponse> {
     const res = await fetch(`${API_BASE}/admin/orders/${id}`, {
+        headers: getAdminHeaders(),
         cache: "no-store",
     });
 
@@ -36,9 +64,7 @@ export async function updateOrderStatus(
 ): Promise<OrderResponse> {
     const res = await fetch(`${API_BASE}/admin/orders/${id}/status`, {
         method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ status }),
         cache: "no-store",
     });

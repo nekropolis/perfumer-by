@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { requestPhoneCode, verifyPhoneCode } from "@/lib/auth-api";
 import { useAuth } from "@/components/auth/auth-provider";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
+import {isPrivilegedRole} from "@/constants/admin-roles";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -51,9 +52,14 @@ export default function LoginPage() {
                     id: response.user.id,
                     name: response.user.name,
                     phone: response.user.phone,
+                    role: response.user.role,
                 });
 
-                router.push("/account");
+                if (isPrivilegedRole(response.user.role)) {
+                    router.push("/admin");
+                } else {
+                    router.push("/account");
+                }
             } catch (error) {
                 console.error(error);
                 setMessage("Неверный код или ошибка авторизации");

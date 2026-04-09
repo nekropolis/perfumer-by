@@ -17,6 +17,7 @@ export type VerifyCodeResponse = {
         id: number;
         name: string | null;
         phone: string;
+        role?: string;
     };
 };
 
@@ -27,6 +28,7 @@ export type MeResponse = {
         email?: string | null;
         phone: string;
         phone_verified_at?: string | null;
+        role?: string;
     } | null;
 };
 

@@ -18,6 +18,7 @@ type AuthUser = {
     email?: string | null;
     phone: string;
     phone_verified_at?: string | null;
+    role?: string;
 };
 
 type AuthContextType = {

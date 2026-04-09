@@ -19,3 +19,17 @@ body {
 * {
   box-sizing: border-box;
 }
+
+input,
+select,
+textarea {
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: #c3c3c3;
+}

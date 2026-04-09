@@ -14,6 +14,14 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
     cancelled: "Отменён",
 };
 
+export const ORDER_STATUS_OPTIONS = [
+    { value: "new", label: "Новый" },
+    { value: "confirmed", label: "Подтверждён" },
+    { value: "processing", label: "В обработке" },
+    { value: "done", label: "Выполнен" },
+    { value: "cancelled", label: "Отменён" },
+];
+
 export function getOrderStatusStyle(status: string): string {
     return ORDER_STATUS_STYLES[status] || "bg-gray-100 text-gray-800";
 }

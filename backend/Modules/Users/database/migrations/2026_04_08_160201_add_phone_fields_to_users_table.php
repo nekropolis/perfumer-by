@@ -16,6 +16,10 @@ return new class extends Migration
             if (!Schema::hasColumn('users', 'phone_verified_at')) {
                 $table->timestamp('phone_verified_at')->nullable()->after('phone');
             }
+
+            if (!Schema::hasColumn('users', 'role')) {
+                $table->string('role', 32)->default('customer')->after('phone_verified_at');
+            }
         });
     }
 
@@ -29,6 +33,10 @@ return new class extends Migration
             if (Schema::hasColumn('users', 'phone')) {
                 $table->dropUnique('users_phone_unique');
                 $table->dropColumn('phone');
+            }
+
+            if (Schema::hasColumn('users', 'role')) {
+                $table->dropColumn('role');
             }
         });
     }
