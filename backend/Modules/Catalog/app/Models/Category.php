@@ -31,7 +31,8 @@ class Category extends Model
 
     public function children(): HasMany
     {
-        return $this->hasMany(self::class, 'parent_id');
+        return $this->hasMany(self::class, 'parent_id')
+            ->orderBy('sort_order');
     }
 
     public function products(): BelongsToMany

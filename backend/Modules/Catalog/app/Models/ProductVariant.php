@@ -4,21 +4,20 @@ namespace Modules\Catalog\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductVariant extends Model
 {
     protected $fillable = [
         'product_id',
-        'sku',
-        'barcode',
         'title',
         'volume',
         'volume_unit',
+        'type',
         'concentration',
         'edition',
         'price',
         'old_price',
-        'purchase_price',
         'stock',
         'is_preorder',
         'is_active',
@@ -28,7 +27,6 @@ class ProductVariant extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'old_price' => 'decimal:2',
-        'purchase_price' => 'decimal:2',
         'is_preorder' => 'boolean',
         'is_active' => 'boolean',
     ];
@@ -36,6 +34,11 @@ class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function supplierOffers(): HasMany
+    {
+        return $this->hasMany(SupplierVariantOffer::class);
     }
 
     public function getDiscountPercentAttribute(): ?int

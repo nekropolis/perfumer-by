@@ -2,6 +2,7 @@
 
 namespace Modules\Catalog\Providers;
 
+use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 
@@ -36,11 +37,16 @@ class CatalogServiceProvider extends ModuleServiceProvider
 
     /**
      * Define module schedules.
-     * 
+     *
      * @param $schedule
      */
     // protected function configureSchedules(Schedule $schedule): void
     // {
     //     $schedule->command('inspire')->hourly();
     // }
+
+    protected array $commands = [
+        ImportVanilleSampleCommand::class,
+    ];
+
 }

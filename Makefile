@@ -79,28 +79,6 @@ prod-stop:
 	-$(PM2) delete $(FRONT_PROD_NAME) >/dev/null 2>&1 || true
 	$(PM2) save
 
-staging:
-	@echo "Stopping old staging process..."
-	-$(PM2) delete $(FRONT_STAG_NAME) >/dev/null 2>&1 || true
-	@echo "Installing frontend deps..."
-	cd $(FRONTEND) && $(NPM) install
-	@echo "Building frontend..."
-	cd $(FRONTEND) && rm -rf .next && $(NPM) run build
-	@echo "Starting frontend staging on port 3001..."
-	cd $(FRONTEND) && PORT=3001 $(PM2) start npm --name $(FRONT_STAG_NAME) -- run start
-	$(PM2) save
-	@echo "Frontend STAGING deployed"
-	$(PM2) list
-
-staging-restart:
-	PORT=3001 $(PM2) restart $(FRONT_STAG_NAME) --update-env
-	$(PM2) save
-	$(PM2) list
-
-staging-stop:
-	-$(PM2) delete $(FRONT_STAG_NAME) >/dev/null 2>&1 || true
-	$(PM2) save
-
 logs:
 	$(PM2) logs $(FRONT_PROD_NAME) --lines 100
 
