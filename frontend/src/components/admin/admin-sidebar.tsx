@@ -9,6 +9,7 @@ import {
     FileText,
     Settings,
     Users,
+    FolderSync,
 } from "lucide-react";
 
 const items = [
@@ -17,6 +18,8 @@ const items = [
     { href: "#", label: "Бренды", icon: Tags },
     { href: "#", label: "Страницы", icon: FileText },
     { href: "#", label: "Футер", icon: Settings },
+    { href: "/admin/import-export/vanille-parsing", label: "Vanille Parsing", icon: FolderSync },
+    { href: "/admin/import-export/vanille-products", label: "Товары Vanille", icon: FolderSync },
     { href: "/admin/users", label: "Пользователи", icon: Users },
 ];
 
@@ -33,13 +36,13 @@ export default function AdminSidebar({ onNavigate }: Props) {
                 {items.map((item) => {
                     const isActive =
                         pathname === item.href ||
-                        (item.href !== "/admin" && pathname.startsWith(item.href));
+                        (item.href !== "/admin" && item.href !== "#" && pathname.startsWith(item.href));
 
                     const Icon = item.icon;
 
                     return (
                         <Link
-                            key={item.href}
+                            key={`${item.label}-${item.href}`}
                             href={item.href}
                             onClick={onNavigate}
                             className={`group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-all duration-200 ${
@@ -48,11 +51,11 @@ export default function AdminSidebar({ onNavigate }: Props) {
                                     : "text-gray-700 hover:bg-gray-100 hover:text-black"
                             }`}
                         >
-              <span
-                  className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all ${
-                      isActive ? "bg-white/90" : "bg-transparent group-hover:bg-gray-300"
-                  }`}
-              />
+                            <span
+                                className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all ${
+                                    isActive ? "bg-white/90" : "bg-transparent group-hover:bg-gray-300"
+                                }`}
+                            />
 
                             <Icon
                                 size={18}
@@ -62,8 +65,8 @@ export default function AdminSidebar({ onNavigate }: Props) {
                             />
 
                             <span className={isActive ? "font-medium" : "group-hover:font-medium"}>
-                {item.label}
-              </span>
+                                {item.label}
+                            </span>
                         </Link>
                     );
                 })}

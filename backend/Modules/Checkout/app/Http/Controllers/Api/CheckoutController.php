@@ -10,6 +10,7 @@ use Modules\Cart\Models\Cart;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
+use Illuminate\Support\Facades\DB;
 
 class CheckoutController extends Controller
 {
@@ -17,8 +18,8 @@ class CheckoutController extends Controller
     {
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
-            'phone'         => ['required', "regex:" . Phone::REGEX],
-            'comment'       => ['nullable', 'string'],
+            'phone' => ['required', "regex:" . Phone::REGEX],
+            'comment' => ['nullable', 'string'],
         ]);
 
         $phone = $this->normalizePhone($validated['phone']);
@@ -39,50 +40,61 @@ class CheckoutController extends Controller
         abort_if(!$cart, 422, 'Cart not found');
         abort_if($cart->items->isEmpty(), 422, 'Cart is empty');
 
-        $subtotal = 0;
-        $itemsQty = 0;
-
-        $order = Order::query()->create([
-            'user_id' => $user?->id,
-            'cart_token' => $cartToken,
-            'customer_name' => $validated['customer_name'] ?? null,
-            'phone' => $phone,
-            'comment' => $validated['comment'] ?? null,
-            'status' => 'new',
-            'items_qty' => 0,
-            'subtotal' => 0,
-            'total' => 0,
-        ]);
-
         foreach ($cart->items as $cartItem) {
-            $price = (float) ($cartItem->variant?->price ?? 0);
-            $lineTotal = $price * $cartItem->qty;
+            $variant = $cartItem->variant;
 
-            OrderItem::query()->create([
-                'order_id' => $order->id,
-                'product_id' => $cartItem->product_id,
-                'variant_id' => $cartItem->variant_id,
-                'product_name' => $cartItem->product?->name ?? '',
-                'product_slug' => $cartItem->product?->slug,
-                'brand_name' => $cartItem->product?->brand?->name,
-                'variant_title' => $cartItem->variant?->title ?? '',
-                'sku' => $cartItem->variant?->sku,
-                'qty' => $cartItem->qty,
-                'price' => $price,
-                'total' => $lineTotal,
-            ]);
-
-            $subtotal += $lineTotal;
-            $itemsQty += $cartItem->qty;
+            abort_if(!$variant || !$variant->is_active, 422, 'One of the cart items is unavailable');
+            abort_if($variant->stock <= 0 && !$variant->is_preorder, 422, 'One of the cart items is out of stock');
         }
 
-        $order->update([
-            'items_qty' => $itemsQty,
-            'subtotal' => $subtotal,
-            'total' => $subtotal,
-        ]);
+        $order = DB::transaction(function () use ($cart, $cartToken, $user, $validated, $phone) {
+            $subtotal = 0;
+            $itemsQty = 0;
 
-        $cart->items()->delete();
+            $order = Order::query()->create([
+                'user_id' => $user?->id,
+                'cart_token' => $cartToken,
+                'customer_name' => $validated['customer_name'] ?? null,
+                'phone' => $phone,
+                'comment' => $validated['comment'] ?? null,
+                'status' => 'new',
+                'items_qty' => 0,
+                'subtotal' => 0,
+                'total' => 0,
+            ]);
+
+            foreach ($cart->items as $cartItem) {
+                $price = (float) ($cartItem->variant?->price ?? 0);
+                $lineTotal = $price * $cartItem->qty;
+
+                OrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $cartItem->product_id,
+                    'variant_id' => $cartItem->variant_id,
+                    'product_name' => $cartItem->product?->name ?? '',
+                    'product_slug' => $cartItem->product?->slug,
+                    'brand_name' => $cartItem->product?->brand?->name,
+                    'variant_title' => $this->makeVariantDisplayTitle($cartItem->variant),
+                    'sku' => null,
+                    'qty' => $cartItem->qty,
+                    'price' => $price,
+                    'total' => $lineTotal,
+                ]);
+
+                $subtotal += $lineTotal;
+                $itemsQty += $cartItem->qty;
+            }
+
+            $order->update([
+                'items_qty' => $itemsQty,
+                'subtotal' => $subtotal,
+                'total' => $subtotal,
+            ]);
+
+            $cart->items()->delete();
+
+            return $order;
+        });
 
         $order->load('items');
 
@@ -95,6 +107,29 @@ class CheckoutController extends Controller
     protected function normalizePhone(string $phone): string
     {
         return preg_replace('/\D+/', '', $phone) ?? '';
+    }
+
+    protected function makeVariantDisplayTitle($variant): string
+    {
+        if (!$variant) {
+            return '';
+        }
+
+        $parts = [];
+
+        if ($variant->volume) {
+            $parts[] = trim($variant->volume . ' ' . $variant->volume_unit);
+        }
+
+        if ($variant->concentration) {
+            $parts[] = strtoupper($variant->concentration);
+        }
+
+        if ($variant->edition) {
+            $parts[] = $variant->edition;
+        }
+
+        return !empty($parts) ? implode(' / ', $parts) : ($variant->title ?? '');
     }
 }
 

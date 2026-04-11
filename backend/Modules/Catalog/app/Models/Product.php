@@ -74,4 +74,9 @@ class Product extends Model
     {
         return $this->hasMany(ProductAttribute::class)->orderBy('sort_order');
     }
+
+    public function supplierProducts(): HasMany
+    {
+        return $this->hasMany(SupplierProduct::class);
+    }
 }

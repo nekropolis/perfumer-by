@@ -1,15 +1,75 @@
+export type ProductVariantData = {
+    id: number;
+    title: string;
+    volume: number | null;
+    volume_unit: string | null;
+    type: string | null;
+    concentration: string | null;
+    edition: string | null;
+    display_name: string;
+    price: string | null;
+    old_price: string | null;
+    discount_percent: number | null;
+    stock: number;
+    is_preorder: boolean;
+    is_active: boolean;
+    is_available: boolean;
+};
+
+export type ProductAttributeData = {
+    id: number;
+    name: string;
+    value: string;
+    sort_order: number;
+};
+
+export type ProductImageData = {
+    id: number;
+    path: string;
+    is_main: boolean;
+    sort_order: number;
+};
+
 export type ProductListItem = {
     id: number;
     name: string;
     slug: string;
     h1: string | null;
     short_description: string | null;
-    brand: string | null;
+    variant_labels: string[];
+
+    brand: {
+        id: number;
+        name: string;
+    } | null;
+
+    main_category: {
+        id: number;
+        name: string;
+        slug: string;
+    } | null;
+
+    image: string | null;
+
     is_new: boolean;
     is_hit: boolean;
-    min_price: string;
-    old_price: string | null;
-    image: string | null;
+
+    price_range: {
+        min: string | null;
+        max: string | null;
+    };
+
+    old_price_range: {
+        min: string | null;
+        max: string | null;
+    };
+
+    has_discount: boolean;
+    discount_percent: number | null;
+
+    stock_total: number;
+    is_preorder_available: boolean;
+    variants_count: number;
 };
 
 export type ProductsResponse = {
@@ -22,8 +82,52 @@ export type ProductsResponse = {
     };
 };
 
+
+export type ProductDetailData = {
+    id: number;
+    name: string;
+    slug: string;
+    h1: string | null;
+    short_description: string | null;
+    description: string | null;
+    seo_title: string | null;
+    seo_description: string | null;
+
+    brand: {
+        id: number;
+        name: string;
+        slug: string;
+    } | null;
+
+    main_category: {
+        id: number;
+        name: string;
+        slug: string;
+    } | null;
+
+    categories: {
+        id: number;
+        name: string;
+        slug: string;
+    }[];
+
+    images: ProductImageData[];
+
+    attributes: ProductAttributeData[];
+
+    price_range: {
+        min: string | null;
+        max: string | null;
+    };
+
+    stock_total: number;
+
+    variants: ProductVariantData[];
+    default_variant_id: number | null;
+};
+
 export type ProductDetailResponse = {
-    data: ProductDetail;
+    data: ProductDetailData;
 };
 
 export type ProductVariant = {
@@ -99,25 +203,34 @@ export function getCartToken(): string {
     return token;
 }
 
-export type CartItem = {
+export type CartItemData = {
     id: number;
     qty: number;
-    product: {
-        id: number;
-        name: string;
-        slug: string;
-        brand: string | null;
-    } | null;
+
+    product_id: number | null;
+    product_variant_id: number | null;
+
+    product_name: string | null;
+    product_slug: string | null;
+    brand_name: string | null;
+
     variant: {
         id: number;
         title: string;
-        sku: string | null;
-        price: string;
-        old_price: string | null;
-        stock: number;
+        display_name: string;
+        volume: number | null;
+        volume_unit: string | null;
+        type: string | null;
+        concentration: string | null;
+        edition: string | null;
     } | null;
+
     price: string;
+    old_price: string | null;
     total: string;
+    stock: number;
+    is_preorder: boolean;
+    is_available: boolean;
 };
 
 export type CartData = {
@@ -125,7 +238,8 @@ export type CartData = {
     token: string;
     qty: number;
     subtotal: string;
-    items: CartItem[];
+    total: string;
+    items: CartItemData[];
 };
 
 export type CartResponse = {
@@ -168,4 +282,22 @@ export type OrdersResponse = {
 
 export type OrderResponse = {
     data: OrderData;
+};
+
+export type CatalogBrandItem = {
+    id: number;
+    name: string;
+    slug: string;
+};
+
+export type CatalogBrandsResponse = {
+    data: CatalogBrandItem[];
+};
+
+export type CatalogBrandDetailResponse = {
+    data: {
+        id: number;
+        name: string;
+        slug: string;
+    };
 };

@@ -12,7 +12,7 @@ export default function AdminTableToolbar({
                                               children,
                                           }: Props) {
     return (
-        <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="mb-6 space-y-4">
             <div>
                 <h2 className="text-2xl font-semibold">{title}</h2>
                 {description && (
@@ -20,11 +20,11 @@ export default function AdminTableToolbar({
                 )}
             </div>
 
-            {children && (
-                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            {children ? (
+                <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
                     {children}
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }

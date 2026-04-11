@@ -23,6 +23,7 @@ class CartResource extends JsonResource
             'token' => $this->token,
             'qty' => $qty,
             'subtotal' => number_format($subtotal, 2, '.', ''),
+            'total' => number_format($subtotal, 2, '.', ''),
             'items' => CartItemResource::collection($items),
         ];
     }

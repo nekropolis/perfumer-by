@@ -48,19 +48,43 @@ export default function CartPage() {
             <div className="space-y-4 mb-8">
                 {cart.items.map((item) => (
                     <div key={item.id} className="border rounded-2xl p-5">
-                        <div className="text-sm text-gray-500 mb-1">{item.product?.brand}</div>
+                        <div className="text-sm text-gray-500 mb-1">{item.brand_name || "—"}</div>
 
                         <div className="text-lg font-medium mb-1">
-                            <Link href={`/product/${item.product?.slug}`}>
-                                {item.product?.name}
+                            <Link href={`/product/${item.product_slug}`}>
+                                {item.product_name}
                             </Link>
                         </div>
 
-                        <div className="text-sm text-gray-600 mb-3">{item.variant?.title}</div>
+                        <div className="text-sm text-gray-600 mb-1">
+                            {item.variant?.display_name || item.variant?.title}
+                        </div>
+
+                        {item.variant?.type && (
+                            <div className="text-xs text-gray-500 mb-3">{item.variant.type}</div>
+                        )}
 
                         <div className="flex flex-wrap items-center gap-4">
-                            <div className="text-sm">Цена: {item.price} руб.</div>
+                            <div className="text-sm">
+                                Цена: {item.price} руб.
+                                {item.old_price && (
+                                    <span className="ml-2 text-gray-400 line-through">
+                {item.old_price} руб.
+            </span>
+                                )}
+                            </div>
+
                             <div className="text-sm">Сумма: {item.total} руб.</div>
+
+                            {item.is_available ? (
+                                item.is_preorder ? (
+                                    <div className="text-sm text-amber-700">Под заказ</div>
+                                ) : (
+                                    <div className="text-sm text-green-700">В наличии: {item.stock}</div>
+                                )
+                            ) : (
+                                <div className="text-sm text-red-700">Нет в наличии</div>
+                            )}
 
                             <div className="flex items-center gap-2">
                                 <button

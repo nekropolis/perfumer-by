@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useTransition, useState } from "react";
 import { createOrder } from "@/lib/checkout-api";
 import { useCart } from "@/components/cart/cart-provider";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
@@ -41,6 +41,7 @@ export default function CheckoutPage() {
                     token: cart?.token ?? "",
                     qty: 0,
                     subtotal: "0.00",
+                    total: "0.00",
                     items: [],
                 });
 
@@ -98,7 +99,7 @@ export default function CheckoutPage() {
 
                     <button
                         type="submit"
-                        disabled={isPending}
+                        disabled={isPending || !phoneIsValid}
                         className="rounded-xl bg-black px-5 py-3 text-white disabled:opacity-50"
                     >
                         {isPending ? "Оформление..." : "Подтвердить заказ"}
@@ -117,12 +118,39 @@ export default function CheckoutPage() {
                     <div className="space-y-4">
                         {cart.items.map((item) => (
                             <div key={item.id} className="border-b pb-4 last:border-b-0">
-                                <div className="text-sm text-gray-500">{item.product?.brand}</div>
-                                <div className="font-medium">{item.product?.name}</div>
-                                <div className="text-sm text-gray-600">{item.variant?.title}</div>
+                                <div className="text-sm text-gray-500">{item.brand_name || "—"}</div>
+
+                                <div className="font-medium">{item.product_name}</div>
+
                                 <div className="text-sm text-gray-600">
+                                    {item.variant?.display_name || item.variant?.title}
+                                </div>
+
+                                {item.variant?.type && (
+                                    <div className="text-xs text-gray-500">{item.variant.type}</div>
+                                )}
+
+                                <div className="mt-1 text-sm text-gray-600">
                                     {item.qty} × {item.price} руб.
                                 </div>
+
+                                {item.old_price && (
+                                    <div className="text-xs text-gray-400 line-through">
+                                        {item.old_price} руб.
+                                    </div>
+                                )}
+
+                                {item.is_available ? (
+                                    item.is_preorder ? (
+                                        <div className="mt-1 text-xs text-amber-700">Под заказ</div>
+                                    ) : (
+                                        <div className="mt-1 text-xs text-green-700">
+                                            В наличии: {item.stock}
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="mt-1 text-xs text-red-700">Нет в наличии</div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -132,9 +160,10 @@ export default function CheckoutPage() {
                             <span>Товаров</span>
                             <span>{cart.qty}</span>
                         </div>
+
                         <div className="mt-2 flex items-center justify-between text-lg font-semibold">
                             <span>Итого</span>
-                            <span>{cart.subtotal} руб.</span>
+                            <span>{cart.total} руб.</span>
                         </div>
                     </div>
                 </aside>

@@ -9,6 +9,16 @@ class ProductDetailResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $variants = $this->relationLoaded('activeVariants')
+            ? $this->activeVariants
+            : collect();
+
+        $prices = $variants->pluck('price')->filter();
+        $stockTotal = (int) $variants->sum('stock');
+
+        $defaultVariant = $variants->first(fn ($variant) => $variant->stock > 0 || $variant->is_preorder)
+            ?? $variants->first();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -18,24 +28,55 @@ class ProductDetailResource extends JsonResource
             'description' => $this->description,
             'seo_title' => $this->seo_title,
             'seo_description' => $this->seo_description,
+
             'brand' => $this->brand ? [
                 'id' => $this->brand->id,
                 'name' => $this->brand->name,
                 'slug' => $this->brand->slug,
             ] : null,
-            'categories' => $this->categories->map(fn ($category) => [
-                'id' => $category->id,
-                'name' => $category->name,
-                'slug' => $category->slug,
-            ])->values(),
-            'images' => $this->images->map(fn ($image) => [
-                'id' => $image->id,
-                'path' => $image->path,
-                'alt' => $image->alt,
-                'is_main' => $image->is_main,
-                'sort_order' => $image->sort_order,
-            ])->values(),
-            'variants' => ProductVariantResource::collection($this->variants),
+
+
+            'main_category' => $this->mainCategory ? [
+                'id' => $this->mainCategory->id,
+                'name' => $this->mainCategory->name,
+                'slug' => $this->mainCategory->slug,
+            ] : null,
+
+            'categories' => $this->whenLoaded('categories', function () {
+                return $this->categories->map(fn ($category) => [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                ])->values();
+            }),
+
+            'images' => $this->whenLoaded('images', function () {
+                return $this->images->map(fn ($image) => [
+                    'id' => $image->id,
+                    'path' => $image->path,
+                    'is_main' => (bool) $image->is_main,
+                    'sort_order' => $image->sort_order,
+                ])->values();
+            }),
+
+            'attributes' => $this->attributes
+                ? $this->attributes->map(fn ($attribute) => [
+                    'id' => $attribute->id,
+                    'name' => $attribute->name,
+                    'value' => $attribute->value,
+                    'sort_order' => $attribute->sort_order,
+                ])->values()
+                : [],
+
+            'price_range' => [
+                'min' => $prices->isNotEmpty() ? $prices->min() : null,
+                'max' => $prices->isNotEmpty() ? $prices->max() : null,
+            ],
+
+            'stock_total' => $stockTotal,
+
+            'variants' => ProductVariantResource::collection($variants),
+            'default_variant_id' => $defaultVariant?->id,
         ];
     }
 }

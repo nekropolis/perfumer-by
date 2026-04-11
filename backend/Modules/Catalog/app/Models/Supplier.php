@@ -22,4 +22,9 @@ class Supplier extends Model
     {
         return $this->hasMany(SupplierVariantOffer::class);
     }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(SupplierProduct::class);
+    }
 }
