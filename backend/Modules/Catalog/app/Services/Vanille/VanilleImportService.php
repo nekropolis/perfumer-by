@@ -11,9 +11,21 @@ use Modules\Catalog\Models\ProductVariant;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SupplierProduct;
+use Modules\Catalog\Services\Vanille\Parsers\VanilleBrandParser;
+use Modules\Catalog\Services\Vanille\Parsers\VanilleLinkCollector;
+use Modules\Catalog\Services\Vanille\Parsers\VanilleProductParser;
+use Modules\Catalog\Services\Vanille\Support\VanilleHttpClient;
 
 class VanilleImportService
 {
+    public function __construct(
+        protected VanilleHttpClient $httpClient,
+        protected VanilleProductParser $productParser,
+        protected VanilleBrandParser $brandParser,
+        protected VanilleLinkCollector $linkCollector,
+    ) {
+    }
+
     public function importFromJsonFile(string $path): array
     {
         if (!file_exists($path)) {
@@ -292,10 +304,8 @@ class VanilleImportService
 
     public function parseBrands(): array
     {
-        $url = 'https://vanille.by/brendyi';
-
         try {
-            $html = $this->fetchUrl($url, 10);
+            $brands = $this->brandParser->parse();
         } catch (\Throwable $e) {
             return [
                 'success' => false,
@@ -306,92 +316,7 @@ class VanilleImportService
             ];
         }
 
-        preg_match_all('/<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/isu', $html, $matches, PREG_SET_ORDER);
-
-        $brands = [];
-
-        foreach ($matches as $match) {
-            $href = html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-            $rawName = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $rawName = preg_replace('/<(small|sup)\b[^>]*>.*?<\/\\1>/isu', '', $rawName);
-            $name = trim(strip_tags($rawName));
-
-            if ($name === '') {
-                continue;
-            }
-
-            $slug = null;
-            $vendor = null;
-            $sourceUrl = null;
-            $publicUrl = null;
-
-            if (str_starts_with($href, '/poisk?') || str_contains($href, 'query=')) {
-                $queryString = parse_url($href, PHP_URL_QUERY) ?? '';
-                parse_str($queryString, $query);
-
-                $slug = trim((string)($query['query'] ?? ''));
-                if (in_array($slug, [
-                    'brendyi',
-                    'catalog',
-                    'shop',
-                    'sale',
-                    'skidki',
-                    'dostavka',
-                    'oplata',
-                    'o-magazine',
-                    'otzyivyi-o-magazine',
-                    'akczii-i-novosti',
-                ], true)) {
-                    continue;
-                }
-                $vendor = trim((string)($query['vendor'] ?? ''));
-                $sourceUrl = str_starts_with($href, 'http')
-                    ? $href
-                    : 'https://vanille.by' . $href;
-                $publicUrl = $slug ? 'https://vanille.by/' . $slug : null;
-            } else {
-                $path = parse_url($href, PHP_URL_PATH) ?? '';
-                $path = trim($path, '/');
-
-                if ($path !== '' && !str_contains($path, '/')) {
-                    $slug = $path;
-                    $sourceUrl = str_starts_with($href, 'http')
-                        ? $href
-                        : 'https://vanille.by/' . ltrim($path, '/');
-                    $publicUrl = 'https://vanille.by/' . $slug;
-                }
-            }
-
-            if (!$slug) {
-                continue;
-            }
-
-            if (mb_strlen($name) > 80) {
-                continue;
-            }
-
-            if (preg_match('/каталог|магазин|доставка|отзывы|скидки/i', $name)) {
-                continue;
-            }
-
-            $brands[$slug] = [
-                'name' => $name,
-                'slug' => $slug,
-                'vendor' => $vendor ?: null,
-                'url' => $publicUrl,
-                'source_url' => $sourceUrl,
-            ];
-        }
-
-        $brands = array_values($brands);
-
-        $dir = storage_path('app/public/imports/vanille');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
-
-        $path = $dir . '/brands.json';
+        $path = $this->ensureVanilleImportDir() . '/brands.json';
 
         file_put_contents(
             $path,
@@ -410,7 +335,7 @@ class VanilleImportService
         ];
     }
 
-    public function collectProductLinks(int $offset = 0, int $limit = 10, ?int $maxLinks = 100): array
+    public function collectProductLinks(int $offset = 0, int $limit = 100, ?int $maxLinks = 100): array
     {
         $brandsPath = storage_path('app/public/imports/vanille/brands.json');
 
@@ -442,206 +367,37 @@ class VanilleImportService
             ];
         }
 
-        $chunk = array_slice($brands, $offset, $limit);
-        $processed = count($chunk);
+        $result = $this->linkCollector->collect($brands, $offset, $limit, $maxLinks);
 
-        $path = storage_path('app/public/imports/vanille/product_links.json');
-
-        $existing = [];
-        if (file_exists($path)) {
-            $existing = json_decode(file_get_contents($path), true);
-            if (!is_array($existing)) {
-                $existing = [];
-            }
-        }
-
-        $indexed = [];
-        foreach ($existing as $item) {
-            if (!empty($item['slug'])) {
-                $indexed[$item['slug']] = $item;
-            }
-        }
-
-        $reachedMaxLinks = false;
-
-        $log = [];
-
-        foreach ($chunk as $brand) {
-            $url = $brand['source_url'] ?? ($brand['url'] ?? null);
-            $brandName = $brand['name'] ?? 'unknown';
-
-            if (in_array(mb_strtolower(trim($brandName)), ['бренды', 'бренды парфюмерии'], true)) {
-                continue;
-            }
-
-            if (!$url) {
-                continue;
-            }
-
-            try {
-                $html = $this->fetchUrl($url, 10);
-            } catch (\Throwable $e) {
-                $log[] = "skip brand: {$brandName} -> " . $e->getMessage();
-                continue;
-            }
-
-            preg_match_all('/href="([^"]+)"/isu', $html, $matches);
-
-            $found = 0;
-
-            $brandSlug = trim((string)($brand['slug'] ?? ''));
-            if (in_array($brandSlug, [
-                'brendyi',
-                'catalog',
-                'shop',
-                'sale',
-                'skidki',
-                'dostavka',
-                'oplata',
-                'o-magazine',
-                'otzyivyi-o-magazine',
-                'akczii-i-novosti',
-            ], true)) {
-                continue;
-            }
-
-            foreach ($matches[1] as $href) {
-                $href = html_entity_decode(trim($href), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-                if ($href === '' || str_starts_with($href, '#')) {
-                    continue;
-                }
-
-                $href = preg_replace('/#.*$/', '', $href);
-
-                if ($href === '') {
-                    continue;
-                }
-
-                $fullUrl = str_starts_with($href, 'http://') || str_starts_with($href, 'https://')
-                    ? $href
-                    : 'https://vanille.by' . (str_starts_with($href, '/') ? $href : '/' . $href);
-
-                $parsedPath = parse_url($fullUrl, PHP_URL_PATH) ?? '';
-                $slug = trim($parsedPath, '/');
-
-                if ($slug === '' || str_contains($slug, '/')) {
-                    continue;
-                }
-
-                if (in_array($slug, [
-                    'brendyi',
-                    'skidki',
-                    'dostavka',
-                    'kontaktyi',
-                    'otzyivyi-o-magazine',
-                    'o-magazine',
-                    'akczii-i-novosti',
-                    'parfyumeriya-optom',
-                    'poryadok-obrabotki-obrashhenij',
-                    'parfumeriya-dlya-zhenshhin',
-                    'parfumeriya-dlya-muzhchin',
-                    'parfumeriya-uniseks',
-                    'otlivant-duhi-na-razliv',
-                    'ostatki-vo-flakonax',
-                    'aroma-box',
-                    'poisk',
-                    'sale',
-                    'shop',
-                    'oplata',
-                    'catalog',
-                    'novinki',
-                    'lyuks',
-                    'selektivnaya',
-                    'lideryi-prodazh',
-                    'limited-edition',
-                    'celebrity',
-                    'klassika',
-                    'arabskaya',
-                    'top-100-women',
-                    'top-100-men',
-                    'top-100-unisex',
-                    'atomajzeryi',
-                    'sertifikat',
-                    'podarochnyie-naboryi',
-                    'lk',
-                    'oformlenie',
-                    'izbrannyie',
-                    'prosmotrennyie',
-                ], true)) {
-                    continue;
-                }
-
-                if ($slug === $brandSlug) {
-                    continue;
-                }
-                if ($brandSlug !== '' && !str_starts_with($slug, $brandSlug . '-')) {
-                    continue;
-                }
-
-                $indexed[$slug] = [
-                    'slug' => $slug,
-                    'url' => 'https://vanille.by/' . $slug,
-                    'brand' => $brandName,
-                ];
-
-                $found++;
-
-                if ($maxLinks !== null && count($indexed) >= $maxLinks) {
-                    $reachedMaxLinks = true;
-                    break;
-                }
-            }
-
-            $log[] = "{$brandName}: {$found}";
-
-            if ($reachedMaxLinks) {
-                break;
-            }
-
-        }
-
-        $allLinks = array_values($indexed);
-
-        if ($maxLinks !== null) {
-            $allLinks = array_slice($allLinks, 0, $maxLinks);
-        }
-
-        $dir = storage_path('app/public/imports/vanille');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
+        $path = $this->ensureVanilleImportDir() . '/product_links.json';
 
         file_put_contents(
             $path,
-            json_encode($allLinks, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            json_encode($result['links'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
-
-        $nextOffset = $offset + $processed;
-        $done = $reachedMaxLinks || $nextOffset >= count($brands);
 
         return [
             'success' => true,
-            'message' => $done
+            'message' => $result['done']
                 ? 'Сбор ссылок завершён'
                 : 'Пачка ссылок собрана',
-            'count' => count($allLinks),
+            'count' => count($result['links']),
             'path' => $path,
-            'log' => $log,
-            'offset' => $offset,
-            'limit' => $limit,
-            'next_offset' => $nextOffset,
-            'done' => $done,
-            'max_links' => $maxLinks,
-            'reached_max_links' => $reachedMaxLinks,
-            'processed_brands' => $processed,
-            'total_brands' => count($brands),
+            'log' => $result['log'],
+            'offset' => $result['offset'],
+            'limit' => $result['limit'],
+            'next_offset' => $result['next_offset'],
+            'done' => $result['done'],
+            'processed_brands' => $result['processed_brands'],
+            'total_brands' => $result['total_brands'],
+            'max_links' => $result['max_links'],
+            'reached_max_links' => $result['reached_max_links'],
         ];
     }
 
     public function parseProducts(int $offset = 0, int $limit = 20, ?int $maxLinks = 100): array
     {
-        $linksPath = storage_path('app/public/imports/vanille/product_links.json');
+        $linksPath = $this->ensureVanilleImportDir() . '/product_links.json';
 
         if (!file_exists($linksPath)) {
             return [
@@ -692,7 +448,7 @@ class VanilleImportService
             }
 
             try {
-                $items[] = $this->parseProductPage($url);
+                $items[] = $this->productParser->parseProductPage($url);
                 $log[] = 'OK: ' . $url;
             } catch (\Throwable $e) {
                 $errors++;
@@ -700,10 +456,7 @@ class VanilleImportService
             }
         }
 
-        $dir = storage_path('app/public/imports/vanille/products');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
+        $dir = $this->ensureVanilleProductsDir();
 
         $fileIndex = (int) floor($offset / $limit) + 1;
         $filePath = $dir . '/products_' . str_pad((string) $fileIndex, 3, '0', STR_PAD_LEFT) . '.json';
@@ -733,221 +486,12 @@ class VanilleImportService
             'limit' => $limit,
             'next_offset' => $nextOffset,
             'done' => $done,
-            'max_links' => $maxLinks,
             'processed_links' => $processed,
             'total_links' => count($links),
+            'max_links' => $maxLinks,
         ];
     }
 
-    protected function parseProductPage(string $url): array
-    {
-        $html = $this->fetchUrl($url, 10);
-
-        $pageTitle = $this->matchOne('/<title>(.*?)<\/title>/isu', $html);
-        $name = $this->matchOne('/<h1[^>]*>(.*?)<\/h1>/isu', $html);
-
-        $characteristics = $this->parseCharacteristics($html);
-        $brand = $characteristics['Бренд'] ?? $this->extractBrandFromName($name);
-        $description = $this->parseDescription($html);
-        $offers = $this->parseOffers($html, $brand, $name);
-
-        return [
-            'url' => $url,
-            'page_title' => $this->cleanText($pageTitle),
-            'brand' => $brand,
-            'name' => $this->cleanText($name),
-            'characteristics' => $characteristics,
-            'description' => $description,
-            'offers' => $offers,
-        ];
-    }
-
-    protected function parseCharacteristics(string $html): array
-    {
-        $data = [];
-
-        preg_match_all('/<tr[^>]*itemprop="additionalProperty"[^>]*>(.*?)<\/tr>/isu', $html, $rows);
-
-        foreach ($rows[1] as $rowHtml) {
-            if (!preg_match('/<span itemprop="name">(.*?)<\/span>/isu', $rowHtml, $keyMatch)) {
-                continue;
-            }
-
-            $key = $this->cleanText($keyMatch[1]);
-
-            preg_match_all('/<span[^>]*itemprop="value"[^>]*>(.*?)<\/span>/isu', $rowHtml, $valueMatches);
-            $values = [];
-
-            foreach ($valueMatches[1] as $rawValue) {
-                $value = $this->cleanText($rawValue);
-                if ($value !== '') {
-                    $values[] = $value;
-                }
-            }
-
-            if ($key !== '') {
-                $data[$key] = implode(', ', $values);
-            }
-        }
-
-        return $data;
-    }
-
-    protected function parseDescription(string $html): string
-    {
-        if (!preg_match('/<div itemprop="description" class="select">(.*?)<\/div>\s*<!--noindex-->/isu', $html, $match)) {
-            return '';
-        }
-
-        return $this->cleanText($match[1]);
-    }
-
-    protected function parseOffers(string $html, string $brand, string $name): array
-    {
-        $offers = [];
-        $marker = 'itemprop="offers" itemscope itemtype="https://schema.org/Offer"';
-
-        preg_match_all('/' . preg_quote($marker, '/') . '/u', $html, $matches, PREG_OFFSET_CAPTURE);
-
-        $positions = array_map(fn($m) => $m[1], $matches[0]);
-
-        foreach ($positions as $index => $pos) {
-            $start = strrpos(substr($html, 0, $pos), '<div');
-            $end = $positions[$index + 1] ?? strpos($html, '<div class="product-intro__section">', $pos);
-
-            if ($start === false) {
-                $start = $pos;
-            }
-
-            if ($end === false) {
-                $end = $pos + 3000;
-            }
-
-            $block = substr($html, $start, $end - $start);
-
-            preg_match('/<meta itemprop="price" content="([^"]+)"/isu', $block, $priceMatch);
-
-            $inputStart = strpos($block, '<input');
-            $attrs = [];
-
-            if ($inputStart !== false) {
-                $tag = $this->extractTag($block, $inputStart);
-                $attrs = $this->parseAttrs($tag);
-            }
-
-            $variant = $attrs['value'] ?? $this->matchOne('/<span class="price-title">(.*?)<\/span>/isu', $block);
-            $type = $attrs['data-tip'] ?? $this->matchOne('/<span class="price-tip">(.*?)<\/span>/isu', $block);
-
-            $variant = $this->cleanText($variant);
-            $type = $this->cleanText($type);
-
-            if (str_contains(mb_strtolower($variant), 'отливант') || str_contains(mb_strtolower($type), 'отливант')) {
-                continue;
-            }
-
-            $title = $attrs['data-title'] ?? '';
-            $title = $this->cleanText($title);
-
-            if ($title === '') {
-                $baseName = $name;
-                if ($brand !== '' && str_starts_with(mb_strtolower($name), mb_strtolower($brand . ' '))) {
-                    $baseName = trim(mb_substr($name, mb_strlen($brand)));
-                }
-
-                $title = trim(implode(' ', array_filter([$brand, $baseName, $variant, $type])));
-            }
-
-            $offers[] = [
-                'variant' => $variant,
-                'type' => $type,
-                'title' => $title,
-                'article' => $attrs['data-article'] ?? '',
-                'price_byn' => $priceMatch[1] ?? $this->cleanText($attrs['data-price'] ?? ''),
-                'old_price' => $this->cleanText($attrs['data-oldprice'] ?? ''),
-                'stock_flag' => $attrs['data-stock'] ?? '',
-                'sale_flag' => $attrs['data-sale'] ?? '',
-                'shop_flag' => $attrs['data-shop'] ?? '',
-            ];
-        }
-
-        return $offers;
-    }
-
-    protected function parseAttrs(string $tag): array
-    {
-        $attrs = [];
-        preg_match_all('/([a-zA-Z0-9_:-]+)="([^"]*)"/u', $tag, $matches, PREG_SET_ORDER);
-
-        foreach ($matches as $match) {
-            $attrs[$match[1]] = $this->cleanText($match[2]);
-        }
-        return $attrs;
-    }
-
-    protected function extractTag(string $html, int $start): string
-    {
-        $inQuote = false;
-        $length = strlen($html);
-
-        for ($i = $start; $i < $length; $i++) {
-            $char = $html[$i];
-
-            if ($char === '"') {
-                $inQuote = !$inQuote;
-            } elseif ($char === '>' && !$inQuote) {
-                return substr($html, $start, $i - $start + 1);
-            }
-        }
-
-        return substr($html, $start);
-    }
-
-    protected function matchOne(string $pattern, string $html): string
-    {
-        return preg_match($pattern, $html, $match) ? $match[1] : '';
-    }
-
-    protected function cleanText(string $value): string
-    {
-        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $value = strip_tags($value);
-        $value = preg_replace('/\s+/u', ' ', $value);
-
-        return trim($value);
-    }
-
-    protected function extractBrandFromName(string $name): string
-    {
-        $parts = preg_split('/\s+/u', trim($name));
-        return $parts[0] ?? '';
-    }
-
-    protected function fetchUrl(string $url, int $timeout = 10): string
-    {
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'timeout' => $timeout,
-                'header' => implode("\r\n", [
-                    'User-Agent: Mozilla/5.0 (compatible; VanilleParser/1.0)',
-                    'Accept: text/html,application/xhtml+xml',
-                    'Connection: close',
-                ]),
-            ],
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ],
-        ]);
-
-        $html = @file_get_contents($url, false, $context);
-
-        if ($html === false) {
-            throw new \RuntimeException("Не удалось загрузить URL: {$url}");
-        }
-
-        return $html;
-    }
 
     public function importParsedProducts(): array
     {
@@ -1000,5 +544,27 @@ class VanilleImportService
             'files' => array_values($files),
             'log' => $log,
         ];
+    }
+
+    protected function ensureVanilleImportDir(): string
+    {
+        $dir = storage_path('app/public/imports/vanille');
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        return $dir;
+    }
+
+    protected function ensureVanilleProductsDir(): string
+    {
+        $dir = storage_path('app/public/imports/vanille/products');
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        return $dir;
     }
 }

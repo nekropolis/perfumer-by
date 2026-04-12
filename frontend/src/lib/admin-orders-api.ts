@@ -1,5 +1,5 @@
 import { getAuthToken } from "@/lib/auth-token";
-import type { OrderResponse, OrdersResponse } from "@/types/catalog";
+import type { OrderResponse, OrdersResponse } from "@/types/orders";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 

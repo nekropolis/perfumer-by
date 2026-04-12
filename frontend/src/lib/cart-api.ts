@@ -1,5 +1,5 @@
 import { getCartToken } from "@/lib/cart-token";
-import type { CartResponse } from "@/types/catalog";
+import type { CartResponse } from "@/types/cart";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 

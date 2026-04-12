@@ -6,6 +6,7 @@ import {useTransition} from "react";
 import {addToCart} from "@/lib/cart-api";
 import {useCart} from "@/components/cart/cart-provider";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
+import ProductInfoExtra from "@/components/catalog/product-info-extra";
 
 type Props = {
     product: ProductDetailData;
@@ -67,107 +68,112 @@ export default function ProductDetailView({product}: Props) {
                 ]}
             />
 
-
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[420px_minmax(0,1fr)]">
-                <section>
-                    <div className="overflow-hidden rounded-3xl border bg-white lg:max-w-[420px]">
+                <section className="h-full">
+                    <div className="h-full overflow-hidden rounded-3xl border bg-white">
                         {mainImage ? (
                             <img
                                 src={`/${mainImage.path}`}
                                 alt={product.name}
-                                className="aspect-[4/5] h-auto w-full object-cover"
+                                className="h-full w-full object-cover"
                             />
                         ) : (
-                            <div className="flex aspect-[4/5] items-center justify-center text-gray-400">
+                            <div className="flex h-full min-h-[420px] items-center justify-center text-gray-400">
                                 Нет изображения
                             </div>
                         )}
                     </div>
                 </section>
 
-                <section>
-                    <div className="mb-2 text-sm text-gray-500">Код товара: #{product.id}</div>
+                <section className="min-w-0">
+                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">                        <div>
+                            <div className="mb-2 text-sm text-gray-500">Код товара: #{product.id}</div>
 
-                    <h1 className="mb-5 text-3xl font-semibold">
-                        {product.h1 || product.name}
-                    </h1>
+                            <h1 className="mb-5 text-3xl font-semibold">
+                                {product.h1 || product.name}
+                            </h1>
 
-                    {selectedVariant && (
-                        <div className="mb-6 flex flex-wrap items-end gap-3">
-                            {selectedVariant.old_price && (
-                                <div className="text-lg text-gray-400 line-through">
-                                    {formatPrice(selectedVariant.old_price)}
+                            {selectedVariant && (
+                                <div className="mb-6 flex flex-wrap items-end gap-3">
+                                    {selectedVariant.old_price && (
+                                        <div className="text-lg text-gray-400 line-through">
+                                            {formatPrice(selectedVariant.old_price)}
+                                        </div>
+                                    )}
+
+                                    <div className="text-3xl font-semibold">
+                                        {selectedVariant.price ? formatPrice(selectedVariant.price) : "Предзаказ"}
+                                    </div>
+
+                                    {selectedVariant.discount_percent && (
+                                        <div className="rounded-full border px-3 py-1 text-sm">
+                                            -{selectedVariant.discount_percent}%
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
-                            <div className="text-3xl font-semibold">
-                                {selectedVariant.price ? formatPrice(selectedVariant.price) : "Предзаказ"}
+                            <div className="mb-6">
+                                <div className="flex flex-wrap gap-2">
+                                    {product.variants.map((variant) => {
+                                        const isSelected = variant.id === selectedVariantId;
+
+                                        let availabilityText = "Нет в наличии";
+                                        let availabilityClass = isSelected ? "text-white/80" : "text-red-600";
+
+                                        if (variant.is_available) {
+                                            if (variant.is_preorder) {
+                                                availabilityText = "Предзаказ";
+                                                availabilityClass = isSelected ? "text-white/80" : "text-amber-600";
+                                            } else {
+                                                availabilityText = "В наличии";
+                                                availabilityClass = isSelected ? "text-white/80" : "text-green-600";
+                                            }
+                                        }
+
+                                        return (
+                                            <button
+                                                key={variant.id}
+                                                type="button"
+                                                onClick={() => setSelectedVariantId(variant.id)}
+                                                className={`min-w-[150px] rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                                                    isSelected
+                                                        ? "border-black bg-black text-white"
+                                                        : "hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                <div className="font-medium">{variant.display_name}</div>
+
+                                                {variant.price && (
+                                                    <div className={`mt-1 text-xs ${isSelected ? "text-white/80" : "text-gray-500"}`}>
+                                                        {formatPrice(variant.price)}{" "}
+                                                        <span className={availabilityClass}>
+                                                {availabilityText}
+                                            </span>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
-                            {selectedVariant.discount_percent && (
-                                <div className="rounded-full border px-3 py-1 text-sm">
-                                    -{selectedVariant.discount_percent}%
-                                </div>
-                            )}
+                            <div className="mb-8">
+                                <button
+                                    type="button"
+                                    onClick={handleAddToCart}
+                                    disabled={!selectedVariant || !selectedVariant.is_available || isPending}
+                                    className="rounded-2xl bg-black px-6 py-3 text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isPending ? "Добавление..." : "Добавить в корзину"}
+                                </button>
+                            </div>
                         </div>
-                    )}
 
-                    <div className="mb-6">
-                        <div className="flex flex-wrap gap-2">
-                            {product.variants.map((variant) => {
-                                const isSelected = variant.id === selectedVariantId;
-
-                                let availabilityText = "Нет в наличии";
-                                let availabilityClass = isSelected ? "text-white/80" : "text-red-600";
-
-                                if (variant.is_available) {
-                                    if (variant.is_preorder) {
-                                        availabilityText = "Предзаказ";
-                                        availabilityClass = isSelected ? "text-white/80" : "text-amber-600";
-                                    } else {
-                                        availabilityText = "В наличии";
-                                        availabilityClass = isSelected ? "text-white/80" : "text-green-600";
-                                    }
-                                }
-
-                                return (
-                                    <button
-                                        key={variant.id}
-                                        type="button"
-                                        onClick={() => setSelectedVariantId(variant.id)}
-                                        className={`min-w-[150px] rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                                            isSelected
-                                                ? "border-black bg-black text-white"
-                                                : "hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        <div className="font-medium">{variant.display_name}</div>
-                                        {variant.price && (
-                                            <div
-                                                className={`mt-1 text-xs ${isSelected ? "text-white/80" : "text-gray-500"}`}>
-                                                {formatPrice(variant.price)} <span
-                                                className={`mt-1 text-xs ${availabilityClass}`}>
-                                                    {availabilityText}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <aside className="self-start lg:sticky lg:top-24">
+                            <ProductInfoExtra />
+                        </aside>
                     </div>
-
-                    <div className="mb-8">
-                        <button
-                            type="button"
-                            onClick={handleAddToCart}
-                            disabled={!selectedVariant || !selectedVariant.is_available || isPending}
-                            className="rounded-2xl bg-black px-6 py-3 text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {isPending ? "Добавление..." : "Добавить в корзину"}
-                        </button>
-                    </div>
-
                 </section>
             </div>
             <div className="mt-8 rounded-2xl border">
