@@ -1,0 +1,175 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminSearchInput from "@/components/admin/ui/admin-search-input";
+import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminPagination from "@/components/admin/ui/admin-pagination";
+import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import BrandsTable from "@/components/admin/brands/brands-table";
+import {
+    deleteBrand,
+    fetchBrands,
+    type BrandItem,
+    type BrandsResponse,
+} from "@/lib/admin-brands-api";
+
+export default function AdminBrandsPage() {
+    const [items, setItems] = useState<BrandItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const [page, setPage] = useState(1);
+    const [meta, setMeta] = useState<BrandsResponse | null>(null);
+
+    const [deleteTarget, setDeleteTarget] = useState<BrandItem | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const loadItems = async (targetPage = page, targetSearch = searchInput) => {
+        setLoading(true);
+        setError("");
+
+        try {
+            const data = await fetchBrands({
+                page: targetPage,
+                search: targetSearch.trim() || undefined,
+            });
+
+            setItems(data.data || []);
+            setMeta(data);
+        } catch (e: any) {
+            setError(e?.message || "Ошибка загрузки брендов");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            void loadItems(1, searchInput);
+            setPage(1);
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        void loadItems(page, searchInput);
+    }, [page]);
+
+    const requestDelete = (item: BrandItem) => {
+        setDeleteTarget(item);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) {
+            return;
+        }
+
+        setDeleting(true);
+        setError("");
+        setSuccess("");
+
+        try {
+            const data = await deleteBrand(deleteTarget.id);
+            setSuccess(data.message || "Бренд удалён");
+            setDeleteTarget(null);
+            await loadItems(page, searchInput);
+        } catch (e: any) {
+            setError(e?.message || "Ошибка удаления бренда");
+        } finally {
+            setDeleting(false);
+        }
+    };
+    return (
+        <AdminPageCard>
+            <AdminTableToolbar
+                title="Бренды"
+                description="Просмотр, создание, редактирование и удаление брендов"
+            >
+                <AdminSearchInput
+                    value={searchInput}
+                    onChange={setSearchInput}
+                    placeholder="Поиск по названию или slug"
+                />
+
+                <Link
+                    href="/admin/brands/create"
+                    className="rounded-xl bg-black px-4 py-2 text-sm text-white"
+                >
+                    Создать бренд
+                </Link>
+            </AdminTableToolbar>
+
+            {error ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="error"
+                        message={error}
+                        onCloseAction={() => setError("")}
+                    />
+                </div>
+            ) : null}
+
+            {success ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="success"
+                        message={success}
+                        onCloseAction={() => setSuccess("")}
+                    />
+                </div>
+            ) : null}
+
+            {loading ? (
+                <AdminLoadingState text="Загрузка брендов..." />
+            ) : items.length === 0 ? (
+                <AdminEmptyState
+                    title="Бренды не найдены"
+                    description="Попробуйте изменить поиск или создайте новый бренд."
+                />
+            ) : (
+                <div className="space-y-4">
+                    <div className="text-sm text-gray-500">
+                        Всего: {meta?.total ?? items.length}
+                    </div>
+
+                    <BrandsTable
+                        items={items}
+                        onDelete={requestDelete}
+                    />
+
+                    <AdminPagination
+                        currentPage={meta?.current_page ?? 1}
+                        lastPage={meta?.last_page ?? 1}
+                        onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                        onNext={() =>
+                            setPage((p) =>
+                                meta && meta.current_page < meta.last_page ? p + 1 : p
+                            )
+                        }
+                    />
+                </div>
+            )}
+
+            <AdminConfirmDialog
+                open={!!deleteTarget}
+                title="Удаление бренда"
+                message={
+                    deleteTarget
+                        ? `Удалить бренд "${deleteTarget.name}"?`
+                        : ""
+                }
+                confirmText="Удалить"
+                loading={deleting}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={confirmDelete}
+            />
+        </AdminPageCard>
+    );
+}

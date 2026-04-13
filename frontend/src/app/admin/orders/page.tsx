@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchOrders } from "@/lib/admin-orders-api";
-import type { OrderData } from "@/types/catalog";
+import type { OrderData } from "@/types/orders";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrdersTable from "@/components/admin/admin-orders-table";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";

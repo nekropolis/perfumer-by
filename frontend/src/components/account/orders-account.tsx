@@ -3,7 +3,7 @@
 import {getOrderStatusLabel, getOrderStatusStyle} from "@/constants/order-statuses";
 import {useEffect, useState} from "react";
 import {fetchMyOrders} from "@/lib/my-orders-api";
-import type {OrderData} from "@/types/catalog";
+import type {OrderData} from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
 
 type OrdersAccountProps = {

@@ -19,7 +19,10 @@ class ProductController extends Controller
             ->with([
                 'brand',
                 'mainCategory',
-                'mainImage',
+                'categories',
+                'images',
+                'attributeValues.attribute.activeOptions',
+                'attributeValues.selectedOptions.attributeOption',
                 'activeVariants',
             ]);
 
@@ -58,7 +61,8 @@ class ProductController extends Controller
                 'mainCategory',
                 'categories',
                 'images',
-                'attributes',
+                'attributeValues.attribute.activeOptions',
+                'attributeValues.selectedOptions.attributeOption',
                 'activeVariants',
             ])
             ->firstOrFail();

@@ -10,7 +10,7 @@ import {
     type ReactNode,
 } from "react";
 import { fetchCart } from "@/lib/cart-api";
-import type { CartData } from "@/types/catalog";
+import type { CartData } from "@/types/cart";
 
 type CartContextType = {
     cart: CartData | null;

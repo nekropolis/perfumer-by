@@ -70,9 +70,9 @@ class Product extends Model
             ->where('is_main', true);
     }
 
-    public function attributes(): HasMany
+    public function attributeValues(): HasMany
     {
-        return $this->hasMany(ProductAttribute::class)->orderBy('sort_order');
+        return $this->hasMany(ProductAttributeValue::class)->orderBy('sort_order');
     }
 
     public function supplierProducts(): HasMany

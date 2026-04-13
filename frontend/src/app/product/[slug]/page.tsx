@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import type { ProductDetailResponse } from "@/types/catalog";
-import ProductDetailView from "@/components/catalog/product-detail-view";
+import ProductDetailView from "@/components/product/product-detail-view";
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@/lib/seo";
 

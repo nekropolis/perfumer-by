@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { OrderData } from "@/types/catalog";
+import type { OrderData } from "@/types/orders";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";

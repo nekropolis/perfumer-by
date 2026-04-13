@@ -21,6 +21,7 @@ class ProductDetailResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'is_active' => $this->is_active,
             'name' => $this->name,
             'slug' => $this->slug,
             'h1' => $this->h1,
@@ -59,14 +60,43 @@ class ProductDetailResource extends JsonResource
                 ])->values();
             }),
 
-            'attributes' => $this->attributes
-                ? $this->attributes->map(fn ($attribute) => [
-                    'id' => $attribute->id,
-                    'name' => $attribute->name,
-                    'value' => $attribute->value,
-                    'sort_order' => $attribute->sort_order,
-                ])->values()
-                : [],
+            'attribute_values' => $this->whenLoaded('attributeValues', function () {
+                return $this->attributeValues->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'custom_value' => $item->custom_value,
+                        'sort_order' => $item->sort_order,
+
+                        'attribute' => $item->attribute ? [
+                            'id' => $item->attribute->id,
+                            'name' => $item->attribute->name,
+                            'type' => $item->attribute->type,
+                            'options' => $item->attribute->relationLoaded('activeOptions')
+                                ? $item->attribute->activeOptions->map(function ($option) {
+                                    return [
+                                        'id' => $option->id,
+                                        'name' => $option->name,
+                                        'sort_order' => $option->sort_order,
+                                    ];
+                                })->values()
+                                : [],
+                        ] : null,
+
+                        'selected_options' => $item->relationLoaded('selectedOptions')
+                            ? $item->selectedOptions
+                                ->filter(fn ($selected) => $selected->attributeOption)
+                                ->map(function ($selected) {
+                                    return [
+                                        'id' => $selected->attributeOption->id,
+                                        'name' => $selected->attributeOption->name,
+                                        'sort_order' => $selected->attributeOption->sort_order,
+                                    ];
+                                })->values()
+                            : [],
+                    ];
+                })->values();
+            }),
+
 
             'price_range' => [
                 'min' => $prices->isNotEmpty() ? $prices->min() : null,

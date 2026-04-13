@@ -16,11 +16,23 @@ export type ProductVariantData = {
     is_available: boolean;
 };
 
-export type ProductAttributeData = {
+export type ProductAttributeOptionData = {
     id: number;
     name: string;
-    value: string;
     sort_order: number;
+};
+
+export type ProductAttributeValueData = {
+    id: number;
+    custom_value: string | null;
+    sort_order: number;
+    attribute: {
+        id: number;
+        name: string;
+        type: "text" | "select" | "multiselect";
+        options: ProductAttributeOptionData[];
+    } | null;
+    selected_options: ProductAttributeOptionData[];
 };
 
 export type ProductImageData = {
@@ -111,7 +123,7 @@ export type ProductDetailData = {
     }[];
 
     images: ProductImageData[];
-    attributes: ProductAttributeData[];
+    attribute_values: ProductAttributeValueData[];
 
     price_range: {
         min: string | null;

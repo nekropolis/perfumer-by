@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchMyOrder } from "@/lib/my-orders-api";
-import type { OrderData } from "@/types/catalog";
+import type { OrderData } from "@/types/orders";
 import {
     getOrderStatusLabel,
     getOrderStatusStyle,

@@ -1,0 +1,245 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
+import ProductForm, {
+    type ProductFormState,
+} from "@/components/admin/products/product-form";
+import ProductEditorTabs, {
+    type ProductEditorTab,
+} from "@/components/admin/products/product-editor-tabs";
+import ProductAttributeValuesEditor from "@/components/admin/products/product-attribute-values-editor";
+import {
+    fetchProductBrandOptions,
+    fetchProductById,
+    updateProduct,
+    type ProductAdminDetail,
+    type ProductBrandOption,
+} from "@/lib/admin-products-api";
+import {
+    fetchAttributeBindingOptions,
+    type AttributeBindingItem,
+} from "@/lib/admin-attributes-api";
+
+export default function AdminProductEditPage() {
+    const params = useParams<{ id: string }>();
+
+    const [activeTab, setActiveTab] = useState<ProductEditorTab>("main");
+    const [form, setForm] = useState<ProductFormState | null>(null);
+    const [productData, setProductData] = useState<ProductAdminDetail | null>(null);
+    const [brands, setBrands] = useState<ProductBrandOption[]>([]);
+    const [attributeBindingOptions, setAttributeBindingOptions] = useState<AttributeBindingItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
+
+    const loadData = async () => {
+        setLoading(true);
+        setError("");
+
+        try {
+            const [productResponse, brandsResponse, bindingOptionsResponse] = await Promise.all([
+                fetchProductById(params.id),
+                fetchProductBrandOptions(),
+                fetchAttributeBindingOptions(),
+            ]);
+
+            const item = productResponse.data;
+
+            setProductData(item);
+            setBrands(brandsResponse.data || []);
+            setAttributeBindingOptions(bindingOptionsResponse.data || []);
+
+            console.log(item.is_active, item.id)
+            setForm({
+                id: item.id,
+                brand_id: item.brand?.id ? String(item.brand.id) : "",
+                name: item.name,
+                slug: item.slug,
+                is_active: Boolean(item.is_active),
+                h1: item.h1 || item.name,
+                short_description: item.short_description || "",
+                description: item.description || "",
+                seo_title: item.seo_title || "",
+                seo_description: item.seo_description || "",
+            });
+        } catch (e: any) {
+            setError(e?.message || "Ошибка загрузки продукта");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void loadData();
+    }, [params.id]);
+
+    const handleSubmit = async () => {
+        if (!form) {
+            return;
+        }
+
+        setSubmitting(true);
+        setError("");
+
+        if (!form.brand_id || !form.name.trim() || !form.slug.trim()) {
+            setError("Бренд, название и slug обязательны");
+            setSubmitting(false);
+            return;
+        }
+
+        try {
+            await updateProduct(form.id!, {
+                brand_id: Number(form.brand_id),
+                name: form.name,
+                slug: form.slug,
+                is_active: form.is_active,
+                h1: form.h1,
+                short_description: form.short_description,
+                description: form.description,
+                seo_title: form.seo_title,
+                seo_description: form.seo_description,
+            });
+
+            await loadData();
+        } catch (e: any) {
+            setError(e?.message || "Ошибка сохранения продукта");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <AdminPageCard>
+            <Breadcrumbs
+                className="mb-4"
+                items={[
+                    { label: "Админка", href: "/admin" },
+                    { label: "Продукты", href: "/admin/products" },
+                    { label: "Редактирование" },
+                ]}
+            />
+
+            <div className="mb-6 flex items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-semibold">Редактировать продукт</h1>
+                    <p className="mt-1 text-sm text-gray-600">
+                        Редактирование продукта
+                    </p>
+                </div>
+
+                <Link
+                    href="/admin/products"
+                    className="rounded-xl border px-4 py-2 text-sm"
+                >
+                    Назад
+                </Link>
+            </div>
+
+            {error ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="error"
+                        message={error}
+                        onCloseAction={() => setError("")}
+                    />
+                </div>
+            ) : null}
+
+            {loading ? (
+                <AdminLoadingState text="Загрузка продукта..." />
+            ) : form && productData ? (
+                <>
+                    <ProductEditorTabs
+                        activeTab={activeTab}
+                        onChange={setActiveTab}
+                    />
+
+                    {activeTab === "main" && (
+                        <ProductForm
+                            form={form}
+                            brands={brands}
+                            submitting={submitting}
+                            onChange={setForm}
+                            onSubmit={handleSubmit}
+                        />
+                    )}
+
+                    {activeTab === "images" && (
+                        <div className="rounded-2xl border bg-white p-5 text-sm text-gray-600">
+                            Раздел картинок будет подключён следующим шагом.
+                        </div>
+                    )}
+
+                    {activeTab === "variants" && (
+                        <div className="rounded-2xl border bg-white p-5 text-sm text-gray-600">
+                            Раздел вариантов будет подключён следующим шагом.
+                        </div>
+                    )}
+
+                    {activeTab === "attributes" && (
+                        <ProductAttributeValuesEditor
+                            productId={form.id!}
+                            items={productData.attribute_values || []}
+                            attributes={attributeBindingOptions}
+                            onReload={loadData}
+                        />
+                    )}
+
+                    {activeTab === "seo" && (
+                        <div className="space-y-4 rounded-2xl border bg-white p-5">
+                            <div>
+                                <label className="mb-1 block text-sm text-gray-600">
+                                    SEO title
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.seo_title}
+                                    onChange={(e) =>
+                                        setForm({
+                                            ...form,
+                                            seo_title: e.target.value,
+                                        })
+                                    }
+                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm text-gray-600">
+                                    SEO description
+                                </label>
+                                <textarea
+                                    value={form.seo_description}
+                                    onChange={(e) =>
+                                        setForm({
+                                            ...form,
+                                            seo_description: e.target.value,
+                                        })
+                                    }
+                                    className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                                />
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={handleSubmit}
+                                    disabled={submitting}
+                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                >
+                                    {submitting ? "Сохранение..." : "Сохранить"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            ) : null}
+        </AdminPageCard>
+    );
+}

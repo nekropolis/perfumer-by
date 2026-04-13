@@ -1,6 +1,6 @@
 "use client";
 
-import type { OrderData } from "@/types/catalog";
+import type { OrderData } from "@/types/orders";
 
 type Props = {
     order: OrderData | null;

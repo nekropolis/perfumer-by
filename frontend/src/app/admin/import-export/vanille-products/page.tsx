@@ -9,6 +9,7 @@ import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import AdminPagination from "@/components/admin/ui/admin-pagination";
 
 type SupplierProductItem = {
     id: number;
@@ -314,8 +315,7 @@ export default function VanilleProductsPage() {
                                         </td>
                                         <td className="px-4 py-3">
                                             {item.is_active ? (
-                                                <span className="rounded-full bg-green-100 px-2 py-1 text-
-xs text-green-700">
+                                                <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
                                                     active
                                                 </span>
                                             ) : (
@@ -331,33 +331,17 @@ xs text-green-700">
                             </table>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                            <button
-                                type="button"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={!meta || meta.current_page <= 1}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                Назад
-                            </button>
+                        <AdminPagination
+                            currentPage={meta?.current_page ?? 1}
+                            lastPage={meta?.last_page ?? 1}
+                            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                            onNext={() =>
+                                setPage((p) =>
+                                    meta && meta.current_page < meta.last_page ? p + 1 : p
+                                )
+                            }
+                        />
 
-                            <div className="text-sm text-gray-500">
-                                Страница {meta?.current_page ?? 1} из {meta?.last_page ?? 1}
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setPage((p) =>
-                                        meta && meta.current_page < meta.last_page ? p + 1 : p
-                                    )
-                                }
-                                disabled={!meta || meta.current_page >= meta.last_page}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                Вперёд
-                            </button>
-                        </div>
                     </div>
                 )}
         </AdminPageCard>

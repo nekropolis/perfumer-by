@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
+    ListFilter,
     ShoppingBag,
     Tags,
     FileText,
@@ -40,7 +41,9 @@ type SidebarItem = LinkItem | GroupItem;
 const items: SidebarItem[] = [
     { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
     { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingBag },
-    { type: "link", href: "#", label: "Бренды", icon: Tags },
+    { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
+    { type: "link", href: "/admin/products", label: "Продукты", icon: ShoppingBag },
+    { type: "link", href: "/admin/attributes", label: "Характеристики", icon: ListFilter },
     { type: "link", href: "#", label: "Страницы", icon: FileText },
     { type: "link", href: "#", label: "Футер", icon: Settings },
 
