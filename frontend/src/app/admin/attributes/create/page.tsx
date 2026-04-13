@@ -44,8 +44,12 @@ export default function AdminAttributeCreatePage() {
             });
 
             router.push("/admin/attributes");
-        } catch (e: any) {
-            setError(e?.message || "Ошибка создания характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка создания атрибута"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -57,16 +61,16 @@ export default function AdminAttributeCreatePage() {
                 className="mb-4"
                 items={[
                     { label: "Админка", href: "/admin" },
-                    { label: "Характеристики", href: "/admin/attributes" },
+                    { label: "Атрибуты", href: "/admin/attributes" },
                     { label: "Создание" },
                 ]}
             />
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Создать характеристику</h1>
+                    <h1 className="text-2xl font-semibold">Создать атрибут</h1>
                     <p className="mt-1 text-sm text-gray-600">
-                        Новая характеристика каталога
+                        Новый атрибут каталога
                     </p>
                 </div>
 

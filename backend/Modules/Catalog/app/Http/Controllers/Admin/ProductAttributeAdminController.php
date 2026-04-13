@@ -28,7 +28,7 @@ class ProductAttributeAdminController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Характеристика добавлена',
+            'message' => 'Атрибут добавлен',
             'data' => $attribute,
         ], 201);
     }
@@ -54,7 +54,7 @@ class ProductAttributeAdminController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Характеристика обновлена',
+            'message' => 'Атрибут обновлен',
             'data' => $attribute->fresh(),
         ]);
     }
@@ -70,7 +70,7 @@ class ProductAttributeAdminController extends Controller
         $attribute->delete();
 
         return response()->json([
-            'message' => 'Характеристика удалена',
+            'message' => 'Атрибут удален',
         ]);
     }
 }

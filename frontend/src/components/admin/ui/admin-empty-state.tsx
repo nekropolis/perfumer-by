@@ -8,9 +8,9 @@ export default function AdminEmptyState({
                                             description = "Попробуйте изменить параметры поиска или создать новую запись.",
                                         }: Props) {
     return (
-        <div className="rounded-xl border border-dashed px-4 py-6 text-gray-600">
-            <div className="font-medium text-gray-800">{title}</div>
-            <div className="mt-1 text-sm">{description}</div>
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 px-5 py-8 text-center">
+            <div className="text-base font-semibold text-gray-800">{title}</div>
+            <div className="mt-2 text-sm leading-6 text-gray-500">{description}</div>
         </div>
     );
 }

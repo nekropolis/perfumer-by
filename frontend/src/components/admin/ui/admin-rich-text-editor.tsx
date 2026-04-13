@@ -75,7 +75,7 @@ export default function AdminRichTextEditor({
         const nextValue = value || "";
 
         if (currentHtml !== nextValue) {
-            editor.commands.setContent(nextValue, { emitUpdate: false });
+            editor.commands.setContent(nextValue, { errorOnInvalidContent: false });
         }
     }, [editor, value]);
 
@@ -157,9 +157,9 @@ export default function AdminRichTextEditor({
                 />
             </div>
 
-            <div className="min-h-[240px]">
-                {!value ? (
-                    <div className="pointer-events-none absolute hidden px-4 py-3 text-sm text-gray-400">
+            <div className="relative min-h-[240px]">
+                {!editor.getText().trim() ? (
+                    <div className="pointer-events-none absolute left-0 top-0 px-4 py-3 text-sm text-gray-400">
                         {placeholder}
                     </div>
                 ) : null}

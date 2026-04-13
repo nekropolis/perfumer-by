@@ -48,7 +48,7 @@ export default function AdminAttributeEditPage() {
                 is_active: item.is_active,
             });
         } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки характеристики");
+            setError(e?.message || "Ошибка загрузки атрибута");
         } finally {
             setLoading(false);
         }
@@ -81,10 +81,14 @@ export default function AdminAttributeEditPage() {
                 is_active: form.is_active,
             });
 
-            setSuccess(result.message || "Характеристика сохранена");
+            setSuccess(result.message || "Атрибут сохранен");
             await loadData();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка сохранения характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка сохранения атрибута"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -95,16 +99,16 @@ export default function AdminAttributeEditPage() {
                 className="mb-4"
                 items={[
                     { label: "Админка", href: "/admin" },
-                    { label: "Характеристики", href: "/admin/attributes" },
+                    { label: "Атрибуты", href: "/admin/attributes" },
                     { label: "Редактирование" },
                 ]}
             />
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать характеристику</h1>
+                    <h1 className="text-2xl font-semibold">Редактировать атрибут</h1>
                     <p className="mt-1 text-sm text-gray-600">
-                        Настройка характеристики и её опций
+                        Настройка атрибута и его опций
                     </p>
                 </div>
 
@@ -137,7 +141,7 @@ export default function AdminAttributeEditPage() {
             ) : null}
 
             {loading ? (
-                <AdminLoadingState text="Загрузка характеристики..." />
+                <AdminLoadingState text="Загрузка атрибута..." />
             ) : form && attributeDetail ? (
                 <>
                     <AttributeEditorTabs

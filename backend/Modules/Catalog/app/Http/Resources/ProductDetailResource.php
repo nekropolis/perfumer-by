@@ -19,6 +19,8 @@ class ProductDetailResource extends JsonResource
         $defaultVariant = $variants->first(fn ($variant) => $variant->stock > 0 || $variant->is_preorder)
             ?? $variants->first();
 
+       // dd($this->activeVariants, $variants, ProductVariantResource::collection($variants));
+
         return [
             'id' => $this->id,
             'is_active' => $this->is_active,

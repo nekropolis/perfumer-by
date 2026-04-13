@@ -25,6 +25,7 @@ import {
     fetchAttributeBindingOptions,
     type AttributeBindingItem,
 } from "@/lib/admin-attributes-api";
+import ProductVariantsEditor from "@/components/admin/products/product-variant-editor";
 
 export default function AdminProductEditPage() {
     const params = useParams<{ id: string }>();
@@ -55,7 +56,9 @@ export default function AdminProductEditPage() {
             setBrands(brandsResponse.data || []);
             setAttributeBindingOptions(bindingOptionsResponse.data || []);
 
-            console.log(item.is_active, item.id)
+            console.log("product edit item", item);
+            console.log("product variants", item.variants);
+
             setForm({
                 id: item.id,
                 brand_id: item.brand?.id ? String(item.brand.id) : "",
@@ -68,8 +71,12 @@ export default function AdminProductEditPage() {
                 seo_title: item.seo_title || "",
                 seo_description: item.seo_description || "",
             });
-        } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки продукта");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка загрузки продукта"
+            );
         } finally {
             setLoading(false);
         }
@@ -107,8 +114,12 @@ export default function AdminProductEditPage() {
             });
 
             await loadData();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка сохранения продукта");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка сохранения продукта"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -177,9 +188,11 @@ export default function AdminProductEditPage() {
                     )}
 
                     {activeTab === "variants" && (
-                        <div className="rounded-2xl border bg-white p-5 text-sm text-gray-600">
-                            Раздел вариантов будет подключён следующим шагом.
-                        </div>
+                        <ProductVariantsEditor
+                            productId={form.id!}
+                            items={productData.variants || []}
+                            onReload={loadData}
+                        />
                     )}
 
                     {activeTab === "attributes" && (

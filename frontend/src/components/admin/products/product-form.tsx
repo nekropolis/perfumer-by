@@ -34,16 +34,33 @@ export default function ProductForm({
                                         onSubmit,
                                     }: Props) {
     return (
-        <div className="space-y-6 rounded-2xl border bg-white p-5">
-            <div className="space-y-4">
-                <AdminBrandSelect
-                    value={form.brand_id}
-                    brands={brands}
-                    onChange={(value) => onChange({ ...form, brand_id: value })}
-                />
+        <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-5 md:grid-cols-2">
+                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <input
+                        type="checkbox"
+                        checked={Boolean(form.is_active)}
+                        onChange={(e) =>
+                            onChange({
+                                ...form,
+                                is_active: e.target.checked,
+                            })
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                    />
+                    Активен
+                </label>
 
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">
+                <div className="md:col-span-2">
+                    <AdminBrandSelect
+                        value={form.brand_id}
+                        brands={brands}
+                        onChange={(value) => onChange({ ...form, brand_id: value })}
+                    />
+                </div>
+
+                <div className="md:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         Название
                     </label>
                     <input
@@ -60,38 +77,38 @@ export default function ProductForm({
                                 seo_title: form.id ? form.seo_title : nextName,
                             });
                         }}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                         required
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         Slug
                     </label>
                     <input
                         type="text"
                         value={form.slug}
                         readOnly
-                        className="w-full rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600 outline-none"
                         required
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         H1
                     </label>
                     <input
                         type="text"
                         value={form.h1}
                         onChange={(e) => onChange({ ...form, h1: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">
+                <div className="md:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         Краткое описание
                     </label>
                     <textarea
@@ -99,44 +116,28 @@ export default function ProductForm({
                         onChange={(e) =>
                             onChange({ ...form, short_description: e.target.value })
                         }
-                        className="min-h-[90px] w-full rounded-xl border px-3 py-2 text-sm"
+                        className="min-h-[110px] w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">
+                <div className="md:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         Описание
                     </label>
                     <AdminRichTextEditor
                         value={form.description}
-                        onChange={(value) =>
-                            onChange({ ...form, description: value })
-                        }
+                        onChange={(value) => onChange({ ...form, description: value })}
                         placeholder="Введите описание товара"
                     />
                 </div>
-
-                <label className="flex items-center gap-2 text-sm">
-                    <input
-                        type="checkbox"
-                        checked={form.is_active}
-                        onChange={(e) =>
-                            onChange({
-                                ...form,
-                                is_active: e.target.checked,
-                            })
-                        }
-                    />
-                    Активен
-                </label>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end border-t border-gray-100 pt-4">
                 <button
                     type="button"
                     onClick={onSubmit}
                     disabled={submitting}
-                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

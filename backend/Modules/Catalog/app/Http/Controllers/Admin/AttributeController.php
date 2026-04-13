@@ -51,7 +51,7 @@ class AttributeController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Характеристика создана',
+            'message' => 'Атрибут создана',
             'data' => $attribute->loadCount('options'),
         ], 201);
     }
@@ -87,7 +87,7 @@ class AttributeController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Характеристика обновлена',
+            'message' => 'Атрибут обновлен',
             'data' => $attribute->fresh()->loadCount('options'),
         ]);
     }
@@ -100,14 +100,14 @@ class AttributeController extends Controller
 
         if ($attribute->product_values_count > 0) {
             return response()->json([
-                'message' => 'Нельзя удалить характеристику, она привязана к товарам',
+                'message' => 'Нельзя удалить атрибут, он привязана к товарам',
             ], 422);
         }
 
         $attribute->delete();
 
         return response()->json([
-            'message' => 'Характеристика удалена',
+            'message' => 'Атрибут удален',
         ]);
     }
 

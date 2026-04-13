@@ -118,7 +118,7 @@ export default function AttributeOptionsEditor({
         <div className="space-y-6">
             {disabled ? (
                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                    Для текстовой характеристики список опций не используется.
+                    Для текстового атрибута список опций не используется.
                 </div>
             ) : null}
 
@@ -214,7 +214,7 @@ export default function AttributeOptionsEditor({
                 </div>
             </div>
             <div className="rounded-2xl border bg-white p-5">
-                <div className="mb-4 text-base font-semibold">Опции характеристики</div>
+                <div className="mb-4 text-base font-semibold">Опции атрибута</div>
 
                 {items.length === 0 ? (
                     <div className="text-sm text-gray-500">

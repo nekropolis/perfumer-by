@@ -3,18 +3,22 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, User, Store } from "lucide-react";
+import { Menu, X, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import {getRoleLabel} from "@/constants/admin-roles";
+import { getRoleLabel } from "@/constants/admin-roles";
 
 type Props = {
     children: ReactNode;
 };
 
+const SIDEBAR_STORAGE_KEY = "admin-sidebar-collapsed";
+
 export default function AdminShell({ children }: Props) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarReady, setSidebarReady] = useState(false);
 
     const { user, logout } = useAuth();
     const accountRef = useRef<HTMLDivElement | null>(null);
@@ -35,11 +39,36 @@ export default function AdminShell({ children }: Props) {
         };
     }, []);
 
+    useEffect(() => {
+        const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+        setSidebarCollapsed(saved === "1");
+        setSidebarReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!sidebarReady) {
+            return;
+        }
+
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarCollapsed ? "1" : "0");
+    }, [sidebarCollapsed, sidebarReady]);
+
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="border-b bg-white">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-                    <div className="text-xl font-semibold">Админка</div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            className="hidden items-center justify-center rounded-xl border p-2 text-sm transition hover:bg-gray-50 lg:inline-flex"
+                            onClick={() => setSidebarCollapsed((prev) => !prev)}
+                            title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+                        >
+                            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                        </button>
+
+                        <div className="text-xl font-semibold">Админка</div>
+                    </div>
 
                     <div className="flex items-center gap-3">
                         <a
@@ -108,14 +137,20 @@ export default function AdminShell({ children }: Props) {
             </div>
 
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:h-[calc(100dvh-6.5rem)]">
+                <div
+                    className={`grid grid-cols-1 gap-8 lg:h-[calc(100dvh-6.5rem)] ${
+                        sidebarCollapsed
+                            ? "lg:grid-cols-[92px_minmax(0,1fr)]"
+                            : "lg:grid-cols-[280px_minmax(0,1fr)]"
+                    }`}
+                >
                     <div className="hidden lg:block lg:h-full">
                         <div className="h-full overflow-y-auto pr-1">
-                            <AdminSidebar />
+                            <AdminSidebar collapsed={sidebarCollapsed} />
                         </div>
                     </div>
 
-                    <section className="min-w-0 lg:h-full lg:overflow-y-auto pr-1">
+                    <section className="min-w-0 pr-1 lg:h-full lg:overflow-y-auto">
                         {children}
                     </section>
                 </div>
@@ -128,7 +163,7 @@ export default function AdminShell({ children }: Props) {
                         onClick={() => setMobileMenuOpen(false)}
                     />
 
-                    <div className="absolute left-0 top-0 h-full w-[85%] max-w-xs bg-white p-4 shadow-2xl">
+                    <div className="absolute left-0 top-0 h-full w-[88%] max-w-sm bg-white p-4 shadow-2xl">
                         <div className="mb-4 flex items-center justify-between">
                             <div className="text-lg font-semibold">Меню</div>
 

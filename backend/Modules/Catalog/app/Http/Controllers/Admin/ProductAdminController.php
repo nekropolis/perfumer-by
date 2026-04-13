@@ -150,6 +150,7 @@ class ProductAdminController extends Controller
                 'variants',
                 'attributeValues.attribute.activeOptions',
                 'attributeValues.selectedOptions.attributeOption',
+                'activeVariants',
             ])
             ->withCount('variants')
             ->findOrFail($id);

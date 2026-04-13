@@ -12,16 +12,16 @@ export default function AdminTableToolbar({
                                               children,
                                           }: Props) {
     return (
-        <div className="mb-6 space-y-4">
+        <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50/70 p-4 sm:p-5">
             <div>
-                <h2 className="text-2xl font-semibold">{title}</h2>
-                {description && (
-                    <p className="mt-1 text-sm text-gray-600">{description}</p>
-                )}
+                <h2 className="text-2xl font-semibold tracking-tight text-gray-950">{title}</h2>
+                {description ? (
+                    <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+                ) : null}
             </div>
 
             {children ? (
-                <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+                <div className="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
                     {children}
                 </div>
             ) : null}

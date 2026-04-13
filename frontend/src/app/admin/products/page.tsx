@@ -10,6 +10,7 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
 import {
     deleteProduct,
@@ -85,6 +86,7 @@ export default function AdminProductsPage() {
             setDeleting(false);
         }
     };
+
     return (
         <AdminPageCard>
             <AdminTableToolbar
@@ -99,30 +101,26 @@ export default function AdminProductsPage() {
 
                 <Link
                     href="/admin/products/create"
-                    className="rounded-xl bg-black px-4 py-2 text-sm text-white"
+                    className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
                 >
                     Создать продукт
                 </Link>
             </AdminTableToolbar>
 
             {error ? (
-                <div className="mb-4">
-                    <AdminFeedbackMessage
-                        type="error"
-                        message={error}
-                        onCloseAction={() => setError("")}
-                    />
-                </div>
+                <AdminFeedbackMessage
+                    type="error"
+                    message={error}
+                    onCloseAction={() => setError("")}
+                />
             ) : null}
 
             {success ? (
-                <div className="mb-4">
-                    <AdminFeedbackMessage
-                        type="success"
-                        message={success}
-                        onCloseAction={() => setSuccess("")}
-                    />
-                </div>
+                <AdminFeedbackMessage
+                    type="success"
+                    message={success}
+                    onCloseAction={() => setSuccess("")}
+                />
             ) : null}
 
             {loading ? (
@@ -133,37 +131,29 @@ export default function AdminProductsPage() {
                     description="Попробуйте изменить поиск или создайте новый продукт."
                 />
             ) : (
-                <div className="space-y-4">
-                    <div className="text-sm text-gray-500">
-                        Всего: {meta?.total ?? items.length}
-                    </div>
-
-                    <ProductsTable
-                        items={items}
-                        onDelete={requestDelete}
-                    />
-
-                    <AdminPagination
-                        currentPage={meta?.current_page ?? 1}
-                        lastPage={meta?.last_page ?? 1}
-                        onPrev={() => setPage((p) => Math.max(1, p - 1))}
-                        onNext={() =>
-                            setPage((p) =>
-                                meta && meta.current_page < meta.last_page ? p + 1 : p
-                            )
-                        }
-                    />
-                </div>
+                <AdminTableShell
+                    total={meta?.total ?? items.length}
+                    footer={
+                        <AdminPagination
+                            currentPage={meta?.current_page ?? 1}
+                            lastPage={meta?.last_page ?? 1}
+                            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                            onNext={() =>
+                                setPage((p) =>
+                                    meta && meta.current_page < meta.last_page ? p + 1 : p
+                                )
+                            }
+                        />
+                    }
+                >
+                    <ProductsTable items={items} onDelete={requestDelete} />
+                </AdminTableShell>
             )}
 
             <AdminConfirmDialog
                 open={!!deleteTarget}
                 title="Удаление продукта"
-                message={
-                    deleteTarget
-                        ? `Удалить продукт "${deleteTarget.name}"?`
-                        : ""
-                }
+                message={deleteTarget ? `Удалить продукт "${deleteTarget.name}"?` : ""}
                 confirmText="Удалить"
                 loading={deleting}
                 onClose={() => setDeleteTarget(null)}

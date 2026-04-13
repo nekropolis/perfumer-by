@@ -1,5 +1,7 @@
 "use client";
 
+import { Search } from "lucide-react";
+
 type Props = {
     value: string;
     onChange: (value: string) => void;
@@ -17,14 +19,20 @@ export default function AdminSearchInput({
                                          }: Props) {
     return (
         <div className={className}>
-            <label className="mb-1 block text-sm text-gray-500">{label}</label>
-            <input
-                type="text"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                className="w-full rounded-xl border px-4 py-2 text-sm focus:outline-none md:w-64"
-            />
+            <label className="mb-1.5 block text-sm font-medium text-gray-600">{label}</label>
+            <div className="relative md:w-72">
+                <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm transition outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                />
+            </div>
         </div>
     );
 }

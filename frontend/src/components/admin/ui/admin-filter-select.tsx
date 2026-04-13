@@ -24,11 +24,11 @@ export default function AdminFilterSelect({
                                           }: Props) {
     return (
         <div className={className}>
-            <label className="mb-1 block text-sm text-gray-500">{label}</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-600">{label}</label>
             <select
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-full rounded-xl border px-4 py-2 text-sm focus:outline-none md:w-52"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200 md:w-56"
             >
                 <option value="">{placeholder}</option>
                 {options.map((item) => (

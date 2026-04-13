@@ -11,6 +11,7 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AttributesTable from "@/components/admin/attributes/attributes-table";
 import {
     deleteAttribute,
@@ -52,7 +53,7 @@ export default function AdminAttributesPage() {
             setItems(data.data || []);
             setMeta(data);
         } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки характеристик");
+            setError(e?.message || "Ошибка загрузки атрибута");
         } finally {
             setLoading(false);
         }
@@ -82,20 +83,25 @@ export default function AdminAttributesPage() {
 
         try {
             const data = await deleteAttribute(deleteTarget.id);
-            setSuccess(data.message || "Характеристика удалена");
+            setSuccess(data.message || "Атрибут удален");
             setDeleteTarget(null);
             await loadItems(page, searchInput, typeFilter);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка удаления характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка удаления атрибута"
+            );
         } finally {
             setDeleting(false);
         }
     };
+
     return (
         <AdminPageCard>
             <AdminTableToolbar
-                title="Характеристики"
-                description="Справочник характеристик каталога"
+                title="Атрибуты"
+                description="Справочник атрибута каталога"
             >
                 <AdminSearchInput
                     value={searchInput}
@@ -107,79 +113,69 @@ export default function AdminAttributesPage() {
                     value={typeFilter}
                     onChange={(value) => setTypeFilter(value as AttributeType | "")}
                     options={[
-                        { value: "", label: "Все типы" },
                         { value: "text", label: "Текст" },
                         { value: "select", label: "Один из списка" },
                         { value: "multiselect", label: "Несколько из списка" },
                     ]}
+                    placeholder="Все типы"
                 />
 
                 <Link
                     href="/admin/attributes/create"
-                    className="rounded-xl bg-black px-4 py-2 text-sm text-white"
+                    className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
                 >
-                    Создать характеристику
+                    Создать атрибут
                 </Link>
             </AdminTableToolbar>
 
             {error ? (
-                <div className="mb-4">
-                    <AdminFeedbackMessage
-                        type="error"
-                        message={error}
-                        onCloseAction={() => setError("")}
-                    />
-                </div>
+                <AdminFeedbackMessage
+                    type="error"
+                    message={error}
+                    onCloseAction={() => setError("")}
+                />
             ) : null}
 
             {success ? (
-                <div className="mb-4">
-                    <AdminFeedbackMessage
-                        type="success"
-                        message={success}
-                        onCloseAction={() => setSuccess("")}
-                    />
-                </div>
+                <AdminFeedbackMessage
+                    type="success"
+                    message={success}
+                    onCloseAction={() => setSuccess("")}
+                />
             ) : null}
 
             {loading ? (
-                <AdminLoadingState text="Загрузка характеристик..." />
+                <AdminLoadingState text="Загрузка атрибутов..." />
             ) : items.length === 0 ? (
                 <AdminEmptyState
-                    title="Характеристики не найдены"
-                    description="Попробуйте изменить фильтры или создайте новую характеристику."
+                    title="Атрибуты не найдены"
+                    description="Попробуйте изменить фильтры или создайте новый атрибут."
                 />
             ) : (
-                <div className="space-y-4">
-                    <div className="text-sm text-gray-500">
-                        Всего: {meta?.total ?? items.length}
-                    </div>
-
-                    <AttributesTable
-                        items={items}
-                        onDelete={setDeleteTarget}
-                    />
-
-                    <AdminPagination
-                        currentPage={meta?.current_page ?? 1}
-                        lastPage={meta?.last_page ?? 1}
-                        onPrev={() => setPage((p) => Math.max(1, p - 1))}
-                        onNext={() =>
-                            setPage((p) =>
-                                meta && meta.current_page < meta.last_page ? p + 1 : p
-                            )
-                        }
-                    />
-                </div>
+                <AdminTableShell
+                    total={meta?.total ?? items.length}
+                    footer={
+                        <AdminPagination
+                            currentPage={meta?.current_page ?? 1}
+                            lastPage={meta?.last_page ?? 1}
+                            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                            onNext={() =>
+                                setPage((p) =>
+                                    meta && meta.current_page < meta.last_page ? p + 1 : p
+                                )
+                            }
+                        />
+                    }
+                >
+                    <AttributesTable items={items} onDelete={setDeleteTarget} />
+                </AdminTableShell>
             )}
 
             <AdminConfirmDialog
                 open={!!deleteTarget}
-                title="Удаление характеристики"
+                title="Удаление атрибута"
                 message={
-                    deleteTarget
-                        ? `Удалить характеристику "${deleteTarget.name}"?`
-                        : ""
+                    deleteTarget ? `Удалить атрибут "${deleteTarget.name}"?` : ""
                 }
                 confirmText="Удалить"
                 loading={deleting}

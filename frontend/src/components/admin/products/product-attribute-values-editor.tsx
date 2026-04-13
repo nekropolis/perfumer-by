@@ -106,6 +106,23 @@ function OptionPicker({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
 
+    const openPicker = () => {
+        setOpen(true);
+    };
+
+    const closePicker = () => {
+        setOpen(false);
+        setSearch("");
+    };
+
+    const togglePicker = () => {
+        if (open) {
+            closePicker();
+        } else {
+            openPicker();
+        }
+    };
+
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (!containerRef.current) {
@@ -113,7 +130,7 @@ function OptionPicker({
             }
 
             if (!containerRef.current.contains(event.target as Node)) {
-                setOpen(false);
+                closePicker();
             }
         }
 
@@ -122,11 +139,15 @@ function OptionPicker({
     }, []);
 
     useEffect(() => {
-        if (open) {
-            setTimeout(() => searchInputRef.current?.focus(), 0);
-        } else {
-            setSearch("");
+        if (!open) {
+            return;
         }
+
+        const id = requestAnimationFrame(() => {
+            searchInputRef.current?.focus();
+        });
+
+        return () => cancelAnimationFrame(id);
     }, [open]);
 
     const selectedOptions = attribute.options.filter((option) => value.includes(option.id));
@@ -197,7 +218,7 @@ function OptionPicker({
 
                     <button
                         type="button"
-                        onClick={() => setOpen((prev) => !prev)}
+                        onClick={togglePicker}
                         className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
                     >
                         {open ? "Закрыть" : "Выбрать"}
@@ -209,7 +230,7 @@ function OptionPicker({
                 <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-2xl border bg-white p-3 shadow-xl">
                     {attribute.options.length === 0 ? (
                         <div className="px-2 py-3 text-sm text-gray-500">
-                            У этой характеристики ещё нет опций
+                            У этого атрибута ещё нет опций
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -245,7 +266,9 @@ function OptionPicker({
                                                             : "hover:bg-gray-50"
                                                     }`}
                                                 >
-                                                    <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                                                    <span className="min-w-0 flex-1 truncate">
+                                                        {option.name}
+                                                    </span>
                                                     <span className="shrink-0 text-xs">
                                                         {checked
                                                             ? "Выбрано"
@@ -331,7 +354,7 @@ export default function ProductAttributeValuesEditor({
         setSuccess("");
 
         if (!createForm.attribute_id) {
-            setError("Выбери характеристику");
+            setError("Выбери атрибут");
             setSubmitting(false);
             return;
         }
@@ -349,12 +372,16 @@ export default function ProductAttributeValuesEditor({
 
             const result = await createProductAttributeValue(productId, payload);
 
-            setSuccess(result.message || "Характеристика привязана");
+            setSuccess(result.message || "Атрибут привязан");
             setCreateModalOpen(false);
             setCreateForm(emptyForm);
             await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка привязки характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка привязки атрибута"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -381,11 +408,15 @@ export default function ProductAttributeValuesEditor({
 
             const result = await updateProductAttributeValue(productId, editForm.id, payload);
 
-            setSuccess(result.message || "Характеристика обновлена");
+            setSuccess(result.message || "Атрибут обновлен");
             setEditForm(null);
             await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка обновления характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка обновления атрибута"
+            );
         } finally {
             setSubmitting(false);
         }
@@ -402,11 +433,15 @@ export default function ProductAttributeValuesEditor({
 
         try {
             const result = await deleteProductAttributeValue(productId, deleteTarget.id);
-            setSuccess(result.message || "Характеристика отвязана");
+            setSuccess(result.message || "Атрибут отвязан");
             setDeleteTarget(null);
             await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка удаления характеристики");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка удаления атрибута"
+            );
         } finally {
             setDeleting(false);
         }
@@ -428,20 +463,20 @@ export default function ProductAttributeValuesEditor({
 
             <div className="rounded-2xl border bg-white p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="text-base font-semibold">Привязанные характеристики</div>
+                    <div className="text-base font-semibold">Привязанные атрибуты</div>
 
                     <button
                         type="button"
                         onClick={openCreate}
                         className="rounded-lg border px-3 py-1.5 text-sm"
                     >
-                        Добавить характеристику
+                        Добавить атрибут
                     </button>
                 </div>
 
                 {items.length === 0 ? (
                     <div className="text-sm text-gray-500">
-                        У товара пока нет привязанных характеристик
+                        У товара пока нет привязанных атрибутов
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -454,7 +489,7 @@ export default function ProductAttributeValuesEditor({
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <div>
                                                 <div className="text-sm font-medium">
-                                                    {item.attribute?.name || "Характеристика"}
+                                                    {item.attribute?.name || "Атрибут"}
                                                 </div>
                                                 <div className="mt-1 text-xs text-gray-500">
                                                     {item.attribute?.type === "text"
@@ -499,10 +534,10 @@ export default function ProductAttributeValuesEditor({
 
             <AdminConfirmDialog
                 open={!!deleteTarget}
-                title="Отвязка характеристики"
+                title="Отвязка атрибута"
                 message={
                     deleteTarget
-                        ? `Отвязать характеристику "${deleteTarget.attribute?.name || "Характеристика"}" от товара?`
+                        ? `Отвязать атрибут "${deleteTarget.attribute?.name || "атрибут"}" от товара?`
                         : ""
                 }
                 confirmText="Отвязать"
@@ -516,13 +551,13 @@ export default function ProductAttributeValuesEditor({
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold">Добавить характеристику к товару</h2>
+                                <h2 className="text-lg font-semibold">Добавить атрибут к товару</h2>
                             </div>
 
                             <div className="space-y-4 overflow-y-auto px-5 py-4">
                                 <div>
                                     <label className="mb-1 block text-sm text-gray-600">
-                                        Характеристика
+                                        Атрибут
                                     </label>
                                     <select
                                         value={createForm.attribute_id}
@@ -536,7 +571,7 @@ export default function ProductAttributeValuesEditor({
                                         }
                                         className="w-full rounded-xl border px-3 py-2 text-sm"
                                     >
-                                        <option value="">Выбери характеристику</option>
+                                        <option value="">Выбери атрибут</option>
                                         {availableAttributes.map((attribute) => (
                                             <option key={attribute.id} value={attribute.id}>
                                                 {attribute.name}
@@ -629,13 +664,13 @@ export default function ProductAttributeValuesEditor({
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold">Редактировать характеристику</h2>
+                                <h2 className="text-lg font-semibold">Редактировать атрибут</h2>
                             </div>
 
                             <div className="space-y-4 overflow-y-auto px-5 py-4">
                                 <div>
                                     <label className="mb-1 block text-sm text-gray-600">
-                                        Характеристика
+                                        Атрибут
                                     </label>
                                     <input
                                         type="text"

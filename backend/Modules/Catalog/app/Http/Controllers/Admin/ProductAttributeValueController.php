@@ -35,7 +35,7 @@ class ProductAttributeValueController extends Controller
 
         if ($exists) {
             return response()->json([
-                'message' => 'Эта характеристика уже привязана к товару',
+                'message' => 'Этот атрибут уже привязана к товару',
             ], 422);
         }
 
@@ -55,7 +55,7 @@ class ProductAttributeValueController extends Controller
         );
 
         return response()->json([
-            'message' => 'Характеристика привязана к товару',
+            'message' => 'Атрибут привязан к товару',
             'data' => $productValue->load([
                 'attribute.activeOptions',
                 'selectedOptions.attributeOption',
@@ -96,7 +96,7 @@ class ProductAttributeValueController extends Controller
         }
 
         return response()->json([
-            'message' => 'Характеристика товара обновлена',
+            'message' => 'Атрибут товара обновлен',
             'data' => $productValue->fresh()->load([
                 'attribute.activeOptions',
                 'selectedOptions.attributeOption',
@@ -115,7 +115,7 @@ class ProductAttributeValueController extends Controller
         $productValue->delete();
 
         return response()->json([
-            'message' => 'Характеристика отвязана от товара',
+            'message' => 'Атрибут отвязан от товара',
         ]);
     }
 

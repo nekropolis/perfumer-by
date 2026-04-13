@@ -163,7 +163,7 @@ export default function AttributeOptionsManager({
         <div className="space-y-6">
             {disabled ? (
                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                    Для текстовой характеристики список опций не используется.
+                    Для текстового атрибута список опций не используется.
                 </div>
             ) : null}
 

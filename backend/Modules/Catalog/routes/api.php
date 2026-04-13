@@ -7,6 +7,7 @@ use Modules\Catalog\Http\Controllers\Admin\BrandController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
+use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
 
@@ -49,6 +50,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::post('/{id}/attribute-values', [ProductAttributeValueController::class, 'store']);
     Route::put('/{id}/attribute-values/{valueId}', [ProductAttributeValueController::class, 'update']);
     Route::delete('/{id}/attribute-values/{valueId}', [ProductAttributeValueController::class, 'destroy']);
+
+    Route::get('/{id}/variants', [ProductVariantAdminController::class, 'index']);
+    Route::post('/{id}/variants', [ProductVariantAdminController::class, 'store']);
+    Route::put('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'update']);
+    Route::delete('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'destroy']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/attributes')->group(function () {

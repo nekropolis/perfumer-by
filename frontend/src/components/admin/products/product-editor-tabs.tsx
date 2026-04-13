@@ -16,7 +16,7 @@ const tabs: { key: ProductEditorTab; label: string }[] = [
     { key: "main", label: "Главная" },
     { key: "images", label: "Картинки" },
     { key: "variants", label: "Варианты" },
-    { key: "attributes", label: "Характеристики" },
+    { key: "attributes", label: "Атрибуты" },
     { key: "seo", label: "SEO" },
 ];
 

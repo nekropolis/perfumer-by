@@ -28,7 +28,7 @@ class AttributeOptionController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Опция характеристики создана',
+            'message' => 'Опция атрибута создана',
             'data' => $option,
         ], 201);
     }
@@ -54,7 +54,7 @@ class AttributeOptionController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Опция характеристики обновлена',
+            'message' => 'Опция атрибута обновлена',
             'data' => $option->fresh(),
         ]);
     }
@@ -77,7 +77,7 @@ class AttributeOptionController extends Controller
         $option->delete();
 
         return response()->json([
-            'message' => 'Опция характеристики удалена',
+            'message' => 'Опция атрибута удалена',
         ]);
     }
 }
