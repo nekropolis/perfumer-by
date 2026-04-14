@@ -13,19 +13,34 @@ export type AttributeFormState = {
 type Props = {
     form: AttributeFormState;
     submitting?: boolean;
-    onChange: (value: AttributeFormState) => void;
-    onSubmit: () => void;
+    onChangeAction: (value: AttributeFormState) => void;
+    onSubmitAction: () => void;
 };
 
 export default function AttributeForm({
                                           form,
                                           submitting = false,
-                                          onChange,
-                                          onSubmit,
+                                          onChangeAction,
+                                          onSubmitAction,
                                       }: Props) {
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
+                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <input
+                        type="checkbox"
+                        checked={Boolean(form.is_active)}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                is_active: e.target.checked,
+                            })
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                    />
+                    Активен
+                </label>
+
                 <div className="md:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">
                         Название
@@ -34,7 +49,7 @@ export default function AttributeForm({
                         type="text"
                         value={form.name}
                         onChange={(e) =>
-                            onChange({
+                            onChangeAction({
                                 ...form,
                                 name: e.target.value,
                             })
@@ -51,7 +66,7 @@ export default function AttributeForm({
                     <select
                         value={form.type}
                         onChange={(e) =>
-                            onChange({
+                            onChangeAction({
                                 ...form,
                                 type: e.target.value as AttributeType,
                             })
@@ -72,7 +87,7 @@ export default function AttributeForm({
                         type="number"
                         value={form.sort_order}
                         onChange={(e) =>
-                            onChange({
+                            onChangeAction({
                                 ...form,
                                 sort_order: e.target.value,
                             })
@@ -80,27 +95,12 @@ export default function AttributeForm({
                         className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
-
-                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    <input
-                        type="checkbox"
-                        checked={Boolean(form.is_active)}
-                        onChange={(e) =>
-                            onChange({
-                                ...form,
-                                is_active: e.target.checked,
-                            })
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                    />
-                    Активна
-                </label>
             </div>
 
             <div className="flex justify-end border-t border-gray-100 pt-4">
                 <button
                     type="button"
-                    onClick={onSubmit}
+                    onClick={onSubmitAction}
                     disabled={submitting}
                     className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >

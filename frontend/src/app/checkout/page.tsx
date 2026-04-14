@@ -84,7 +84,7 @@ export default function CheckoutPage() {
 
                     <div className="mb-5">
                         <label className="mb-2 block text-sm font-medium">Телефон *</label>
-                        <PhoneInput value={phone} onChange={setPhone} />
+                        <PhoneInput value={phone} onChangeAction={setPhone} />
                     </div>
 
                     <div className="mb-5">

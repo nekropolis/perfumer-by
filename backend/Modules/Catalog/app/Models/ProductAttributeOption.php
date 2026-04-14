@@ -6,10 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class AttributeOption extends Model
+class ProductAttributeOption extends Model
 {
     protected $fillable = [
-        'attribute_id',
+        'product_attribute_id',
         'name',
         'sort_order',
         'is_active',
@@ -19,9 +19,9 @@ class AttributeOption extends Model
         'is_active' => 'boolean',
     ];
 
-    public function attribute(): BelongsTo
+    public function productAttribute(): BelongsTo
     {
-        return $this->belongsTo(Attribute::class);
+        return $this->belongsTo(ProductAttribute::class);
     }
 
     public function productValueOptions(): HasMany

@@ -43,8 +43,10 @@ export default function AdminBrandsPage() {
 
             setItems(data.data || []);
             setMeta(data);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки брендов");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка загрузки брендов");
         } finally {
             setLoading(false);
         }
@@ -81,8 +83,10 @@ export default function AdminBrandsPage() {
             setSuccess(data.message || "Бренд удалён");
             setDeleteTarget(null);
             await loadItems(page, searchInput);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка удаления бренда");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка удаления бренда");
         } finally {
             setDeleting(false);
         }
@@ -93,19 +97,15 @@ export default function AdminBrandsPage() {
             <AdminTableToolbar
                 title="Бренды"
                 description="Просмотр, создание, редактирование и удаление брендов"
+                action={
+                    <Link
+                        href="/admin/brands/create"
+                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                    >
+                        Создать бренд
+                    </Link>
+                }
             >
-                <AdminSearchInput
-                    value={searchInput}
-                    onChange={setSearchInput}
-                    placeholder="Поиск по названию или slug"
-                />
-
-                <Link
-                    href="/admin/brands/create"
-                    className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
-                >
-                    Создать бренд
-                </Link>
             </AdminTableToolbar>
 
             {error ? (
@@ -134,12 +134,19 @@ export default function AdminBrandsPage() {
             ) : (
                 <AdminTableShell
                     total={meta?.total ?? items.length}
+                    search={
+                        <AdminSearchInput
+                            value={searchInput}
+                            onChangeAction={setSearchInput}
+                            placeholder="Поиск по названию или slug"
+                        />
+                    }
                     footer={
                         <AdminPagination
                             currentPage={meta?.current_page ?? 1}
                             lastPage={meta?.last_page ?? 1}
-                            onPrev={() => setPage((p) => Math.max(1, p - 1))}
-                            onNext={() =>
+                            onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                            onNextAction={() =>
                                 setPage((p) =>
                                     meta && meta.current_page < meta.last_page ? p + 1 : p
                                 )
@@ -147,7 +154,7 @@ export default function AdminBrandsPage() {
                         />
                     }
                 >
-                    <BrandsTable items={items} onDelete={requestDelete} />
+                    <BrandsTable items={items} onDeleteAction={requestDelete} />
                 </AdminTableShell>
             )}
 
@@ -157,8 +164,8 @@ export default function AdminBrandsPage() {
                 message={deleteTarget ? `Удалить бренд "${deleteTarget.name}"?` : ""}
                 confirmText="Удалить"
                 loading={deleting}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={confirmDelete}
+                onCloseAction={() => setDeleteTarget(null)}
+                onConfirmAction={confirmDelete}
             />
         </AdminPageCard>
     );

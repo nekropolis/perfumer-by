@@ -78,7 +78,7 @@ export default function AdminUsersPage() {
             >
                 <AdminSearchInput
                     value={search}
-                    onChange={setSearch}
+                    onChangeAction={setSearch}
                     placeholder="Имя, телефон, email"
                 />
             </AdminTableToolbar>

@@ -9,7 +9,7 @@ export type ProductEditorTab =
 
 type Props = {
     activeTab: ProductEditorTab;
-    onChange: (tab: ProductEditorTab) => void;
+    onChangeAction: (tab: ProductEditorTab) => void;
 };
 
 const tabs: { key: ProductEditorTab; label: string }[] = [
@@ -20,7 +20,7 @@ const tabs: { key: ProductEditorTab; label: string }[] = [
     { key: "seo", label: "SEO" },
 ];
 
-export default function ProductEditorTabs({ activeTab, onChange }: Props) {
+export default function ProductEditorTabs({ activeTab, onChangeAction }: Props) {
     return (
         <div className="mb-6 overflow-x-auto">
             <div className="flex min-w-max gap-2">
@@ -28,7 +28,7 @@ export default function ProductEditorTabs({ activeTab, onChange }: Props) {
                     <button
                         key={tab.key}
                         type="button"
-                        onClick={() => onChange(tab.key)}
+                        onClick={() => onChangeAction(tab.key)}
                         className={`rounded-xl px-4 py-2 text-sm transition ${
                             activeTab === tab.key
                                 ? "bg-black text-white"

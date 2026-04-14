@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
@@ -17,7 +16,6 @@ import {
     deleteAttribute,
     fetchAttributes,
     type AttributeAdminItem,
-    type AttributeType,
     type AttributesAdminResponse,
 } from "@/lib/admin-attributes-api";
 
@@ -28,7 +26,6 @@ export default function AdminAttributesPage() {
     const [success, setSuccess] = useState("");
 
     const [searchInput, setSearchInput] = useState("");
-    const [typeFilter, setTypeFilter] = useState<AttributeType | "">("");
     const [page, setPage] = useState(1);
     const [meta, setMeta] = useState<AttributesAdminResponse | null>(null);
 
@@ -38,7 +35,6 @@ export default function AdminAttributesPage() {
     const loadItems = async (
         targetPage = page,
         targetSearch = searchInput,
-        targetType = typeFilter
     ) => {
         setLoading(true);
         setError("");
@@ -47,13 +43,14 @@ export default function AdminAttributesPage() {
             const data = await fetchAttributes({
                 page: targetPage,
                 search: targetSearch.trim() || undefined,
-                type: targetType || undefined,
             });
 
             setItems(data.data || []);
             setMeta(data);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки атрибута");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка загрузки атрибута");
         } finally {
             setLoading(false);
         }
@@ -62,14 +59,14 @@ export default function AdminAttributesPage() {
     useEffect(() => {
         const timer = setTimeout(() => {
             setPage(1);
-            void loadItems(1, searchInput, typeFilter);
+            void loadItems(1, searchInput);
         }, 400);
 
         return () => clearTimeout(timer);
-    }, [searchInput, typeFilter]);
+    }, [searchInput]);
 
     useEffect(() => {
-        void loadItems(page, searchInput, typeFilter);
+        void loadItems(page, searchInput);
     }, [page]);
 
     const confirmDelete = async () => {
@@ -85,7 +82,7 @@ export default function AdminAttributesPage() {
             const data = await deleteAttribute(deleteTarget.id);
             setSuccess(data.message || "Атрибут удален");
             setDeleteTarget(null);
-            await loadItems(page, searchInput, typeFilter);
+            await loadItems(page, searchInput);
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -102,30 +99,15 @@ export default function AdminAttributesPage() {
             <AdminTableToolbar
                 title="Атрибуты"
                 description="Справочник атрибута каталога"
+                action={
+                    <Link
+                        href="/admin/attributes/create"
+                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                    >
+                        Создать атрибут
+                    </Link>
+                }
             >
-                <AdminSearchInput
-                    value={searchInput}
-                    onChange={setSearchInput}
-                    placeholder="Поиск по названию или slug"
-                />
-
-                <AdminFilterSelect
-                    value={typeFilter}
-                    onChange={(value) => setTypeFilter(value as AttributeType | "")}
-                    options={[
-                        { value: "text", label: "Текст" },
-                        { value: "select", label: "Один из списка" },
-                        { value: "multiselect", label: "Несколько из списка" },
-                    ]}
-                    placeholder="Все типы"
-                />
-
-                <Link
-                    href="/admin/attributes/create"
-                    className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
-                >
-                    Создать атрибут
-                </Link>
             </AdminTableToolbar>
 
             {error ? (
@@ -154,12 +136,19 @@ export default function AdminAttributesPage() {
             ) : (
                 <AdminTableShell
                     total={meta?.total ?? items.length}
+                    search={
+                        <AdminSearchInput
+                            value={searchInput}
+                            onChangeAction={setSearchInput}
+                            placeholder="Поиск по названию или slug"
+                        />
+                    }
                     footer={
                         <AdminPagination
                             currentPage={meta?.current_page ?? 1}
                             lastPage={meta?.last_page ?? 1}
-                            onPrev={() => setPage((p) => Math.max(1, p - 1))}
-                            onNext={() =>
+                            onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                            onNextAction={() =>
                                 setPage((p) =>
                                     meta && meta.current_page < meta.last_page ? p + 1 : p
                                 )
@@ -167,7 +156,7 @@ export default function AdminAttributesPage() {
                         />
                     }
                 >
-                    <AttributesTable items={items} onDelete={setDeleteTarget} />
+                    <AttributesTable items={items} onDeleteAction={setDeleteTarget} />
                 </AdminTableShell>
             )}
 
@@ -179,8 +168,8 @@ export default function AdminAttributesPage() {
                 }
                 confirmText="Удалить"
                 loading={deleting}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={confirmDelete}
+                onCloseAction={() => setDeleteTarget(null)}
+                onConfirmAction={confirmDelete}
             />
         </AdminPageCard>
     );

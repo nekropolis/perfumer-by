@@ -7,7 +7,7 @@ import type { ProductBrandOption } from "@/lib/admin-products-api";
 type Props = {
     value: string;
     brands: ProductBrandOption[];
-    onChange: (value: string) => void;
+    onChangeAction: (value: string) => void;
     label?: string;
     placeholder?: string;
 };
@@ -15,7 +15,7 @@ type Props = {
 export default function AdminBrandSelect({
                                              value,
                                              brands,
-                                             onChange,
+                                             onChangeAction,
                                              label = "Бренд",
                                              placeholder = "Выберите бренд",
                                          }: Props) {
@@ -98,7 +98,7 @@ export default function AdminBrandSelect({
                                                 key={brand.id}
                                                 type="button"
                                                 onClick={() => {
-                                                    onChange(String(brand.id));
+                                                    onChangeAction(String(brand.id));
                                                     setOpen(false);
                                                 }}
                                                 className={`block w-full rounded-xl px-4 py-3 text-left text-sm transition ${

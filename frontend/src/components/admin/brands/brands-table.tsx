@@ -5,7 +5,7 @@ import type { BrandItem } from "@/lib/admin-brands-api";
 
 type Props = {
     items: BrandItem[];
-    onDelete: (item: BrandItem) => void;
+    onDeleteAction: (item: BrandItem) => void;
 };
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -22,7 +22,7 @@ function StatusBadge({ active }: { active: boolean }) {
     );
 }
 
-export default function BrandsTable({ items, onDelete }: Props) {
+export default function BrandsTable({ items, onDeleteAction }: Props) {
     return (
         <table className="min-w-full text-sm">
             <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
@@ -56,7 +56,7 @@ export default function BrandsTable({ items, onDelete }: Props) {
 
                             <button
                                 type="button"
-                                onClick={() => onDelete(item)}
+                                onClick={() => onDeleteAction(item)}
                                 className="inline-flex items-center rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                             >
                                 Удалить

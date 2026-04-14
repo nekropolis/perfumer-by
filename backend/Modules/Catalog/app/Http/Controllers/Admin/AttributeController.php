@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Modules\Catalog\Models\Attribute;
+use Modules\Catalog\Models\ProductAttribute;
 
 class AttributeController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Attribute::query()
+        $query = ProductAttribute::query()
             ->withCount('options')
             ->orderBy('sort_order')
             ->orderBy('name');
@@ -43,7 +43,7 @@ class AttributeController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $attribute = Attribute::query()->create([
+        $attribute = ProductAttribute::query()->create([
             'name' => $validated['name'],
             'type' => $validated['type'],
             'sort_order' => $validated['sort_order'] ?? 0,
@@ -58,7 +58,7 @@ class AttributeController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $attribute = Attribute::query()
+        $attribute = ProductAttribute::query()
             ->with(['options' => fn ($q) => $q->orderBy('sort_order')->orderBy('name')])
             ->withCount('options')
             ->findOrFail($id);
@@ -70,7 +70,7 @@ class AttributeController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $attribute = Attribute::query()->findOrFail($id);
+        $attribute = ProductAttribute::query()->findOrFail($id);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -94,7 +94,7 @@ class AttributeController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $attribute = Attribute::query()
+        $attribute = ProductAttribute::query()
             ->withCount(['productValues', 'options'])
             ->findOrFail($id);
 
@@ -113,7 +113,7 @@ class AttributeController extends Controller
 
     public function bindingOptions(): JsonResponse
     {
-        $attributes = Attribute::query()
+        $attributes = ProductAttribute::query()
             ->where('is_active', true)
             ->with([
                 'activeOptions' => fn ($q) => $q->orderBy('sort_order')->orderBy('name'),

@@ -47,8 +47,10 @@ export default function AdminAttributeEditPage() {
                 sort_order: String(item.sort_order ?? 0),
                 is_active: item.is_active,
             });
-        } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки атрибута");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка загрузки атрибута");
         } finally {
             setLoading(false);
         }
@@ -146,15 +148,15 @@ export default function AdminAttributeEditPage() {
                 <>
                     <AttributeEditorTabs
                         activeTab={activeTab}
-                        onChange={setActiveTab}
+                        onChangeAction={setActiveTab}
                     />
 
                     {activeTab === "main" && (
                         <AttributeForm
                             form={form}
                             submitting={submitting}
-                            onChange={setForm}
-                            onSubmit={handleSubmit}
+                            onChangeAction={setForm}
+                            onSubmitAction={handleSubmit}
                         />
                     )}
 
@@ -163,7 +165,7 @@ export default function AdminAttributeEditPage() {
                             attributeId={form.id!}
                             items={attributeDetail.options || []}
                             disabled={form.type === "text"}
-                            onReload={loadData}
+                            onReloadAction={loadData}
                         />
                     )}
                 </>

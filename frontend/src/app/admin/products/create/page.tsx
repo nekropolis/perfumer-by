@@ -40,8 +40,10 @@ export default function AdminProductCreatePage() {
             try {
                 const data = await fetchProductBrandOptions();
                 setBrands(data.data || []);
-            } catch (e: any) {
-                setError(e?.message || "Ошибка загрузки брендов");
+            } catch (e: unknown) {
+                setError(
+                    e instanceof Error
+                        ? e.message : "Ошибка загрузки брендов");
             }
         };
 
@@ -72,8 +74,10 @@ export default function AdminProductCreatePage() {
             });
 
             router.push("/admin/products");
-        } catch (e: any) {
-            setError(e?.message || "Ошибка создания продукта");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка создания продукта");
         } finally {
             setSubmitting(false);
         }
@@ -120,8 +124,8 @@ export default function AdminProductCreatePage() {
                 form={form}
                 brands={brands}
                 submitting={submitting}
-                onChange={setForm}
-                onSubmit={handleSubmit}
+                onChangeAction={setForm}
+                onSubmitAction={handleSubmit}
             />
         </AdminPageCard>
     );

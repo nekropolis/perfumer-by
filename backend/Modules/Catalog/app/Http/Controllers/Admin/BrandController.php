@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Brand;
-use Modules\Catalog\Support\SlugHelper;
+use Modules\Catalog\Support\VanilleHelper;
 
 class BrandController extends Controller
 {
@@ -42,7 +42,7 @@ class BrandController extends Controller
 
         $brand = Brand::create([
             'name' => $validated['name'],
-            'slug' => SlugHelper::slugify($validated['slug']),
+            'slug' => VanilleHelper::slugify($validated['slug']),
             'seo_title' => $validated['name'],
             'seo_description' => null,
             'description' => null,
@@ -72,7 +72,7 @@ class BrandController extends Controller
 
         $brand->update([
             'name' => $validated['name'],
-            'slug' => SlugHelper::slugify($validated['slug']),
+            'slug' => VanilleHelper::slugify($validated['slug']),
             'seo_title' => $validated['name'],
             'is_active' => $validated['is_active'] ?? $brand->is_active,
         ]);

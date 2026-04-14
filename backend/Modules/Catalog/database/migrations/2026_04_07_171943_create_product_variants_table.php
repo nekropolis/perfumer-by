@@ -13,7 +13,6 @@ return new class extends Migration
 
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
 
-            $table->string('title');
             $table->unsignedInteger('volume')->nullable();
             $table->string('volume_unit', 20)->nullable(); // ml
             $table->string('type', 100)->nullable(); // парфюмерная вода / туалетная вода / гель для душа

@@ -7,8 +7,8 @@ type Props = {
     confirmText?: string;
     cancelText?: string;
     loading?: boolean;
-    onConfirm: () => void;
-    onClose: () => void;
+    onConfirmAction: () => void;
+    onCloseAction: () => void;
 };
 
 export default function AdminConfirmDialog({
@@ -18,8 +18,8 @@ export default function AdminConfirmDialog({
                                                confirmText = "Удалить",
                                                cancelText = "Отмена",
                                                loading = false,
-                                               onConfirm,
-                                               onClose,
+                                               onConfirmAction,
+                                               onCloseAction,
                                            }: Props) {
     if (!open) {
         return null;
@@ -35,7 +35,7 @@ export default function AdminConfirmDialog({
                 <div className="mt-6 flex justify-end gap-2">
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={onCloseAction}
                         disabled={loading}
                         className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                     >
@@ -44,7 +44,7 @@ export default function AdminConfirmDialog({
 
                     <button
                         type="button"
-                        onClick={onConfirm}
+                        onClick={onConfirmAction}
                         disabled={loading}
                         className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
                     >

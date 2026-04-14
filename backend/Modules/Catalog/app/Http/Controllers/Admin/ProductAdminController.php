@@ -9,7 +9,7 @@ use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
-use Modules\Catalog\Support\SlugHelper;
+use Modules\Catalog\Support\VanilleHelper;
 
 class ProductAdminController extends Controller
 {
@@ -56,7 +56,7 @@ class ProductAdminController extends Controller
             'brand_id' => $validated['brand_id'],
             'main_category_id' => null,
             'name' => $validated['name'],
-            'slug' => SlugHelper::slugify($validated['slug']),
+            'slug' => VanilleHelper::slugify($validated['slug']),
             'h1' => $validated['h1'] ?: $validated['name'],
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
@@ -148,8 +148,8 @@ class ProductAdminController extends Controller
                 'brand',
                 'images',
                 'variants',
-                'attributeValues.attribute.activeOptions',
-                'attributeValues.selectedOptions.attributeOption',
+                'attributeValues.productAttribute.activeOptions',
+                'attributeValues.selectedOptions.productAttributeOption',
                 'activeVariants',
             ])
             ->withCount('variants')

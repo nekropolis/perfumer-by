@@ -12,12 +12,11 @@ import {
 type Props = {
     productId: number;
     items: AdminProductVariantItem[];
-    onReload: () => Promise<void>;
+    onReloadAction: () => Promise<void>;
 };
 
 type VariantFormState = {
     id?: number;
-    title: string;
     volume: string;
     volume_unit: string;
     type: string;
@@ -32,7 +31,6 @@ type VariantFormState = {
 };
 
 const emptyForm: VariantFormState = {
-    title: "",
     volume: "",
     volume_unit: "ml",
     type: "",
@@ -49,7 +47,6 @@ const emptyForm: VariantFormState = {
 function toFormState(item: AdminProductVariantItem): VariantFormState {
     return {
         id: item.id,
-        title: item.title || "",
         volume: item.volume != null ? String(item.volume) : "",
         volume_unit: item.volume_unit || "ml",
         type: item.type || "",
@@ -91,7 +88,7 @@ function buildDisplayName(item: AdminProductVariantItem) {
         parts.push(item.edition);
     }
 
-    return parts.length > 0 ? parts.join(" / ") : item.title;
+    return parts.length > 0 ? parts.join(" / ") : 'Нет вариантов';
 }
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
@@ -126,15 +123,6 @@ function VariantFormFields({
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                    <label className="mb-1 block text-sm text-gray-600">Название *</label>
-                    <input
-                        type="text"
-                        value={form.title}
-                        onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
-                    />
-                </div>
 
                 <div>
                     <label className="mb-1 block text-sm text-gray-600">Тип</label>
@@ -267,7 +255,7 @@ function VariantFormFields({
 export default function ProductVariantsEditor({
                                                   productId,
                                                   items,
-                                                  onReload,
+                                                  onReloadAction,
                                               }: Props) {
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createForm, setCreateForm] = useState<VariantFormState>(emptyForm);
@@ -312,15 +300,8 @@ export default function ProductVariantsEditor({
         setError("");
         setSuccess("");
 
-        if (!createForm.title.trim()) {
-            setError("Укажи название варианта");
-            setSubmitting(false);
-            return;
-        }
-
         try {
             const result = await createProductVariant(productId, {
-                title: createForm.title.trim(),
                 volume: createForm.volume ? Number(createForm.volume) : null,
                 volume_unit: createForm.volume_unit || null,
                 type: createForm.type || null,
@@ -337,7 +318,7 @@ export default function ProductVariantsEditor({
             setSuccess(result.message || "Вариант добавлен");
             setCreateModalOpen(false);
             setCreateForm(emptyForm);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка создания варианта");
         } finally {
@@ -354,15 +335,8 @@ export default function ProductVariantsEditor({
         setError("");
         setSuccess("");
 
-        if (!editForm.title.trim()) {
-            setError("Укажи название варианта");
-            setSubmitting(false);
-            return;
-        }
-
         try {
             const result = await updateProductVariant(productId, editForm.id, {
-                title: editForm.title.trim(),
                 volume: editForm.volume ? Number(editForm.volume) : null,
                 volume_unit: editForm.volume_unit || null,
                 type: editForm.type || null,
@@ -378,7 +352,7 @@ export default function ProductVariantsEditor({
 
             setSuccess(result.message || "Вариант обновлен");
             setEditForm(null);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка обновления варианта");
         } finally {
@@ -399,7 +373,7 @@ export default function ProductVariantsEditor({
             const result = await deleteProductVariant(productId, deleteTarget.id);
             setSuccess(result.message || "Вариант удален");
             setDeleteTarget(null);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка удаления варианта");
         } finally {
@@ -445,10 +419,6 @@ export default function ProductVariantsEditor({
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0 flex-1 space-y-3">
                                         <div>
-                                            <div className="text-sm font-medium">
-                                                {item.title}
-                                            </div>
-
                                             <div className="mt-1 text-xs text-gray-500">
                                                 {buildDisplayName(item)} • Порядок: {item.sort_order ?? 0}
                                             </div>
@@ -498,8 +468,8 @@ export default function ProductVariantsEditor({
                 }
                 confirmText="Удалить"
                 loading={deleting}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={handleDelete}
+                onCloseAction={() => setDeleteTarget(null)}
+                onConfirmAction={handleDelete}
             />
 
             {createModalOpen ? (

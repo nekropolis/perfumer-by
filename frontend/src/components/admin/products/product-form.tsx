@@ -22,16 +22,16 @@ type Props = {
     form: ProductFormState;
     brands: ProductBrandOption[];
     submitting?: boolean;
-    onChange: (value: ProductFormState) => void;
-    onSubmit: () => void;
+    onChangeAction: (value: ProductFormState) => void;
+    onSubmitAction: () => void;
 };
 
 export default function ProductForm({
                                         form,
                                         brands,
                                         submitting = false,
-                                        onChange,
-                                        onSubmit,
+                                        onChangeAction,
+                                        onSubmitAction,
                                     }: Props) {
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -41,7 +41,7 @@ export default function ProductForm({
                         type="checkbox"
                         checked={Boolean(form.is_active)}
                         onChange={(e) =>
-                            onChange({
+                            onChangeAction({
                                 ...form,
                                 is_active: e.target.checked,
                             })
@@ -55,7 +55,7 @@ export default function ProductForm({
                     <AdminBrandSelect
                         value={form.brand_id}
                         brands={brands}
-                        onChange={(value) => onChange({ ...form, brand_id: value })}
+                        onChangeAction={(value) => onChangeAction({ ...form, brand_id: value })}
                     />
                 </div>
 
@@ -69,7 +69,7 @@ export default function ProductForm({
                         onChange={(e) => {
                             const nextName = e.target.value;
 
-                            onChange({
+                            onChangeAction({
                                 ...form,
                                 name: nextName,
                                 slug: form.id ? form.slug : slugify(nextName),
@@ -102,7 +102,7 @@ export default function ProductForm({
                     <input
                         type="text"
                         value={form.h1}
-                        onChange={(e) => onChange({ ...form, h1: e.target.value })}
+                        onChange={(e) => onChangeAction({ ...form, h1: e.target.value })}
                         className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
@@ -114,7 +114,7 @@ export default function ProductForm({
                     <textarea
                         value={form.short_description}
                         onChange={(e) =>
-                            onChange({ ...form, short_description: e.target.value })
+                            onChangeAction({ ...form, short_description: e.target.value })
                         }
                         className="min-h-[110px] w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
@@ -126,7 +126,7 @@ export default function ProductForm({
                     </label>
                     <AdminRichTextEditor
                         value={form.description}
-                        onChange={(value) => onChange({ ...form, description: value })}
+                        onChangeAction={(value) => onChangeAction({ ...form, description: value })}
                         placeholder="Введите описание товара"
                     />
                 </div>
@@ -135,7 +135,7 @@ export default function ProductForm({
             <div className="flex justify-end border-t border-gray-100 pt-4">
                 <button
                     type="button"
-                    onClick={onSubmit}
+                    onClick={onSubmitAction}
                     disabled={submitting}
                     className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >

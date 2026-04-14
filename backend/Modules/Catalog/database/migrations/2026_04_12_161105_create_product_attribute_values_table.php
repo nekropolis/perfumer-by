@@ -12,16 +12,16 @@ return new class extends Migration
             $table->id();
 
             $table->unsignedBigInteger('product_id');
-            $table->unsignedBigInteger('attribute_id');
+            $table->unsignedBigInteger('product_attribute_id');
 
             $table->foreign('product_id', 'pav_product_id_fk')
                 ->references('id')
                 ->on('products')
                 ->cascadeOnDelete();
 
-            $table->foreign('attribute_id', 'pav_attribute_id_fk')
+            $table->foreign('product_attribute_id', 'pav_product_attribute_id_fk')
                 ->references('id')
-                ->on('attributes')
+                ->on('product_attributes')
                 ->cascadeOnDelete();
 
             $table->text('custom_value')->nullable();
@@ -30,9 +30,9 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->unique(['product_id', 'attribute_id']);
+            $table->unique(['product_id', 'product_attribute_id']);
             $table->index(['product_id', 'sort_order']);
-            $table->index(['attribute_id', 'sort_order']);
+            $table->index(['product_attribute_id', 'sort_order']);
         });
     }
 

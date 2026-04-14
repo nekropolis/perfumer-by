@@ -1,349 +1,348 @@
 "use client";
 
-import {ChangeEvent, useState} from "react";
+import {useEffect, useState} from "react";
+import AdminSearchInput from "@/components/admin/ui/admin-search-input";
+import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import useDebouncedValue from "@/hooks/use-debounced-value";
+import AdminPagination from "@/components/admin/ui/admin-pagination";
+import VanilleParsingPage from "@/app/admin/import-export/vanille-parsing/page-parse";
 
-export default function VanilleParsingPage() {
-    const [file, setFile] = useState<File | null>(null);
-    const [uploadPath, setUploadPath] = useState("");
-    const [uploading, setUploading] = useState(false);
-    const [importing, setImporting] = useState(false);
+type SupplierProductItem = {
+    id: number;
+    external_name: string;
+    external_slug: string | null;
+    external_url: string;
+    is_linked: boolean;
+    is_active: boolean;
+    last_seen_at: string | null;
+    supplier?: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
+    brand?: {
+        id: number;
+        name: string;
+    } | null;
+    product?: {
+        id: number;
+        name: string;
+        slug: string;
+    } | null;
+};
+
+type ApiResponse = {
+    data: SupplierProductItem[];
+    current_page: number;
+    last_page: number;
+    total: number;
+};
+
+const LINKED_OPTIONS = [
+    {value: "true", label: "Только связанные"},
+    {value: "false", label: "Только новые"},
+];
+
+const ACTIVE_OPTIONS = [
+    {value: "true", label: "Только активные"},
+    {value: "false", label: "Только неактивные"},
+];
+
+export default function VanilleProductsPage() {
+    const [items, setItems] = useState<SupplierProductItem[]>([]);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [result, setResult] = useState<any>(null);
-    const [parsingBrands, setParsingBrands] = useState(false);
-    const [collectingLinks, setCollectingLinks] = useState(false);
-    const [parsingProducts, setParsingProducts] = useState(false);
+    const [searchInput, setSearchInput] = useState("");
+    const [linked, setLinked] = useState("");
+    const [active, setActive] = useState("");
+    const [page, setPage] = useState(1);
+    const [meta, setMeta] = useState<ApiResponse | null>(null);
+    const [importingParsed, setImportingParsed] = useState(false);
+    const [importResult, setImportResult] = useState<any>(null);
 
+    const debouncedSearch = useDebouncedValue(searchInput, 400);
 
-    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-        setFile(selectedFile);
-    };
-
-    const handleUpload = async () => {
-        if (!file) {
-            setError("Выбери JSON файл");
-            return;
-        }
-
-        setUploading(true);
+    const loadItems = async (targetPage = page) => {
+        setLoading(true);
         setError("");
-        setResult(null);
 
         try {
-            const formData = new FormData();
-            formData.append("file", file);
+            const params = new URLSearchParams();
 
-            const response = await fetch("/api/catalog/admin/import-export/vanille/upload", {
-                method: "POST",
-                body: formData,
-            });
+            if (debouncedSearch) params.set("search", debouncedSearch);
+            if (linked) params.set("linked", linked);
+            if (active) params.set("active", active);
+            params.set("page", String(targetPage));
 
-            const data = await response.json();
+            const response = await fetch(
+                `/api/catalog/admin/import-export/vanille/supplier-products?${params.toString()}`
+            );
+
+            const text = await response.text();
+
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                throw new Error(text || "Сервер вернул не JSON");
+            }
 
             if (!response.ok) {
-                throw new Error(data.message || "Ошибка загрузки файла");
+                throw new Error(data.message || "Ошибка загрузки товаров поставщика");
             }
 
-            setUploadPath(data.path || "");
-            setResult(data);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка загрузки");
+            setItems(data.data || []);
+            setMeta(data);
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка загрузки");
         } finally {
-            setUploading(false);
+            setLoading(false);
         }
     };
 
-    const handleParseBrands = async () => {
-        setParsingBrands(true);
+    useEffect(() => {
+        void loadItems(page);
+    }, [page, debouncedSearch, linked, active]);
+
+
+    const handleImportParsedProducts = async () => {
+        setImportingParsed(true);
         setError("");
-        setResult(null);
+        setImportResult(null);
 
         try {
-            const response = await fetch("/api/catalog/admin/import-export/vanille/parse-brands", {
+            const response = await fetch("/api/catalog/admin/import-export/vanille/import-parsed-products", {
                 method: "POST",
             });
 
-            const data = await response.json();
+            const text = await response.text();
+
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                throw new Error(text || "Сервер вернул не JSON");
+            }
 
             if (!response.ok) {
-                throw new Error(data.message || "Ошибка парсинга брендов");
+                throw new Error(data.message || "Ошибка импорта спарсенных товаров");
             }
 
-            setResult(data);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка парсинга брендов");
+            setImportResult(data);
+            await loadItems(1);
+            setPage(1);
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка импорта спарсенных товаров");
         } finally {
-            setParsingBrands(false);
+            setImportingParsed(false);
         }
     };
-
-    const handleCollectLinks = async () => {
-        setCollectingLinks(true);
-        setError("");
-        setResult(null);
-
-        try {
-            let offset = 0;
-            const limit = 20;
-            const maxLinks = 100;
-            let done = false;
-            let finalData: any = null;
-            const combinedLog: string[] = [];
-
-            while (!done) {
-                const response = await fetch("/api/catalog/admin/import-export/vanille/collect-links", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ offset, limit, max_links: maxLinks }),
-                });
-
-                const text = await response.text();
-
-                let data: any;
-                try {
-                    data = JSON.parse(text);
-                } catch {
-                    throw new Error(text || "Сервер вернул не JSON");
-                }
-
-                if (!response.ok) {
-                    throw new Error(data.message || "Ошибка сбора ссылок");
-                }
-
-                if (Array.isArray(data.log)) {
-                    combinedLog.push(...data.log);
-                }
-
-                finalData = {
-                    ...data,
-                    log: combinedLog,
-                };
-
-                done = !!data.done;
-                offset = data.next_offset ?? offset + limit;
-            }
-
-            setResult(finalData);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка сбора ссылок");
-        } finally {
-            setCollectingLinks(false);
-        }
-    };
-
-    const handleParseProducts = async () => {
-        setParsingProducts(true);
-        setError("");
-        setResult(null);
-
-        try {
-            let offset = 0;
-            const limit = 20;
-            const maxLinks = 100;
-            let done = false;
-            let finalData: any = null;
-            const combinedLog: string[] = [];
-
-            while (!done) {
-                const response = await fetch("/api/catalog/admin/import-export/vanille/parse-products", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ offset, limit, max_links: maxLinks }),
-                });
-                const text = await response.text();
-
-                let data: any;
-                try {
-                    data = JSON.parse(text);
-                } catch {
-                    throw new Error(text || "Сервер вернул не JSON");
-                }
-
-                if (!response.ok) {
-                    throw new Error(data.message || "Ошибка массового парсинга карточек");
-                }
-
-                if (Array.isArray(data.log)) {
-                    combinedLog.push(...data.log);
-                }
-
-                finalData = {
-                    ...data,
-                    log: combinedLog,
-                };
-
-                done = !!data.done;
-                offset = data.next_offset ?? offset + limit;
-            }
-
-            setResult(finalData);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка массового парсинга карточек");
-        } finally {
-            setParsingProducts(false);
-        }
-    };
-
-    const handleImport = async () => {
-        if (!uploadPath) {
-            setError("Сначала загрузи JSON файл");
-            return;
-        }
-
-        setImporting(true);
-        setError("");
-        setResult(null);
-
-        try {
-            const response = await fetch("/api/catalog/admin/import-export/vanille/import", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({path: uploadPath}),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || "Ошибка импорта");
-            }
-
-            setResult(data);
-        } catch (e: any) {
-            setError(e?.message || "Ошибка импорта");
-        } finally {
-            setImporting(false);
-        }
-    };
-
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Vanille Parsing</h1>
-                <p className="mt-1 text-sm text-gray-500">
-                    Загрузка JSON файла и массовый импорт товаров vanille.by
-                </p>
-            </div>
+        <AdminPageCard>
+            <AdminTableToolbar
+                title="Товары поставщика Vanille"
+                description="Просмотр спарсенных и связанных товаров Vanille"
+                action={
+                    <button
+                        type="button"
+                        onClick={handleImportParsedProducts}
+                        disabled={importingParsed}
+                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                        {importingParsed ? "Импорт..." : "Импортировать спарсенные товары"}
+                    </button>
+                }
+            >
+                <VanilleParsingPage/>
 
-            <div className="rounded-2xl border bg-white p-6 space-y-4">
-                <div>
-                    <label className="mb-2 block text-sm font-medium">JSON файл</label>
-                    <input
-                        type="file"
-                        accept=".json,application/json"
-                        onChange={handleFileChange}
-                        className="block w-full rounded-xl border px-3 py-2 text-sm"
+            </AdminTableToolbar>
+
+            <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50/70 p-4 sm:p-5">
+                <div className="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                    <AdminSearchInput
+                        value={searchInput}
+                        onChangeAction={setSearchInput}
+                        placeholder="Название, slug, url"
+                    />
+
+                    <AdminFilterSelect
+                        value={linked}
+                        onChangeAction={setLinked}
+                        options={LINKED_OPTIONS}
+                        placeholder="Все связи"
+                    />
+
+                    <AdminFilterSelect
+                        value={active}
+                        onChangeAction={setActive}
+                        options={ACTIVE_OPTIONS}
+                        placeholder="Все статусы"
                     />
                 </div>
+            </div>
 
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        type="button"
-                        onClick={handleUpload}
-                        disabled={!file || uploading}
-                        className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-                    >
-                        {uploading ? "Загрузка..." : "Загрузить файл"}
-                    </button>
+            {error && (
+                <AdminFeedbackMessage
+                    type="error"
+                    message={error}
+                    onCloseAction={() => setError("")}
+                />
+            )}
 
-                    <button
-                        type="button"
-                        onClick={handleParseBrands}
-                        disabled={parsingBrands}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {parsingBrands ? "Парсинг..." : "Парсинг брендов"}
-                    </button>
+            {importResult && (
+                <div className="mb-6 rounded-2xl border bg-gray-50 p-4 space-y-4">
+                    <div className="text-sm font-medium">Результат импорта</div>
 
-                    <button
-                        type="button"
-                        onClick={handleCollectLinks}
-                        disabled={collectingLinks}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {collectingLinks ? "Сбор..." : "Сбор ссылок товаров"}
-                    </button>
+                    {importResult.message ? (
+                        <div className="text-sm text-gray-700">{importResult.message}</div>
+                    ) : null}
 
-                    <button
-                        type="button"
-                        onClick={handleParseProducts}
-                        disabled={parsingProducts}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {parsingProducts ? "Парсинг..." : "Массовый парсинг карточек"}
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleImport}
-                        disabled={!uploadPath || importing}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {importing ? "Импорт..." : "Массовый импорт"}
-                    </button>
-                </div>
-
-                {uploadPath ? (
-                    <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm">
-                        <span className="font-medium">Путь к файлу:</span> {uploadPath}
-                    </div>
-                ) : null}
-
-                {error ? (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {error}
-                    </div>
-                ) : null}
-
-                {result ? (
-                    <div className="rounded-2xl border bg-gray-50 p-4 space-y-4">
-                        <div className="text-sm font-medium">Результат</div>
-
-                        {result.message ? (
-                            <div className="text-sm text-gray-700">{result.message}</div>
-                        ) : null}
-
-                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                            <div className="rounded-xl border bg-white p-3 text-sm">
-                                <div className="text-gray-500">Imported</div>
-                                <div className="text-lg font-semibold">{result.imported || 0}</div>
-                            </div>
-
-                            <div className="rounded-xl border bg-white p-3 text-sm">
-                                <div className="text-gray-500">Updated</div>
-                                <div className="text-lg font-semibold">{result.updated || 0}</div>
-                            </div>
-
-                            <div className="rounded-xl border bg-white p-3 text-sm">
-                                <div className="text-gray-500">Errors</div>
-                                <div className="text-lg font-semibold">{result.errors || 0}</div>
-                            </div>
-
-                            <div className="rounded-xl border bg-white p-3 text-sm">
-                                <div className="text-gray-500">Items</div>
-                                <div className="text-lg font-semibold">{result.items || 0}</div>
-                            </div>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                        <div className="rounded-xl border bg-white p-3 text-sm">
+                            <div className="text-gray-500">Imported</div>
+                            <div className="text-lg font-semibold">{importResult.imported || 0}</div>
                         </div>
 
-                        {Array.isArray(result.log) && result.log.length > 0 ? (
-                            <div className="rounded-xl border bg-white p-3">
-                                <div className="mb-2 text-sm font-medium">Лог
-                                </div>
-                                <div className="space-y-1 text-sm text-gray-700">
-                                    {result.log.map((line: string, index: number) => (
-                                        <div key={index}>{line}</div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
+                        <div className="rounded-xl border bg-white p-3 text-sm">
+                            <div className="text-gray-500">Updated</div>
+                            <div className="text-lg font-semibold">{importResult.updated || 0}</div>
+                        </div>
+
+                        <div className="rounded-xl border bg-white p-3 text-sm">
+                            <div className="text-gray-500">Errors</div>
+                            <div className="text-lg font-semibold">{importResult.errors || 0}</div>
+                        </div>
+
+                        <div className="rounded-xl border bg-white p-3 text-sm">
+                            <div className="text-gray-500">Items</div>
+                            <div className="text-lg font-semibold">{importResult.items || 0}</div>
+                        </div>
                     </div>
-                ) : null}
-            </div>
-        </div>
+                    {Array.isArray(importResult.log) && importResult.log.length > 0 ? (
+                        <div className="rounded-xl border bg-white p-3">
+                            <div className="mb-2 text-sm font-medium">Лог</div>
+                            <div className="space-y-1 text-sm text-gray-700 max-h-80 overflow-y-auto">
+                                {importResult.log.map((line: string, index: number) => (
+                                    <div key={index}>{line}</div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            )}
+
+            {loading && <AdminLoadingState text="Загрузка товаров поставщика..."/>}
+
+            {!loading && items.length === 0 && (
+                <AdminEmptyState
+                    title="Товары не найдены"
+                    description="Попробуйте изменить поиск или фильтры."
+                />
+            )}
+            {!loading && items.length > 0 &&
+                (
+                    <div className="space-y-4">
+                        <div className="text-sm text-gray-500">
+                            Всего: {meta?.total ?? items.length}
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border">
+                            <table className="min-w-full text-sm">
+                                <thead className="bg-gray-50">
+                                <tr className="text-left">
+                                    <th className="px-4 py-3">ID</th>
+                                    <th className="px-4 py-3">Внешний товар</th>
+                                    <th className="px-4 py-3">Бренд</th>
+                                    <th className="px-4 py-3">Локальный товар</th>
+                                    <th className="px-4 py-3">Связь</th>
+                                    <th className="px-4 py-3">Активность</th>
+                                    <th className="px-4 py-3">Последний раз видели</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {items.map((item) => (
+                                    <tr key={item.id} className="border-t align-top">
+                                        <td className="px-4 py-3">{item.id}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="font-medium">{item.external_name}</div>
+                                            <div className="text-xs text-gray-500">{item.external_slug}</div>
+                                            <a
+                                                href={item.external_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-xs text-blue-600 hover:underline"
+                                            >
+                                                открыть источник
+                                            </a>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.brand ? item.brand.name : "—"}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.product ? (
+                                                <div>
+                                                    <div className="font-medium">{item.product.name}</div>
+                                                    <div className="text-xs text-gray-500">{item.product.slug}</div>
+                                                </div>
+                                            ) : (
+                                                "—"
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.is_linked ? (
+                                                <span
+                                                    className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                                                    linked
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-700">
+                                                    new
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.is_active ? (
+                                                <span
+                                                    className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                                                    active
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                                                    inactive
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">{item.last_seen_at || "—"}</td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <AdminPagination
+                            currentPage={meta?.current_page ?? 1}
+                            lastPage={meta?.last_page ?? 1}
+                            onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                            onNextAction={() =>
+                                setPage((p) =>
+                                    meta && meta.current_page < meta.last_page ? p + 1 : p
+                                )
+                            }
+                        />
+
+                    </div>
+                )}
+        </AdminPageCard>
     );
 }

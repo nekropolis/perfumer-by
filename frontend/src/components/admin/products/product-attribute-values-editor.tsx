@@ -27,7 +27,7 @@ type Props = {
     productId: number;
     items: ProductAttributeBindingItem[];
     attributes: BindingAttributeItem[];
-    onReload: () => Promise<void>;
+    onReloadAction: () => Promise<void>;
 };
 
 type ModalFormState = {
@@ -294,7 +294,7 @@ export default function ProductAttributeValuesEditor({
                                                          productId,
                                                          items,
                                                          attributes,
-                                                         onReload,
+                                                         onReloadAction,
                                                      }: Props) {
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createForm, setCreateForm] = useState<ModalFormState>(emptyForm);
@@ -375,7 +375,7 @@ export default function ProductAttributeValuesEditor({
             setSuccess(result.message || "Атрибут привязан");
             setCreateModalOpen(false);
             setCreateForm(emptyForm);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -410,7 +410,7 @@ export default function ProductAttributeValuesEditor({
 
             setSuccess(result.message || "Атрибут обновлен");
             setEditForm(null);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -435,7 +435,7 @@ export default function ProductAttributeValuesEditor({
             const result = await deleteProductAttributeValue(productId, deleteTarget.id);
             setSuccess(result.message || "Атрибут отвязан");
             setDeleteTarget(null);
-            await onReload();
+            await onReloadAction();
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -542,8 +542,8 @@ export default function ProductAttributeValuesEditor({
                 }
                 confirmText="Отвязать"
                 loading={deleting}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={handleDelete}
+                onCloseAction={() => setDeleteTarget(null)}
+                onConfirmAction={handleDelete}
             />
 
             {createModalOpen ? (

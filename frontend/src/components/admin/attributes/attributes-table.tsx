@@ -5,7 +5,7 @@ import type { AttributeAdminItem } from "@/lib/admin-attributes-api";
 
 type Props = {
     items: AttributeAdminItem[];
-    onDelete: (item: AttributeAdminItem) => void;
+    onDeleteAction: (item: AttributeAdminItem) => void;
 };
 
 function renderTypeLabel(type: AttributeAdminItem["type"]) {
@@ -20,7 +20,7 @@ function renderTypeLabel(type: AttributeAdminItem["type"]) {
     return "Несколько из списка";
 }
 
-export default function AttributesTable({ items, onDelete }: Props) {
+export default function AttributesTable({ items, onDeleteAction }: Props) {
     return (
         <div className="overflow-x-auto rounded-xl border">
             <table className="min-w-full text-sm">
@@ -53,7 +53,7 @@ export default function AttributesTable({ items, onDelete }: Props) {
 
                                 <button
                                     type="button"
-                                    onClick={() => onDelete(item)}
+                                    onClick={() => onDeleteAction(item)}
                                     className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-600"
                                 >
                                     Удалить

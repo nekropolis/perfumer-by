@@ -25,11 +25,10 @@ class ProductVariantResource extends JsonResource
 
         $displayName = !empty($displayParts)
             ? implode(' / ', $displayParts)
-            : $this->title;
+            : 'Нет вариантов';
 
         return [
             'id' => $this->id,
-            'title' => $this->title,
 
             'volume' => $this->volume,
             'volume_unit' => $this->volume_unit,

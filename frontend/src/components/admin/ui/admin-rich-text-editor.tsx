@@ -2,13 +2,11 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import Link from "@tiptap/extension-link";
 import { useEffect } from "react";
 
 type Props = {
     value: string;
-    onChange: (value: string) => void;
+    onChangeAction: (value: string) => void;
     placeholder?: string;
 };
 
@@ -36,7 +34,7 @@ function ToolbarButton({
 
 export default function AdminRichTextEditor({
                                                 value,
-                                                onChange,
+                                                onChangeAction,
                                                 placeholder = "Введите текст...",
                                             }: Props) {
     const editor = useEditor({
@@ -46,23 +44,17 @@ export default function AdminRichTextEditor({
                     levels: [2, 3, 4],
                 },
             }),
-            Underline,
-            Link.configure({
-                openOnClick: false,
-                autolink: true,
-                defaultProtocol: "https",
-            }),
         ],
         content: value || "",
         immediatelyRender: false,
         editorProps: {
             attributes: {
                 class:
-                    "min-h-[240px] w-full rounded-b-2xl px-4 py-3 text-sm outline-none prose prose-sm max-w-none",
+                    "ProseMirror min-h-[240px] w-full rounded-b-2xl px-4 py-3 text-sm outline-none max-w-none",
             },
         },
         onUpdate: ({ editor }) => {
-            onChange(editor.getHTML());
+            onChangeAction(editor.getHTML());
         },
     });
 

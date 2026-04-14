@@ -19,8 +19,6 @@ class ProductDetailResource extends JsonResource
         $defaultVariant = $variants->first(fn ($variant) => $variant->stock > 0 || $variant->is_preorder)
             ?? $variants->first();
 
-       // dd($this->activeVariants, $variants, ProductVariantResource::collection($variants));
-
         return [
             'id' => $this->id,
             'is_active' => $this->is_active,
@@ -69,12 +67,12 @@ class ProductDetailResource extends JsonResource
                         'custom_value' => $item->custom_value,
                         'sort_order' => $item->sort_order,
 
-                        'attribute' => $item->attribute ? [
-                            'id' => $item->attribute->id,
-                            'name' => $item->attribute->name,
-                            'type' => $item->attribute->type,
-                            'options' => $item->attribute->relationLoaded('activeOptions')
-                                ? $item->attribute->activeOptions->map(function ($option) {
+                        'attribute' => $item->productAttribute ? [
+                            'id' => $item->productAttribute->id,
+                            'name' => $item->productAttribute->name,
+                            'type' => $item->productAttribute->type,
+                            'options' => $item->productAttribute->relationLoaded('activeOptions')
+                                ? $item->productAttribute->activeOptions->map(function ($option) {
                                     return [
                                         'id' => $option->id,
                                         'name' => $option->name,
@@ -86,12 +84,12 @@ class ProductDetailResource extends JsonResource
 
                         'selected_options' => $item->relationLoaded('selectedOptions')
                             ? $item->selectedOptions
-                                ->filter(fn ($selected) => $selected->attributeOption)
+                                ->filter(fn ($selected) => $selected->productAttributeOption)
                                 ->map(function ($selected) {
                                     return [
-                                        'id' => $selected->attributeOption->id,
-                                        'name' => $selected->attributeOption->name,
-                                        'sort_order' => $selected->attributeOption->sort_order,
+                                        'id' => $selected->productAttributeOption->id,
+                                        'name' => $selected->productAttributeOption->name,
+                                        'sort_order' => $selected->productAttributeOption->sort_order,
                                     ];
                                 })->values()
                             : [],

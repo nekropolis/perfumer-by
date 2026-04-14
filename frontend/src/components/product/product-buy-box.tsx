@@ -1,6 +1,5 @@
 type Variant = {
     id: number;
-    title: string;
     display_name: string;
     type: string | null;
     price: string | null;
@@ -31,7 +30,7 @@ export default function ProductBuyBox({
                     <div className="mb-2 text-sm text-gray-500">Выбранный вариант</div>
 
                     <div className="mb-1 text-2xl font-semibold leading-tight">
-                        {selectedVariant.display_name || selectedVariant.title}
+                        {selectedVariant.display_name}
                     </div>
 
                     {selectedVariant.type && (

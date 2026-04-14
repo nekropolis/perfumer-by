@@ -7,7 +7,7 @@ type Option = {
 
 type Props = {
     value: string;
-    onChange: (value: string) => void;
+    onChangeAction: (value: string) => void;
     label?: string;
     options: Option[];
     placeholder?: string;
@@ -16,8 +16,8 @@ type Props = {
 
 export default function AdminFilterSelect({
                                               value,
-                                              onChange,
-                                              label = "Фильтр",
+                                              onChangeAction,
+                                              label = "",
                                               options,
                                               placeholder = "Все",
                                               className = "",
@@ -27,7 +27,7 @@ export default function AdminFilterSelect({
             <label className="mb-1.5 block text-sm font-medium text-gray-600">{label}</label>
             <select
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={(e) => onChangeAction(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200 md:w-56"
             >
                 <option value="">{placeholder}</option>

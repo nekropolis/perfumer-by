@@ -39,8 +39,10 @@ export default function AdminBrandCreatePage() {
             });
 
             router.push("/admin/brands");
-        } catch (e: any) {
-            setError(e?.message || "Ошибка создания бренда");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка создания бренда");
         } finally {
             setSubmitting(false);
         }
@@ -86,8 +88,8 @@ export default function AdminBrandCreatePage() {
             <BrandForm
                 form={form}
                 submitting={submitting}
-                onChange={setForm}
-                onSubmit={handleSubmit}
+                onChangeAction={setForm}
+                onSubmitAction={handleSubmit}
             />
         </AdminPageCard>
     );

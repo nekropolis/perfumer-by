@@ -1,6 +1,5 @@
 export type ProductVariantData = {
     id: number;
-    title: string;
     volume: number | null;
     volume_unit: string | null;
     type: string | null;

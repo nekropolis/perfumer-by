@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 
 type Props = {
     value: string;
-    onChange: (value: string) => void;
+    onChangeAction: (value: string) => void;
     label?: string;
     placeholder?: string;
     className?: string;
@@ -12,14 +12,12 @@ type Props = {
 
 export default function AdminSearchInput({
                                              value,
-                                             onChange,
-                                             label = "Поиск",
+                                             onChangeAction,
                                              placeholder = "Поиск...",
                                              className = "",
                                          }: Props) {
     return (
         <div className={className}>
-            <label className="mb-1.5 block text-sm font-medium text-gray-600">{label}</label>
             <div className="relative md:w-72">
                 <Search
                     size={16}
@@ -28,7 +26,7 @@ export default function AdminSearchInput({
                 <input
                     type="text"
                     value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    onChange={(e) => onChangeAction(e.target.value)}
                     placeholder={placeholder}
                     className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm transition outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                 />

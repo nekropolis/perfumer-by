@@ -208,7 +208,7 @@ export default function AdminShell({ children }: Props) {
                         </div>
 
                         <div className="h-[calc(100%-180px)] overflow-y-auto">
-                            <AdminSidebar onNavigate={() => setMobileMenuOpen(false)} />
+                            <AdminSidebar onNavigateAction={() => setMobileMenuOpen(false)} />
                         </div>
                     </div>
                 </div>

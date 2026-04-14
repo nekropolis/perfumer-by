@@ -13,7 +13,7 @@ type Props = {
     attributeId: number;
     items: AttributeOptionAdminItem[];
     disabled?: boolean;
-    onReload: () => Promise<void>;
+    onReloadAction: () => Promise<void>;
 };
 
 type FormState = {
@@ -33,7 +33,7 @@ export default function AttributeOptionsManager({
                                                     attributeId,
                                                     items,
                                                     disabled = false,
-                                                    onReload,
+                                                    onReloadAction,
                                                 }: Props) {
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createForm, setCreateForm] = useState<FormState>(emptyForm);
@@ -98,9 +98,11 @@ export default function AttributeOptionsManager({
             setSuccess(result.message || "Опция создана");
             setCreateModalOpen(false);
             resetCreateForm();
-            await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка создания опции");
+            await onReloadAction();
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка создания опции");
         } finally {
             setSubmitting(false);
         }
@@ -130,9 +132,11 @@ export default function AttributeOptionsManager({
 
             setSuccess(result.message || "Опция обновлена");
             setEditForm(null);
-            await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка сохранения опции");
+            await onReloadAction();
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка сохранения опции");
         } finally {
             setSubmitting(false);
         }
@@ -151,9 +155,11 @@ export default function AttributeOptionsManager({
             const result = await deleteAttributeOption(attributeId, deleteTarget.id);
             setSuccess(result.message || "Опция удалена");
             setDeleteTarget(null);
-            await onReload();
-        } catch (e: any) {
-            setError(e?.message || "Ошибка удаления опции");
+            await onReloadAction();
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка удаления опции");
         } finally {
             setDeleting(false);
         }
@@ -248,8 +254,8 @@ export default function AttributeOptionsManager({
                 }
                 confirmText="Удалить"
                 loading={deleting}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={handleDelete}
+                onCloseAction={() => setDeleteTarget(null)}
+                onConfirmAction={handleDelete}
             />
             {createModalOpen ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

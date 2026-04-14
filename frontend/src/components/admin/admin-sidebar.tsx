@@ -65,16 +65,7 @@ const sections: SidebarSection[] = [
         key: "imports",
         label: "Импорт и парсинг",
         items: [
-            {
-                type: "group",
-                key: "vanille",
-                label: "Vanille",
-                icon: FolderSync,
-                children: [
-                    { href: "/admin/import-export/vanille-parsing", label: "Парсинг" },
-                    { href: "/admin/import-export/vanille-products", label: "Товары" },
-                ],
-            },
+            {  type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla",  icon: FolderSync },
         ],
     },
     {
@@ -87,7 +78,7 @@ const sections: SidebarSection[] = [
 ];
 
 type Props = {
-    onNavigate?: () => void;
+    onNavigateAction?: () => void;
     collapsed?: boolean;
 };
 
@@ -103,7 +94,7 @@ function Tooltip({ label, collapsed }: { label: string; collapsed: boolean }) {
     );
 }
 
-export default function AdminSidebar({ onNavigate, collapsed = false }: Props) {
+export default function AdminSidebar({ onNavigateAction, collapsed = false }: Props) {
     const pathname = usePathname();
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
@@ -156,7 +147,7 @@ export default function AdminSidebar({ onNavigate, collapsed = false }: Props) {
                                             <Link
                                                 key={`${section.key}-${item.label}-${item.href}`}
                                                 href={item.href}
-                                                onClick={onNavigate}
+                                                onClick={onNavigateAction}
                                                 className={`group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-all duration-200 ${
                                                     isActive
                                                         ? "bg-black text-white shadow-sm"
@@ -262,7 +253,7 @@ export default function AdminSidebar({ onNavigate, collapsed = false }: Props) {
                                                             <Link
                                                                 key={child.href}
                                                                 href={child.href}
-                                                                onClick={onNavigate}
+                                                                onClick={onNavigateAction}
                                                                 className={`block rounded-lg px-3 py-2 text-sm transition ${
                                                                     childActive
                                                                         ? "bg-gray-900 text-white"

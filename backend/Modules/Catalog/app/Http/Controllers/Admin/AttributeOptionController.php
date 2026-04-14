@@ -5,14 +5,14 @@ namespace Modules\Catalog\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Catalog\Models\Attribute;
-use Modules\Catalog\Models\AttributeOption;
+use Modules\Catalog\Models\ProductAttribute;
+use Modules\Catalog\Models\ProductAttributeOption;
 
 class AttributeOptionController extends Controller
 {
     public function store(Request $request, int $attributeId): JsonResponse
     {
-        $attribute = Attribute::query()->findOrFail($attributeId);
+        $attribute = ProductAttribute::query()->findOrFail($attributeId);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -20,7 +20,7 @@ class AttributeOptionController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $option = AttributeOption::query()->create([
+        $option = ProductAttributeOption::query()->create([
             'attribute_id' => $attribute->id,
             'name' => $validated['name'],
             'sort_order' => $validated['sort_order'] ?? 0,
@@ -35,9 +35,9 @@ class AttributeOptionController extends Controller
 
     public function update(Request $request, int $attributeId, int $optionId): JsonResponse
     {
-        $attribute = Attribute::query()->findOrFail($attributeId);
+        $attribute = ProductAttribute::query()->findOrFail($attributeId);
 
-        $option = AttributeOption::query()
+        $option = ProductAttributeOption::query()
             ->where('attribute_id', $attribute->id)
             ->findOrFail($optionId);
 
@@ -61,9 +61,9 @@ class AttributeOptionController extends Controller
 
     public function destroy(int $attributeId, int $optionId): JsonResponse
     {
-        $attribute = Attribute::query()->findOrFail($attributeId);
+        $attribute = ProductAttribute::query()->findOrFail($attributeId);
 
-        $option = AttributeOption::query()
+        $option = ProductAttributeOption::query()
             ->where('attribute_id', $attribute->id)
             ->withCount('productValueOptions')
             ->findOrFail($optionId);

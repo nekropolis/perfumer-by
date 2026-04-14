@@ -30,7 +30,6 @@ class ProductVariantAdminController extends Controller
         $product = Product::query()->findOrFail($productId);
 
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
             'volume' => ['nullable', 'integer', 'min:0'],
             'volume_unit' => ['nullable', 'string', 'max:20'],
             'type' => ['nullable', 'string', 'max:100'],
@@ -46,7 +45,6 @@ class ProductVariantAdminController extends Controller
 
         $variant = ProductVariant::create([
             'product_id' => $product->id,
-            'title' => $validated['title'],
             'volume' => $validated['volume'] ?? null,
             'volume_unit' => $validated['volume_unit'] ?? null,
             'type' => $validated['type'] ?? null,
@@ -75,7 +73,6 @@ class ProductVariantAdminController extends Controller
             ->findOrFail($variantId);
 
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
             'volume' => ['nullable', 'integer', 'min:0'],
             'volume_unit' => ['nullable', 'string', 'max:20'],
             'type' => ['nullable', 'string', 'max:100'],
@@ -90,7 +87,6 @@ class ProductVariantAdminController extends Controller
         ]);
 
         $variant->update([
-            'title' => $validated['title'],
             'volume' => $validated['volume'] ?? null,
             'volume_unit' => $validated['volume_unit'] ?? null,
             'type' => $validated['type'] ?? null,

@@ -4,7 +4,7 @@ export type AttributeEditorTab = "main" | "options";
 
 type Props = {
     activeTab: AttributeEditorTab;
-    onChange: (tab: AttributeEditorTab) => void;
+    onChangeAction: (tab: AttributeEditorTab) => void;
 };
 
 const tabs: { key: AttributeEditorTab; label: string }[] = [
@@ -12,7 +12,7 @@ const tabs: { key: AttributeEditorTab; label: string }[] = [
     { key: "options", label: "Опции" },
 ];
 
-export default function AttributeEditorTabs({ activeTab, onChange }: Props) {
+export default function AttributeEditorTabs({ activeTab, onChangeAction }: Props) {
     return (
         <div className="mb-6 overflow-x-auto">
             <div className="flex min-w-max gap-2">
@@ -20,7 +20,7 @@ export default function AttributeEditorTabs({ activeTab, onChange }: Props) {
                     <button
                         key={tab.key}
                         type="button"
-                        onClick={() => onChange(tab.key)}
+                        onClick={() => onChangeAction(tab.key)}
                         className={`rounded-xl px-4 py-2 text-sm transition ${
                             activeTab === tab.key
                                 ? "bg-black text-white"

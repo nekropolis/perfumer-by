@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('attribute_options', function (Blueprint $table) {
+        Schema::create('product_attribute_options', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedBigInteger('attribute_id');
+            $table->unsignedBigInteger('product_attribute_id');
 
-            $table->foreign('attribute_id', 'ao_attr_id_fk')
+            $table->foreign('product_attribute_id', 'ao_attr_id_fk')
                 ->references('id')
-                ->on('attributes')
+                ->on('product_attributes')
                 ->cascadeOnDelete();
 
             $table->string('name');
@@ -25,12 +25,15 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->index(['attribute_id', 'is_active', 'sort_order']);
+            $table->index(
+                ['product_attribute_id', 'is_active', 'sort_order'],
+                'pao_attr_active_sort_idx'
+            );
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('attribute_options');
+        Schema::dropIfExists('product_attribute_options');
     }
 };

@@ -56,9 +56,6 @@ export default function AdminProductEditPage() {
             setBrands(brandsResponse.data || []);
             setAttributeBindingOptions(bindingOptionsResponse.data || []);
 
-            console.log("product edit item", item);
-            console.log("product variants", item.variants);
-
             setForm({
                 id: item.id,
                 brand_id: item.brand?.id ? String(item.brand.id) : "",
@@ -168,7 +165,7 @@ export default function AdminProductEditPage() {
                 <>
                     <ProductEditorTabs
                         activeTab={activeTab}
-                        onChange={setActiveTab}
+                        onChangeAction={setActiveTab}
                     />
 
                     {activeTab === "main" && (
@@ -176,8 +173,8 @@ export default function AdminProductEditPage() {
                             form={form}
                             brands={brands}
                             submitting={submitting}
-                            onChange={setForm}
-                            onSubmit={handleSubmit}
+                            onChangeAction={setForm}
+                            onSubmitAction={handleSubmit}
                         />
                     )}
 
@@ -191,7 +188,7 @@ export default function AdminProductEditPage() {
                         <ProductVariantsEditor
                             productId={form.id!}
                             items={productData.variants || []}
-                            onReload={loadData}
+                            onReloadAction={loadData}
                         />
                     )}
 
@@ -200,7 +197,7 @@ export default function AdminProductEditPage() {
                             productId={form.id!}
                             items={productData.attribute_values || []}
                             attributes={attributeBindingOptions}
-                            onReload={loadData}
+                            onReloadAction={loadData}
                         />
                     )}
 

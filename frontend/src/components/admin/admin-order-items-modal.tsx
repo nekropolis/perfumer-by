@@ -4,16 +4,16 @@ import type { OrderData } from "@/types/orders";
 
 type Props = {
     order: OrderData | null;
-    onClose: () => void;
+    onCloseAction: () => void;
 };
 
-export default function AdminOrderItemsModal({ order, onClose }: Props) {
+export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
     if (!order) return null;
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-            onClick={onClose}
+            onClick={onCloseAction}
         >
             <div
                 className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"
@@ -29,7 +29,7 @@ export default function AdminOrderItemsModal({ order, onClose }: Props) {
 
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={onCloseAction}
                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg"
                     >
                         ×

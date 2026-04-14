@@ -5,7 +5,7 @@ namespace Modules\Catalog\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Catalog\Models\Attribute;
+use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductAttributeValue;
 use Modules\Catalog\Models\ProductAttributeValueOption;
@@ -17,31 +17,31 @@ class ProductAttributeValueController extends Controller
         $product = Product::query()->findOrFail($productId);
 
         $validated = $request->validate([
-            'attribute_id' => ['required', 'integer', 'exists:attributes,id'],
+            'product_attribute_id' => ['required', 'integer', 'exists:product_attributes,id'],
             'option_ids' => ['nullable', 'array'],
-            'option_ids.*' => ['integer', 'exists:attribute_options,id'],
+            'option_ids.*' => ['integer', 'exists:product_attribute_options,id'],
             'custom_value' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
-        $attribute = Attribute::query()
+        $attribute = ProductAttribute::query()
             ->with('options')
-            ->findOrFail($validated['attribute_id']);
+            ->findOrFail($validated['product_attribute_id']);
 
         $exists = ProductAttributeValue::query()
             ->where('product_id', $product->id)
-            ->where('attribute_id', $attribute->id)
+            ->where('product_attribute_id', $attribute->id)
             ->exists();
 
         if ($exists) {
             return response()->json([
-                'message' => 'Этот атрибут уже привязана к товару',
+                'message' => 'Этот атрибут уже привязан к товару',
             ], 422);
         }
 
         $productValue = ProductAttributeValue::query()->create([
             'product_id' => $product->id,
-            'attribute_id' => $attribute->id,
+            'product_attribute_id' => $attribute->id,
             'custom_value' => $attribute->type === 'text'
                 ? ($validated['custom_value'] ?? null)
                 : null,
@@ -57,8 +57,8 @@ class ProductAttributeValueController extends Controller
         return response()->json([
             'message' => 'Атрибут привязан к товару',
             'data' => $productValue->load([
-                'attribute.activeOptions',
-                'selectedOptions.attributeOption',
+                'productAttribute.activeOptions',
+                'selectedOptions.productAttributeOption',
             ]),
         ], 201);
     }
@@ -69,17 +69,17 @@ class ProductAttributeValueController extends Controller
 
         $productValue = ProductAttributeValue::query()
             ->where('product_id', $product->id)
-            ->with('attribute.options')
+            ->with('productAttribute.options')
             ->findOrFail($valueId);
 
         $validated = $request->validate([
             'option_ids' => ['nullable', 'array'],
-            'option_ids.*' => ['integer', 'exists:attribute_options,id'],
+            'option_ids.*' => ['integer', 'exists:product_attribute_options,id'],
             'custom_value' => ['nullable', 'string'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
-        $attribute = $productValue->attribute;
+        $attribute = $productValue->productAttribute;
         $productValue->update([
             'custom_value' => $attribute && $attribute->type === 'text'
                 ? ($validated['custom_value'] ?? null)
@@ -98,8 +98,8 @@ class ProductAttributeValueController extends Controller
         return response()->json([
             'message' => 'Атрибут товара обновлен',
             'data' => $productValue->fresh()->load([
-                'attribute.activeOptions',
-                'selectedOptions.attributeOption',
+                'productAttribute.activeOptions',
+                'selectedOptions.productAttributeOption',
             ]),
         ]);
     }
@@ -121,8 +121,8 @@ class ProductAttributeValueController extends Controller
 
     private function syncSelectedOptions(
         ProductAttributeValue $productValue,
-        Attribute $attribute,
-        array $optionIds
+        ProductAttribute      $attribute,
+        array                 $optionIds
     ): void {
         if ($attribute->type === 'text') {
             ProductAttributeValueOption::query()
@@ -146,13 +146,13 @@ class ProductAttributeValueController extends Controller
 
         ProductAttributeValueOption::query()
             ->where('product_attribute_value_id', $productValue->id)
-            ->whereNotIn('attribute_option_id', $filtered->all())
+            ->whereNotIn('product_attribute_option_id', $filtered->all())
             ->delete();
 
         foreach ($filtered as $optionId) {
             ProductAttributeValueOption::query()->firstOrCreate([
                 'product_attribute_value_id' => $productValue->id,
-                'attribute_option_id' => $optionId,
+                'product_attribute_option_id' => $optionId,
             ]);
         }
     }

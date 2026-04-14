@@ -62,13 +62,13 @@ export default function AdminOrdersPage() {
             >
                 <AdminSearchInput
                     value={searchInput}
-                    onChange={setSearchInput}
+                    onChangeAction={setSearchInput}
                     placeholder="ID, имя, телефон"
                 />
 
                 <AdminFilterSelect
                     value={statusFilter}
-                    onChange={setStatusFilter}
+                    onChangeAction={setStatusFilter}
                     label="Статус"
                     options={ORDER_STATUS_OPTIONS}
                     placeholder="Все статусы"
@@ -95,8 +95,8 @@ export default function AdminOrdersPage() {
             {!loading && orders.length > 0 && (
                 <AdminOrdersTable
                     initialOrders={orders}
-                    onSuccessMessage={(message) => setToast({ type: "success", message })}
-                    onErrorMessage={(message) => setToast({ type: "error", message })}
+                    onSuccessMessageAction={(message) => setToast({ type: "success", message })}
+                    onErrorMessageAction={(message) => setToast({ type: "error", message })}
                 />
             )}
 

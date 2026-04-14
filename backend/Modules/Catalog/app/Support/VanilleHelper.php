@@ -2,7 +2,7 @@
 
 namespace Modules\Catalog\Support;
 
-class SlugHelper
+class VanilleHelper
 {
     protected static array $translitMap = [
         'а' => 'a',
@@ -50,5 +50,12 @@ class SlugHelper
         $value = preg_replace('/-+/u', '-', $value);
 
         return trim((string) $value, '-');
+    }
+
+    public static function normalizeNullableString(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
     }
 }

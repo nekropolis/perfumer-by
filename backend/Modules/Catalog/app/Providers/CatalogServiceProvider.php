@@ -3,7 +3,6 @@
 namespace Modules\Catalog\Providers;
 
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
-use Modules\Catalog\Console\Commands\MigrateLegacyProductAttributesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 
@@ -48,7 +47,6 @@ class CatalogServiceProvider extends ModuleServiceProvider
 
     protected array $commands = [
         ImportVanilleSampleCommand::class,
-        MigrateLegacyProductAttributesCommand::class,
     ];
 
 }

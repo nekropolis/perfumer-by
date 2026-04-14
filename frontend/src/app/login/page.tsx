@@ -87,7 +87,7 @@ export default function LoginPage() {
 
                         <div>
                             <label className="mb-2 block text-sm font-medium">Телефон</label>
-                            <PhoneInput value={phone} onChange={setPhone} />
+                            <PhoneInput value={phone} onChangeAction={setPhone} />
                         </div>
 
                         <button

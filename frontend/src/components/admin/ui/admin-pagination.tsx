@@ -3,15 +3,15 @@
 type Props = {
     currentPage: number;
     lastPage: number;
-    onPrev: () => void;
-    onNext: () => void;
+    onPrevAction: () => void;
+    onNextAction: () => void;
 };
 
 export default function AdminPagination({
                                             currentPage,
                                             lastPage,
-                                            onPrev,
-                                            onNext,
+                                            onPrevAction,
+                                            onNextAction,
                                         }: Props) {
     if (lastPage <= 1) {
         return null;
@@ -21,7 +21,7 @@ export default function AdminPagination({
         <div className="flex items-center justify-between">
             <button
                 type="button"
-                onClick={onPrev}
+                onClick={onPrevAction}
                 disabled={currentPage <= 1}
                 className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
             >
@@ -34,7 +34,7 @@ export default function AdminPagination({
 
             <button
                 type="button"
-                onClick={onNext}
+                onClick={onNextAction}
                 disabled={currentPage >= lastPage}
                 className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
             >

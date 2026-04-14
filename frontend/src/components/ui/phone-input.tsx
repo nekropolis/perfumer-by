@@ -4,7 +4,7 @@ import { useRef } from "react";
 
 type Props = {
     value: string;
-    onChange: (value: string) => void;
+    onChangeAction: (value: string) => void;
     className?: string;
 };
 
@@ -50,7 +50,7 @@ function getCursorFromDigitIndex(digitIndex: number): number {
 }
 
 function normalizeLocalDigits(digits: string): string {
-    let normalized = digits.replace(/\D/g, "").slice(0, 9);
+    const normalized = digits.replace(/\D/g, "").slice(0, 9);
 
     if (normalized.length >= 2) {
         const operatorCode = normalized.slice(0, 2);
@@ -68,7 +68,7 @@ export function isBelarusPhoneComplete(value: string): boolean {
     return /^375(25|29|33|44)\d{7}$/.test(digits);
 }
 
-export default function PhoneInput({ value, onChange, className = "" }: Props) {
+export default function PhoneInput({ value, onChangeAction, className = "" }: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
 
     const localDigits = extractLocalDigits(value);
@@ -76,7 +76,7 @@ export default function PhoneInput({ value, onChange, className = "" }: Props) {
 
     const commitDigits = (digits: string, nextDigitIndex?: number) => {
         const normalizedLocal = normalizeLocalDigits(digits);
-        onChange(COUNTRY_PREFIX + normalizedLocal);
+        onChangeAction(COUNTRY_PREFIX + normalizedLocal);
 
         requestAnimationFrame(() => {
             const input = inputRef.current;

@@ -8,14 +8,14 @@ import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 
 type Props = {
     initialOrders: OrderData[];
-    onSuccessMessage?: (message: string) => void;
-    onErrorMessage?: (message: string) => void;
+    onSuccessMessageAction?: (message: string) => void;
+    onErrorMessageAction?: (message: string) => void;
 };
 
 export default function AdminOrdersTable({
                                              initialOrders,
-                                             onSuccessMessage,
-                                             onErrorMessage,
+                                             onSuccessMessageAction,
+                                             onErrorMessageAction,
                                          }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [savingOrderId, setSavingOrderId] = useState<number | null>(null);
@@ -28,8 +28,8 @@ export default function AdminOrdersTable({
     const handleStatusChange = async (orderId: number, status: string) => {
         try {
             setSavingOrderId(orderId);
-            onErrorMessage?.("");
-            onSuccessMessage?.("");
+            onErrorMessageAction?.("");
+            onSuccessMessageAction?.("");
 
             const response = await updateOrderStatus(orderId, status);
 
@@ -43,10 +43,10 @@ export default function AdminOrdersTable({
                 prev && prev.id === orderId ? { ...prev, status: response.data.status } : prev
             );
 
-            onSuccessMessage?.("Статус заказа обновлён");
+            onSuccessMessageAction?.("Статус заказа обновлён");
         } catch (error) {
             console.error(error);
-            onErrorMessage?.("Не удалось обновить статус");
+            onErrorMessageAction?.("Не удалось обновить статус");
         } finally {
             setSavingOrderId(null);
         }
@@ -107,7 +107,7 @@ export default function AdminOrdersTable({
 
             <AdminOrderItemsModal
                 order={selectedOrder}
-                onClose={() => setSelectedOrder(null)}
+                onCloseAction={() => setSelectedOrder(null)}
             />
         </>
     );

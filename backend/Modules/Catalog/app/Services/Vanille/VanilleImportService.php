@@ -6,15 +6,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
-use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\ProductVariant;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SupplierProduct;
+use Modules\Catalog\Services\Vanille\Parsers\VanilleAttributeParser;
 use Modules\Catalog\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\Catalog\Services\Vanille\Parsers\VanilleLinkCollector;
 use Modules\Catalog\Services\Vanille\Parsers\VanilleProductParser;
 use Modules\Catalog\Services\Vanille\Support\VanilleHttpClient;
+use Modules\Catalog\Support\VanilleHelper;
 
 class VanilleImportService
 {
@@ -23,6 +24,7 @@ class VanilleImportService
         protected VanilleProductParser $productParser,
         protected VanilleBrandParser $brandParser,
         protected VanilleLinkCollector $linkCollector,
+        protected VanilleAttributeParser $attributeParser,
     ) {
     }
 
@@ -132,32 +134,26 @@ class VanilleImportService
                         $imported++;
                     }
 
-                    ProductAttribute::where('product_id', $product->id)->delete();
-
-                    $sort = 0;
-                    foreach (($item['characteristics'] ?? []) as $name => $value) {
-                        ProductAttribute::create([
-                            'product_id' => $product->id,
-                            'name' => $name,
-                            'value' => $value,
-                            'sort_order' => $sort++,
-                        ]);
-                    }
+                    $this->attributeParser->syncProductAttributes(
+                        $product->id,
+                        $item['characteristics'] ?? []
+                    );
 
                     foreach (($item['offers'] ?? []) as $index => $offer) {
                         $parsed = $this->parseVariant($offer);
 
+                        $variantType = VanilleHelper::normalizeNullableString($offer['type'] ?? null);
+
                         $variant = ProductVariant::updateOrCreate(
                             [
                                 'product_id' => $product->id,
-                                'title' => $offer['title'],
-                            ],
-                            [
                                 'volume' => $parsed['volume'],
                                 'volume_unit' => $parsed['volume_unit'],
-                                'type' => $offer['type'] ?? null,
+                                'type' => $variantType,
                                 'concentration' => $parsed['concentration'],
                                 'edition' => $parsed['edition'],
+                            ],
+                            [
                                 'price' => $this->normalizePrice($offer['price_byn'] ?? null),
                                 'old_price' => $this->normalizePrice($offer['old_price'] ?? null),
                                 'stock' => $this->normalizeStock($offer['stock_flag'] ?? null),
@@ -166,6 +162,7 @@ class VanilleImportService
                                 'sort_order' => $index,
                             ]
                         );
+
                         SupplierVariantOffer::updateOrCreate(
                             [
                                 'supplier_id' => $supplier->id,
@@ -213,24 +210,26 @@ class VanilleImportService
 
     protected function parseVariant(array $offer): array
     {
-        $variant = $offer['variant'] ?? '';
-        $title = $offer['title'] ?? '';
+        $variant = (string) ($offer['variant'] ?? '');
+        $title = (string) ($offer['title'] ?? '');
 
         $volume = null;
         $volumeUnit = null;
 
         if (preg_match('/(\d+)\s*(мл|ml)/iu', $variant, $m)) {
-            $volume = (int)$m[1];
+            $volume = (int) $m[1];
             $volumeUnit = 'ml';
         }
 
         $edition = null;
-        if (Str::contains(mb_strtolower($variant), 'тестер') || Str::contains(mb_strtolower($title), 'tester')) {
+        $variantLower = mb_strtolower($variant);
+        $titleLower = mb_strtolower($title);
+
+        if (str_contains($variantLower, 'тестер') || str_contains($titleLower, 'tester')) {
             $edition = 'tester';
         }
 
         $concentration = null;
-        $titleLower = mb_strtolower($title);
 
         if (str_contains($titleLower, ' parfum')) {
             $concentration = 'parfum';

@@ -42,7 +42,6 @@ export type AdminProductVariantsResponse = {
 };
 
 export type ProductVariantPayload = {
-    title: string;
     volume?: number | null;
     volume_unit?: string | null;
     type?: string | null;

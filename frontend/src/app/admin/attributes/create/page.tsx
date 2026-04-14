@@ -95,8 +95,8 @@ export default function AdminAttributeCreatePage() {
             <AttributeForm
                 form={form}
                 submitting={submitting}
-                onChange={setForm}
-                onSubmit={handleSubmit}
+                onChangeAction={setForm}
+                onSubmitAction={handleSubmit}
             />
         </AdminPageCard>
     );

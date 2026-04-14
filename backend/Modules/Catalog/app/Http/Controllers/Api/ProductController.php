@@ -21,8 +21,8 @@ class ProductController extends Controller
                 'mainCategory',
                 'categories',
                 'images',
-                'attributeValues.attribute.activeOptions',
-                'attributeValues.selectedOptions.attributeOption',
+                'attributeValues.productAttribute.activeOptions',
+                'attributeValues.selectedOptions.productAttributeOption',
                 'activeVariants',
             ]);
 
@@ -61,8 +61,8 @@ class ProductController extends Controller
                 'mainCategory',
                 'categories',
                 'images',
-                'attributeValues.attribute.activeOptions',
-                'attributeValues.selectedOptions.attributeOption',
+                'attributeValues.productAttribute.activeOptions',
+                'attributeValues.selectedOptions.productAttributeOption',
                 'activeVariants',
             ])
             ->firstOrFail();

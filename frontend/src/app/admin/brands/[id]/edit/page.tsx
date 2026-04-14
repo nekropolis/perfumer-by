@@ -38,8 +38,10 @@ export default function AdminBrandEditPage() {
                     slug: item.slug,
                     is_active: item.is_active,
                 });
-            } catch (e: any) {
-                setError(e?.message || "Ошибка загрузки бренда");
+            } catch (e: unknown) {
+                setError(
+                    e instanceof Error
+                        ? e.message : "Ошибка загрузки бренда");
             } finally {
                 setLoading(false);
             }
@@ -70,8 +72,10 @@ export default function AdminBrandEditPage() {
             });
 
             router.push("/admin/brands");
-        } catch (e: any) {
-            setError(e?.message || "Ошибка сохранения бренда");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message : "Ошибка сохранения бренда");
         } finally {
             setSubmitting(false);
         }
@@ -120,8 +124,8 @@ export default function AdminBrandEditPage() {
                 <BrandForm
                     form={form}
                     submitting={submitting}
-                    onChange={setForm}
-                    onSubmit={handleSubmit}
+                    onChangeAction={setForm}
+                    onSubmitAction={handleSubmit}
                 />
             ) : null}
         </AdminPageCard>
