@@ -70,10 +70,6 @@ function formatMoney(value?: string | null) {
 }
 
 function buildDisplayName(item: AdminProductVariantItem) {
-    if (item.display_name) {
-        return item.display_name;
-    }
-
     const parts: string[] = [];
 
     if (item.volume) {
@@ -88,24 +84,24 @@ function buildDisplayName(item: AdminProductVariantItem) {
         parts.push(item.edition);
     }
 
-    return parts.length > 0 ? parts.join(" / ") : 'Нет вариантов';
+    return parts.length > 0 ? parts.join(" / ") : "Без параметров";
 }
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
     return (
-        <div className="flex flex-wrap gap-2">
-            {item.is_active ? (
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs text-green-700">
-                    Активен
-                </span>
-            ) : (
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">
-                    Выключен
-                </span>
-            )}
+        <div className="flex flex-wrap items-center gap-1">
+            <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    item.is_active
+                        ? "bg-green-50 text-green-700"
+                        : "bg-gray-100 text-gray-600"
+                }`}
+            >
+                {item.is_active ? "Активен" : "Выкл"}
+            </span>
 
             {item.is_preorder ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                     Предзаказ
                 </span>
             ) : null}
@@ -415,41 +411,131 @@ export default function ProductVariantsEditor({
                 ) : (
                     <div className="space-y-3">
                         {sortedItems.map((item) => (
-                            <div key={item.id} className="rounded-xl border p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1 space-y-3">
-                                        <div>
-                                            <div className="mt-1 text-xs text-gray-500">
-                                                {buildDisplayName(item)} • Порядок: {item.sort_order ?? 0}
-                                            </div>
+                            <div
+                                key={item.id}
+                                className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-gray-50/60"
+                            >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(120px,1fr)_110px_70px] sm:items-center sm:gap-3">
+                                        <div className="min-w-0">
+                                            <VariantBadges item={item} />
                                         </div>
 
-                                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
-                                            <div>Цена: {formatMoney(item.price)}</div>
-                                            <div>Старая цена: {formatMoney(item.old_price)}</div>
-                                            <div>Остаток: {item.stock ?? 0}</div>
-                                            <div>Тип: {item.type || "—"}</div>
+                                        <div className="min-w-0 text-sm font-medium leading-5 text-gray-900 break-words">
+                                            {buildDisplayName(item)}
                                         </div>
 
-                                        <VariantBadges item={item} />
+                                        <div className="min-w-0 text-sm text-gray-600 break-words">
+                                            {item.type || "—"}
+                                        </div>
+
+                                        <div className="text-sm font-medium text-gray-900">
+                                            {formatMoney(item.price)}
+                                        </div>
+
+                                        <div className="text-sm text-gray-600">
+                                            {item.stock ?? 0} шт.
+                                        </div>
                                     </div>
 
-                                    <div className="flex shrink-0 gap-2">
+                                    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:w-[210px] sm:justify-end sm:pt-0.5">
+                                        <div className="flex items-center gap-1.5 sm:hidden">
+                                            <button
+                                                type="button"
+                                                onClick={() => openEdit(item)}
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-gray-700 transition hover:bg-white"
+                                                title="Редактировать"
+                                                aria-label="Редактировать"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="1.8"
+                                                    className="h-3.5 w-3.5"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                    />
+                                                </svg>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteTarget(item)}
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                title="Удалить"
+                                                aria-label="Удалить"
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="1.8"
+                                                    className="h-3.5 w-3.5"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        d="M18 6L6 18M6 6l12 12"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <div className="hidden w-full items-center justify-end gap-1.5 sm:flex">
                                         <button
                                             type="button"
                                             onClick={() => openEdit(item)}
-                                            className="rounded-md border px-2.5 py-1 text-xs"
+                                            className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] text-gray-700 transition hover:bg-white"
+                                            title="Редактировать"
+                                            aria-label="Редактировать"
                                         >
-                                            Редактировать
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="1.8"
+                                                className="h-3.5 w-3.5"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                />
+                                            </svg>
+                                            <span>Редактировать</span>
                                         </button>
 
                                         <button
                                             type="button"
                                             onClick={() => setDeleteTarget(item)}
-                                            className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-600"
+                                            className="inline-flex h-7 items-center gap-1 rounded-md border border-red-200 px-2 text-[11px] text-red-600 transition hover:bg-red-50"
+                                            title="Удалить"
+                                            aria-label="Удалить"
                                         >
-                                            Удалить
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="1.8"
+                                                className="h-3.5 w-3.5"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    d="M18 6L6 18M6 6l12 12"
+                                                />
+                                            </svg>
+                                            <span>Удалить</span>
                                         </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

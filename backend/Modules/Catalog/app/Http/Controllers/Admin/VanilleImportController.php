@@ -11,32 +11,6 @@ use Modules\Catalog\Models\SupplierProduct;
 
 class VanilleImportController extends Controller
 {
-    public function upload(Request $request)
-    {
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:json'],
-        ]);
-
-        $path = $request->file('file')->store('imports/vanille', 'public');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Файл загружен',
-            'path' => Storage::disk('public')->path($path),
-        ]);
-    }
-
-    public function import(Request $request, VanilleImportService $service)
-    {
-        $request->validate([
-            'path' => ['required', 'string'],
-        ]);
-
-        $result = $service->importFromJsonFile($request->string('path')->toString());
-
-        return response()->json($result);
-    }
-
     public function parseBrands(VanilleImportService $service)
     {
         $result = $service->parseBrands();
@@ -55,8 +29,6 @@ class VanilleImportController extends Controller
         return response()->json($result);
     }
 
-
-
     public function parseProducts(Request $request, VanilleImportService $service)
     {
         $offset = (int) $request->input('offset', 0);
@@ -67,8 +39,6 @@ class VanilleImportController extends Controller
 
         return response()->json($result);
     }
-
-
 
     public function supplierProducts(Request $request)
     {

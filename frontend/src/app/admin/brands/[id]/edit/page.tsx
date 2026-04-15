@@ -18,6 +18,7 @@ export default function AdminBrandEditPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+
     useEffect(() => {
         const loadBrand = async () => {
             setLoading(true);
@@ -94,7 +95,7 @@ export default function AdminBrandEditPage() {
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать бренд</h1>
+                    <h1 className="text-2xl font-semibold">Редактировать бренд - {form?.name}</h1>
                     <p className="mt-1 text-sm text-gray-600">
                         Редактирование бренда
                     </p>

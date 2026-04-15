@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect } from "react";
 
@@ -13,23 +13,32 @@ type Props = {
 function ToolbarButton({
                            label,
                            active = false,
+                           disabled = false,
                            onClick,
                        }: {
     label: string;
     active?: boolean;
+    disabled?: boolean;
     onClick: () => void;
 }) {
     return (
         <button
             type="button"
             onClick={onClick}
+            disabled={disabled}
             className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                active ? "bg-black text-white" : "bg-white hover:bg-gray-50"
-            }`}
+                active
+                    ? "border-black bg-black text-white"
+                    : "bg-white hover:bg-gray-50"
+            } disabled:cursor-not-allowed disabled:opacity-40`}
         >
             {label}
         </button>
     );
+}
+
+function ToolbarDivider() {
+    return <div className="mx-1 hidden h-8 w-px bg-gray-200 sm:block" />;
 }
 
 export default function AdminRichTextEditor({
@@ -97,52 +106,86 @@ export default function AdminRichTextEditor({
 
     return (
         <div className="rounded-2xl border bg-white">
-            <div className="flex flex-wrap gap-2 border-b p-3">
+            <div className="flex flex-wrap items-center gap-2 border-b p-3">
                 <ToolbarButton
                     label="B"
                     active={editor.isActive("bold")}
                     onClick={() => editor.chain().focus().toggleBold().run()}
                 />
+
                 <ToolbarButton
                     label="I"
                     active={editor.isActive("italic")}
                     onClick={() => editor.chain().focus().toggleItalic().run()}
                 />
+
                 <ToolbarButton
                     label="U"
                     active={editor.isActive("underline")}
                     onClick={() => editor.chain().focus().toggleUnderline().run()}
                 />
+
+                <ToolbarDivider />
+
                 <ToolbarButton
                     label="H2"
                     active={editor.isActive("heading", { level: 2 })}
                     onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                 />
+
                 <ToolbarButton
                     label="H3"
                     active={editor.isActive("heading", { level: 3 })}
                     onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
                 />
+
+                <ToolbarDivider />
+
                 <ToolbarButton
                     label="Список"
                     active={editor.isActive("bulletList")}
                     onClick={() => editor.chain().focus().toggleBulletList().run()}
                 />
+
                 <ToolbarButton
                     label="Нумерация"
                     active={editor.isActive("orderedList")}
                     onClick={() => editor.chain().focus().toggleOrderedList().run()}
                 />
+
                 <ToolbarButton
                     label="Цитата"
                     active={editor.isActive("blockquote")}
                     onClick={() => editor.chain().focus().toggleBlockquote().run()}
                 />
+
+                <ToolbarButton
+                    label="Линия"
+                    onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                />
+
+                <ToolbarDivider />
+
                 <ToolbarButton
                     label="Ссылка"
                     active={editor.isActive("link")}
                     onClick={setLink}
                 />
+
+                <ToolbarDivider />
+
+                <ToolbarButton
+                    label="↺"
+                    disabled={!editor.can().chain().focus().undo().run()}
+                    onClick={() => editor.chain().focus().undo().run()}
+                />
+
+                <ToolbarButton
+                    label="↻"
+                    disabled={!editor.can().chain().focus().redo().run()}
+                    onClick={() => editor.chain().focus().redo().run()}
+                />
+
                 <ToolbarButton
                     label="Очистить"
                     onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
@@ -155,6 +198,7 @@ export default function AdminRichTextEditor({
                         {placeholder}
                     </div>
                 ) : null}
+
                 <EditorContent editor={editor} />
             </div>
         </div>

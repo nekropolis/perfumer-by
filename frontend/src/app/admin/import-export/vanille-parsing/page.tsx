@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -10,38 +10,21 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
-import VanilleParsingPage from "@/app/admin/import-export/vanille-parsing/page-parse";
+import {
+    ApiResponse,
+    ImportResponse,
+    SupplierProductItem,
+    VanilleParseResponse,
+} from "@/types/Vanille";
 
-type SupplierProductItem = {
-    id: number;
-    external_name: string;
-    external_slug: string | null;
-    external_url: string;
-    is_linked: boolean;
-    is_active: boolean;
-    last_seen_at: string | null;
-    supplier?: {
-        id: number;
-        name: string;
-        code: string;
-    } | null;
-    brand?: {
-        id: number;
-        name: string;
-    } | null;
-    product?: {
-        id: number;
-        name: string;
-        slug: string;
-    } | null;
-};
+import {
+    collectVanilleProductLinks,
+    fetchVanilleSupplierProducts,
+    importParsedVanilleProducts,
+    parseVanilleBrands,
+    parseVanilleProducts,
+} from "@/lib/admin-vanille-api";
 
-type ApiResponse = {
-    data: SupplierProductItem[];
-    current_page: number;
-    last_page: number;
-    total: number;
-};
 
 const LINKED_OPTIONS = [
     {value: "true", label: "Только связанные"},
@@ -53,6 +36,103 @@ const ACTIVE_OPTIONS = [
     {value: "false", label: "Только неактивные"},
 ];
 
+function DismissibleAlert({
+                              message,
+                              onCloseAction,
+                          }: {
+    message: string;
+    onCloseAction: () => void;
+}) {
+    return (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">{message}</div>
+
+                <button
+                    type="button"
+                    onClick={onCloseAction}
+                    className="shrink-0 text-xs opacity-60 transition hover:opacity-100"
+                >
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function VanilleResultCard({
+                               title,
+                               result,
+                               onCloseAction,
+                               scrollableLog = false,
+                           }: {
+    title: string;
+    result: {
+        message?: string;
+        imported?: number;
+        updated?: number;
+        errors?: number;
+        items?: number;
+        log?: string[];
+    };
+    onCloseAction: () => void;
+    scrollableLog?: boolean;
+}) {
+    return (
+        <div className="rounded-2xl border bg-gray-50 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="text-sm font-medium">{title}</div>
+
+                <button
+                    type="button"
+                    onClick={onCloseAction}
+                    className="shrink-0 text-xs text-gray-500 opacity-60 transition hover:opacity-100"
+                >
+                    ✕
+                </button>
+            </div>
+
+            {result.message ? (
+                <div className="text-sm text-gray-700">{result.message}</div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-xl border bg-white p-3 text-sm">
+                    <div className="text-gray-500">Imported</div>
+                    <div className="text-lg font-semibold">{result.imported || 0}</div>
+                </div>
+
+                <div className="rounded-xl border bg-white p-3 text-sm">
+                    <div className="text-gray-500">Updated</div>
+                    <div className="text-lg font-semibold">{result.updated || 0}</div>
+                </div>
+
+                <div className="rounded-xl border bg-white p-3 text-sm">
+                    <div className="text-gray-500">Errors</div>
+                    <div className="text-lg font-semibold">{result.errors || 0}</div>
+                </div>
+
+                <div className="rounded-xl border bg-white p-3 text-sm">
+                    <div className="text-gray-500">Items</div>
+                    <div className="text-lg font-semibold">{result.items || 0}</div>
+                </div>
+            </div>
+
+            {Array.isArray(result.log) && result.log.length > 0 ? (
+                <div className="rounded-xl border bg-white p-3">
+                    <div className="mb-2 text-sm font-medium">Лог</div>
+                    <div
+                        className={`space-y-1 text-sm text-gray-700 ${scrollableLog ? "max-h-80 overflow-y-auto" : ""}`}>
+                        {result.log.map((line, index) => (
+                            <div key={index}>{line}</div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 export default function VanilleProductsPage() {
     const [items, setItems] = useState<SupplierProductItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -63,7 +143,13 @@ export default function VanilleProductsPage() {
     const [page, setPage] = useState(1);
     const [meta, setMeta] = useState<ApiResponse | null>(null);
     const [importingParsed, setImportingParsed] = useState(false);
-    const [importResult, setImportResult] = useState<any>(null);
+    const [importResult, setImportResult] = useState<ImportResponse | null>(null);
+
+    const [parsingError, setParsingError] = useState("");
+    const [parsingResult, setParsingResult] = useState<VanilleParseResponse | null>(null);
+    const [parsingBrands, setParsingBrands] = useState(false);
+    const [collectingLinks, setCollectingLinks] = useState(false);
+    const [parsingProducts, setParsingProducts] = useState(false);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -72,29 +158,12 @@ export default function VanilleProductsPage() {
         setError("");
 
         try {
-            const params = new URLSearchParams();
-
-            if (debouncedSearch) params.set("search", debouncedSearch);
-            if (linked) params.set("linked", linked);
-            if (active) params.set("active", active);
-            params.set("page", String(targetPage));
-
-            const response = await fetch(
-                `/api/catalog/admin/import-export/vanille/supplier-products?${params.toString()}`
-            );
-
-            const text = await response.text();
-
-            let data: any;
-            try {
-                data = JSON.parse(text);
-            } catch {
-                throw new Error(text || "Сервер вернул не JSON");
-            }
-
-            if (!response.ok) {
-                throw new Error(data.message || "Ошибка загрузки товаров поставщика");
-            }
+            const data = await fetchVanilleSupplierProducts({
+                search: debouncedSearch || undefined,
+                linked: linked || undefined,
+                active: active || undefined,
+                page: targetPage,
+            });
 
             setItems(data.data || []);
             setMeta(data);
@@ -118,22 +187,7 @@ export default function VanilleProductsPage() {
         setImportResult(null);
 
         try {
-            const response = await fetch("/api/catalog/admin/import-export/vanille/import-parsed-products", {
-                method: "POST",
-            });
-
-            const text = await response.text();
-
-            let data: any;
-            try {
-                data = JSON.parse(text);
-            } catch {
-                throw new Error(text || "Сервер вернул не JSON");
-            }
-
-            if (!response.ok) {
-                throw new Error(data.message || "Ошибка импорта спарсенных товаров");
-            }
+            const data = await importParsedVanilleProducts();
 
             setImportResult(data);
             await loadItems(1);
@@ -146,6 +200,69 @@ export default function VanilleProductsPage() {
             setImportingParsed(false);
         }
     };
+    // Parsing logic and UI
+
+
+    const handleParseBrands = async () => {
+        setParsingBrands(true);
+        setParsingError("");
+        setParsingResult(null);
+
+        try {
+            const data = await parseVanilleBrands();
+
+            setParsingResult(data);
+        } catch (e: unknown) {
+            setParsingError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка парсинга брендов"
+            );
+        } finally {
+            setParsingBrands(false);
+        }
+    };
+
+    const handleCollectLinks = async () => {
+        setCollectingLinks(true);
+        setParsingError("");
+        setParsingResult(null);
+
+        try {
+            const data = await collectVanilleProductLinks();
+
+            setParsingResult(data);
+        } catch (e: unknown) {
+            setParsingError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка сбора ссылок"
+            );
+        } finally {
+            setCollectingLinks(false);
+        }
+    };
+
+    const handleParseProducts = async () => {
+        setParsingProducts(true);
+        setParsingError("");
+        setParsingResult(null);
+
+        try {
+            const data = await parseVanilleProducts();
+
+            setParsingResult(data);
+        } catch (e: unknown) {
+            setParsingError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка массового парсинга карточек"
+            );
+        } finally {
+            setParsingProducts(false);
+        }
+    };
+
     return (
         <AdminPageCard>
             <AdminTableToolbar
@@ -162,33 +279,76 @@ export default function VanilleProductsPage() {
                     </button>
                 }
             >
-                <VanilleParsingPage/>
+                <div className="w-full space-y-4">
+                    <div className="rounded-2xl border bg-white p-6 space-y-4">
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={handleParseBrands}
+                                disabled={parsingBrands}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {parsingBrands ? "Парсинг..." : "Парсинг брендов"}
+                            </button>
 
-            </AdminTableToolbar>
+                            <button
+                                type="button"
+                                onClick={handleCollectLinks}
+                                disabled={collectingLinks}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {collectingLinks ? "Сбор..." : "Сбор ссылок товаров"}
+                            </button>
 
-            <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50/70 p-4 sm:p-5">
-                <div className="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-                    <AdminSearchInput
-                        value={searchInput}
-                        onChangeAction={setSearchInput}
-                        placeholder="Название, slug, url"
-                    />
+                            <button
+                                type="button"
+                                onClick={handleParseProducts}
+                                disabled={parsingProducts}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {parsingProducts ? "Парсинг..." : "Массовый парсинг карточек"}
+                            </button>
+                        </div>
 
-                    <AdminFilterSelect
-                        value={linked}
-                        onChangeAction={setLinked}
-                        options={LINKED_OPTIONS}
-                        placeholder="Все связи"
-                    />
+                        {parsingError ? (
+                            <DismissibleAlert
+                                message={parsingError}
+                                onCloseAction={() => setParsingError("")}
+                            />
+                        ) : null}
 
-                    <AdminFilterSelect
-                        value={active}
-                        onChangeAction={setActive}
-                        options={ACTIVE_OPTIONS}
-                        placeholder="Все статусы"
-                    />
+                        {parsingResult ? (
+                            <VanilleResultCard
+                                title="Результат"
+                                result={parsingResult}
+                                onCloseAction={() => setParsingResult(null)}
+                            />
+                        ) : null}
+                    </div>
+
+                    <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                        <AdminSearchInput
+                            value={searchInput}
+                            onChangeAction={setSearchInput}
+                            placeholder="Название, slug, url"
+                        />
+
+                        <AdminFilterSelect
+                            value={linked}
+                            onChangeAction={setLinked}
+                            options={LINKED_OPTIONS}
+                            placeholder="Все связи"
+                        />
+
+                        <AdminFilterSelect
+                            value={active}
+                            onChangeAction={setActive}
+                            options={ACTIVE_OPTIONS}
+                            placeholder="Все статусы"
+                        />
+                    </div>
                 </div>
-            </div>
+            </AdminTableToolbar>
 
             {error && (
                 <AdminFeedbackMessage
@@ -198,47 +358,16 @@ export default function VanilleProductsPage() {
                 />
             )}
 
-            {importResult && (
-                <div className="mb-6 rounded-2xl border bg-gray-50 p-4 space-y-4">
-                    <div className="text-sm font-medium">Результат импорта</div>
-
-                    {importResult.message ? (
-                        <div className="text-sm text-gray-700">{importResult.message}</div>
-                    ) : null}
-
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                        <div className="rounded-xl border bg-white p-3 text-sm">
-                            <div className="text-gray-500">Imported</div>
-                            <div className="text-lg font-semibold">{importResult.imported || 0}</div>
-                        </div>
-
-                        <div className="rounded-xl border bg-white p-3 text-sm">
-                            <div className="text-gray-500">Updated</div>
-                            <div className="text-lg font-semibold">{importResult.updated || 0}</div>
-                        </div>
-
-                        <div className="rounded-xl border bg-white p-3 text-sm">
-                            <div className="text-gray-500">Errors</div>
-                            <div className="text-lg font-semibold">{importResult.errors || 0}</div>
-                        </div>
-
-                        <div className="rounded-xl border bg-white p-3 text-sm">
-                            <div className="text-gray-500">Items</div>
-                            <div className="text-lg font-semibold">{importResult.items || 0}</div>
-                        </div>
-                    </div>
-                    {Array.isArray(importResult.log) && importResult.log.length > 0 ? (
-                        <div className="rounded-xl border bg-white p-3">
-                            <div className="mb-2 text-sm font-medium">Лог</div>
-                            <div className="space-y-1 text-sm text-gray-700 max-h-80 overflow-y-auto">
-                                {importResult.log.map((line: string, index: number) => (
-                                    <div key={index}>{line}</div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : null}
+            {importResult ? (
+                <div className="mb-6">
+                    <VanilleResultCard
+                        title="Результат импорта"
+                        result={importResult}
+                        onCloseAction={() => setImportResult(null)}
+                        scrollableLog
+                    />
                 </div>
-            )}
+            ) : null}
 
             {loading && <AdminLoadingState text="Загрузка товаров поставщика..."/>}
 

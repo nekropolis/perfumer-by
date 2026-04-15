@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
-import type { AttributeType } from "@/lib/admin-attributes-api";
+import type {AttributeType} from "@/lib/admin-attributes-api";
 import {
     createProductAttributeValue,
     deleteProductAttributeValue,
@@ -76,16 +76,29 @@ function OptionBadges({
         return <div className="text-sm text-gray-500">{emptyLabel}</div>;
     }
 
+    const visibleValues = values.slice(0, 3);
+    const hiddenCount = Math.max(values.length - visibleValues.length, 0);
+
     return (
-        <div className="flex flex-wrap gap-2">
-            {values.map((value) => (
+        <div className="flex flex-wrap items-center gap-1.5 overflow-hidden">
+            {visibleValues.map((value) => (
                 <span
                     key={value.key}
-                    className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700"
+                    className="max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                    title={value.label}
                 >
                     {value.label}
                 </span>
             ))}
+
+            {hiddenCount > 0 ? (
+                <span
+                    className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500"
+                    title={values.slice(3).map((value) => value.label).join(", ")}
+                >
+                    +{hiddenCount}
+                </span>
+            ) : null}
         </div>
     );
 }
@@ -484,44 +497,130 @@ export default function ProductAttributeValuesEditor({
                             const selectedValues = renderSelectedValues(item);
 
                             return (
-                                <div key={item.id} className="rounded-xl border p-4">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 flex-1 space-y-2">
-                                            <div>
-                                                <div className="text-sm font-medium">
+                                <div
+                                    key={item.id}
+                                    className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-gray-50/60"
+                                >
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                        <div className="flex items-start justify-between gap-3 sm:block sm:min-w-0 sm:w-40 sm:shrink-0">
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-medium text-gray-900">
                                                     {item.attribute?.name || "Атрибут"}
                                                 </div>
-                                                <div className="mt-1 text-xs text-gray-500">
+                                                <div className="mt-0.5 text-[11px] text-gray-500">
                                                     {item.attribute?.type === "text"
                                                         ? "Текст"
                                                         : item.attribute?.type === "select"
                                                             ? "Один из списка"
                                                             : "Несколько из списка"}
-                                                    {` • Порядок: ${item.sort_order}`}
                                                 </div>
                                             </div>
 
-                                            <OptionBadges
-                                                values={selectedValues}
-                                                emptyLabel="Значение не выбрано"
-                                            />
+                                            <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEdit(item)}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-gray-700 transition hover:bg-white"
+                                                    title="Редактировать"
+                                                    aria-label="Редактировать"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.8"
+                                                        className="h-3.5 w-3.5"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                        />
+                                                    </svg>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(item)}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                    title="Отвязать"
+                                                    aria-label="Отвязать"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.8"
+                                                        className="h-3.5 w-3.5"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M18 6L6 18M6 6l12 12"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        <div className="flex shrink-0 gap-2">
+                                        <div className="min-w-0 flex-1 overflow-hidden">
+                                            <div className="overflow-hidden">
+                                                <OptionBadges
+                                                    values={selectedValues}
+                                                    emptyLabel="Значение не выбрано"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="rounded-md border px-2.5 py-1 text-xs"
+                                                className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] text-gray-700 transition hover:bg-white"
+                                                title="Редактировать"
+                                                aria-label="Редактировать"
                                             >
-                                                Редактировать
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="1.8"
+                                                    className="h-3.5 w-3.5"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                    />
+                                                </svg>
+                                                <span>Редактировать</span>
                                             </button>
 
                                             <button
                                                 type="button"
                                                 onClick={() => setDeleteTarget(item)}
-                                                className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-600"
+                                                className="inline-flex h-7 items-center gap-1 rounded-md border border-red-200 px-2 text-[11px] text-red-600 transition hover:bg-red-50"
+                                                title="Отвязать"
+                                                aria-label="Отвязать"
                                             >
-                                                Отвязать
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="1.8"
+                                                    className="h-3.5 w-3.5"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        d="M18 6L6 18M6 6l12 12"
+                                                    />
+                                                </svg>
+                                                <span>Отвязать</span>
                                             </button>
                                         </div>
                                     </div>

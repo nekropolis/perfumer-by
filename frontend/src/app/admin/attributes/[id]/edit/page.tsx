@@ -108,7 +108,7 @@ export default function AdminAttributeEditPage() {
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать атрибут</h1>
+                    <h1 className="text-2xl font-semibold">Редактировать атрибут - {attributeDetail?.name}</h1>
                     <p className="mt-1 text-sm text-gray-600">
                         Настройка атрибута и его опций
                     </p>

@@ -1,0 +1,81 @@
+You are working in a Laravel + React + TypeScript + Vite + SSR ecommerce project called perfumer-by.
+
+Project context:
+- Backend: Laravel
+- Frontend: React + TypeScript
+- Build tool: Vite
+- SSR is used
+- Domain: perfume catalog and admin panel
+- Products have variants, prices, stock, attributes, categories, images, suppliers, and supplier offers, parsing price.
+- Admin users edit many products quickly, so UI must be compact, clear, and efficient
+
+General rules:
+- Preserve existing architecture and project conventions
+- Prefer minimal, targeted changes
+- Do not rewrite unrelated code
+- Do not change business logic unless explicitly requested
+- Do not break API contracts
+- Do not rename backend fields, route names, props, payload keys, database columns, or public interfaces unless explicitly requested
+- Keep code readable and production-friendly
+- Reuse existing utilities, hooks, and components when possible
+- Avoid introducing new dependencies unless clearly necessary
+- Keep imports clean and remove unused code
+- Preserve SSR compatibility
+- Prefer consistency with surrounding code over personal style preferences
+
+For React and TypeScript:
+- Use functional components
+- Keep TypeScript types strict and safe
+- Do not use any unless there is no reasonable alternative
+- Prefer explicit prop types and clear interfaces
+- Do not move logic to new abstractions unless it improves clarity and is justified
+- Preserve handlers, state flow, and existing component behavior unless asked to change it
+- When editing UI, focus on JSX structure, class names, spacing, alignment, and responsiveness
+- Avoid unnecessary rerenders and unstable patterns
+- Follow the existing project approach for forms, tables, and admin screens
+
+For UI tasks:
+- Prioritize compact, clean, professional admin UI
+- Admin screens should be efficient for frequent data entry and editing
+- Prefer balanced spacing over overly large gaps
+- Align labels, controls, and action buttons consistently
+- Prefer grid or table-like layouts for dense editable data
+- Make layouts responsive without sacrificing desktop efficiency
+- Preserve accessibility basics: labels, button clarity, disabled states, focus behavior
+- Do not change text/content meaning unless requested
+- Do not invent new design systems; follow the existing project style
+- If Tailwind is used in the file, continue using Tailwind
+- Reuse existing UI primitives when available
+
+For Laravel and backend-related edits:
+- Keep controllers thin
+- Prefer existing service/action/domain patterns already used in the project
+- Preserve validation behavior unless explicitly asked to change it
+- Do not change serialization format or JSON response structure unless requested
+- Respect existing Eloquent relations and naming
+
+Catalog/domain specifics:
+- Products may contain multiple variants
+- Variants can include title, volume, volume_unit, type, concentration, edition, price, old_price, stock, is_preorder, is_active, sort_order
+- Products can have brand, main category, additional categories, images, attributes, and active variants
+- Supplier data and offers are important; do not break supplier-related mappings
+- In admin product editing screens, prioritize fast editing, data clarity, and predictable layout
+- Variant editors should feel compact and structured, not oversized
+
+When fixing bugs:
+- First identify the most likely root cause
+- Then apply the smallest reliable fix
+- Do not refactor unrelated areas
+- Mention risky assumptions if they matter
+
+When improving layout:
+- Keep logic untouched unless asked
+- Refactor only markup/classes when possible
+- Preserve form behavior, validation wiring, and handlers
+- Prefer clean alignment, compact rows, and stable responsive behavior
+
+Before finalizing code changes:
+- Check for obvious TypeScript errors
+- Check imports
+- Check that JSX structure is valid
+- Make sure no unrelated files are modified unless needed

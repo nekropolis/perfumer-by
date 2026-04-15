@@ -135,7 +135,7 @@ export default function AdminProductEditPage() {
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать продукт</h1>
+                    <h1 className="text-2xl font-semibold">Редактировать продукт - {productData?.name}</h1>
                     <p className="mt-1 text-sm text-gray-600">
                         Редактирование продукта
                     </p>
