@@ -1,7 +1,7 @@
 "use client";
 
 import { getOrderStatusLabel, getOrderStatusStyle } from "@/constants/order-statuses";
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { fetchMyOrders } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
@@ -23,8 +23,10 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
 
         let cancelled = false;
 
-        setOrdersLoading(true);
-        setErrorMessage("");
+        startTransition(() => {
+            setOrdersLoading(true);
+            setErrorMessage("");
+        });
 
         fetchMyOrders()
             .then((response) => {

@@ -258,7 +258,7 @@ export default function AttributeOptionsManager({
                 onConfirmAction={handleDelete}
             />
             {createModalOpen ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
                     <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
                         <div className="mb-4">
                             <h2 className="text-lg font-semibold">Добавить опцию</h2>
@@ -336,7 +336,7 @@ export default function AttributeOptionsManager({
                 </div>
             ) : null}
             {editForm ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
                     <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
                         <div className="mb-4">
                             <h2 className="text-lg font-semibold">Редактировать опцию</h2>

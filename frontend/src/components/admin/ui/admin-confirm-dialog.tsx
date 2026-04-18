@@ -26,7 +26,7 @@ export default function AdminConfirmDialog({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
                 <div className="mb-2 text-lg font-semibold">{title}</div>
 

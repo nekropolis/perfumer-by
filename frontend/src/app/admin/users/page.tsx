@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     fetchAdminUsers,
     updateAdminUserRole,
@@ -19,8 +20,12 @@ import {AdminToast} from "@/types/admin";
 const ROLES = ["customer", "admin", "manager", "ceo"];
 
 export default function AdminUsersPage() {
+    const searchParamsFromUrl = useSearchParams();
+
     const [users, setUsers] = useState<AdminUser[]>([]);
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(
+        () => searchParamsFromUrl.get("search") ?? "",
+    );
     const [loading, setLoading] = useState(true);
     const [savingUserId, setSavingUserId] = useState<number | null>(null);
 

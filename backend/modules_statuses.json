@@ -2,5 +2,7 @@
     "Catalog": true,
     "Cart": true,
     "Checkout": true,
-    "Users": true
+    "Users": true,
+    "ImportExport": true,
+    "Warehouse": true
 }

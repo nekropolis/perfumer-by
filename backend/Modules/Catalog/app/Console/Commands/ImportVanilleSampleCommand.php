@@ -3,7 +3,7 @@
 namespace Modules\Catalog\Console\Commands;
 
 use Illuminate\Console\Command;
-use Modules\Catalog\Services\Vanille\VanilleImportService;
+use Modules\ImportExport\Services\Vanille\VanilleImportService;
 
 class ImportVanilleSampleCommand extends Command
 {

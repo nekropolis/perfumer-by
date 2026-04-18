@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState, startTransition } from "react";
+import { createPortal } from "react-dom";
 import type { OrderData } from "@/types/orders";
+import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
 
 type Props = {
     order: OrderData | null;
@@ -8,20 +11,49 @@ type Props = {
 };
 
 export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
-    if (!order) return null;
+    const [mounted, setMounted] = useState(false);
 
-    return (
+    useEffect(() => {
+        startTransition(() => {
+            setMounted(true);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!order) {
+            return;
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [order]);
+
+    if (!order || !mounted) {
+        return null;
+    }
+
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
             onClick={onCloseAction}
+            role="presentation"
         >
             <div
                 className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-order-items-title"
             >
                 <div className="mb-6 flex items-start justify-between gap-4">
                     <div>
-                        <h3 className="text-2xl font-semibold">Заказ #{order.id}</h3>
+                        <h3 id="admin-order-items-title" className="text-2xl font-semibold">
+                            Заказ #{order.id}
+                        </h3>
                         <div className="mt-2 text-sm text-gray-600">
                             Товаров: {order.items_qty} · Сумма: {order.total} руб.
                         </div>
@@ -36,21 +68,8 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                     </button>
                 </div>
 
-                <div className="space-y-4">
-                    {order.items.map((item) => (
-                        <div key={item.id} className="rounded-2xl border p-4">
-                            <div className="text-sm text-gray-500">{item.brand_name || "—"}</div>
-                            <div className="text-lg font-medium">{item.product_name}</div>
-                            <div className="text-sm text-gray-600">{item.variant_title}</div>
-
-                            <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-700">
-                                <div>SKU: {item.sku || "—"}</div>
-                                <div>Количество: {item.qty}</div>
-                                <div>Цена: {item.price} руб.</div>
-                                <div>Сумма: {item.total} руб.</div>
-                            </div>
-                        </div>
-                    ))}
+                <div className="max-h-[min(60vh,520px)] overflow-y-auto pr-1">
+                    <AdminOrderItemsTable items={order.items} />
                 </div>
 
                 <div className="mt-6 border-t pt-4 text-right">
@@ -58,6 +77,7 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                     <div className="text-2xl font-semibold">{order.total} руб.</div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

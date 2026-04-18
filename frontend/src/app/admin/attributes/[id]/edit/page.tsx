@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -31,7 +31,7 @@ export default function AdminAttributeEditPage() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError("");
 
@@ -54,11 +54,11 @@ export default function AdminAttributeEditPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [params.id]);
 
     useEffect(() => {
         void loadData();
-    }, [params.id]);
+    }, [loadData]);
 
     const handleSubmit = async () => {
         if (!form) {

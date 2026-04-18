@@ -20,6 +20,8 @@ export type ProductAdminItem = {
     name: string;
     slug: string;
     is_active: boolean;
+    is_out_of_stock?: boolean;
+    is_stock_product?: boolean;
     variants_count: number;
     brand: {
         id: number;
@@ -50,6 +52,8 @@ export type ProductAdminDetail = {
     name: string;
     slug: string;
     is_active: boolean;
+    is_out_of_stock?: boolean;
+    is_stock_product?: boolean;
     h1?: string | null;
     short_description?: string | null;
     description?: string | null;
@@ -110,10 +114,45 @@ export type ProductAdminDetailResponse = {
     data: ProductAdminDetail;
 };
 
+export type ProductVariantSupplierItem = {
+    id: number;
+    title: string;
+    stock: number;
+    warehouses: Array<{
+        warehouse_name: string | null;
+        stock: number;
+        available_stock: number;
+    }>;
+    suppliers: Array<{
+        offer_id: number;
+        supplier_name: string | null;
+        supplier_code: string | null;
+        supplier_product_name: string | null;
+        supplier_price: number | string | null;
+    }>;
+    receipt_batches: Array<{
+        receipt_item_id: number;
+        receipt_id: number;
+        receipt_document_no: string | null;
+        supplier_name: string | null;
+        supplier_code: string | null;
+        supplier_product_name: string | null;
+        supplier_price: number | string | null;
+        warehouse_name: string | null;
+        qty: number;
+        received_at: string | null;
+    }>;
+};
+
+export type ProductVariantSuppliersResponse = {
+    data: ProductVariantSupplierItem[];
+};
+
 export async function fetchProducts(params?: {
     search?: string;
     page?: number;
     brand_id?: number;
+    out_of_stock?: "" | "1" | "0";
 }): Promise<ProductsAdminResponse> {
     const searchParams = new URLSearchParams();
 
@@ -126,6 +165,9 @@ export async function fetchProducts(params?: {
     }
     if (params?.brand_id) {
         searchParams.set("brand_id", String(params.brand_id));
+    }
+    if (params?.out_of_stock === "1" || params?.out_of_stock === "0") {
+        searchParams.set("out_of_stock", params.out_of_stock);
     }
 
     const query = searchParams.toString();
@@ -171,11 +213,26 @@ export async function fetchProductById(id: number | string): Promise<ProductAdmi
     return res.json();
 }
 
+export async function fetchProductVariantSuppliers(id: number): Promise<ProductVariantSuppliersResponse> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/variant-suppliers`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Product variant suppliers API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
 export async function createProduct(payload: {
     brand_id: number;
     name: string;
     slug: string;
     is_active?: boolean;
+    is_stock_product?: boolean;
     h1?: string;
     short_description?: string;
     description?: string;
@@ -204,6 +261,7 @@ export async function updateProduct(
         name: string;
         slug: string;
         is_active?: boolean;
+        is_stock_product?: boolean;
         h1?: string;
         short_description?: string;
         description?: string;

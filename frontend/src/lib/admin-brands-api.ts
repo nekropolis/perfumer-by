@@ -30,6 +30,10 @@ export type BrandsResponse = {
     total: number;
 };
 
+export type BrandResponse = {
+    data: BrandItem;
+};
+
 export async function fetchBrands(params?: {
     search?: string;
     page?: number;
@@ -80,6 +84,20 @@ export async function createBrand(payload: {
     return res.json();
 }
 
+export async function fetchBrand(id: number): Promise<BrandResponse> {
+    const res = await fetch(`${API_BASE}/admin/brands/${id}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Brand API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
 export async function updateBrand(
     id: number,
     payload: {
@@ -112,6 +130,27 @@ export async function deleteBrand(id: number) {
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Delete brand API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export type SyncBrandsFromVanilleResponse = {
+    message: string;
+    created: number;
+    skipped: number;
+};
+
+export async function syncBrandsFromVanilleJson(): Promise<SyncBrandsFromVanilleResponse> {
+    const res = await fetch(`${API_BASE}/admin/brands/sync-from-vanille-json`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Sync brands API error: ${res.status}`);
     }
 
     return res.json();

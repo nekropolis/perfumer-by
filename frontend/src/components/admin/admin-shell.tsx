@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
-import { Menu, X, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useEffect, useState, startTransition } from "react";
+import { X, Store } from "lucide-react";
+import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
-import { getRoleLabel } from "@/constants/admin-roles";
 
 type Props = {
     children: ReactNode;
@@ -14,35 +14,65 @@ type Props = {
 
 const SIDEBAR_STORAGE_KEY = "admin-sidebar-collapsed";
 
+/**
+ * Каркас админки — три зоны: шапка, сайдбар, контент.
+ *
+ * Как устроен скролл (и почему это надёжно):
+ *
+ *   ┌─────────────────────────────────────────────────────┐
+ *   │ outer: height: 100dvh; flex-col; overflow-hidden    │ ← окно НЕ скроллится
+ *   │ ┌─────────────────────────────────────────────────┐ │
+ *   │ │ <AdminHeader>   flex-none  h-16                 │ │ ← шапка всегда на месте
+ *   │ └─────────────────────────────────────────────────┘ │
+ *   │ ┌─────────────────────────────────────────────────┐ │
+ *   │ │ <main>  flex-1  min-h-0  overflow-hidden        │ │
+ *   │ │ ┌──────────┬───────────────────────────────────┐│ │
+ *   │ │ │ sidebar  │ content                           ││ │
+ *   │ │ │ h-full   │ h-full                            ││ │
+ *   │ │ │ overflow │ overflow-y-auto                   ││ │ ← у каждого свой скролл
+ *   │ │ │  -y-auto │                                   ││ │
+ *   │ │ └──────────┴───────────────────────────────────┘│ │
+ *   │ └─────────────────────────────────────────────────┘ │
+ *   └─────────────────────────────────────────────────────┘
+ *
+ *   • Внешний контейнер фиксирован по высоте вьюпорта (inline-стиль
+ *     `height: 100dvh` надёжнее любых Tailwind-классов — не зависит
+ *     от того, что у клиента в кэше). `overflow-hidden` физически
+ *     запрещает скролл самого окна: шапка никогда не «уезжает».
+ *   • `<main>` имеет `flex-1 min-h-0 overflow-hidden` — это ровно остаток
+ *     после шапки. `min-h-0` обязателен: без него flex-child не может быть
+ *     меньше своего content-size, и `overflow-y-auto` у внуков не сработает.
+ *   • Внутри main — grid на 2 колонки (sidebar + content). У каждой
+ *     колонки свой `overflow-y-auto`, что и даёт независимый скролл.
+ *
+ * Мобилка (< lg):
+ *   • Сайдбар колонки нет (`hidden lg:block`), сетка становится
+ *     одноколоночной, секция занимает всю ширину и скроллится внутри main.
+ *   • Сайдбар доступен через overlay по кнопке «Меню» (fixed z-[200]).
+ *
+ * Модалки:
+ *   • Любой компонент внутри `{children}` может рендерить модалки через
+ *     портал в `document.body` (обычный паттерн) с `z-[200]`. Они окажутся
+ *     выше шапки, потому что шапка рендерится в потоке и z-index у неё
+ *     не задан (у contents внутри grid никаких stacking context'ов).
+ *   • Важно: на сайдбаре и секции НЕ должно быть `relative z-*` —
+ *     любой такой z-index порождает свой stacking context, из-за чего
+ *     модалки, отрендеренные изнутри секции без портала, не смогут
+ *     перекрыть внешнюю шапку.
+ */
 export default function AdminShell({ children }: Props) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [accountOpen, setAccountOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [sidebarReady, setSidebarReady] = useState(false);
 
-    const { user, logout } = useAuth();
-    const accountRef = useRef<HTMLDivElement | null>(null);
-
-    const roleLabel = getRoleLabel(user?.role);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (!accountRef.current) return;
-            if (!accountRef.current.contains(event.target as Node)) {
-                setAccountOpen(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, []);
+    const { logout } = useAuth();
 
     useEffect(() => {
         const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-        setSidebarCollapsed(saved === "1");
-        setSidebarReady(true);
+        startTransition(() => {
+            setSidebarCollapsed(saved === "1");
+            setSidebarReady(true);
+        });
     }, []);
 
     useEffect(() => {
@@ -54,117 +84,53 @@ export default function AdminShell({ children }: Props) {
     }, [sidebarCollapsed, sidebarReady]);
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="border-b bg-white">
-                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            className="hidden items-center justify-center rounded-xl border p-2 text-sm transition hover:bg-gray-50 lg:inline-flex"
-                            onClick={() => setSidebarCollapsed((prev) => !prev)}
-                            title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
-                        >
-                            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-                        </button>
+        <div
+            className="flex h-screen flex-col overflow-hidden bg-gray-50"
+            style={{ height: "100dvh" }}
+        >
+            <AdminHeader
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebarAction={() => setSidebarCollapsed((prev) => !prev)}
+                onOpenMobileMenuAction={() => setMobileMenuOpen(true)}
+            />
 
-                        <div className="text-xl font-semibold">Админка</div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <a
-                            href="/"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="hidden items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 sm:inline-flex"
-                        >
-                            <Store size={18} />
-                            Магазин
-                        </a>
-
-                        <div className="relative hidden sm:block" ref={accountRef}>
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50"
-                                onClick={() => setAccountOpen((prev) => !prev)}
-                            >
-                                <User size={18} />
-                                <span>{user?.name || "Пользователь"}</span>
-                            </button>
-
-                            {accountOpen && (
-                                <div className="absolute right-0 mt-2 w-56 rounded-2xl border bg-white p-2 shadow-lg">
-                                    <div className="px-3 py-2">
-                                        <div className="text-sm font-medium">
-                                            {user?.name || "Пользователь"} - {roleLabel}
-                                        </div>
-                                        <div className="text-xs text-gray-500">{user?.phone}</div>
-                                    </div>
-
-                                    <div className="my-1 border-t" />
-
-                                    <Link
-                                        href="/account"
-                                        className="block rounded-xl px-3 py-2 text-sm hover:bg-gray-50"
-                                        onClick={() => setAccountOpen(false)}
-                                    >
-                                        Личный кабинет
-                                    </Link>
-
-                                    <button
-                                        type="button"
-                                        className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50"
-                                        onClick={() => {
-                                            logout();
-                                            setAccountOpen(false);
-                                        }}
-                                    >
-                                        Выйти
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm lg:hidden"
-                            onClick={() => setMobileMenuOpen(true)}
-                        >
-                            <Menu size={18} />
-                            Меню
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-                <div
-                    className={`grid grid-cols-1 gap-8 lg:h-[calc(100dvh-6.5rem)] ${
-                        sidebarCollapsed
-                            ? "lg:grid-cols-[92px_minmax(0,1fr)]"
-                            : "lg:grid-cols-[280px_minmax(0,1fr)]"
-                    }`}
-                >
-                    <div className="hidden lg:block lg:h-full">
-                        <div className="h-full overflow-y-auto pr-1">
+            <main className="min-h-0 flex-1 overflow-hidden">
+                <div className="mx-auto flex h-full max-w-7xl flex-col px-4 py-6 sm:px-6">
+                    <div
+                        className={`grid min-h-0 flex-1 grid-cols-1 gap-8 ${
+                            sidebarCollapsed
+                                ? "lg:grid-cols-[92px_minmax(0,1fr)]"
+                                : "lg:grid-cols-[280px_minmax(0,1fr)]"
+                        }`}
+                    >
+                        {/*
+                          Сайдбар. Скрыт на мобилке (там открывается через оверлей).
+                          На lg+ — своя overflow-y-auto колонка.
+                        */}
+                        <div className="hidden min-h-0 overflow-y-auto pr-1 lg:block">
                             <AdminSidebar collapsed={sidebarCollapsed} />
                         </div>
-                    </div>
 
-                    <section className="min-w-0 pr-1 lg:h-full lg:overflow-y-auto">
-                        {children}
-                    </section>
+                        {/*
+                          Основной контент. На мобилке — единственная колонка,
+                          на lg+ — вторая. Всегда со своим скроллом.
+                        */}
+                        <section className="min-h-0 min-w-0 overflow-y-auto pr-1">
+                            {children}
+                        </section>
+                    </div>
                 </div>
-            </div>
+            </main>
 
             {mobileMenuOpen && (
-                <div className="fixed inset-0 z-50 lg:hidden">
+                <div className="fixed inset-0 z-[200] lg:hidden">
                     <div
                         className="absolute inset-0 bg-black/40"
                         onClick={() => setMobileMenuOpen(false)}
                     />
 
-                    <div className="absolute left-0 top-0 h-full w-[88%] max-w-sm bg-white p-4 shadow-2xl">
-                        <div className="mb-4 flex items-center justify-between">
+                    <div className="absolute left-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-white shadow-2xl">
+                        <div className="flex flex-none items-center justify-between border-b p-4">
                             <div className="text-lg font-semibold">Меню</div>
 
                             <button
@@ -176,7 +142,7 @@ export default function AdminShell({ children }: Props) {
                             </button>
                         </div>
 
-                        <div className="mb-4 flex flex-col gap-2 border-b pb-4">
+                        <div className="flex flex-none flex-col gap-2 border-b p-4">
                             <a
                                 href="/"
                                 target="_blank"
@@ -207,7 +173,7 @@ export default function AdminShell({ children }: Props) {
                             </button>
                         </div>
 
-                        <div className="h-[calc(100%-180px)] overflow-y-auto">
+                        <div className="min-h-0 flex-1 overflow-y-auto p-4">
                             <AdminSidebar onNavigateAction={() => setMobileMenuOpen(false)} />
                         </div>
                     </div>

@@ -45,7 +45,7 @@ class SupplierVariantOffer extends Model
 
     public function productVariant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class);
+        return $this->belongsTo(ProductVariantLink::class, 'product_variant_id');
     }
 
     public function priceHistories(): HasMany

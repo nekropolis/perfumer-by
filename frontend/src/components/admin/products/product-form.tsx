@@ -11,6 +11,7 @@ export type ProductFormState = {
     name: string;
     slug: string;
     is_active: boolean;
+    is_stock_product: boolean;
     h1: string;
     short_description: string;
     description: string;
@@ -36,20 +37,37 @@ export default function ProductForm({
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
-                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    <input
-                        type="checkbox"
-                        checked={Boolean(form.is_active)}
-                        onChange={(e) =>
-                            onChangeAction({
-                                ...form,
-                                is_active: e.target.checked,
-                            })
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                    />
-                    Активен
-                </label>
+                <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
+                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.is_active)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    is_active: e.target.checked,
+                                })
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Активен
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.is_stock_product)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    is_stock_product: e.target.checked,
+                                })
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Товар склада (остаток влияет на наличие)
+                    </label>
+                </div>
 
                 <div className="md:col-span-2">
                     <AdminBrandSelect

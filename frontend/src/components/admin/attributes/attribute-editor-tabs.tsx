@@ -1,5 +1,8 @@
 "use client";
 
+import { FileText, ListChecks } from "lucide-react";
+import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admin-rich-tabs";
+
 export type AttributeEditorTab = "main" | "options";
 
 type Props = {
@@ -7,30 +10,19 @@ type Props = {
     onChangeAction: (tab: AttributeEditorTab) => void;
 };
 
-const tabs: { key: AttributeEditorTab; label: string }[] = [
-    { key: "main", label: "Главная" },
-    { key: "options", label: "Опции" },
+const tabs: AdminRichTabItem<AttributeEditorTab>[] = [
+    { id: "main", label: "Главная", description: "Базовые настройки атрибута", icon: FileText },
+    { id: "options", label: "Опции", description: "Управление значениями списка", icon: ListChecks },
 ];
 
 export default function AttributeEditorTabs({ activeTab, onChangeAction }: Props) {
     return (
-        <div className="mb-6 overflow-x-auto">
-            <div className="flex min-w-max gap-2">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => onChangeAction(tab.key)}
-                        className={`rounded-xl px-4 py-2 text-sm transition ${
-                            activeTab === tab.key
-                                ? "bg-black text-white"
-                                : "border bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-        </div>
+        <AdminRichTabs
+            items={tabs}
+            activeTab={activeTab}
+            onChangeAction={onChangeAction}
+            className="mb-6 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm"
+            columnsClassName="grid gap-2 sm:grid-cols-2"
+        />
     );
 }

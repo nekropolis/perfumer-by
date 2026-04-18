@@ -6,11 +6,13 @@ use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\ValidationException;
 use Modules\Cart\Models\Cart;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
+use Modules\Warehouse\Services\StockInventoryService;
 
 class CheckoutController extends Controller
 {
@@ -45,6 +47,13 @@ class CheckoutController extends Controller
 
             abort_if(!$variant || !$variant->is_active, 422, 'One of the cart items is unavailable');
             abort_if($variant->stock <= 0 && !$variant->is_preorder, 422, 'One of the cart items is out of stock');
+
+            $availableStock = max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
+            if (!$variant->is_preorder && $availableStock < (int) $cartItem->qty) {
+                throw ValidationException::withMessages([
+                    'cart' => 'One of the cart items does not have enough available stock',
+                ]);
+            }
         }
 
         $order = DB::transaction(function () use ($cart, $cartToken, $user, $validated, $phone) {
@@ -94,6 +103,11 @@ class CheckoutController extends Controller
             $cart->items()->delete();
 
             return $order;
+        });
+
+        DB::transaction(function () use ($order) {
+            $order->load('items');
+            app(StockInventoryService::class)->reserveForOrder($order);
         });
 
         $order->load('items');

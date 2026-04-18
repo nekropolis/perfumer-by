@@ -11,7 +11,7 @@ PM2 := pm2
 FRONT_DEV_NAME := perfumer-frontend-dev
 FRONT_PROD_NAME := perfumer-frontend
 
-.PHONY: help dev dev-restart dev-stop prod prod-restart prod-stop logs logs-dev status backend-clear backend-migrate backend-seed build install-front install-back
+.PHONY: help dev dev-restart dev-stop prod prod-restart prod-stop logs logs-dev status backend-clear backend-migrate backend-seed build install-front install-back deploy release rollback bootstrap-shared
 
 help:
 	@echo "Available commands:"
@@ -27,6 +27,10 @@ help:
 	@echo "  make backend-clear    - clear Laravel caches"
 	@echo "  make backend-migrate  - run migrations"
 	@echo "  make backend-seed     - seed catalog"
+	@echo "  make deploy           - in-place production deploy (see PRODUCTION.md)"
+	@echo "  make release          - capistrano-style release (releases/ + current/)"
+	@echo "  make rollback         - rollback current -> previous release"
+	@echo "  make bootstrap-shared - one-time: build shared/ from existing checkout"
 
 install-front:
 	cd $(FRONTEND) && $(NPM) install
@@ -97,3 +101,15 @@ backend-migrate:
 
 backend-seed:
 	cd $(BACKEND) && $(PHP) artisan db:seed --class="Modules\\Catalog\\Database\\Seeders\\CatalogDatabaseSeeder"
+
+deploy:
+	$(ROOT)/scripts/deploy.sh
+
+release:
+	$(ROOT)/scripts/release.sh
+
+rollback:
+	$(ROOT)/scripts/rollback.sh
+
+bootstrap-shared:
+	$(ROOT)/scripts/bootstrap-shared.sh $(ROOT)

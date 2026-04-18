@@ -1,11 +1,13 @@
 "use client";
 
-import {useMemo, useState} from "react";
-import type {ProductDetailData, ProductVariantData} from "@/types/catalog";
-import {useTransition} from "react";
-import {addToCart} from "@/lib/cart-api";
-import {useCart} from "@/components/cart/cart-provider";
+import Image from "next/image";
+import { useMemo, useState } from "react";
+import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
+import { useTransition } from "react";
+import { addToCart } from "@/lib/cart-api";
+import { useCart } from "@/components/cart/cart-provider";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
+import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
 
@@ -22,10 +24,10 @@ function getMainImage(product: ProductDetailData) {
     return product.images.find((image) => image.is_main) || product.images[0] || null;
 }
 
-export default function ProductDetailView({product}: Props) {
+export default function ProductDetailView({ product }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "description">("attributes");
-    const {setCartState} = useCart();
+    const { setCartState } = useCart();
 
     const defaultVariant =
         product.variants.find((variant) => variant.id === product.default_variant_id) ||
@@ -41,6 +43,17 @@ export default function ProductDetailView({product}: Props) {
     }, [product.variants, selectedVariantId]);
 
     const mainImage = getMainImage(product);
+
+    const mainImageUrl =
+        mainImage == null
+            ? null
+            : mainImage.path.startsWith("http")
+                ? mainImage.path
+                : `/${mainImage.path.replace(/^\/+/, "")}`;
+
+    const mainImageIsRemote = Boolean(
+        mainImageUrl?.startsWith("http://") || mainImageUrl?.startsWith("https://")
+    );
 
     const handleAddToCart = () => {
         if (!selectedVariant?.id) return;
@@ -71,12 +84,16 @@ export default function ProductDetailView({product}: Props) {
 
             <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-start">
                 <section>
-                    <div className="overflow-hidden rounded-3xl border bg-white aspect-square shadow-sm">
-                        {mainImage ? (
-                            <img
-                                src={`/${mainImage.path}`}
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border bg-white shadow-sm">
+                        {mainImageUrl ? (
+                            <Image
+                                src={mainImageUrl}
                                 alt={product.name}
-                                className="h-full w-full object-cover"
+                                fill
+                                priority
+                                sizes="(max-width: 1280px) 100vw, 320px"
+                                className="object-cover"
+                                unoptimized={mainImageIsRemote}
                             />
                         ) : (
                             <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
@@ -105,63 +122,88 @@ export default function ProductDetailView({product}: Props) {
                 </section>
 
                 <section className="min-w-0">
-                    <div className="mb-2 text-sm text-gray-500">Код товара: #{product.id}</div>
+                    <div className="mb-2 flex items-center gap-1 text-sm text-gray-500">
+                        <span>Код товара:</span>
+                        <CopyText
+                            value={String(product.id)}
+                            label={`${product.id}`}
+                            title="Скопировать код товара"
+                        />
+                    </div>
 
                     <h1 className="mb-5 text-3xl font-semibold leading-tight sm:text-4xl">
                         {product.h1 || product.name}
                     </h1>
 
-                    <div className="mb-3 text-sm font-medium text-gray-700">Выбор вариантов</div>
 
-                    <div className="mb-6 flex flex-wrap gap-2 rounded-3xl bg-gray-100 p-2">
-                        {product.variants.map((variant) => {
-                            const isSelected = variant.id === selectedVariantId;
+                    {product.variants.length > 0 ? (
+                        <>
 
-                            let availabilityText = "Нет";
-                            let availabilityClass = "text-red-500";
+                            <div className="mb-3 text-sm font-medium text-gray-700">Выбор вариантов</div>
+                            <div className="mb-6 rounded-3xl bg-gray-100 p-3">
+                                <div className="flex flex-wrap gap-2">
+                                    {product.variants.map((variant) => {
+                                        const isSelected = variant.id === selectedVariantId;
 
-                            if (variant.is_available) {
-                                if (variant.is_preorder) {
-                                    availabilityText = "Предзаказ";
-                                    availabilityClass = "text-amber-600";
-                                } else {
-                                    availabilityText = "В наличии";
-                                    availabilityClass = "text-green-600";
-                                }
-                            }
+                                        let availabilityText = "Нет";
+                                        let availabilityClass = "text-red-500";
 
-                            return (
-                                <button
-                                    key={variant.id}
-                                    type="button"
-                                    onClick={() => setSelectedVariantId(variant.id)}
-                                    className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${
-                                        isSelected
-                                            ? "bg-white border-black shadow-sm ring-1 ring-black/10"
-                                            : "bg-white/70 border-gray-200 hover:bg-white hover:border-gray-300 hover:-translate-y-[1px] active:scale-[0.97]"
-                                    }`}
-                                >
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-sm font-medium leading-5">
-                                            {variant.display_name}
-                                        </span>
+                                        if (variant.is_available) {
+                                            if (variant.is_preorder) {
+                                                availabilityText = "Предзаказ";
+                                                availabilityClass = "text-amber-600";
+                                            } else {
+                                                availabilityText = "В наличии";
+                                                availabilityClass = "text-green-600";
+                                            }
+                                        }
 
-                                        <div className="flex items-center gap-2">
-                                            {variant.price && (
-                                                <span className="text-xs text-gray-500 group-hover:text-gray-700">
-                                                    {formatPrice(variant.price)}
-                                                </span>
-                                            )}
+                                        return (
+                                            <button
+                                                key={variant.id}
+                                                type="button"
+                                                onClick={() => setSelectedVariantId(variant.id)}
+                                                className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${isSelected
+                                                    ? "bg-white border-black shadow-sm ring-1 ring-black/10"
+                                                    : "bg-white/70 border-gray-200 hover:bg-white hover:border-gray-300 hover:-translate-y-[1px] active:scale-[0.97]"
+                                                    }`}
+                                            >
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-sm font-medium leading-5">
+                                                        {variant.display_name}
+                                                    </span>
 
-                                            <span className={`text-xs ${availabilityClass}`}>
-                                                {availabilityText}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {variant.price && (
+                                                            <span className="text-xs text-gray-500 group-hover:text-gray-700">
+                                                                {formatPrice(variant.price)}
+                                                            </span>
+                                                        )}
+
+                                                        <span className={`text-xs ${availabilityClass}`}>
+                                                            {availabilityText}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-5">
+                            <div className="mb-2 text-2xl font-semibold leading-tight text-amber-900">
+                                Ожидается поступление
+                            </div>
+                            <p className="text-sm leading-6 text-amber-900/80">
+                                Пока у нас нет точных данных о сроках поставки и актуальной цене на этот аромат.
+                                Заполните форму «Сообщить о появлении» — мы с Вами свяжемся, как только товар появится
+                                в наличии, и подскажем стоимость.
+                            </p>
+                        </div>
+                    )}
+
                 </section>
 
                 <aside className="self-start xl:sticky xl:top-24">
@@ -170,6 +212,8 @@ export default function ProductDetailView({product}: Props) {
                         isPending={isPending}
                         onAddToCart={handleAddToCart}
                         formatPrice={formatPrice}
+                        productId={product.id}
+                        productName={product.name}
                     />
                 </aside>
 
@@ -183,11 +227,10 @@ export default function ProductDetailView({product}: Props) {
                             <button
                                 type="button"
                                 onClick={() => setActiveTab("attributes")}
-                                className={`shrink-0 px-6 py-4 text-sm font-medium ${
-                                    activeTab === "attributes"
-                                        ? "border-b-2 border-black text-black"
-                                        : "text-gray-500"
-                                }`}
+                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "attributes"
+                                    ? "border-b-2 border-black text-black"
+                                    : "text-gray-500"
+                                    }`}
                             >
                                 Характеристики
                             </button>
@@ -195,11 +238,10 @@ export default function ProductDetailView({product}: Props) {
                             <button
                                 type="button"
                                 onClick={() => setActiveTab("description")}
-                                className={`shrink-0 px-6 py-4 text-sm font-medium ${
-                                    activeTab === "description"
-                                        ? "border-b-2 border-black text-black"
-                                        : "text-gray-500"
-                                }`}
+                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "description"
+                                    ? "border-b-2 border-black text-black"
+                                    : "text-gray-500"
+                                    }`}
                             >
                                 Описание
                             </button>

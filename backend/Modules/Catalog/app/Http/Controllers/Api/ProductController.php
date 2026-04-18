@@ -16,6 +16,11 @@ class ProductController extends Controller
     {
         $query = Product::query()
             ->where('is_active', true)
+            ->withCount([
+                'activeVariants as in_stock_variants_count' => function ($q) {
+                    $q->where('stock', '>', 0);
+                },
+            ])
             ->with([
                 'brand',
                 'mainCategory',
@@ -37,6 +42,7 @@ class ProductController extends Controller
         }
 
         $products = $query
+            ->orderByDesc('in_stock_variants_count')
             ->orderBy('name')
             ->paginate(24);
 

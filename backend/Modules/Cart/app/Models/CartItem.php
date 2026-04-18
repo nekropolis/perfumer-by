@@ -5,7 +5,7 @@ namespace Modules\Cart\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Catalog\Models\Product;
-use Modules\Catalog\Models\ProductVariant;
+use Modules\Catalog\Models\ProductVariantLink;
 
 class CartItem extends Model
 {
@@ -30,6 +30,6 @@ class CartItem extends Model
 
     public function variant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class, 'variant_id');
+        return $this->belongsTo(ProductVariantLink::class, 'variant_id');
     }
 }

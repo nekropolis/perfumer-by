@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -39,7 +39,7 @@ export default function AdminProductEditPage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError("");
 
@@ -62,6 +62,7 @@ export default function AdminProductEditPage() {
                 name: item.name,
                 slug: item.slug,
                 is_active: Boolean(item.is_active),
+                is_stock_product: Boolean(item.is_stock_product),
                 h1: item.h1 || item.name,
                 short_description: item.short_description || "",
                 description: item.description || "",
@@ -77,11 +78,11 @@ export default function AdminProductEditPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [params.id]);
 
     useEffect(() => {
         void loadData();
-    }, [params.id]);
+    }, [loadData]);
 
     const handleSubmit = async () => {
         if (!form) {
@@ -103,6 +104,7 @@ export default function AdminProductEditPage() {
                 name: form.name,
                 slug: form.slug,
                 is_active: form.is_active,
+                is_stock_product: form.is_stock_product,
                 h1: form.h1,
                 short_description: form.short_description,
                 description: form.description,
@@ -187,6 +189,7 @@ export default function AdminProductEditPage() {
                     {activeTab === "variants" && (
                         <ProductVariantsEditor
                             productId={form.id!}
+                            productName={productData.name}
                             items={productData.variants || []}
                             onReloadAction={loadData}
                         />

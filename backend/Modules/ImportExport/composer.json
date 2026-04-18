@@ -1,0 +1,26 @@
+{
+    "name": "nwidart/importexport",
+    "description": "Import/Export module",
+    "authors": [
+        {
+            "name": "Perfumer Team"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\ImportExport\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\ImportExport\\Tests\\": "tests/"
+        }
+    }
+}
+

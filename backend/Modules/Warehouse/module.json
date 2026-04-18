@@ -1,0 +1,14 @@
+{
+    "name": "Warehouse",
+    "alias": "warehouse",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "requires": [
+        "ImportExport"
+    ],
+    "providers": [
+        "Modules\\Warehouse\\Providers\\WarehouseServiceProvider"
+    ],
+    "files": []
+}

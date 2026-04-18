@@ -1,0 +1,131 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
+import ProductVariantDefinitionForm, {
+    type ProductVariantDefinitionFormState,
+} from "@/components/admin/products/product-variant-definition-form";
+import {
+    fetchVariantDefinition,
+    updateVariantDefinition,
+} from "@/lib/admin-product-variants-api";
+
+const VARIANTS_BASE = "/admin/products/variants";
+
+export default function AdminProductVariantEditPage() {
+    const router = useRouter();
+    const params = useParams<{ id: string }>();
+
+    const [form, setForm] = useState<ProductVariantDefinitionFormState | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const loadItem = async () => {
+            setLoading(true);
+            setError("");
+
+            try {
+                const data = await fetchVariantDefinition(params.id);
+                const item = data.data;
+                setForm({
+                    id: item.id,
+                    title: item.title,
+                    volume_ml: String(item.volume_ml ?? ""),
+                    concentration_code: item.concentration_code ?? "",
+                    concentration_label: item.concentration_label ?? "",
+                    is_tester: !!item.is_tester,
+                });
+            } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : "Ошибка загрузки варианта");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void loadItem();
+    }, [params.id]);
+
+    const handleSubmit = async () => {
+        if (!form?.id) {
+            return;
+        }
+
+        setSubmitting(true);
+        setError("");
+
+        if (!form.volume_ml || !form.concentration_code.trim() || !form.concentration_label.trim()) {
+            setError("Объем, код и описание обязательны");
+            setSubmitting(false);
+            return;
+        }
+
+        try {
+            await updateVariantDefinition(form.id, {
+                volume_ml: Number(form.volume_ml),
+                concentration_code: form.concentration_code.trim(),
+                concentration_label: form.concentration_label.trim(),
+                is_tester: form.is_tester,
+            });
+
+            router.push(VARIANTS_BASE);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка сохранения варианта");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <AdminPageCard>
+            <Breadcrumbs
+                className="mb-4"
+                items={[
+                    { label: "Админка", href: "/admin" },
+                    { label: "Варианты продукта", href: VARIANTS_BASE },
+                    { label: "Редактирование" },
+                ]}
+            />
+
+            <div className="mb-6 flex items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-semibold">
+                        Редактировать вариант - {form?.title || ""}
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-600">Редактирование варианта справочника</p>
+                </div>
+
+                <Link href={VARIANTS_BASE} className="rounded-xl border px-4 py-2 text-sm">
+                    Назад
+                </Link>
+            </div>
+
+            {error ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="error"
+                        message={error}
+                        onCloseAction={() => setError("")}
+                    />
+                </div>
+            ) : null}
+
+            {loading ? (
+                <AdminLoadingState text="Загрузка варианта..." />
+            ) : form ? (
+                <ProductVariantDefinitionForm
+                    form={form}
+                    submitting={submitting}
+                    onChangeAction={(next) => setForm(next)}
+                    onSubmitAction={handleSubmit}
+                />
+            ) : null}
+        </AdminPageCard>
+    );
+}

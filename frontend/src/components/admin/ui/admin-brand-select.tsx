@@ -55,7 +55,7 @@ export default function AdminBrandSelect({
             </button>
 
             {open && (
-                <div className="fixed inset-0 z-50 bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
                         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                             <div>

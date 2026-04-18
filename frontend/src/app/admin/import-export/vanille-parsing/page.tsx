@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -9,20 +10,20 @@ import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import {
     ApiResponse,
-    ImportResponse,
     SupplierProductItem,
-    VanilleParseResponse,
+    VanilleImportQueueJob,
 } from "@/types/Vanille";
 
 import {
-    collectVanilleProductLinks,
+    fetchVanilleParseStatus,
     fetchVanilleSupplierProducts,
     importParsedVanilleProducts,
-    parseVanilleBrands,
-    parseVanilleProducts,
+    startVanillePipelineNewProducts,
+    startVanillePipelineRefreshAll,
 } from "@/lib/admin-vanille-api";
 
 
@@ -35,6 +36,30 @@ const ACTIVE_OPTIONS = [
     {value: "true", label: "Только активные"},
     {value: "false", label: "Только неактивные"},
 ];
+
+function DismissibleSuccessBanner({
+    message,
+    onCloseAction,
+}: {
+    message: string;
+    onCloseAction: () => void;
+}) {
+    return (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">{message}</div>
+
+                <button
+                    type="button"
+                    onClick={onCloseAction}
+                    className="shrink-0 text-xs opacity-60 transition hover:opacity-100"
+                >
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
+}
 
 function DismissibleAlert({
                               message,
@@ -60,96 +85,28 @@ function DismissibleAlert({
     );
 }
 
-function VanilleResultCard({
-                               title,
-                               result,
-                               onCloseAction,
-                               scrollableLog = false,
-                           }: {
-    title: string;
-    result: {
-        message?: string;
-        imported?: number;
-        updated?: number;
-        errors?: number;
-        items?: number;
-        log?: string[];
-    };
-    onCloseAction: () => void;
-    scrollableLog?: boolean;
-}) {
-    return (
-        <div className="rounded-2xl border bg-gray-50 p-4 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-                <div className="text-sm font-medium">{title}</div>
-
-                <button
-                    type="button"
-                    onClick={onCloseAction}
-                    className="shrink-0 text-xs text-gray-500 opacity-60 transition hover:opacity-100"
-                >
-                    ✕
-                </button>
-            </div>
-
-            {result.message ? (
-                <div className="text-sm text-gray-700">{result.message}</div>
-            ) : null}
-
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-xl border bg-white p-3 text-sm">
-                    <div className="text-gray-500">Imported</div>
-                    <div className="text-lg font-semibold">{result.imported || 0}</div>
-                </div>
-
-                <div className="rounded-xl border bg-white p-3 text-sm">
-                    <div className="text-gray-500">Updated</div>
-                    <div className="text-lg font-semibold">{result.updated || 0}</div>
-                </div>
-
-                <div className="rounded-xl border bg-white p-3 text-sm">
-                    <div className="text-gray-500">Errors</div>
-                    <div className="text-lg font-semibold">{result.errors || 0}</div>
-                </div>
-
-                <div className="rounded-xl border bg-white p-3 text-sm">
-                    <div className="text-gray-500">Items</div>
-                    <div className="text-lg font-semibold">{result.items || 0}</div>
-                </div>
-            </div>
-
-            {Array.isArray(result.log) && result.log.length > 0 ? (
-                <div className="rounded-xl border bg-white p-3">
-                    <div className="mb-2 text-sm font-medium">Лог</div>
-                    <div
-                        className={`space-y-1 text-sm text-gray-700 ${scrollableLog ? "max-h-80 overflow-y-auto" : ""}`}>
-                        {result.log.map((line, index) => (
-                            <div key={index}>{line}</div>
-                        ))}
-                    </div>
-                </div>
-            ) : null}
-        </div>
-    );
-}
-
 export default function VanilleProductsPage() {
+    const searchParamsFromUrl = useSearchParams();
+
     const [items, setItems] = useState<SupplierProductItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [searchInput, setSearchInput] = useState("");
+    const [searchInput, setSearchInput] = useState(
+        () => searchParamsFromUrl.get("search") ?? "",
+    );
     const [linked, setLinked] = useState("");
     const [active, setActive] = useState("");
-    const [page, setPage] = useState(1);
+    const [page, setPage] = useUrlPage();
     const [meta, setMeta] = useState<ApiResponse | null>(null);
     const [importingParsed, setImportingParsed] = useState(false);
-    const [importResult, setImportResult] = useState<ImportResponse | null>(null);
 
     const [parsingError, setParsingError] = useState("");
-    const [parsingResult, setParsingResult] = useState<VanilleParseResponse | null>(null);
-    const [parsingBrands, setParsingBrands] = useState(false);
-    const [collectingLinks, setCollectingLinks] = useState(false);
-    const [parsingProducts, setParsingProducts] = useState(false);
+    const [parseJob, setParseJob] = useState<VanilleImportQueueJob | null>(null);
+    const [parseStatusLoading, setParseStatusLoading] = useState(true);
+    const previousParseStatusRef = useRef<string | null>(null);
+    const completionBannerConsumedRef = useRef(false);
+
+    const [completionNotice, setCompletionNotice] = useState("");
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -176,24 +133,83 @@ export default function VanilleProductsPage() {
         }
     };
 
+    useResetPageOnChange(setPage, [debouncedSearch, linked, active]);
+
     useEffect(() => {
         void loadItems(page);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, debouncedSearch, linked, active]);
+
+    const loadParseStatus = async () => {
+        try {
+            const data = await fetchVanilleParseStatus();
+            const job = data.data || null;
+            const prevStatus = previousParseStatusRef.current;
+
+            setParseJob(job);
+
+            if (job && ["pending", "running"].includes(job.status)) {
+                completionBannerConsumedRef.current = false;
+                setCompletionNotice("");
+            } else if (
+                job === null
+                && (prevStatus === "running" || prevStatus === "pending")
+            ) {
+                if (!completionBannerConsumedRef.current) {
+                    setCompletionNotice("Задача завершена. Подробности смотрите в Система -> Аудит.");
+                    completionBannerConsumedRef.current = true;
+                }
+                void loadItems(1);
+                setPage(1);
+            }
+
+            if (
+                job?.status === "failed"
+                && ["pending", "running"].includes(prevStatus || "")
+            ) {
+                setParsingError(job.error || "Ошибка фонового парсинга");
+            }
+
+            previousParseStatusRef.current = job?.status ?? null;
+        } catch (e: unknown) {
+            setParsingError(e instanceof Error ? e.message : "Ошибка загрузки статуса парсинга");
+        } finally {
+            setParseStatusLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void loadParseStatus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!parseJob || !["pending", "running"].includes(parseJob.status)) {
+            return;
+        }
+
+        const timer = setInterval(() => {
+            void loadParseStatus();
+        }, 3000);
+
+        return () => clearInterval(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [parseJob]);
+
+    const hasActiveParse = !!parseJob && ["pending", "running"].includes(parseJob.status);
 
 
     const handleImportParsedProducts = async () => {
         setImportingParsed(true);
-        setError("");
-        setImportResult(null);
+        setParsingError("");
+        setCompletionNotice("");
+        completionBannerConsumedRef.current = false;
 
         try {
             const data = await importParsedVanilleProducts();
-
-            setImportResult(data);
-            await loadItems(1);
-            setPage(1);
+            setParseJob(data.job);
         } catch (e: unknown) {
-            setError(
+            setParsingError(
                 e instanceof Error
                     ? e.message : "Ошибка импорта спарсенных товаров");
         } finally {
@@ -203,68 +219,55 @@ export default function VanilleProductsPage() {
     // Parsing logic and UI
 
 
-    const handleParseBrands = async () => {
-        setParsingBrands(true);
+    const handlePipelineNewProducts = async () => {
         setParsingError("");
-        setParsingResult(null);
+        setCompletionNotice("");
+        completionBannerConsumedRef.current = false;
 
         try {
-            const data = await parseVanilleBrands();
-
-            setParsingResult(data);
+            const data = await startVanillePipelineNewProducts();
+            setParseJob(data.job);
         } catch (e: unknown) {
             setParsingError(
                 e instanceof Error
                     ? e.message
-                    : "Ошибка парсинга брендов"
+                    : "Ошибка запуска парсинга новых товаров"
             );
-        } finally {
-            setParsingBrands(false);
         }
     };
 
-    const handleCollectLinks = async () => {
-        setCollectingLinks(true);
+    const handlePipelineRefreshAll = async () => {
         setParsingError("");
-        setParsingResult(null);
+        setCompletionNotice("");
+        completionBannerConsumedRef.current = false;
 
         try {
-            const data = await collectVanilleProductLinks();
-
-            setParsingResult(data);
+            const data = await startVanillePipelineRefreshAll();
+            setParseJob(data.job);
         } catch (e: unknown) {
             setParsingError(
                 e instanceof Error
                     ? e.message
-                    : "Ошибка сбора ссылок"
+                    : "Ошибка запуска обновления всех карточек"
             );
-        } finally {
-            setCollectingLinks(false);
-        }
-    };
-
-    const handleParseProducts = async () => {
-        setParsingProducts(true);
-        setParsingError("");
-        setParsingResult(null);
-
-        try {
-            const data = await parseVanilleProducts();
-
-            setParsingResult(data);
-        } catch (e: unknown) {
-            setParsingError(
-                e instanceof Error
-                    ? e.message
-                    : "Ошибка массового парсинга карточек"
-            );
-        } finally {
-            setParsingProducts(false);
         }
     };
 
     return (
         <AdminPageCard>
+            <>
+            {completionNotice ? (
+                <div className="mb-4">
+                    <DismissibleSuccessBanner
+                        message={completionNotice}
+                        onCloseAction={() => {
+                            setCompletionNotice("");
+                            completionBannerConsumedRef.current = true;
+                        }}
+                    />
+                </div>
+            ) : null}
+
             <AdminTableToolbar
                 title="Товары поставщика Vanille"
                 description="Просмотр спарсенных и связанных товаров Vanille"
@@ -272,10 +275,14 @@ export default function VanilleProductsPage() {
                     <button
                         type="button"
                         onClick={handleImportParsedProducts}
-                        disabled={importingParsed}
+                        disabled={importingParsed || hasActiveParse}
                         className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                     >
-                        {importingParsed ? "Импорт..." : "Импортировать спарсенные товары"}
+                        {importingParsed
+                            ? "Запуск..."
+                            : hasActiveParse && parseJob?.type === "import_parsed_products"
+                                ? "Импорт выполняется..."
+                                : "Импортировать спарсенные товары"}
                     </button>
                 }
             >
@@ -284,44 +291,50 @@ export default function VanilleProductsPage() {
                         <div className="flex flex-wrap gap-3">
                             <button
                                 type="button"
-                                onClick={handleParseBrands}
-                                disabled={parsingBrands}
+                                onClick={handlePipelineNewProducts}
+                                disabled={hasActiveParse}
                                 className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                             >
-                                {parsingBrands ? "Парсинг..." : "Парсинг брендов"}
+                                {hasActiveParse && parseJob?.type === "pipeline_new_products"
+                                    ? "Выполняется..."
+                                    : "Парсинг нового товара"}
                             </button>
 
                             <button
                                 type="button"
-                                onClick={handleCollectLinks}
-                                disabled={collectingLinks}
+                                onClick={handlePipelineRefreshAll}
+                                disabled={hasActiveParse}
                                 className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                             >
-                                {collectingLinks ? "Сбор..." : "Сбор ссылок товаров"}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleParseProducts}
-                                disabled={parsingProducts}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {parsingProducts ? "Парсинг..." : "Массовый парсинг карточек"}
+                                {hasActiveParse && parseJob?.type === "pipeline_refresh_all"
+                                    ? "Выполняется..."
+                                    : "Обновить все товары"}
                             </button>
                         </div>
+
+                        {parseStatusLoading ? null : parseJob ? (
+                            <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                                <div className="font-medium">
+                                    Статус: {parseJob.message || "Задача парсинга"}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500">
+                                    Состояние: {parseJob.status} · Прогресс: {parseJob.progress ?? 0}%
+                                </div>
+                                {hasActiveParse ? (
+                                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                        <div
+                                            className="h-full rounded-full bg-black transition-all"
+                                            style={{ width: `${Math.max(0, Math.min(100, parseJob.progress ?? 0))}%` }}
+                                        />
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : null}
 
                         {parsingError ? (
                             <DismissibleAlert
                                 message={parsingError}
                                 onCloseAction={() => setParsingError("")}
-                            />
-                        ) : null}
-
-                        {parsingResult ? (
-                            <VanilleResultCard
-                                title="Результат"
-                                result={parsingResult}
-                                onCloseAction={() => setParsingResult(null)}
                             />
                         ) : null}
                     </div>
@@ -357,17 +370,6 @@ export default function VanilleProductsPage() {
                     onCloseAction={() => setError("")}
                 />
             )}
-
-            {importResult ? (
-                <div className="mb-6">
-                    <VanilleResultCard
-                        title="Результат импорта"
-                        result={importResult}
-                        onCloseAction={() => setImportResult(null)}
-                        scrollableLog
-                    />
-                </div>
-            ) : null}
 
             {loading && <AdminLoadingState text="Загрузка товаров поставщика..."/>}
 
@@ -472,6 +474,7 @@ export default function VanilleProductsPage() {
 
                     </div>
                 )}
+            </>
         </AdminPageCard>
     );
 }

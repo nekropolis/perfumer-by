@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Users\Http\Controllers\Api\AuthController;
 use Modules\Users\Http\Controllers\Api\AdminUserController;
+use Modules\Users\Http\Controllers\Api\AuditLogController;
 
 Route::prefix('auth')->group(function () {
     Route::post('/request-code', [AuthController::class, 'requestCode']);
@@ -13,4 +14,8 @@ Route::prefix('auth')->group(function () {
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/users')->group(function () {
     Route::get('/', [AdminUserController::class, 'index']);
     Route::patch('/{id}/role', [AdminUserController::class, 'updateRole']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/system/audit-log')->group(function () {
+    Route::get('/', [AuditLogController::class, 'index']);
 });

@@ -19,16 +19,43 @@ Route::prefix('catalog')->group(function () {
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/vanille')->group(function () {
+    Route::post('/pipeline/new-products', [VanilleImportController::class, 'pipelineNewProducts']);
+    Route::post('/pipeline/refresh-all', [VanilleImportController::class, 'pipelineRefreshAll']);
     Route::post('/parse-products', [VanilleImportController::class, 'parseProducts']);
     Route::post('/collect-links', [VanilleImportController::class, 'collectLinks']);
     Route::post('/parse-brands', [VanilleImportController::class, 'parseBrands']);
+    Route::get('/parse-status', [VanilleImportController::class, 'vanilleParseStatus']);
+    Route::get('/import-jobs', [VanilleImportController::class, 'listImportJobs']);
+    Route::get('/import-jobs/{id}/logs', [VanilleImportController::class, 'listImportJobLogs']);
     Route::get('/supplier-products', [VanilleImportController::class, 'supplierProducts']);
     Route::post('/import-parsed-products', [VanilleImportController::class, 'importParsedProducts']);
 });
 
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/seller-one')->group(function () {
+    Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
+    Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
+    // Discovery-эндпоинт для виджета задач в шапке: возвращает текущий активный
+    // Seller One parse без необходимости знать его jobId на клиенте.
+    Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);
+    Route::get('/supplier-price/status/{jobId}', [VanilleImportController::class, 'sellerOneParseStatus']);
+    Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
+    Route::post('/supplier-price/refresh-linked', [VanilleImportController::class, 'refreshSellerOnePrices']);
+    Route::get('/supplier-products', [VanilleImportController::class, 'sellerOneSupplierProducts']);
+    Route::post('/supplier-products/force-link', [VanilleImportController::class, 'forceLinkSellerOneProduct']);
+    Route::post('/supplier-products/reset-link', [VanilleImportController::class, 'resetSellerOneProductLink']);
+    Route::get('/pricing-settings', [VanilleImportController::class, 'sellerOnePricingSettings']);
+    Route::put('/pricing-settings', [VanilleImportController::class, 'updateSellerOnePricingSettings']);
+    Route::get('/rules', [VanilleImportController::class, 'sellerOneRules']);
+    Route::post('/rules', [VanilleImportController::class, 'createSellerOneRule']);
+    Route::put('/rules/{id}', [VanilleImportController::class, 'updateSellerOneRule']);
+    Route::delete('/rules/{id}', [VanilleImportController::class, 'deleteSellerOneRule']);
+});
+
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(function () {
     Route::get('/', [BrandController::class, 'index']);
+    Route::get('/{id}', [BrandController::class, 'show']);
     Route::post('/', [BrandController::class, 'store']);
+    Route::post('/sync-from-vanille-json', [BrandController::class, 'syncFromVanilleJson']);
     Route::put('/{id}', [BrandController::class, 'update']);
     Route::delete('/{id}', [BrandController::class, 'destroy']);
 });
@@ -36,10 +63,16 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(f
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group(function () {
     Route::get('/', [ProductAdminController::class, 'index']);
     Route::post('/', [ProductAdminController::class, 'store']);
+    Route::get('/variant-definitions', [ProductVariantAdminController::class, 'catalog']);
+    Route::get('/variant-definitions/{id}', [ProductVariantAdminController::class, 'showDefinition']);
+    Route::post('/variant-definitions', [ProductVariantAdminController::class, 'storeDefinition']);
+    Route::put('/variant-definitions/{id}', [ProductVariantAdminController::class, 'updateDefinition']);
+    Route::delete('/variant-definitions/{id}', [ProductVariantAdminController::class, 'destroyDefinition']);
+    Route::get('/brands/options', [ProductAdminController::class, 'brands']);
     Route::get('/{id}', [ProductAdminController::class, 'show']);
+    Route::get('/{id}/variant-suppliers', [ProductAdminController::class, 'variantSuppliers']);
     Route::put('/{id}', [ProductAdminController::class, 'update']);
     Route::delete('/{id}', [ProductAdminController::class, 'destroy']);
-    Route::get('/brands/options', [ProductAdminController::class, 'brands']);
 
     Route::post('/{id}/attributes', [ProductAttributeAdminController::class, 'store']);
     Route::put('/{id}/attributes/{attributeId}', [ProductAttributeAdminController::class, 'update']);

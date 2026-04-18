@@ -14,6 +14,7 @@ class CartItemResource extends JsonResource
 
         $price = $variant?->price ? (float) $variant->price : 0;
         $total = $price * $this->qty;
+        $availableStock = $variant ? max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0)) : 0;
 
         $displayParts = [];
 
@@ -62,8 +63,10 @@ class CartItemResource extends JsonResource
 
             'total' => number_format($total, 2, '.', ''),
             'stock' => $variant?->stock ?? 0,
+            'reserved_stock' => $variant?->reserved_stock ?? 0,
+            'available_stock' => $availableStock,
             'is_preorder' => (bool) ($variant?->is_preorder ?? false),
-            'is_available' => $variant ? ($variant->stock > 0 || $variant->is_preorder) : false,
+            'is_available' => $variant ? ($availableStock > 0 || $variant->is_preorder) : false,
         ];
     }
 }

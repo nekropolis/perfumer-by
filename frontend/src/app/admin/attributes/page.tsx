@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -12,6 +13,8 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AttributesTable from "@/components/admin/attributes/attributes-table";
+import useDebouncedValue from "@/hooks/use-debounced-value";
+import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     deleteAttribute,
     fetchAttributes,
@@ -20,22 +23,25 @@ import {
 } from "@/lib/admin-attributes-api";
 
 export default function AdminAttributesPage() {
+    const searchParamsFromUrl = useSearchParams();
+
     const [items, setItems] = useState<AttributeAdminItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const [searchInput, setSearchInput] = useState("");
-    const [page, setPage] = useState(1);
+    const [searchInput, setSearchInput] = useState(
+        () => searchParamsFromUrl.get("search") ?? "",
+    );
+    const [page, setPage] = useUrlPage();
     const [meta, setMeta] = useState<AttributesAdminResponse | null>(null);
 
     const [deleteTarget, setDeleteTarget] = useState<AttributeAdminItem | null>(null);
     const [deleting, setDeleting] = useState(false);
 
-    const loadItems = async (
-        targetPage = page,
-        targetSearch = searchInput,
-    ) => {
+    const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+    const loadItems = useCallback(async (targetPage: number, targetSearch: string) => {
         setLoading(true);
         setError("");
 
@@ -54,20 +60,13 @@ export default function AdminAttributesPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useResetPageOnChange(setPage, [debouncedSearch]);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setPage(1);
-            void loadItems(1, searchInput);
-        }, 400);
-
-        return () => clearTimeout(timer);
-    }, [searchInput]);
-
-    useEffect(() => {
-        void loadItems(page, searchInput);
-    }, [page]);
+        void loadItems(page, debouncedSearch);
+    }, [loadItems, page, debouncedSearch]);
 
     const confirmDelete = async () => {
         if (!deleteTarget) {
@@ -82,7 +81,7 @@ export default function AdminAttributesPage() {
             const data = await deleteAttribute(deleteTarget.id);
             setSuccess(data.message || "Атрибут удален");
             setDeleteTarget(null);
-            await loadItems(page, searchInput);
+            await loadItems(page, debouncedSearch);
         } catch (e: unknown) {
             setError(
                 e instanceof Error

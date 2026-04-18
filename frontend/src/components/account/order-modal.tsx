@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { fetchMyOrder } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
 import {
@@ -21,9 +21,11 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
     useEffect(() => {
         if (!orderId) return;
 
-        setLoading(true);
-        setErrorMessage("");
-        setOrder(null);
+        startTransition(() => {
+            setLoading(true);
+            setErrorMessage("");
+            setOrder(null);
+        });
 
         fetchMyOrder(orderId)
             .then((response) => {

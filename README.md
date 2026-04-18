@@ -2,130 +2,188 @@
 
 E-commerce проект (замена OpenCart) на стеке:
 
-- Backend: Laravel (API, admin)
-- Frontend: Next.js (SSR)
-- DB: MySQL
-- Cache/Queue: Redis
+- Backend: Laravel 13 (modular, API + admin)
+- Frontend: Next.js 16 (React 19)
+- DB: MySQL 8
+- Cache / Queue: Redis
 - Web: Nginx + PHP-FPM
 - Process manager: pm2
 
 ---
 
-## Структура
-/var/www
-backend/    # Laravel
-frontend/   # Next.js
+## Структура проекта
+
+```text
+/var/www/perfumer-by
+├── backend/   # Laravel API + modules
+└── frontend/  # Next.js app
+```
 
 ---
 
 ## Требования
 
-- PHP 8.3 + extensions:
-    - mbstring, xml, curl, zip, bcmath, gd, intl, mysql, redis
+- PHP 8.3
+- Composer
 - MySQL 8
 - Redis
 - Node.js 18+ (рекомендуется 22)
-- Composer
+- npm
 - Nginx
 - pm2
 
+### Рекомендуемые PHP extensions
+
+`mbstring`, `xml`, `curl`, `zip`, `bcmath`, `gd`, `intl`, `pdo_mysql`, `redis`
+
 ---
 
-## Backend (Laravel)
+## Быстрый старт
 
-## env
-APP_URL=
+### 1) Backend
 
-AUTH_MODEL=Modules\\Users\\Models\\User
-
-DB_DATABASE=perfumer
-DB_USERNAME=perfumer
-DB_PASSWORD=password
-
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
-
-# Запуск
+```bash
+cd /var/www/perfumer-by/backend
+composer install
+cp .env.example .env   # если .env еще не создан
+php artisan key:generate
 php artisan migrate
 php artisan storage:link
 php artisan optimize:clear
+```
 
-# Frontend (Next.js)
-cd /var/www/frontend
+### 2) Frontend
 
+```bash
+cd /var/www/perfumer-by/frontend
 npm install
 npm run build
+```
 
-# Запуск через pm2
-pm2 start npm --name perfumer-frontend -- start
+### 3) Запуск frontend через pm2
+
+```bash
+cd /var/www/perfumer-by/frontend
+pm2 start npm --name perfumer-frontend -- run start
 pm2 save
+```
 
-# php
-memory_limit = 512M
-upload_max_filesize = 64M
-post_max_size = 64M
+---
 
-# Development & Deployment
+## Переменные окружения
 
-## Frontend (Next.js)
+### Backend `.env`
 
-## Frontend env
-Используются переменные окружения:
-`.env.local`:
+Минимально важные:
+
+- `APP_URL`
+- `AUTH_MODEL=Modules\\Users\\Models\\User`
+- `DB_DATABASE`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `CACHE_STORE=redis`
+- `QUEUE_CONNECTION=redis`
+- `SESSION_DRIVER=redis`
+
+### Frontend `.env.local`
+
 - `NEXT_PUBLIC_API_URL` — базовый URL backend API
-- `NEXT_ALLOWED_DEV_ORIGINS` — список dev origins для Next.js HMR, через запятую
+- `NEXT_ALLOWED_DEV_ORIGINS` — список origins для dev/HMR (через запятую)
 
-### Development (рекомендуется)
+---
 
-Запуск с авто-пересборкой (hot reload):
-make dev
+## Команды Makefile
 
-Логи:
-make logs-dev
+Корневой `Makefile` рассчитан на деплой в `/var/www/perfumer-by`.
 
-Остановить:
-make dev-stop
-⸻
+### Frontend
 
-### Production
-Сборка и запуск:
-make prod
+- `make dev` — запуск dev frontend через pm2 (`perfumer-frontend-dev`)
+- `make dev-restart` — перезапуск dev
+- `make dev-stop` — остановка dev
+- `make prod` — `npm install` + `next build` + запуск prod (`perfumer-frontend`)
+- `make prod-restart` — перезапуск prod
+- `make prod-stop` — остановка prod
+- `make logs` — логи prod
+- `make logs-dev` — логи dev
+- `make status` — список pm2 процессов
 
-Рестарт:
-make prod-restart
+### Backend
 
-Логи:
-make logs
+- `make backend-clear` — `php artisan optimize:clear`
+- `make backend-migrate` — миграции + очистка кешей
+- `make backend-seed` — сидирование каталога
 
-⸻
-### Backend (Laravel)
-Очистка кеша:
-make backend-clear
+---
 
-Миграции:
-make backend-migrate
+## Полезные artisan-команды
 
-Сидирование каталога:
-make backend-seed
+### Vanille: парсинг только карточек
 
-⸻
-Общие команды
-Статус процессов:
-make status
+Если `product_links.json` уже собран, можно перезапустить только этап парсинга карточек:
 
-⸻
-Важно
-•	Dev режим (make dev) — для разработки, без build
-•	Prod режим (make prod) — для продакшена
-•	Не запускать одновременно dev и prod на одном порту
+```bash
+cd /var/www/perfumer-by/backend
+php artisan catalog:parse-vanille-products
+```
 
-make dev
-make dev-stop
-make prod
-make prod-restart
-make logs
-make logs-dev
-make backend-clear
-make backend-migrate
-make backend-seed
+Опции:
+
+- `--once` — выполнить только один батч
+- `--offset=1200` — старт с нужного смещения
+- `--limit=20` — размер батча
+- `--max-links=500` — ограничение числа ссылок
+- `--mode=full|new_only` — режим парсинга
+- `--links-path=/abs/path/to/product_links.json` — кастомный файл ссылок
+
+Примеры:
+
+```bash
+php artisan catalog:parse-vanille-products --once
+php artisan catalog:parse-vanille-products --offset=1200 --limit=10
+php artisan catalog:parse-vanille-products --mode=new_only
+```
+
+### Импорт sample JSON Vanille
+
+```bash
+php artisan catalog:import-vanille-sample /path/to/file.json
+```
+
+---
+
+## Seller One: что есть в админке
+
+В блоке импорта Seller One доступны:
+
+- `Новый парсинг` — разбор прайса, обновление/создание строк поставщика
+- `Обновить цены` — обновление цен только для уже связанных товаров по коду из прайса
+  - обновляет цену и пишет запись в `supplier_price_histories`
+  - если код из связанных отсутствует в свежем прайсе — переводит в preorder / нет в наличии
+  - пишет запись в `audit_logs`
+
+---
+
+## Troubleshooting
+
+### Permission denied при записи файлов парсинга
+
+Пример:
+
+`file_put_contents(.../storage/app/public/imports/vanille/products/products_006.json): Permission denied`
+
+Проверь права на `backend/storage` и пользователя php-fpm/cli.
+После восстановления прав можно продолжать только этап карточек:
+
+```bash
+cd /var/www/perfumer-by/backend
+php artisan catalog:parse-vanille-products --offset=<нужный_offset>
+```
+
+### Не запускать dev и prod одновременно на одном порту
+
+- dev: `make dev`
+- prod: `make prod`
+
+Перед переключением останавливай текущий режим (`make dev-stop` или `make prod-stop`).
+

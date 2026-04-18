@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ProductListItem } from "@/types/catalog";
 
@@ -11,7 +12,7 @@ function formatPrice(product: ProductListItem) {
     const max = product.price_range?.max;
 
     if (!min && !max) {
-        return "Предзаказ";
+        return product.stock_total > 0 ? "Цена уточняется" : product.is_preorder_available ? "Предзаказ" : "Цена уточняется";
     }
 
     if (min && max && min !== max) {
@@ -42,6 +43,10 @@ export default function ProductCard({
             : `/${product.image.replace(/^\/+/, "")}`
         : null;
 
+    const imageIsRemote = Boolean(
+        imagePath?.startsWith("http://") || imagePath?.startsWith("https://")
+    );
+
     const showEmptyVolumeLabel =
         visibleVariants.length === 0 && !product.is_preorder_available;
 
@@ -52,10 +57,13 @@ export default function ProductCard({
         >
             <div className="relative aspect-[4/3.2] w-full overflow-hidden bg-gray-50">
                 {imagePath ? (
-                    <img
+                    <Image
                         src={imagePath}
                         alt={product.name}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 280px"
+                        className="object-cover transition duration-300 group-hover:scale-[1.02]"
+                        unoptimized={imageIsRemote}
                     />
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">

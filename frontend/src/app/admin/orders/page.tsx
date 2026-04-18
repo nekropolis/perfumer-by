@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
 import type { OrderData } from "@/types/orders";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
@@ -16,11 +17,15 @@ import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import {AdminToast} from "@/types/admin";
 
 export default function AdminOrdersPage() {
+    const searchParamsFromUrl = useSearchParams();
+
     const [orders, setOrders] = useState<OrderData[]>([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<AdminToast | null>(null);
 
-    const [searchInput, setSearchInput] = useState("");
+    const [searchInput, setSearchInput] = useState(
+        () => searchParamsFromUrl.get("search") ?? "",
+    );
     const [statusFilter, setStatusFilter] = useState("");
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);

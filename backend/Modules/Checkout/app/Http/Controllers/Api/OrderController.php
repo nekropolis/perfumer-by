@@ -5,18 +5,35 @@ namespace Modules\Checkout\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
+use Modules\Warehouse\Services\StockInventoryService;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 
 class OrderController extends Controller
 {
+    public function stats(): JsonResponse
+    {
+        $newCount = Order::query()->where('status', 'new')->count();
+
+        return response()->json([
+            'data' => [
+                'by_status' => [
+                    'new' => $newCount,
+                ],
+            ],
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $search = trim((string) $request->get('search', ''));
-        $status = trim((string) $request->get('status', ''));
+        $search = trim((string) $request->input('search', ''));
+        $status = trim((string) $request->input('status', ''));
 
         $orders = Order::query()
-            ->with('items')
+            ->with([
+                'items.variant.supplierOffers.supplier',
+            ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
                     if (is_numeric($search)) {
@@ -48,7 +65,9 @@ class OrderController extends Controller
     public function show(int $id): JsonResponse
     {
         $order = Order::query()
-            ->with('items')
+            ->with([
+                'items.variant.supplierOffers.supplier',
+            ])
             ->findOrFail($id);
 
         return response()->json([
@@ -63,10 +82,29 @@ class OrderController extends Controller
         ]);
 
         $order = Order::query()->findOrFail($id);
+        $previousStatus = (string) $order->status;
 
-        $order->update([
-            'status' => $validated['status'],
-        ]);
+        DB::transaction(function () use ($order, $validated, $previousStatus) {
+            $order->update([
+                'status' => $validated['status'],
+            ]);
+
+            $order->load('items');
+            $stockService = app(StockInventoryService::class);
+            $nextStatus = (string) $validated['status'];
+
+            if ($previousStatus !== 'new' && $nextStatus === 'new') {
+                $stockService->reserveForOrder($order);
+            }
+
+            if ($nextStatus === 'cancelled') {
+                $stockService->releaseForOrder($order);
+            }
+
+            if ($nextStatus === 'completed') {
+                $stockService->completeOrder($order);
+            }
+        });
 
         $order->load('items');
 

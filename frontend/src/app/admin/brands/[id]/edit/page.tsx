@@ -8,7 +8,7 @@ import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import BrandForm, { type BrandFormState } from "@/components/admin/brands/brand-form";
-import { fetchBrands, updateBrand } from "@/lib/admin-brands-api";
+import { fetchBrand, updateBrand } from "@/lib/admin-brands-api";
 
 export default function AdminBrandEditPage() {
     const router = useRouter();
@@ -25,13 +25,8 @@ export default function AdminBrandEditPage() {
             setError("");
 
             try {
-                const data = await fetchBrands();
-
-                const item = data.data.find((brand) => String(brand.id) === String(params.id));
-
-                if (!item) {
-                    throw new Error("Бренд не найден");
-                }
+                const data = await fetchBrand(Number(params.id));
+                const item = data.data;
 
                 setForm({
                     id: item.id,

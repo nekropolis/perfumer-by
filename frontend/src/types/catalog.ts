@@ -64,6 +64,7 @@ export type ProductListItem = {
 
     is_new: boolean;
     is_hit: boolean;
+    is_out_of_stock: boolean;
 
     price_range: {
         min: string | null;
@@ -95,6 +96,7 @@ export type ProductsResponse = {
 
 export type ProductDetailData = {
     id: number;
+    is_out_of_stock: boolean;
     name: string;
     slug: string;
     h1: string | null;

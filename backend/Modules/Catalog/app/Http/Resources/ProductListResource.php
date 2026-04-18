@@ -4,6 +4,8 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductListResource extends JsonResource
 {
@@ -13,7 +15,23 @@ class ProductListResource extends JsonResource
             ? $this->activeVariants
             : collect();
 
-        $prices = $variants->pluck('price')->filter();
+        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+        $variantIds = $variants->pluck('id')->filter()->values();
+
+        $stocks = WarehouseVariantStock::query()
+            ->whereIn('variant_id', $variantIds)
+            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+            ->get()
+            ->groupBy('variant_id');
+
+        $prices = $variants->map(function ($variant) use ($stocks, $mainWarehouseId) {
+            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+            $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
+
+            return $mainAvailable > 0 ? $variant->price : $variant->price;
+        })->filter();
         $oldPrices = $variants->pluck('old_price')->filter();
 
         $minPrice = $prices->isNotEmpty() ? $prices->min() : null;
@@ -22,7 +40,16 @@ class ProductListResource extends JsonResource
         $minOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->min() : null;
         $maxOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->max() : null;
 
-        $stockTotal = (int) $variants->sum('stock');
+        $stockTotal = (int) $variants->sum(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
+            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+            $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
+
+            return $mainAvailable > 0
+                ? (int) ($mainStock?->stock ?? 0)
+                : (int) ($supplierStock?->stock ?? 0);
+        });
         $preorderAvailable = $variants->contains(fn ($variant) => (bool) $variant->is_preorder);
 
         $mainImage = $this->relationLoaded('mainImage') ? $this->mainImage : null;
@@ -78,6 +105,7 @@ class ProductListResource extends JsonResource
 
             'is_new' => $this->is_new,
             'is_hit' => $this->is_hit,
+            'is_out_of_stock' => (bool) $this->is_out_of_stock,
 
             'price_range' => [
                 'min' => $minPrice,

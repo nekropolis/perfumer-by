@@ -5,6 +5,7 @@ import type { OrderData } from "@/types/orders";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
+import CopyText from "@/components/ui/copy-text";
 
 type Props = {
     initialOrders: OrderData[];
@@ -71,7 +72,13 @@ export default function AdminOrdersTable({
                     <tbody className="align-middle">
                     {orders.map((order) => (
                         <tr key={order.id} className="border-b last:border-b-0">
-                            <td className="px-4 py-4 font-medium">#{order.id}</td>
+                            <td className="px-4 py-4 font-medium">
+                                <CopyText
+                                    value={String(order.id)}
+                                    label={`#${order.id}`}
+                                    title="Скопировать номер заказа"
+                                />
+                            </td>
                             <td className="px-4 py-4">{order.customer_name || "—"}</td>
                             <td className="px-4 py-4">{order.phone}</td>
                             <td className="px-4 py-4">

@@ -646,7 +646,7 @@ export default function ProductAttributeValuesEditor({
             />
 
             {createModalOpen ? (
-                <div className="fixed inset-0 z-50 bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
@@ -759,7 +759,7 @@ export default function ProductAttributeValuesEditor({
             ) : null}
 
             {editForm ? (
-                <div className="fixed inset-0 z-50 bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">

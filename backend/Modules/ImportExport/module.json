@@ -1,0 +1,12 @@
+{
+    "name": "ImportExport",
+    "alias": "importexport",
+    "description": "Import and export flows",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\ImportExport\\Providers\\ImportExportServiceProvider"
+    ],
+    "files": []
+}
+

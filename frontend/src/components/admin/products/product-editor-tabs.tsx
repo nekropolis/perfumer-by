@@ -1,5 +1,8 @@
 "use client";
 
+import { FileText, ImageIcon, Layers, Search, SlidersHorizontal } from "lucide-react";
+import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admin-rich-tabs";
+
 export type ProductEditorTab =
     | "main"
     | "images"
@@ -12,33 +15,23 @@ type Props = {
     onChangeAction: (tab: ProductEditorTab) => void;
 };
 
-const tabs: { key: ProductEditorTab; label: string }[] = [
-    { key: "main", label: "Главная" },
-    { key: "images", label: "Картинки" },
-    { key: "variants", label: "Варианты" },
-    { key: "attributes", label: "Атрибуты" },
-    { key: "seo", label: "SEO" },
+const tabs: AdminRichTabItem<ProductEditorTab>[] = [
+    { id: "main", label: "Главная", description: "", icon: FileText },
+    { id: "images", label: "Картинки", description: "", icon: ImageIcon },
+    { id: "variants", label: "Варианты", description: "", icon: Layers },
+    { id: "attributes", label: "Атрибуты", description: "", icon: SlidersHorizontal },
+    { id: "seo", label: "SEO", description: "", icon: Search },
 ];
 
 export default function ProductEditorTabs({ activeTab, onChangeAction }: Props) {
     return (
-        <div className="mb-6 overflow-x-auto">
-            <div className="flex min-w-max gap-2">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => onChangeAction(tab.key)}
-                        className={`rounded-xl px-4 py-2 text-sm transition ${
-                            activeTab === tab.key
-                                ? "bg-black text-white"
-                                : "border bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-        </div>
+        <AdminRichTabs
+            items={tabs}
+            activeTab={activeTab}
+            onChangeAction={onChangeAction}
+            className="mb-6 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm"
+            columnsClassName="grid grid-cols-5 gap-2"
+            showDescription={false}
+        />
     );
 }

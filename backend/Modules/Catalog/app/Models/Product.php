@@ -23,6 +23,8 @@ class Product extends Model
         'is_active',
         'is_new',
         'is_hit',
+        'is_out_of_stock',
+        'is_stock_product',
         'sort_order',
     ];
 
@@ -30,6 +32,8 @@ class Product extends Model
         'is_active' => 'boolean',
         'is_new' => 'boolean',
         'is_hit' => 'boolean',
+        'is_out_of_stock' => 'boolean',
+        'is_stock_product' => 'boolean',
     ];
 
     public function brand(): BelongsTo
@@ -49,12 +53,12 @@ class Product extends Model
 
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class)->orderBy('sort_order');
+        return $this->hasMany(ProductVariantLink::class)->orderBy('sort_order');
     }
 
     public function activeVariants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class)
+        return $this->hasMany(ProductVariantLink::class)
             ->where('is_active', true)
             ->orderBy('sort_order');
     }

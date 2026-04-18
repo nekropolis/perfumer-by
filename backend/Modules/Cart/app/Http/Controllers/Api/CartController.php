@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Cart\Http\Resources\CartResource;
 use Modules\Cart\Models\Cart;
 use Modules\Cart\Models\CartItem;
-use Modules\Catalog\Models\ProductVariant;
+use Modules\Catalog\Models\ProductVariantLink;
 
 class CartController extends Controller
 {
@@ -44,7 +44,7 @@ class CartController extends Controller
     public function addItem(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'variant_id' => ['required', 'integer', 'exists:product_variant_links,id'],
             'qty' => ['nullable', 'integer', 'min:1'],
         ]);
 
@@ -52,7 +52,7 @@ class CartController extends Controller
 
         $cart = $this->resolveCart($request);
 
-        $variant = ProductVariant::query()
+        $variant = ProductVariantLink::query()
             ->where('id', $validated['variant_id'])
             ->where('is_active', true)
             ->firstOrFail();

@@ -4,6 +4,9 @@
     "description": "",
     "keywords": [],
     "priority": 0,
+    "requires": [
+        "ImportExport"
+    ],
     "providers": [
         "Modules\\Catalog\\Providers\\CatalogServiceProvider"
     ],

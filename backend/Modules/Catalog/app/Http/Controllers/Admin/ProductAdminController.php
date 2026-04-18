@@ -9,7 +9,9 @@ use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
-use Modules\Catalog\Support\VanilleHelper;
+use Modules\Catalog\Models\ProductVariantLink;
+use Modules\ImportExport\Support\VanilleHelper;
+use Modules\Warehouse\Models\StockReceiptItem;
 
 class ProductAdminController extends Controller
 {
@@ -33,6 +35,15 @@ class ProductAdminController extends Controller
             $query->where('brand_id', (int) $request->input('brand_id'));
         }
 
+        if ($request->filled('out_of_stock')) {
+            $outOfStock = (string) $request->input('out_of_stock');
+            if ($outOfStock === '1') {
+                $query->where('is_out_of_stock', true);
+            } elseif ($outOfStock === '0') {
+                $query->where('is_out_of_stock', false);
+            }
+        }
+
         $products = $query->paginate(20);
 
         return response()->json($products);
@@ -50,13 +61,21 @@ class ProductAdminController extends Controller
             'description' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
+            'is_stock_product' => ['nullable', 'boolean'],
         ]);
+
+        $slug = VanilleHelper::slugify($validated['slug']);
+        if (Brand::query()->where('slug', $slug)->exists()) {
+            return response()->json([
+                'message' => 'Slug уже используется брендом',
+            ], 422);
+        }
 
         $product = Product::create([
             'brand_id' => $validated['brand_id'],
             'main_category_id' => null,
             'name' => $validated['name'],
-            'slug' => VanilleHelper::slugify($validated['slug']),
+            'slug' => $slug,
             'h1' => $validated['h1'] ?: $validated['name'],
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
@@ -65,8 +84,12 @@ class ProductAdminController extends Controller
             'is_active' => $validated['is_active'] ?? true,
             'is_new' => false,
             'is_hit' => false,
+            'is_out_of_stock' => true,
+            'is_stock_product' => $validated['is_stock_product'] ?? false,
             'sort_order' => 0,
         ]);
+
+        $this->syncStockFlags($product);
 
         return response()->json([
             'message' => 'Продукт создан',
@@ -93,18 +116,30 @@ class ProductAdminController extends Controller
             'description' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
+            'is_stock_product' => ['nullable', 'boolean'],
         ]);
+
+        $slug = VanilleHelper::slugify($validated['slug']);
+        if (Brand::query()->where('slug', $slug)->exists()) {
+            return response()->json([
+                'message' => 'Slug уже используется брендом',
+            ], 422);
+        }
 
         $product->update([
             'brand_id' => $validated['brand_id'],
             'name' => $validated['name'],
+            'slug' => $slug,
             'h1' => $validated['h1'] ?: $validated['name'],
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
             'seo_title' => $validated['seo_title'] ?: $validated['name'],
             'seo_description' => $validated['seo_description'] ?? null,
             'is_active' => $validated['is_active'] ?? $product->is_active,
+            'is_stock_product' => $validated['is_stock_product'] ?? $product->is_stock_product,
         ]);
+
+        $this->syncStockFlags($product);
 
         return response()->json([
             'message' => 'Продукт обновлён',
@@ -114,14 +149,7 @@ class ProductAdminController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $product = Product::query()
-            ->withCount('variants')
-            ->findOrFail($id);
-        if ($product->variants_count > 0) {
-            return response()->json([
-                'message' => 'Нельзя удалить продукт, у него есть варианты',
-            ], 422);
-        }
+        $product = Product::query()->findOrFail($id);
 
         $product->delete();
 
@@ -157,6 +185,105 @@ class ProductAdminController extends Controller
 
         return response()->json([
             'data' => ProductDetailResource::make($product)->resolve(),
+        ]);
+    }
+
+    public function variantSuppliers(int $id): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+
+        $variants = ProductVariantLink::query()
+            ->where('product_id', $product->id)
+            ->where('is_active', true)
+            ->where('stock', '>', 0)
+            ->with([
+                'definition',
+                'supplierOffers' => function ($query) {
+                    $query->where('is_active', true)
+                        ->with('supplier')
+                        ->orderByDesc('last_seen_at')
+                        ->orderByDesc('id');
+                },
+                'warehouseStocks.warehouse',
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        $receiptItemsByVariant = StockReceiptItem::query()
+            ->whereIn('variant_id', $variants->pluck('id')->all())
+            ->with(['receipt.warehouse'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('variant_id');
+
+        $data = $variants->map(function (ProductVariantLink $variant) use ($receiptItemsByVariant) {
+            $receiptItems = $receiptItemsByVariant->get($variant->id, collect());
+
+            return [
+                'id' => $variant->id,
+                'title' => $variant->title,
+                'stock' => (int) ($variant->stock ?? 0),
+                'warehouses' => $variant->warehouseStocks
+                    ->filter(fn ($stock) => (int) ($stock->stock ?? 0) > 0)
+                    ->map(function ($stock) {
+                        return [
+                            'warehouse_name' => $stock->warehouse?->name,
+                            'stock' => (int) ($stock->stock ?? 0),
+                            'available_stock' => (int) ($stock->available_stock ?? 0),
+                        ];
+                    })
+                    ->values(),
+                'suppliers' => $variant->supplierOffers->map(function ($offer) {
+                    $payload = is_array($offer->payload) ? $offer->payload : [];
+
+                    return [
+                        'offer_id' => $offer->id,
+                        'supplier_name' => $offer->supplier?->name,
+                        'supplier_code' => $offer->external_id,
+                        'supplier_product_name' => $offer->external_product_name,
+                        'supplier_price' => $payload['supplier_price'] ?? $offer->purchase_price,
+                    ];
+                })->values(),
+                'receipt_batches' => $receiptItems->map(function (StockReceiptItem $item) {
+                    $payload = is_array($item->payload) ? $item->payload : [];
+
+                    return [
+                        'receipt_item_id' => $item->id,
+                        'receipt_id' => $item->stock_receipt_id,
+                        'receipt_document_no' => $item->receipt?->document_no,
+                        'supplier_name' => $item->receipt?->supplier_name,
+                        'supplier_code' => $item->supplier_sku,
+                        'supplier_product_name' => $payload['supplier_product_name']
+                            ?? $payload['name']
+                            ?? $item->variant_title,
+                        'supplier_price' => $item->supplier_price,
+                        'warehouse_name' => $item->receipt?->warehouse?->name,
+                        'qty' => (int) ($item->qty ?? 0),
+                        'received_at' => $item->receipt?->received_at?->toDateString(),
+                    ];
+                })->values(),
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+        ]);
+    }
+
+    private function syncStockFlags(Product $product): void
+    {
+        if (!$product->is_stock_product) {
+            return;
+        }
+
+        $stockSum = (int) ProductVariantLink::query()
+            ->where('product_id', $product->id)
+            ->where('is_active', true)
+            ->sum('stock');
+
+        $product->update([
+            'is_out_of_stock' => $stockSum <= 0,
         ]);
     }
 }

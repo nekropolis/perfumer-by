@@ -1,5 +1,7 @@
 import { fetchOrder } from "@/lib/admin-orders-api";
 import AdminOrderStatusForm from "@/components/admin/admin-order-status-form";
+import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
+import CopyText from "@/components/ui/copy-text";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -12,8 +14,15 @@ export default async function AdminOrderPage({ params }: Props) {
 
     return (
         <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-            <div className="mb-8">
-                <h1 className="text-3xl font-semibold">Заказ #{order.id}</h1>
+            <div className="mb-8 flex items-center gap-2">
+                <h1 className="text-3xl font-semibold">Заказ</h1>
+                <CopyText
+                    value={String(order.id)}
+                    label={`#${order.id}`}
+                    title="Скопировать номер заказа"
+                    iconSize={16}
+                    className="text-2xl font-semibold text-gray-700"
+                />
             </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
@@ -47,21 +56,7 @@ export default async function AdminOrderPage({ params }: Props) {
                         </div>
                     )}
 
-                    <div className="space-y-4">
-                        {order.items.map((item) => (
-                            <div key={item.id} className="rounded-xl border p-4">
-                                <div className="text-sm text-gray-500">{item.brand_name}</div>
-                                <div className="font-medium">{item.product_name}</div>
-                                <div className="text-sm text-gray-600">{item.variant_title}</div>
-                                <div className="mt-2 text-sm text-gray-600">
-                                    SKU: {item.sku || "—"}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    {item.qty} × {item.price} руб. = {item.total} руб.
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <AdminOrderItemsTable items={order.items} />
                 </div>
 
                 <aside className="rounded-2xl border p-5">
