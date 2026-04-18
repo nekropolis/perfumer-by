@@ -130,7 +130,7 @@ export default function StockNotificationModal({
 
             setSuccessMessage(
                 response.message ||
-                    "Спасибо! Мы напишем вам, как только товар появится в наличии.",
+                "Спасибо! Мы напишем вам, как только товар появится в наличии.",
             );
         } catch (error) {
             console.error(error);

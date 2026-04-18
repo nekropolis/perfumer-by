@@ -263,11 +263,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                             )}
 
                             <div
-                                className={`space-y-1 rounded-[20px] p-1.5 ring-1 transition-colors ${
-                                    sectionHasActiveItem(section, pathname, currentQuery)
+                                className={`space-y-1 rounded-[20px] p-1.5 ring-1 transition-colors ${sectionHasActiveItem(section, pathname, currentQuery)
                                         ? "bg-white ring-slate-200 shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
                                         : "bg-white/70 ring-slate-200/70"
-                                }`}
+                                    }`}
                             >
                                 {section.items.map((item) => {
                                     const isActive = isItemActive(pathname, currentQuery, item.href);
@@ -305,18 +304,16 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 });
                                             }}
                                             onBlur={() => setTooltip(null)}
-                                            className={`group relative flex items-center gap-2.5 rounded-[18px] px-2.5 py-2 text-[13px] transition-all duration-200 ${
-                                                isActive
+                                            className={`group relative flex items-center gap-2.5 rounded-[18px] px-2.5 py-2 text-[13px] transition-all duration-200 ${isActive
                                                     ? "bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]"
                                                     : "text-slate-700 hover:bg-slate-100/90 hover:text-slate-950"
-                                            } ${collapsed ? "justify-center px-2" : ""}`}
+                                                } ${collapsed ? "justify-center px-2" : ""}`}
                                         >
                                             <span
-                                                className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
-                                                    isActive
+                                                className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${isActive
                                                         ? "border-white/10 bg-white/10 text-white"
                                                         : "border-slate-200 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:bg-white group-hover:text-slate-900"
-                                                }`}
+                                                    }`}
                                             >
                                                 <Icon size={16} className="transition-transform duration-200 group-hover:scale-105" />
                                                 {collapsed ? (

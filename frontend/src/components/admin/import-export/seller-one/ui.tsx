@@ -111,118 +111,118 @@ export function ManualLinkModal({
                         ) : null}
                         {manualLink.products.length > 0 && !manualLink.selectedProductId ? (
                             <>
-                        <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
-                            нажми строку — добавится к товару)</div>
-                            <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
-                                {manualLink.products.map((product: ProductAdminItem) => {
-                                    const active = manualLink.selectedProductId === product.id;
-                                    return (
-                                        <button
-                                            key={product.id}
-                                            type="button"
-                                            onClick={() => void onPickProductAction(product.id)}
-                                            className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-gray-900 text-white" : "hover:bg-gray-100"
-                                                }`}
-                                        >
-                                            {product.name}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                                <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
+                                    нажми строку — добавится к товару)</div>
+                                <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
+                                    {manualLink.products.map((product: ProductAdminItem) => {
+                                        const active = manualLink.selectedProductId === product.id;
+                                        return (
+                                            <button
+                                                key={product.id}
+                                                type="button"
+                                                onClick={() => void onPickProductAction(product.id)}
+                                                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-gray-900 text-white" : "hover:bg-gray-100"
+                                                    }`}
+                                            >
+                                                {product.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </>
                         ) : null}
-                    {manualLink.selectedProductId ? (
-                        <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-700">
-                            {(() => {
-                                const selectedProduct = manualLink.products.find(
-                                    (product) => product.id === manualLink.selectedProductId
-                                );
-                                const selectedLabel = `${selectedProduct?.name}`
-
-                                return (
-                                    <>
-                                        <div>
-                                            Выбранный продукт: <strong className="text-sm">{selectedLabel}</strong>
-                                        </div>
-
-                                    </>
-                                );
-                            })()}
-                        </div>
-                    ) : null}
-                    {manualLink.selectedProductId ? (
-                        <div className="space-y-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 p-3">
-                            <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
-                                нажми строку — добавится к товару)</div>
-                            <input
-                                type="text"
-                                value={manualLink.definitionSearch}
-                                onChange={(e) =>
-                                    setManualLink((prev) =>
-                                        prev ? { ...prev, definitionSearch: e.target.value } : prev
-                                    )
-                                }
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                                placeholder="Объём, концентрация или часть названия"
-                            />
-                            {manualLink.definitionsLoading ? (
-                                <div className="text-xs text-gray-500">Поиск в справочнике…</div>
-                            ) : null}
-                            {!manualLink.definitionsLoading && manualLink.definitionSearch.trim() === "" ? (
-                                <div className="text-[11px] text-gray-500">Введи запрос — список обновится сам.</div>
-                            ) : null}
-                            {!manualLink.definitionsLoading
-                                && manualLink.definitionSearch.trim() !== ""
-                                && manualLink.definitions.length === 0 ? (
-                                <div className="text-xs text-amber-700">Ничего не найдено.</div>
-                            ) : null}
-                            {manualLink.definitions.length > 0 ? (
-                                <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
-                                    {manualLink.definitions.map((def: VariantDefinitionItem) => (
-                                        <button
-                                            key={def.id}
-                                            type="button"
-                                            disabled={manualLink.attachingDefinition}
-                                            onClick={() => void onPickDefinitionAction(def.id)}
-                                            className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50"
-                                        >
-                                            {def.title}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : null}
-                            <p className="text-[11px] text-gray-500">
-                                Если формулировка уже есть у товара, дубликат не создаётся — будет выбран
-                                существующий вариант.
-                            </p>
-                        </div>
-                    ) : null}
-                    {manualLink.selectedVariantId ? (
-                        <div className="space-y-2 rounded-xl border border-green-200 bg-green-50/60 p-3">
-                            <div className="text-xs font-medium text-green-900">Готово к связке</div>
-                            <div className="text-sm text-green-900">
+                        {manualLink.selectedProductId ? (
+                            <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-700">
                                 {(() => {
-                                    const v = manualLink.variants.find((x) => x.id === manualLink.selectedVariantId);
-                                    return v
-                                        ? formatVariantOptionLabel(v)
-                                        : `Вариант #${manualLink.selectedVariantId}`;
+                                    const selectedProduct = manualLink.products.find(
+                                        (product) => product.id === manualLink.selectedProductId
+                                    );
+                                    const selectedLabel = `${selectedProduct?.name}`
+
+                                    return (
+                                        <>
+                                            <div>
+                                                Выбранный продукт: <strong className="text-sm">{selectedLabel}</strong>
+                                            </div>
+
+                                        </>
+                                    );
                                 })()}
                             </div>
-                            <button
-                                type="button"
-                                disabled={linkingRowId === manualLink.rowId}
-                                onClick={() =>
-                                    void onConfirmAction(manualLink.rowId, manualLink.selectedVariantId!)
-                                }
-                                className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-                            >
-                                Связать со строкой прайса
-                            </button>
-                        </div>
-                    ) : null}
+                        ) : null}
+                        {manualLink.selectedProductId ? (
+                            <div className="space-y-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 p-3">
+                                <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
+                                    нажми строку — добавится к товару)</div>
+                                <input
+                                    type="text"
+                                    value={manualLink.definitionSearch}
+                                    onChange={(e) =>
+                                        setManualLink((prev) =>
+                                            prev ? { ...prev, definitionSearch: e.target.value } : prev
+                                        )
+                                    }
+                                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                                    placeholder="Объём, концентрация или часть названия"
+                                />
+                                {manualLink.definitionsLoading ? (
+                                    <div className="text-xs text-gray-500">Поиск в справочнике…</div>
+                                ) : null}
+                                {!manualLink.definitionsLoading && manualLink.definitionSearch.trim() === "" ? (
+                                    <div className="text-[11px] text-gray-500">Введи запрос — список обновится сам.</div>
+                                ) : null}
+                                {!manualLink.definitionsLoading
+                                    && manualLink.definitionSearch.trim() !== ""
+                                    && manualLink.definitions.length === 0 ? (
+                                    <div className="text-xs text-amber-700">Ничего не найдено.</div>
+                                ) : null}
+                                {manualLink.definitions.length > 0 ? (
+                                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
+                                        {manualLink.definitions.map((def: VariantDefinitionItem) => (
+                                            <button
+                                                key={def.id}
+                                                type="button"
+                                                disabled={manualLink.attachingDefinition}
+                                                onClick={() => void onPickDefinitionAction(def.id)}
+                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50"
+                                            >
+                                                {def.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : null}
+                                <p className="text-[11px] text-gray-500">
+                                    Если формулировка уже есть у товара, дубликат не создаётся — будет выбран
+                                    существующий вариант.
+                                </p>
+                            </div>
+                        ) : null}
+                        {manualLink.selectedVariantId ? (
+                            <div className="space-y-2 rounded-xl border border-green-200 bg-green-50/60 p-3">
+                                <div className="text-xs font-medium text-green-900">Готово к связке</div>
+                                <div className="text-sm text-green-900">
+                                    {(() => {
+                                        const v = manualLink.variants.find((x) => x.id === manualLink.selectedVariantId);
+                                        return v
+                                            ? formatVariantOptionLabel(v)
+                                            : `Вариант #${manualLink.selectedVariantId}`;
+                                    })()}
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={linkingRowId === manualLink.rowId}
+                                    onClick={() =>
+                                        void onConfirmAction(manualLink.rowId, manualLink.selectedVariantId!)
+                                    }
+                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                >
+                                    Связать со строкой прайса
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             </div>
-        </div>
         </div >
     );
 }
