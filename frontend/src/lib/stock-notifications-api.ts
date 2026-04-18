@@ -75,13 +75,19 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     }
 
     if (!res.ok) {
-        const message =
-            (parsed &&
-                typeof parsed === "object" &&
-                "message" in (parsed as Record<string, unknown>) &&
-                typeof (parsed as Record<string, unknown>).message === "string" &&
-                ((parsed as Record<string, unknown>).message as string)) ||
-            `Customer request API error: ${res.status}`;
+        // Собираем message отдельным шагом: цепочка && возвращала
+        // union-тип вроде `string | boolean | {}`, а конструктор Error
+        // требует строго `string`. TS13/ESNext особенно строг с такими
+        // implicit-кастами, поэтому разворачиваем в явную проверку.
+        let message = `Customer request API error: ${res.status}`;
+        if (
+            parsed &&
+            typeof parsed === "object" &&
+            "message" in parsed &&
+            typeof (parsed as { message?: unknown }).message === "string"
+        ) {
+            message = (parsed as { message: string }).message;
+        }
         const error = new Error(message) as Error & {
             status?: number;
             errors?: Record<string, string[]>;
