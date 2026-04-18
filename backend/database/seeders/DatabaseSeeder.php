@@ -5,14 +5,12 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
         $this->call([
@@ -20,11 +18,22 @@ class DatabaseSeeder extends Seeder
             SellerOneMatchRulesSeeder::class,
         ]);
 
-        User::factory()->create([
-            'name' => 'Alex_pol',
-            'email' => 'test@example.com',
-            'phone' => '375259252470',
-            'role' => 'admin',
-        ]);
+        // Намеренно НЕ используем `User::factory()`: фабрика сначала зовёт свой
+        // `definition()`, который требует `fake()` из `fakerphp/faker`. Если
+        // проект задеплоен через `composer install --no-dev` — пакета нет, и
+        // сид падает ДО того, как наши overrides перекроют default-значения.
+        //
+        // `firstOrCreate` также делает seeder идемпотентным: повторный прогон
+        // не валится на unique-constraint email/phone.
+        User::query()->firstOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Alex_pol',
+                'phone' => '375259252470',
+                'role' => 'admin',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+            ]
+        );
     }
 }
