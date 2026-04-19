@@ -4,6 +4,8 @@ import ProductDetailView from "@/components/product/product-detail-view";
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
     params: Promise<{
         slug: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, PackagePlus, ReceiptText } from "lucide-react";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
@@ -18,6 +19,10 @@ import {
     fetchStockReceiptsReport,
     fetchStockSalesReport,
     fetchStockWriteoffsReport,
+    fetchStockWriteoff,
+    reverseStockWriteoff,
+    STOCK_WRITEOFF_STATUS,
+    getStockWriteoffStatusLabel,
     type StockReceiptListItem,
     type StockSalesReportRow,
     type StockWriteoffListItem,
@@ -26,6 +31,36 @@ import {
 } from "@/lib/admin-warehouse-api";
 
 type ReportTab = "receipts" | "writeoffs" | "sales";
+
+function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string {
+    if (writeoffType === "order") {
+        return "Заказ";
+    }
+    const src =
+        payload && typeof payload === "object" && payload !== null && "stock_source" in payload
+            ? String((payload as { stock_source?: string }).stock_source)
+            : "";
+    if (src === "reserved") {
+        return "Резерв";
+    }
+    return "Свободно";
+}
+
+function mapWriteoffDetailRows(doc: StockWriteoffListItem | null | undefined): ReportDetailRow[] {
+    if (!doc?.items?.length) {
+        return [];
+    }
+
+    return doc.items.map((it) => ({
+        id: it.id,
+        product_name: it.product_name,
+        variant_title: it.variant_title,
+        qty: it.qty,
+        price: it.price ?? null,
+        line_total: null,
+        source: writeoffLineSourceLabel(doc.type, it.payload),
+    }));
+}
 
 const REPORT_TABS: AdminRichTabItem<ReportTab>[] = [
     {
@@ -57,16 +92,32 @@ function formatDate(value?: string | null): string {
     }
 }
 
+type ReportDetailRow = {
+    id: number;
+    product_name: string;
+    variant_title: string;
+    qty: number;
+    price?: string | number | null;
+    line_total?: string | number | null;
+    source?: string | null;
+};
+
 function ReportDetailsModal({
     title,
     subtitle,
     rows,
     onCloseAction,
+    loading,
+    footer,
+    showWriteoffSourceColumn,
 }: {
     title: string;
     subtitle: string;
-    rows: Array<{ id: number; product_name: string; variant_title: string; qty: number; price?: string | number | null; line_total?: string | number | null }>;
+    rows: ReportDetailRow[];
     onCloseAction: () => void;
+    loading?: boolean;
+    footer?: ReactNode;
+    showWriteoffSourceColumn?: boolean;
 }) {
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onCloseAction} role="presentation">
@@ -86,31 +137,40 @@ function ReportDetailsModal({
                     </button>
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-left text-gray-500">
-                                    <th className="px-4 py-3">Товар</th>
-                                    <th className="px-4 py-3">Вариант</th>
-                                    <th className="px-4 py-3">Кол-во</th>
-                                    <th className="px-4 py-3">Цена</th>
-                                    <th className="px-4 py-3">Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((row) => (
-                                    <tr key={row.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3">{row.product_name}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{row.variant_title}</td>
-                                        <td className="px-4 py-3">{row.qty}</td>
-                                        <td className="px-4 py-3">{row.price ?? "—"}</td>
-                                        <td className="px-4 py-3">{row.line_total ?? "—"}</td>
+                    {loading ? (
+                        <AdminLoadingState text="Загрузка строк документа..." />
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b text-left text-gray-500">
+                                        <th className="px-4 py-3">Товар</th>
+                                        <th className="px-4 py-3">Вариант</th>
+                                        <th className="px-4 py-3">Кол-во</th>
+                                        {showWriteoffSourceColumn ? <th className="px-4 py-3">Источник</th> : null}
+                                        <th className="px-4 py-3">Цена</th>
+                                        <th className="px-4 py-3">Сумма</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {rows.map((row) => (
+                                        <tr key={row.id} className="border-b last:border-b-0">
+                                            <td className="px-4 py-3">{row.product_name}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-700">{row.variant_title}</td>
+                                            <td className="px-4 py-3">{row.qty}</td>
+                                            {showWriteoffSourceColumn ? (
+                                                <td className="px-4 py-3 text-xs text-gray-600">{row.source ?? "—"}</td>
+                                            ) : null}
+                                            <td className="px-4 py-3">{row.price ?? "—"}</td>
+                                            <td className="px-4 py-3">{row.line_total ?? "—"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
+                {footer ? <div className="border-t px-5 py-4">{footer}</div> : null}
             </div>
         </div>
     );
@@ -149,6 +209,11 @@ export default function WarehouseReportsPage() {
     const [salesSummary, setSalesSummary] = useState<{ orders_count: number; qty_total: number; revenue_total: number } | null>(null);
     const [receiptDetailRow, setReceiptDetailRow] = useState<StockReceiptListItem | null>(null);
     const [writeoffDetailRow, setWriteoffDetailRow] = useState<StockWriteoffListItem | null>(null);
+    const [writeoffDetailLoading, setWriteoffDetailLoading] = useState(false);
+    const [writeoffDetailFetched, setWriteoffDetailFetched] = useState<StockWriteoffListItem | null>(null);
+    const [writeoffCanReverse, setWriteoffCanReverse] = useState(false);
+    const [writeoffReverseBusy, setWriteoffReverseBusy] = useState(false);
+    const [writeoffModalError, setWriteoffModalError] = useState("");
 
     const loadProducts = useCallback(async () => {
         try {
@@ -268,6 +333,47 @@ export default function WarehouseReportsPage() {
 
         void run();
     }, [activeTab, loadReceipts, loadWriteoffs, loadSales]);
+
+    useEffect(() => {
+        if (!writeoffDetailRow) {
+            setWriteoffDetailFetched(null);
+            setWriteoffCanReverse(false);
+            setWriteoffModalError("");
+            setWriteoffDetailLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setWriteoffDetailLoading(true);
+        setWriteoffModalError("");
+
+        void fetchStockWriteoff(writeoffDetailRow.id)
+            .then((res) => {
+                if (cancelled) {
+                    return;
+                }
+                setWriteoffDetailFetched(res.data);
+                setWriteoffCanReverse(res.can_reverse);
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    setWriteoffModalError(e instanceof Error ? e.message : "Не удалось загрузить списание");
+                    setWriteoffDetailFetched(writeoffDetailRow);
+                    setWriteoffCanReverse(false);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setWriteoffDetailLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [writeoffDetailRow]);
+
+    const writeoffModalDoc = writeoffDetailFetched ?? writeoffDetailRow;
 
     return (
         <AdminPageCard>
@@ -558,17 +664,82 @@ export default function WarehouseReportsPage() {
 
             {writeoffDetailRow ? (
                 <ReportDetailsModal
-                    title={`Списание #${writeoffDetailRow.document_no ?? writeoffDetailRow.id}`}
-                    subtitle={`${writeoffDetailRow.type} · ${formatDate(writeoffDetailRow.written_off_at)}`}
-                    rows={(writeoffDetailRow.items ?? []).map((item) => ({
-                        id: item.id,
-                        product_name: item.product_name,
-                        variant_title: item.variant_title,
-                        qty: item.qty,
-                        price: item.price ?? null,
-                        line_total: null,
-                    }))}
+                    title={`Списание #${writeoffModalDoc?.document_no ?? writeoffDetailRow.id}`}
+                    subtitle={`${writeoffModalDoc?.type ?? writeoffDetailRow.type} · ${formatDate(writeoffModalDoc?.written_off_at ?? writeoffDetailRow.written_off_at)} · ${getStockWriteoffStatusLabel(writeoffModalDoc?.status ?? writeoffDetailRow.status)}`}
+                    rows={mapWriteoffDetailRows(writeoffModalDoc)}
+                    loading={writeoffDetailLoading}
+                    showWriteoffSourceColumn
                     onCloseAction={() => setWriteoffDetailRow(null)}
+                    footer={
+                        <div className="flex flex-col gap-3">
+                            {writeoffModalError ? (
+                                <AdminFeedbackMessage
+                                    type="error"
+                                    message={writeoffModalError}
+                                    onCloseAction={() => setWriteoffModalError("")}
+                                />
+                            ) : null}
+                            {writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.REVERSED ? (
+                                <p className="text-sm text-gray-600">Списание отменено, остатки на физических складах восстановлены.</p>
+                            ) : null}
+                            {writeoffCanReverse ? (
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        disabled={writeoffReverseBusy || writeoffDetailLoading}
+                                        onClick={() => {
+                                            void (async () => {
+                                                setWriteoffReverseBusy(true);
+                                                setWriteoffModalError("");
+                                                try {
+                                                    await reverseStockWriteoff(writeoffDetailRow.id);
+                                                    setWriteoffDetailRow(null);
+                                                    if (activeTab === "writeoffs") {
+                                                        try {
+                                                            await loadWriteoffs();
+                                                        } catch {
+                                                            /* ignore */
+                                                        }
+                                                    }
+                                                } catch (e) {
+                                                    let msg = e instanceof Error ? e.message : "Не удалось отменить списание";
+                                                    try {
+                                                        const parsed = JSON.parse(msg) as {
+                                                            message?: string;
+                                                            errors?: { writeoff?: string[] };
+                                                        };
+                                                        msg =
+                                                            parsed.message ||
+                                                            parsed.errors?.writeoff?.[0] ||
+                                                            msg;
+                                                    } catch {
+                                                        /* raw text */
+                                                    }
+                                                    setWriteoffModalError(msg);
+                                                } finally {
+                                                    setWriteoffReverseBusy(false);
+                                                }
+                                            })();
+                                        }}
+                                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                                    >
+                                        {writeoffReverseBusy ? "Отмена…" : "Отменить списание"}
+                                    </button>
+                                    <span className="text-xs text-gray-500">
+                                        Вернёт количество на физические склады. Движения на складе поставщика не меняются.
+                                    </span>
+                                </div>
+                            ) : null}
+                            {!writeoffDetailLoading &&
+                            writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.POSTED &&
+                            !writeoffCanReverse &&
+                            !writeoffModalError ? (
+                                <p className="text-xs text-gray-500">
+                                    Отмена недоступна: нет движений для отката вне склада поставщика.
+                                </p>
+                            ) : null}
+                        </div>
+                    }
                 />
             ) : null}
         </AdminPageCard>

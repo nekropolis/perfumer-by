@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Models\StockWriteoff;
 
 return new class extends Migration
 {
@@ -13,7 +14,7 @@ return new class extends Migration
             $table->string('document_no', 50)->nullable()->unique();
             $table->string('type', 30)->default('manual');
             $table->unsignedBigInteger('order_id')->nullable()->index();
-            $table->string('status', 30)->default('posted');
+            $table->string('status', 30)->default(StockWriteoff::STATUS_POSTED);
             $table->timestamp('written_off_at')->nullable();
             $table->text('comment')->nullable();
             $table->unsignedBigInteger('created_by')->nullable()->index();

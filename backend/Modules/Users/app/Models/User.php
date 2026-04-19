@@ -2,13 +2,16 @@
 
 namespace Modules\Users\Models;
 
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Modules\Users\Enums\Role;
 
 class User extends Authenticatable
 {
-    use HasApiTokens;
+    /** @use HasFactory<UserFactory> */
+    use HasApiTokens, HasFactory;
 
     protected $table = 'users';
 
@@ -44,5 +47,10 @@ class User extends Authenticatable
         }, $roles);
 
         return in_array($this->role, $roleValues, true);
+    }
+
+    protected static function newFactory(): UserFactory
+    {
+        return UserFactory::new();
     }
 }

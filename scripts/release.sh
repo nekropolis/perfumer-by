@@ -118,6 +118,7 @@ ln -snf "$SHARED_DIR/frontend/.env.local" "$NEW_RELEASE/frontend/.env.local"
 # --- backend build ----------------------------------------------------------
 
 log "composer install --no-dev --optimize-autoloader"
+export COMPOSER_ALLOW_SUPERUSER=1
 (cd "$NEW_RELEASE/backend" && "$PHP_BIN" -d memory_limit="$COMPOSER_MEMORY_LIMIT" \
     "$COMPOSER_BIN" install --no-dev --optimize-autoloader --no-interaction --prefer-dist)
 

@@ -23,9 +23,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { fetchOrdersStats } from "@/lib/admin-orders-api";
+import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
-type BadgeKey = "ordersNew";
+type BadgeKey = "ordersNew" | "stockBackInStockNew" | "stockCallbackNew";
 
 type LinkItem = {
     type: "link";
@@ -49,8 +50,20 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
             { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingCart, badgeKey: "ordersNew" },
-            { type: "link", href: "/admin/stock-notifications?kind=back_in_stock", label: "Запросы на поступление", icon: BellRing },
-            { type: "link", href: "/admin/stock-notifications?kind=callback", label: "Заказы звонков", icon: PhoneCall },
+            {
+                type: "link",
+                href: "/admin/stock-notifications?kind=back_in_stock",
+                label: "Запросы на поступление",
+                icon: BellRing,
+                badgeKey: "stockBackInStockNew",
+            },
+            {
+                type: "link",
+                href: "/admin/stock-notifications?kind=callback",
+                label: "Заказы звонков",
+                icon: PhoneCall,
+                badgeKey: "stockCallbackNew",
+            },
         ],
     },
     {
@@ -103,8 +116,8 @@ type TooltipState = {
     y: number;
 } | null;
 
-// Когда новых заказов > 0 — хотим обновлять чаще (клиент ждёт обработки),
-// в «тишине» (0 новых) — редко, чтобы не шуметь в сети.
+// Когда есть новые заказы или необработанные заявки (поступление / звонок) —
+// поллим чаще; в «тишине» — реже.
 const ORDERS_STATS_ACTIVE_MS = 15_000;
 const ORDERS_STATS_IDLE_MS = 60_000;
 
@@ -202,45 +215,61 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const currentQuery = searchParams.toString();
     const [tooltip, setTooltip] = useState<TooltipState>(null);
     const [newOrdersCount, setNewOrdersCount] = useState(0);
+    const [stockBackInStockNew, setStockBackInStockNew] = useState(0);
+    const [stockCallbackNew, setStockCallbackNew] = useState(0);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
     const _hasItems = flatItems.length > 0;
     void _hasItems;
 
-    const loadOrdersStats = useCallback(
+    const loadSidebarBadgeStats = useCallback(
         async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            try {
-                const response = await fetchOrdersStats(signal);
-                const count = response.data.by_status.new ?? 0;
-                setNewOrdersCount(count);
-                return { active: count > 0 };
-            } catch {
-                // Сетевые ошибки глушим — бейдж просто не обновится, поллер поедет дальше.
-                return { active: false };
+            const [ordersResult, stockResult] = await Promise.allSettled([
+                fetchOrdersStats(signal),
+                fetchAdminStockNotificationStats(signal),
+            ]);
+
+            let ordersNew = 0;
+            if (ordersResult.status === "fulfilled") {
+                ordersNew = ordersResult.value.data.by_status.new ?? 0;
+                setNewOrdersCount(ordersNew);
             }
+
+            let backInStock = 0;
+            let callback = 0;
+            if (stockResult.status === "fulfilled") {
+                backInStock = stockResult.value.data.back_in_stock_new ?? 0;
+                callback = stockResult.value.data.callback_new ?? 0;
+                setStockBackInStockNew(backInStock);
+                setStockCallbackNew(callback);
+            }
+
+            const active = ordersNew > 0 || backInStock > 0 || callback > 0;
+            return { active };
         },
         [],
     );
 
-    const { refresh: refreshOrdersStats } = useSmartPolling({
+    const { refresh: refreshSidebarBadgeStats } = useSmartPolling({
         activeIntervalMs: ORDERS_STATS_ACTIVE_MS,
         idleIntervalMs: ORDERS_STATS_IDLE_MS,
-        fetcher: loadOrdersStats,
+        fetcher: loadSidebarBadgeStats,
     });
 
-    // Переход между страницами админки — хороший повод освежить счётчик
-    // (например, после того, как администратор открыл /admin/orders и обработал заказ).
+    // Переход между страницами админки — освежить бейджи (заказы, заявки).
     // На первом рендере ничего не делаем: useSmartPolling сам уже запросил данные.
     const prevPathRef = useRef<string | null>(null);
     useEffect(() => {
         if (prevPathRef.current !== null && prevPathRef.current !== pathname) {
-            refreshOrdersStats();
+            refreshSidebarBadgeStats();
         }
         prevPathRef.current = pathname;
-    }, [pathname, refreshOrdersStats]);
+    }, [pathname, refreshSidebarBadgeStats]);
 
     const badgeCounts: Record<BadgeKey, number> = {
         ordersNew: newOrdersCount,
+        stockBackInStockNew: stockBackInStockNew,
+        stockCallbackNew: stockCallbackNew,
     };
 
     return (

@@ -4,6 +4,7 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -44,15 +45,14 @@ class ProductListResource extends JsonResource
             $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
             $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
             $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-            $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
 
-            return $mainAvailable > 0
-                ? (int) ($mainStock?->stock ?? 0)
-                : (int) ($supplierStock?->stock ?? 0);
+            return CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock)['stock'];
         });
         $preorderAvailable = $variants->contains(fn ($variant) => (bool) $variant->is_preorder);
 
-        $mainImage = $this->relationLoaded('mainImage') ? $this->mainImage : null;
+        $listingImage = $this->relationLoaded('images') && $this->images->isNotEmpty()
+            ? $this->images->first()
+            : null;
 
         $discountPercent = null;
         if ($minOldPrice && $minPrice && $minOldPrice > $minPrice) {
@@ -101,7 +101,7 @@ class ProductListResource extends JsonResource
                 'slug' => $this->mainCategory->slug,
             ] : null,
 
-            'image' => $mainImage?->path,
+            'image' => $listingImage?->path,
 
             'is_new' => $this->is_new,
             'is_hit' => $this->is_hit,

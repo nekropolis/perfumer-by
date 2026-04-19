@@ -13,18 +13,90 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import { fetchStockWriteoffs, fetchWarehouses, type StockWriteoffListItem, type WarehouseOption } from "@/lib/admin-warehouse-api";
+import {
+    fetchStockWriteoffs,
+    fetchStockWriteoff,
+    fetchWarehouses,
+    reverseStockWriteoff,
+    STOCK_WRITEOFF_STATUS,
+    getStockWriteoffStatusLabel,
+    type StockWriteoffListItem,
+    type WarehouseOption,
+} from "@/lib/admin-warehouse-api";
+
+function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string {
+    if (writeoffType === "order") {
+        return "Заказ";
+    }
+    const src =
+        payload && typeof payload === "object" && payload !== null && "stock_source" in payload
+            ? String((payload as { stock_source?: string }).stock_source)
+            : "";
+    if (src === "reserved") {
+        return "Резерв";
+    }
+    return "Свободно";
+}
 
 function WriteoffDetailsModal({
     row,
     onCloseAction,
+    onReversedAction,
 }: {
     row: StockWriteoffListItem | null;
     onCloseAction: () => void;
+    onReversedAction: () => void;
 }) {
+    const [fetched, setFetched] = useState<StockWriteoffListItem | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [canReverse, setCanReverse] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [modalError, setModalError] = useState("");
+
+    useEffect(() => {
+        if (!row) {
+            setFetched(null);
+            setCanReverse(false);
+            setModalError("");
+            setLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setLoading(true);
+        setModalError("");
+
+        void fetchStockWriteoff(row.id)
+            .then((res) => {
+                if (cancelled) {
+                    return;
+                }
+                setFetched(res.data);
+                setCanReverse(res.can_reverse);
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    setModalError(e instanceof Error ? e.message : "Не удалось загрузить списание");
+                    setFetched(row);
+                    setCanReverse(false);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [row]);
+
     if (!row) {
         return null;
     }
+
+    const doc = fetched ?? row;
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onCloseAction} role="presentation">
@@ -36,9 +108,9 @@ function WriteoffDetailsModal({
             >
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
-                        <h2 className="text-lg font-semibold">Списание #{row.document_no ?? row.id}</h2>
+                        <h2 className="text-lg font-semibold">Списание #{doc.document_no ?? doc.id}</h2>
                         <p className="mt-1 text-sm text-gray-500">
-                            {typeLabel(row.type)} · {formatDate(row.written_off_at)}
+                            {typeLabel(doc.type)} · {formatDate(doc.written_off_at)} · {getStockWriteoffStatusLabel(doc.status)}
                         </p>
                     </div>
                     <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-gray-600 hover:bg-gray-50">
@@ -48,30 +120,90 @@ function WriteoffDetailsModal({
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
                     <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                        {row.comment || "Комментарий не указан"}
+                        {doc.comment || "Комментарий не указан"}
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-left text-gray-500">
-                                    <th className="px-4 py-3">Товар</th>
-                                    <th className="px-4 py-3">Вариант</th>
-                                    <th className="px-4 py-3">Кол-во</th>
-                                    <th className="px-4 py-3">Цена</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(row.items ?? []).map((item) => (
-                                    <tr key={item.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3">{item.product_name}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.variant_title}</td>
-                                        <td className="px-4 py-3">{item.qty}</td>
-                                        <td className="px-4 py-3">{item.price ?? "—"}</td>
+                    {modalError ? (
+                        <div className="mb-4">
+                            <AdminFeedbackMessage type="error" message={modalError} onCloseAction={() => setModalError("")} />
+                        </div>
+                    ) : null}
+                    {loading ? (
+                        <AdminLoadingState text="Загрузка…" />
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b text-left text-gray-500">
+                                        <th className="px-4 py-3">Товар</th>
+                                        <th className="px-4 py-3">Вариант</th>
+                                        <th className="px-4 py-3">Кол-во</th>
+                                        <th className="px-4 py-3">Источник</th>
+                                        <th className="px-4 py-3">Цена</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {(doc.items ?? []).map((item) => (
+                                        <tr key={item.id} className="border-b last:border-b-0">
+                                            <td className="px-4 py-3">{item.product_name}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-700">{item.variant_title}</td>
+                                            <td className="px-4 py-3">{item.qty}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-600">
+                                                {writeoffLineSourceLabel(doc.type, item.payload)}
+                                            </td>
+                                            <td className="px-4 py-3">{item.price ?? "—"}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                <div className="border-t px-5 py-4">
+                    {doc.status === STOCK_WRITEOFF_STATUS.REVERSED ? (
+                        <p className="text-sm text-gray-600">Списание отменено.</p>
+                    ) : null}
+                    {canReverse ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                type="button"
+                                disabled={busy || loading}
+                                onClick={() => {
+                                    void (async () => {
+                                        setBusy(true);
+                                        setModalError("");
+                                        try {
+                                            await reverseStockWriteoff(row.id);
+                                            onReversedAction();
+                                            onCloseAction();
+                                        } catch (e) {
+                                            let msg = e instanceof Error ? e.message : "Не удалось отменить списание";
+                                            try {
+                                                const parsed = JSON.parse(msg) as {
+                                                    message?: string;
+                                                    errors?: { writeoff?: string[] };
+                                                };
+                                                msg = parsed.message || parsed.errors?.writeoff?.[0] || msg;
+                                            } catch {
+                                                /* keep */
+                                            }
+                                            setModalError(msg);
+                                        } finally {
+                                            setBusy(false);
+                                        }
+                                    })();
+                                }}
+                                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                            >
+                                {busy ? "Отмена…" : "Отменить списание"}
+                            </button>
+                            <span className="text-xs text-gray-500">
+                                Вернёт остаток на физические склады; склад поставщика не меняется.
+                            </span>
+                        </div>
+                    ) : null}
+                    {!loading && doc.status === STOCK_WRITEOFF_STATUS.POSTED && !canReverse && !modalError ? (
+                        <p className="text-xs text-gray-500">Отмена недоступна: нет движений вне склада поставщика.</p>
+                    ) : null}
                 </div>
             </div>
         </div>
@@ -257,7 +389,7 @@ export default function AdminWarehouseWriteoffsPage() {
                                         <td className="px-4 py-3 text-xs text-gray-600">{item.warehouse?.name ?? "—"}</td>
                                         <td className="px-4 py-3">
                                             <div>{typeLabel(item.type)}</div>
-                                            <div className="text-xs text-gray-500">{item.status}</div>
+                                            <div className="text-xs text-gray-500">{getStockWriteoffStatusLabel(item.status)}</div>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.written_off_at)}</td>
                                         <td className="px-4 py-3 text-xs text-gray-600">{item.items?.length ?? 0}</td>
@@ -279,7 +411,14 @@ export default function AdminWarehouseWriteoffsPage() {
                 )}
             </AdminTableShell>
 
-            <WriteoffDetailsModal row={detailRow} onCloseAction={() => setDetailRow(null)} />
+            <WriteoffDetailsModal
+                row={detailRow}
+                onCloseAction={() => setDetailRow(null)}
+                onReversedAction={() => {
+                    setSuccess("Списание отменено, остатки на физических складах восстановлены");
+                    void loadItems(page, debouncedSearch, typeFilter, warehouseId);
+                }}
+            />
         </AdminPageCard>
     );
 }

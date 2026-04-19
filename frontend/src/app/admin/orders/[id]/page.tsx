@@ -1,5 +1,7 @@
 import { fetchOrder } from "@/lib/admin-orders-api";
+import { getOrderStatusLabel } from "@/constants/order-statuses";
 import AdminOrderStatusForm from "@/components/admin/admin-order-status-form";
+import AdminOrderInventorySync from "@/components/admin/admin-order-inventory-sync";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
 import CopyText from "@/components/ui/copy-text";
 
@@ -40,7 +42,7 @@ export default async function AdminOrderPage({ params }: Props) {
 
                         <div>
                             <div className="text-sm text-gray-500">Статус</div>
-                            <div>{order.status}</div>
+                            <div>{getOrderStatusLabel(order.status)}</div>
                         </div>
 
                         <div>
@@ -64,6 +66,10 @@ export default async function AdminOrderPage({ params }: Props) {
                     <div className="mb-6 text-2xl font-semibold">{order.total} руб.</div>
 
                     <AdminOrderStatusForm orderId={order.id} currentStatus={order.status} />
+                    <AdminOrderInventorySync
+                        orderId={order.id}
+                        canSync={Boolean(order.can_sync_inventory_writeoff)}
+                    />
                 </aside>
             </div>
         </main>

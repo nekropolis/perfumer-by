@@ -7,6 +7,8 @@ import {
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
                                            params,
                                        }: {

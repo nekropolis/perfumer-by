@@ -18,6 +18,7 @@ import {
     deleteStockReceipt,
     fetchStockReceipts,
     fetchWarehouses,
+    getStockReceiptStatusLabel,
     type StockReceiptListItem,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
@@ -254,7 +255,7 @@ export default function AdminWarehouseReceiptsPage() {
                                     <tr key={item.id} className="border-b last:border-b-0">
                                         <td className="px-4 py-3">
                                             <div className="font-medium">#{item.document_no ?? item.id}</div>
-                                            <div className="text-xs text-gray-500">{item.status}</div>
+                                            <div className="text-xs text-gray-500">{getStockReceiptStatusLabel(item.status)}</div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div>{item.supplier_name}</div>

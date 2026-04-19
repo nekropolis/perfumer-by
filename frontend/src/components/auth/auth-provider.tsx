@@ -51,7 +51,12 @@ export function AuthProvider({ children }: Props) {
 
         try {
             const response = await fetchMe(token);
-            setUser(response.data);
+            if (!response.data) {
+                clearAuthToken();
+                setUser(null);
+            } else {
+                setUser(response.data);
+            }
         } catch (error) {
             console.error("Failed to fetch auth user", error);
             clearAuthToken();

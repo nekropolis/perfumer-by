@@ -72,6 +72,41 @@ function buildDisplayName(item: AdminProductVariantItem) {
     return item.title || item.display_name || "Без параметров";
 }
 
+/** Строка для заголовка модалки: «100 мл / EDP - парфюмерная вода». */
+function formatVariantEditTitle(item: AdminProductVariantItem): string {
+    const def = item.definition;
+    if (def) {
+        const tester = def.is_tester ? " · Тестер" : "";
+        const code = def.concentration_code?.trim();
+        const label = def.concentration_label?.trim();
+        if (code && label) {
+            return `${def.volume_ml} мл / ${code} - ${label}${tester}`;
+        }
+        if (label) {
+            return `${def.volume_ml} мл / ${label}${tester}`;
+        }
+        return `${def.volume_ml} мл${tester}`;
+    }
+
+    const parts: string[] = [];
+    if (item.volume != null) {
+        parts.push(
+            String(item.volume) + (item.volume_unit ? ` ${item.volume_unit}` : " мл"),
+        );
+    }
+    if (item.concentration?.trim()) {
+        parts.push(item.concentration.trim());
+    }
+    if (item.type?.trim()) {
+        parts.push(item.type.trim());
+    }
+    if (parts.length > 0) {
+        return parts.join(" / ") + (item.edition ? ` (${item.edition})` : "");
+    }
+
+    return buildDisplayName(item);
+}
+
 function extractMlSearch(query: string): string | undefined {
     const trimmed = query.trim();
     if (!trimmed) {
@@ -87,8 +122,8 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
         <div className="flex flex-wrap items-center gap-1">
             <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.is_active
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-100 text-gray-600"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-gray-100 text-gray-600"
                     }`}
             >
                 {item.is_active ? "Активен" : "Выкл"}
@@ -106,26 +141,13 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
 function VariantFormFields({
     form,
     setForm,
-    readonlyDefinition = false,
 }: {
     form: VariantFormState;
     setForm: React.Dispatch<React.SetStateAction<VariantFormState>>;
-    readonlyDefinition?: boolean;
 }) {
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {readonlyDefinition ? (
-                    <div className="md:col-span-2">
-                        <label className="mb-1 block text-sm text-gray-600">Вариант из справочника</label>
-                        <input
-                            type="text"
-                            value={form.variant_definition_title || "—"}
-                            disabled
-                            className="w-full rounded-xl border bg-gray-50 px-3 py-2 text-sm"
-                        />
-                    </div>
-                ) : null}
 
                 <div>
                     <label className="mb-1 block text-sm text-gray-600">Цена</label>
@@ -237,6 +259,14 @@ export default function ProductVariantsEditor({
             return a.id - b.id;
         });
     }, [items]);
+
+    const editModalVariantTitle = useMemo(() => {
+        if (!editForm?.id) {
+            return "";
+        }
+        const row = items.find((i) => i.id === editForm.id);
+        return row ? formatVariantEditTitle(row) : editForm.variant_definition_title || "";
+    }, [editForm?.id, editForm?.variant_definition_title, items]);
 
     const loadVariantSupplierInfo = async () => {
         setVariantSupplierInfoLoading(true);
@@ -763,8 +793,8 @@ export default function ProductVariantsEditor({
                                                         }))
                                                     }
                                                     className={`block w-full rounded-lg px-2 py-2 text-left text-sm ${createForm.variant_definition_id === String(item.id)
-                                                            ? "bg-black text-white"
-                                                            : "hover:bg-gray-50"
+                                                        ? "bg-black text-white"
+                                                        : "hover:bg-gray-50"
                                                         }`}
                                                 >
                                                     {item.title}
@@ -807,13 +837,19 @@ export default function ProductVariantsEditor({
                     <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold">Редактировать вариант</h2>
+                                <h2 className="text-lg font-semibold leading-snug text-gray-900">
+                                    Редактировать вариант
+                                </h2>
+                                {editModalVariantTitle ? (
+                                    <p className="mt-1 text-base font-medium text-gray-700">
+                                        {editModalVariantTitle}
+                                    </p>
+                                ) : null}
                             </div>
 
                             <div className="overflow-y-auto px-5 py-4">
                                 <VariantFormFields
                                     form={editForm}
-                                    readonlyDefinition
                                     setForm={(updater) => {
                                         setEditForm((prev) => {
                                             if (!prev) {

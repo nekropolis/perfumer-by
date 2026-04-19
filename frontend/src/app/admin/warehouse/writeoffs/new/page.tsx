@@ -15,6 +15,7 @@ export default function NewWriteoffPage() {
         const variantTitle = searchParams.get("variant_title") || "";
         const price = searchParams.get("price");
         const availableQty = Number(searchParams.get("available_qty") || 0);
+        const reservedQty = Number(searchParams.get("reserved_qty") || 0);
 
         if (!productId || !variantId || !productName || !variantTitle) {
             return null;
@@ -28,6 +29,7 @@ export default function NewWriteoffPage() {
             variant_title: variantTitle,
             price,
             available_qty: availableQty,
+            reserved_qty: reservedQty,
         };
     }, [searchParams]);
 

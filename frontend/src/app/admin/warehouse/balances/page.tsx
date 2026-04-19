@@ -181,9 +181,9 @@ export default function AdminWarehouseBalancesPage() {
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-700">{item.price ?? "—"}</td>
                                         <td className="px-4 py-3 text-right">
-                                            {item.available_stock > 0 ? (
+                                            {item.available_stock > 0 || item.reserved_stock > 0 ? (
                                                 <Link
-                                                    href={`/admin/warehouse/writeoffs/new?warehouse_id=${item.warehouse_id ?? ""}&product_id=${item.product_id}&variant_id=${item.variant_id ?? item.id}&available_qty=${item.available_stock}&product_name=${encodeURIComponent(
+                                                    href={`/admin/warehouse/writeoffs/new?warehouse_id=${item.warehouse_id ?? ""}&product_id=${item.product_id}&variant_id=${item.variant_id ?? item.id}&available_qty=${item.available_stock}&reserved_qty=${item.reserved_stock}&product_name=${encodeURIComponent(
                                                         item.product_name || ""
                                                     )}&variant_title=${encodeURIComponent(item.variant_title)}&price=${encodeURIComponent(
                                                         item.price != null ? String(item.price) : ""

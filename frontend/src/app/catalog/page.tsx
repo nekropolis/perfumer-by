@@ -4,6 +4,8 @@ import { ProductsResponse } from "@/types/catalog";
 import type { Metadata } from "next";
 import { buildSeoMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = buildSeoMetadata({
     title: "Каталог парфюмерии",
     description: "Каталог парфюмерии с выбором брендов, вариантов и цен.",

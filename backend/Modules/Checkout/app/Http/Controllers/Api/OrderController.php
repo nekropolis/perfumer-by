@@ -6,9 +6,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
-use Modules\Warehouse\Services\StockInventoryService;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
+use Modules\Warehouse\Models\StockWriteoff;
+use Modules\Warehouse\Services\StockInventoryService;
 
 class OrderController extends Controller
 {
@@ -71,7 +72,50 @@ class OrderController extends Controller
             ->findOrFail($id);
 
         return response()->json([
-            'data' => new OrderResource($order),
+            'data' => $this->orderPayloadWithInventoryFlag($order),
+        ]);
+    }
+
+    /**
+     * Досоздание складского списания по заказу «Выполнен», если раньше не вызвался completeOrder (например, баг со статусом).
+     */
+    public function syncInventoryWriteoff(int $id): JsonResponse
+    {
+        $order = Order::query()->with('items')->findOrFail($id);
+
+        if (!in_array($order->status, ['done', 'completed'], true)) {
+            return response()->json([
+                'message' => 'Списание можно создать только для заказа со статусом «Выполнен».',
+            ], 422);
+        }
+
+        if (StockWriteoff::query()->where('type', 'order')->where('order_id', $order->id)->exists()) {
+            return response()->json([
+                'message' => 'По этому заказу уже есть складское списание.',
+            ], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($order) {
+                app(StockInventoryService::class)->completeOrder($order);
+            });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $first = collect($errors)->flatten()->first();
+
+            return response()->json([
+                'message' => is_string($first) && $first !== '' ? $first : 'Не удалось создать списание.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        $order->refresh()->load([
+            'items.variant.supplierOffers.supplier',
+        ]);
+
+        return response()->json([
+            'message' => 'Списание по резервам создано.',
+            'data' => $this->orderPayloadWithInventoryFlag($order),
         ]);
     }
 
@@ -101,7 +145,8 @@ class OrderController extends Controller
                 $stockService->releaseForOrder($order);
             }
 
-            if ($nextStatus === 'completed') {
+            // Фронт админки использует статус `done` («Выполнен»); `completed` оставляем для совместимости.
+            if (in_array($nextStatus, ['done', 'completed'], true)) {
                 $stockService->completeOrder($order);
             }
         });
@@ -109,8 +154,33 @@ class OrderController extends Controller
         $order->load('items');
 
         return response()->json([
-            'data' => new OrderResource($order),
+            'data' => $this->orderPayloadWithInventoryFlag($order),
             'message' => 'Order status updated',
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function orderPayloadWithInventoryFlag(Order $order): array
+    {
+        return array_merge(
+            (new OrderResource($order))->toArray(request()),
+            [
+                'can_sync_inventory_writeoff' => $this->orderNeedsInventoryWriteoffSync($order),
+            ],
+        );
+    }
+
+    private function orderNeedsInventoryWriteoffSync(Order $order): bool
+    {
+        if (!in_array($order->status, ['done', 'completed'], true)) {
+            return false;
+        }
+
+        return !StockWriteoff::query()
+            ->where('type', 'order')
+            ->where('order_id', $order->id)
+            ->exists();
     }
 }

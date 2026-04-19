@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Models\StockReceipt;
 
 return new class extends Migration
 {
@@ -14,7 +15,7 @@ return new class extends Migration
             $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->nullOnDelete();
             $table->string('supplier_code', 100)->nullable();
             $table->string('supplier_name', 255);
-            $table->string('status', 30)->default('posted');
+            $table->string('status', 30)->default(StockReceipt::STATUS_POSTED);
             $table->timestamp('received_at')->nullable();
             $table->text('comment')->nullable();
             $table->unsignedBigInteger('created_by')->nullable()->index();

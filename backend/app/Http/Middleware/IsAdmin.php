@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Modules\Users\Enums\Role;
+use Modules\Users\Models\User;
 use Symfony\Component\HttpFoundation\Response;
 
 class IsAdmin
@@ -13,7 +14,11 @@ class IsAdmin
     {
         $user = $request->user();
 
-        if (!$user || !$user->hasAnyRole([Role::ADMIN])) {
+        if (!$user instanceof User) {
+            abort(403, 'Доступ запрещен');
+        }
+
+        if (!$user->hasAnyRole([Role::ADMIN])) {
             abort(403, 'Доступ запрещен');
         }
 

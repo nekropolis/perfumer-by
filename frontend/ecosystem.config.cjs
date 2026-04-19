@@ -31,6 +31,7 @@ module.exports = {
             env: {
                 NODE_ENV: "production",
                 PORT: 3000,
+                // При необходимости SSR к API по loopback: API_URL: "http://127.0.0.1:8000/api",
             },
             error_file: "/var/log/pm2/perfumer-frontend.err.log",
             out_file: "/var/log/pm2/perfumer-frontend.out.log",

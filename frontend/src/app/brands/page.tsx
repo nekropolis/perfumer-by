@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/api";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import { CatalogBrandsResponse } from "@/types/catalog";
 
+export const dynamic = "force-dynamic";
+
 export default async function BrandsPage() {
     const brands = await apiFetch<CatalogBrandsResponse>("/catalog/brands");
 

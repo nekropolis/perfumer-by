@@ -80,7 +80,11 @@ export default function Footer() {
 
                 {/* BOTTOM */}
                 <div className="mt-12 border-t pt-6 text-sm text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-                    <div>© {new Date().getFullYear()} Perfumer</div>
+                    <div>
+                        ©{" "}
+                        <span suppressHydrationWarning>{new Date().getFullYear()}</span>{" "}
+                        Perfumer
+                    </div>
                     <div>Все права защищены</div>
                 </div>
             </div>

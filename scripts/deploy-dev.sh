@@ -46,11 +46,9 @@ COMPOSER_BIN="${COMPOSER_BIN:-composer}"
 NPM_BIN="${NPM_BIN:-npm}"
 PM2_BIN="${PM2_BIN:-pm2}"
 
-# На dev-сервере запуск обычно идёт из-под root. Composer по умолчанию в
-# non-interactive режиме отключает плагины для root — из-за этого
-# wikimedia/composer-merge-plugin не подхватывает `Modules/*/composer.json`,
-# autoload остаётся без мапок модулей, и дальше `package:discover` падает
-# с «Class Modules\...\ServiceProvider not found». Явный флаг лечит.
+# На dev-сервере запуск обычно идёт из-под root. Composer отключает плагины
+# для root без этого флага — merge-plugin тогда не подмешивает Modules/*/composer.json
+# (Class Modules\... not found). Флаг + дублирующий PSR-4 в backend/composer.json лечат.
 export COMPOSER_ALLOW_SUPERUSER=1
 
 FRONT_APP_NAME="${FRONT_APP_NAME:-perfumer-frontend}"
@@ -158,6 +156,19 @@ if [[ $DO_COMPOSER -eq 1 ]]; then
         COMPOSER_MEMORY_LIMIT="$COMPOSER_MEMORY_LIMIT" \
             "$COMPOSER_BIN" install --no-interaction --prefer-dist
     )
+    # Принудительный dump-autoload после install.
+    #
+    # Зачем: если `composer.lock` не менялся, `install` может пропустить
+    # перегенерацию autoload'а. А у нас PSR-4 маппинги модулей (Modules/*/)
+    # подтягиваются через wikimedia/composer-merge-plugin из
+    # `Modules/*/composer.json`. Если эти файлы приехали по SFTP ПОСЛЕ
+    # первого `install` (типичная гонка при добавлении нового модуля),
+    # маппинг в autoload не попадёт, и IDE/PHPStan будут ругаться
+    # «Undefined type Modules\\ImportExport\\...», хотя Laravel при этом
+    # через nwidart/laravel-modules будет работать корректно.
+    # `dump-autoload` перечитывает merge-include glob и гарантированно
+    # добавляет все Modules/* в autoload_psr4.php.
+    (cd "$BACKEND" && "$COMPOSER_BIN" dump-autoload --no-interaction)
     ok "composer готов"
 fi
 
@@ -222,14 +233,20 @@ if [[ $DO_FRONTEND_BUILD -eq 1 ]]; then
 fi
 
 if [[ $DO_FRONTEND_RELOAD -eq 1 ]]; then
-    log "pm2 reload $FRONT_APP_NAME --update-env"
+    log "pm2: $FRONT_APP_NAME"
     if command -v "$PM2_BIN" >/dev/null 2>&1; then
-        "$PM2_BIN" reload "$FRONT_APP_NAME" --update-env \
-            || warn "pm2 reload не прошёл (проверь имя процесса: pm2 list)"
+        if "$PM2_BIN" describe "$FRONT_APP_NAME" >/dev/null 2>&1; then
+            "$PM2_BIN" reload "$FRONT_APP_NAME" --update-env
+            ok "pm2 reload ($FRONT_APP_NAME)"
+        else
+            warn "процесса $FRONT_APP_NAME нет в pm2 (часто после «pm2 kill» или первый деплой) — стартую frontend/ecosystem.config.cjs"
+            (cd "$FRONTEND" && "$PM2_BIN" start ecosystem.config.cjs)
+            "$PM2_BIN" save >/dev/null 2>&1 || true
+            ok "pm2: приложение запущено ($FRONT_APP_NAME)"
+        fi
     else
         warn "pm2 не найден — пропустил reload"
     fi
-    ok "pm2 процесс перезапущен"
 fi
 
 # ---------------------------------------------------------------------------

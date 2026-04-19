@@ -99,8 +99,21 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+
+        if (!$user instanceof User) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
         return response()->json([
-            'data' => $request->user(),
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),
+                'role' => $user->role,
+            ],
         ]);
     }
 

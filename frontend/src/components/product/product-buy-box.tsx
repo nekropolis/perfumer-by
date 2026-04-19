@@ -86,7 +86,7 @@ export default function ProductBuyBox({
                                 </div>
                             ) : (
                                 <div className="text-sm font-medium text-green-700">
-                                    В наличии: {selectedVariant.stock} шт.
+                                    В наличии
                                 </div>
                             )
                         ) : (

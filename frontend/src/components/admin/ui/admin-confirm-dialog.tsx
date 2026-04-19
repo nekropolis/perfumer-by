@@ -6,6 +6,7 @@ type Props = {
     message: string;
     confirmText?: string;
     cancelText?: string;
+    confirmLoadingText?: string;
     loading?: boolean;
     onConfirmAction: () => void;
     onCloseAction: () => void;
@@ -17,6 +18,7 @@ export default function AdminConfirmDialog({
                                                message,
                                                confirmText = "Удалить",
                                                cancelText = "Отмена",
+                                               confirmLoadingText,
                                                loading = false,
                                                onConfirmAction,
                                                onCloseAction,
@@ -48,7 +50,7 @@ export default function AdminConfirmDialog({
                         disabled={loading}
                         className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
                     >
-                        {loading ? "Удаление..." : confirmText}
+                        {loading ? (confirmLoadingText ?? "Удаление...") : confirmText}
                     </button>
                 </div>
             </div>

@@ -13,6 +13,26 @@ class StockNotificationAdminController extends Controller
 {
     protected const ALLOWED_STATUSES = ['new', 'notified', 'cancelled'];
 
+    /**
+     * Счётчики «новых» заявок по виду — для бейджей в админ-сайдбаре.
+     */
+    public function stats(): JsonResponse
+    {
+        $rows = StockNotificationRequest::query()
+            ->selectRaw('kind, COUNT(*) as c')
+            ->where('status', 'new')
+            ->whereIn('kind', StockNotificationRequest::ALLOWED_KINDS)
+            ->groupBy('kind')
+            ->pluck('c', 'kind');
+
+        return response()->json([
+            'data' => [
+                'back_in_stock_new' => (int) ($rows[StockNotificationRequest::KIND_BACK_IN_STOCK] ?? 0),
+                'callback_new' => (int) ($rows[StockNotificationRequest::KIND_CALLBACK] ?? 0),
+            ],
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $search = trim((string) $request->input('search', ''));

@@ -25,7 +25,23 @@
         "psr-4": {
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
+            "Database\\Seeders\\": "database/seeders/",
+            "Modules\\Cart\\": "Modules/Cart/app/",
+            "Modules\\Cart\\Database\\Factories\\": "Modules/Cart/database/factories/",
+            "Modules\\Cart\\Database\\Seeders\\": "Modules/Cart/database/seeders/",
+            "Modules\\Catalog\\": "Modules/Catalog/app/",
+            "Modules\\Catalog\\Database\\Factories\\": "Modules/Catalog/database/factories/",
+            "Modules\\Catalog\\Database\\Seeders\\": "Modules/Catalog/database/seeders/",
+            "Modules\\Checkout\\": "Modules/Checkout/app/",
+            "Modules\\Checkout\\Database\\Factories\\": "Modules/Checkout/database/factories/",
+            "Modules\\Checkout\\Database\\Seeders\\": "Modules/Checkout/database/seeders/",
+            "Modules\\ImportExport\\": "Modules/ImportExport/app/",
+            "Modules\\Users\\": "Modules/Users/app/",
+            "Modules\\Users\\Database\\Factories\\": "Modules/Users/database/factories/",
+            "Modules\\Users\\Database\\Seeders\\": "Modules/Users/database/seeders/",
+            "Modules\\Warehouse\\": "Modules/Warehouse/app/",
+            "Modules\\Warehouse\\Database\\Factories\\": "Modules/Warehouse/database/factories/",
+            "Modules\\Warehouse\\Database\\Seeders\\": "Modules/Warehouse/database/seeders/"
         }
     },
     "autoload-dev": {

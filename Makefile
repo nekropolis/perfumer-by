@@ -15,7 +15,7 @@ FRONT_PROD_NAME := perfumer-frontend
 
 help:
 	@echo "Available commands:"
-	@echo "  make dev              - start frontend in dev mode"
+	@echo "  make dev              - start frontend in dev mode (next dev via PM2; not deploy-dev.sh)"
 	@echo "  make dev-restart      - restart frontend dev"
 	@echo "  make dev-stop         - stop frontend dev"
 	@echo "  make prod             - build frontend and start prod"
@@ -44,10 +44,12 @@ build:
 dev:
 	@echo "Stopping old dev processes..."
 	@$(PM2) delete $(FRONT_DEV_NAME) >/dev/null 2>&1 || true
+	@echo "Stopping prod frontend on :3000 if running (otherwise next dev jumps to 3001)..."
+	@$(PM2) stop $(FRONT_PROD_NAME) >/dev/null 2>&1 || true
 	@fuser -k 3000/tcp >/dev/null 2>&1 || true
 	@sleep 2
-	@echo "Starting frontend dev..."
-	@cd $(FRONTEND) && $(PM2) start npm --name $(FRONT_DEV_NAME) -- run dev
+	@echo "Starting frontend dev (WATCHPACK_POLLING for SFTP/VM file visibility)..."
+	@cd $(FRONTEND) && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true $(PM2) start npm --name $(FRONT_DEV_NAME) -- run dev
 	@$(PM2) save >/dev/null 2>&1 || true
 	@$(PM2) list
 

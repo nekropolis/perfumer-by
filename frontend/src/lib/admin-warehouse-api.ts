@@ -1,4 +1,15 @@
 import { getAuthToken } from "@/lib/auth-token";
+import type { StockReceiptStatus, StockWriteoffStatus } from "@/lib/warehouse-document-status";
+
+export type { StockReceiptStatus, StockWriteoffStatus } from "@/lib/warehouse-document-status";
+export {
+    STOCK_RECEIPT_STATUS,
+    STOCK_RECEIPT_STATUS_LABELS,
+    STOCK_WRITEOFF_STATUS,
+    STOCK_WRITEOFF_STATUS_LABELS,
+    getStockReceiptStatusLabel,
+    getStockWriteoffStatusLabel,
+} from "@/lib/warehouse-document-status";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -51,7 +62,7 @@ export type StockReceiptListItem = {
     supplier_id?: number | null;
     supplier_code?: string | null;
     supplier_name: string;
-    status: string;
+    status: StockReceiptStatus;
     received_at?: string | null;
     comment?: string | null;
     items?: StockReceiptItem[];
@@ -131,6 +142,7 @@ export type StockWriteoffItem = {
     variant_title: string;
     qty: number;
     price?: string | number | null;
+    payload?: Record<string, unknown> | null;
 };
 
 export type StockWriteoffListItem = {
@@ -140,7 +152,7 @@ export type StockWriteoffListItem = {
     warehouse?: WarehouseOption | null;
     type: string;
     order_id?: number | null;
-    status: string;
+    status: StockWriteoffStatus;
     written_off_at?: string | null;
     comment?: string | null;
     items?: StockWriteoffItem[];
@@ -163,7 +175,13 @@ export type StockWriteoffPayload = {
         qty: number;
         price?: number | null;
         payload?: Record<string, unknown>;
+        stock_source?: "available" | "reserved";
     }>;
+};
+
+export type StockWriteoffDetailResponse = {
+    data: StockWriteoffListItem;
+    can_reverse: boolean;
 };
 
 export type StockBalanceItem = {
@@ -418,6 +436,35 @@ export async function fetchStockWriteoffs(params?: {
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Stock writeoffs API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchStockWriteoff(id: number): Promise<StockWriteoffDetailResponse> {
+    const res = await fetch(`${API_BASE}/admin/stock/writeoffs/${id}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Stock writeoff API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function reverseStockWriteoff(id: number): Promise<{ message?: string; data: StockWriteoffListItem }> {
+    const res = await fetch(`${API_BASE}/admin/stock/writeoffs/${id}/reverse`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Reverse stock writeoff API error: ${res.status}`);
     }
 
     return res.json();

@@ -10,15 +10,15 @@ export type ProductVariantData = {
     old_price: string | null;
     discount_percent: number | null;
     stock: number;
+    available_stock: number;
     is_preorder: boolean;
-    is_active: boolean;
     is_available: boolean;
 };
 
 export type ProductAttributeOptionData = {
     id: number;
     name: string;
-    sort_order: number;
+    sort_order?: number;
 };
 
 export type ProductAttributeValueData = {
@@ -29,7 +29,8 @@ export type ProductAttributeValueData = {
         id: number;
         name: string;
         type: "text" | "select" | "multiselect";
-        options: ProductAttributeOptionData[];
+        /** Справочник опций на витрине не приходит (уменьшение RSC payload). */
+        options?: ProductAttributeOptionData[];
     } | null;
     selected_options: ProductAttributeOptionData[];
 };
@@ -110,18 +111,6 @@ export type ProductDetailData = {
         name: string;
         slug: string;
     } | null;
-
-    main_category: {
-        id: number;
-        name: string;
-        slug: string;
-    } | null;
-
-    categories: {
-        id: number;
-        name: string;
-        slug: string;
-    }[];
 
     images: ProductImageData[];
     attribute_values: ProductAttributeValueData[];

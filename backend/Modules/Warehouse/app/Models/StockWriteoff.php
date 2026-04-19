@@ -8,6 +8,26 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StockWriteoff extends Model
 {
+    public const STATUS_POSTED = 'posted';
+
+    public const STATUS_REVERSED = 'reversed';
+
+    /** @var list<string> */
+    public const STATUSES = [
+        self::STATUS_POSTED,
+        self::STATUS_REVERSED,
+    ];
+
+    /**
+     * Подписи статусов для UI / API (ключ — значение поля {@see $status}).
+     *
+     * @var array<string, string>
+     */
+    public const STATUS_LABELS = [
+        self::STATUS_POSTED => 'Проведено',
+        self::STATUS_REVERSED => 'Отменена',
+    ];
+
     protected $fillable = [
         'document_no',
         'warehouse_id',

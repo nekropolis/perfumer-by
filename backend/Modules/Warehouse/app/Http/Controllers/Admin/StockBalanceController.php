@@ -18,6 +18,17 @@ class StockBalanceController extends Controller
         $query = WarehouseVariantStock::query()
             ->with(['warehouse', 'product.brand', 'variant.definition']);
 
+        // Строка склада с 0 остатком и 0 резервом часто — артефакт `getWarehouseStock()`:
+        // при первом lock/резерве/движении создаётся пустая запись на этом складе+варианте.
+        // В отчёте «Остатки» такие строки путают (кажется, вариант «лежит» на основном).
+        // Показать снова: ?include_empty_rows=1
+        if (!$request->boolean('include_empty_rows')) {
+            $query->where(function ($q) {
+                $q->where('stock', '>', 0)
+                    ->orWhere('reserved_stock', '>', 0);
+            });
+        }
+
         if ($search !== '') {
             $query->where(function ($variantQuery) use ($search) {
                 $variantQuery->whereHas('product', function ($productQuery) use ($search) {

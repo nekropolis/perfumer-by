@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockMovement;
@@ -23,6 +24,7 @@ class StockInventoryService
     public const MOVEMENT_RESERVE = 'reserve';
     public const MOVEMENT_RELEASE = 'release';
     public const MOVEMENT_WRITEOFF = 'writeoff';
+    public const MOVEMENT_WRITEOFF_REVERSAL = 'writeoff_reversal';
 
     public function getDefaultSupplierWarehouseId(): int
     {
@@ -41,9 +43,12 @@ class StockInventoryService
             return;
         }
 
-        $stockSum = (int) WarehouseVariantStock::query()
-            ->where('product_id', $productId)
-            ->sum('stock');
+        $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
+        $stockSumQuery = WarehouseVariantStock::query()->where('product_id', $productId);
+        if ($supplierWarehouseId > 0) {
+            $stockSumQuery->where('warehouse_id', '!=', $supplierWarehouseId);
+        }
+        $stockSum = (int) $stockSumQuery->sum('stock');
 
         $product->update([
             'is_out_of_stock' => $stockSum <= 0,
@@ -169,11 +174,16 @@ class StockInventoryService
             ];
         }
 
+        // Раньше сюда всегда подставлялся склад «Поставщик» — в отчётах документ
+        // выглядел неверно при смешанном заказе (часть с main, часть с supplier).
+        // Шапка: основной склад, если по заказу есть резерв с main; иначе — supplier.
+        $headerWarehouseId = $this->resolveOrderWriteoffHeaderWarehouseId($order);
+
         $writeoff = StockWriteoff::query()->create([
-            'warehouse_id' => $this->getDefaultSupplierWarehouseId(),
+            'warehouse_id' => $headerWarehouseId,
             'type' => 'order',
             'order_id' => $order->id,
-            'status' => 'posted',
+            'status' => StockWriteoff::STATUS_POSTED,
             'written_off_at' => now(),
             'comment' => "Автосписание по заказу #{$order->id}",
             'created_by' => Auth::id(),
@@ -191,76 +201,97 @@ class StockInventoryService
                 continue;
             }
 
-            $warehouseId = $this->resolveOrderWarehouseId($item, $variant);
-            $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
-
-            $reservation = StockReservation::query()
+            $reservations = StockReservation::query()
                 ->where('order_item_id', $item->id)
                 ->where('variant_id', $variant->id)
-                ->where('warehouse_id', $warehouseId)
                 ->where('status', 'active')
-                ->first();
+                ->orderBy('id')
+                ->get();
 
-            $beforeStock = (int) $warehouseStock->stock;
-            $beforeReserved = (int) $warehouseStock->reserved_stock;
-            $qty = (int) $item->qty;
-            $reservedPart = min((int) ($reservation?->qty ?? 0), $qty);
-
-            if ($beforeStock < $qty) {
-                throw ValidationException::withMessages([
-                    'status' => "Недостаточно остатка для списания варианта #{$variant->id}",
-                ]);
-            }
-            if ($beforeReserved < $reservedPart) {
-                throw ValidationException::withMessages([
-                    'status' => "Недостаточно резерва для списания варианта #{$variant->id}",
-                ]);
+            if ($reservations->isEmpty()) {
+                continue;
             }
 
-            $warehouseStock->update([
-                'stock' => $beforeStock - $qty,
-                'reserved_stock' => $beforeReserved - $reservedPart,
-            ]);
+            $totalWrittenOffQty = 0;
+            $warehouseLines = [];
 
-            StockWriteoffItem::query()->create([
-                'stock_writeoff_id' => $writeoff->id,
-                'product_id' => $item->product_id,
-                'variant_id' => $variant->id,
-                'product_name' => $item->product_name,
-                'variant_title' => $item->variant_title,
-                'qty' => $qty,
-                'price' => $item->price,
-                'payload' => [
-                    'order_item_id' => $item->id,
-                    'warehouse_id' => $warehouseId,
-                ],
-            ]);
+            foreach ($reservations as $reservation) {
+                $warehouseId = (int) $reservation->warehouse_id;
+                $lineQty = (int) $reservation->qty;
+                if ($lineQty <= 0) {
+                    continue;
+                }
 
-            if ($reservation) {
+                $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+                $beforeStock = (int) $warehouseStock->stock;
+                $beforeReserved = (int) $warehouseStock->reserved_stock;
+                $reservedPart = min($lineQty, $beforeReserved);
+
+                if ($beforeStock < $lineQty) {
+                    throw ValidationException::withMessages([
+                        'status' => "Недостаточно остатка для списания варианта #{$variant->id} на складе #{$warehouseId}",
+                    ]);
+                }
+                if ($beforeReserved < $reservedPart) {
+                    throw ValidationException::withMessages([
+                        'status' => "Недостаточно резерва для списания варианта #{$variant->id} на складе #{$warehouseId}",
+                    ]);
+                }
+
+                $warehouseStock->update([
+                    'stock' => $beforeStock - $lineQty,
+                    'reserved_stock' => $beforeReserved - $reservedPart,
+                ]);
+
                 $reservation->update([
                     'status' => 'written_off',
                     'written_off_at' => now(),
                 ]);
+
+                $this->createMovement(
+                    self::MOVEMENT_WRITEOFF,
+                    'stock_writeoff',
+                    $writeoff->id,
+                    $warehouseId,
+                    $variant,
+                    -$lineQty,
+                    -$reservedPart,
+                    [
+                        'order_id' => $order->id,
+                        'order_item_id' => $item->id,
+                        'reservation_id' => $reservation->id,
+                        'writeoff_type' => 'order',
+                    ],
+                    $beforeStock,
+                    $beforeReserved,
+                    (int) $warehouseStock->stock,
+                    (int) $warehouseStock->reserved_stock,
+                );
+
+                $totalWrittenOffQty += $lineQty;
+                $warehouseLines[] = [
+                    'warehouse_id' => $warehouseId,
+                    'qty' => $lineQty,
+                    'reservation_id' => $reservation->id,
+                ];
             }
 
-            $this->createMovement(
-                self::MOVEMENT_WRITEOFF,
-                'stock_writeoff',
-                $writeoff->id,
-                $warehouseId,
-                $variant,
-                -$qty,
-                -$reservedPart,
-                [
-                    'order_id' => $order->id,
-                    'order_item_id' => $item->id,
-                    'writeoff_type' => 'order',
-                ],
-                $beforeStock,
-                $beforeReserved,
-                (int) $warehouseStock->stock,
-                (int) $warehouseStock->reserved_stock,
-            );
+            if ($totalWrittenOffQty > 0) {
+                StockWriteoffItem::query()->create([
+                    'stock_writeoff_id' => $writeoff->id,
+                    'product_id' => $item->product_id,
+                    'variant_id' => $variant->id,
+                    'product_name' => $item->product_name,
+                    'variant_title' => $item->variant_title,
+                    'qty' => $totalWrittenOffQty,
+                    'price' => $item->price,
+                    'payload' => [
+                        'order_item_id' => $item->id,
+                        'order_qty' => (int) $item->qty,
+                        'warehouse_lines' => $warehouseLines,
+                    ],
+                ]);
+            }
 
             $this->syncVariantAggregates((int) $variant->id);
             $this->syncProductStockFlagsByProductId((int) $variant->product_id);
@@ -292,7 +323,7 @@ class StockInventoryService
                 'warehouse_id' => $warehouseId,
                 'type' => 'manual',
                 'order_id' => null,
-                'status' => 'posted',
+                'status' => StockWriteoff::STATUS_POSTED,
                 'written_off_at' => $validated['written_off_at'] ?? now(),
                 'comment' => $validated['comment'] ?? null,
                 'created_by' => Auth::id(),
@@ -313,6 +344,11 @@ class StockInventoryService
                 $qty = (int) $item['qty'];
                 $price = array_key_exists('price', $item) ? (float) $item['price'] : null;
 
+                $stockSource = $item['stock_source'] ?? 'available';
+                if (!in_array($stockSource, ['available', 'reserved'], true)) {
+                    $stockSource = 'available';
+                }
+
                 StockWriteoffItem::query()->create([
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $product->id,
@@ -321,18 +357,23 @@ class StockInventoryService
                     'variant_title' => $variant->title,
                     'qty' => $qty,
                     'price' => $price,
-                    'payload' => array_merge($item['payload'] ?? [], ['warehouse_id' => $warehouseId]),
+                    'payload' => array_merge($item['payload'] ?? [], [
+                        'warehouse_id' => $warehouseId,
+                        'stock_source' => $stockSource,
+                    ]),
                 ]);
 
-                $this->decreaseVariantStock(
+                $this->applyManualWriteoffLine(
                     $variant,
                     $qty,
+                    $stockSource,
                     'stock_writeoff',
                     $writeoff->id,
                     [
                         'writeoff_type' => 'manual',
                         'comment' => $validated['comment'] ?? null,
                         'warehouse_id' => $warehouseId,
+                        'stock_source' => $stockSource,
                     ],
                     $warehouseId
                 );
@@ -345,6 +386,7 @@ class StockInventoryService
                     'qty' => $qty,
                     'price' => $price,
                     'warehouse_id' => $warehouseId,
+                    'stock_source' => $stockSource,
                 ];
             }
 
@@ -368,6 +410,132 @@ class StockInventoryService
             );
 
             return $writeoff->load('items');
+        });
+    }
+
+    /**
+     * Есть ли движения списания, которые можно откатить (все кроме виртуального склада поставщика).
+     */
+    public function canReverseWriteoff(StockWriteoff $writeoff): bool
+    {
+        if ($writeoff->status !== StockWriteoff::STATUS_POSTED) {
+            return false;
+        }
+
+        $supplierId = $this->getDefaultSupplierWarehouseId();
+
+        return StockMovement::query()
+            ->where('document_type', 'stock_writeoff')
+            ->where('document_id', $writeoff->id)
+            ->where('type', self::MOVEMENT_WRITEOFF)
+            ->where('warehouse_id', '!=', $supplierId)
+            ->exists();
+    }
+
+    /**
+     * Отмена списания: возврат остатка по движениям на физических складах (не supplier).
+     * Движения на складе поставщика не меняются.
+     */
+    public function reverseWriteoff(int $writeoffId): StockWriteoff
+    {
+        return DB::transaction(function () use ($writeoffId) {
+            $writeoff = StockWriteoff::query()->lockForUpdate()->findOrFail($writeoffId);
+            if ($writeoff->status !== StockWriteoff::STATUS_POSTED) {
+                throw ValidationException::withMessages([
+                    'writeoff' => 'Отменить можно только проведённое списание',
+                ]);
+            }
+
+            $supplierId = $this->getDefaultSupplierWarehouseId();
+            $movements = StockMovement::query()
+                ->where('document_type', 'stock_writeoff')
+                ->where('document_id', $writeoff->id)
+                ->where('type', self::MOVEMENT_WRITEOFF)
+                ->where('warehouse_id', '!=', $supplierId)
+                ->orderByDesc('id')
+                ->get();
+
+            if ($movements->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'writeoff' => 'Нет движений для отмены на физических складах (склад поставщика не отменяется)',
+                ]);
+            }
+
+            foreach ($movements as $movement) {
+                $variant = ProductVariantLink::query()->lockForUpdate()->find($movement->variant_id);
+                if (!$variant) {
+                    continue;
+                }
+
+                $warehouseId = (int) $movement->warehouse_id;
+                $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+                $beforeStock = (int) $warehouseStock->stock;
+                $beforeReserved = (int) $warehouseStock->reserved_stock;
+                $stockDelta = (int) $movement->stock_delta;
+                $reservedDelta = (int) $movement->reserved_delta;
+
+                $afterStock = $beforeStock - $stockDelta;
+                $afterReserved = $beforeReserved - $reservedDelta;
+                if ($afterStock < 0) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => "Нельзя отменить списание: остаток варианта #{$variant->id} на складе #{$warehouseId} стал бы отрицательным",
+                    ]);
+                }
+                if ($afterReserved < 0) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => "Нельзя отменить списание: резерв варианта #{$variant->id} на складе #{$warehouseId} стал бы отрицательным",
+                    ]);
+                }
+                if ($afterReserved > $afterStock) {
+                    $afterReserved = $afterStock;
+                }
+
+                $warehouseStock->update([
+                    'stock' => $afterStock,
+                    'reserved_stock' => $afterReserved,
+                ]);
+
+                $this->createMovement(
+                    self::MOVEMENT_WRITEOFF_REVERSAL,
+                    'stock_writeoff',
+                    $writeoff->id,
+                    $warehouseId,
+                    $variant,
+                    -$stockDelta,
+                    -$reservedDelta,
+                    [
+                        'reversed_movement_id' => $movement->id,
+                        'writeoff_id' => $writeoff->id,
+                    ],
+                    $beforeStock,
+                    $beforeReserved,
+                    (int) $warehouseStock->stock,
+                    (int) $warehouseStock->reserved_stock,
+                );
+
+                $this->syncVariantAggregates((int) $variant->id);
+                $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+            }
+
+            $writeoff->update([
+                'status' => StockWriteoff::STATUS_REVERSED,
+                'updated_by' => Auth::id(),
+            ]);
+
+            $this->writeAudit(
+                AuditLogService::ENTITY_STOCK_WRITEOFF,
+                $writeoff->id,
+                AuditLogService::ACTION_UPDATED,
+                "Отменено списание #{$writeoff->document_no}",
+                [
+                    'writeoff_id' => $writeoff->id,
+                    'movements_reversed' => $movements->count(),
+                    'skipped_supplier_warehouse_id' => $supplierId,
+                ],
+                (int) $writeoff->warehouse_id
+            );
+
+            return $writeoff->fresh(['warehouse', 'items']);
         });
     }
 
@@ -458,6 +626,67 @@ class StockInventoryService
         $this->syncProductStockFlagsByProductId((int) $variant->product_id);
     }
 
+    private function applyManualWriteoffLine(
+        ProductVariantLink $variant,
+        int $qty,
+        string $stockSource,
+        string $documentType,
+        int $documentId,
+        array $payload,
+        int $warehouseId,
+    ): void {
+        if ($qty <= 0) {
+            return;
+        }
+
+        if ($stockSource === 'reserved') {
+            $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+            $beforeStock = (int) $warehouseStock->stock;
+            $beforeReserved = (int) $warehouseStock->reserved_stock;
+
+            if ($beforeReserved < $qty) {
+                throw ValidationException::withMessages([
+                    'items' => "Недостаточно резерва для списания варианта #{$variant->id} на складе #{$warehouseId}",
+                ]);
+            }
+            if ($beforeStock < $qty) {
+                throw ValidationException::withMessages([
+                    'items' => "Недостаточно остатка для списания из резерва варианта #{$variant->id} на складе #{$warehouseId}",
+                ]);
+            }
+
+            $afterStock = $beforeStock - $qty;
+            $afterReserved = $beforeReserved - $qty;
+
+            $warehouseStock->update([
+                'stock' => $afterStock,
+                'reserved_stock' => $afterReserved,
+            ]);
+
+            $this->createMovement(
+                self::MOVEMENT_WRITEOFF,
+                $documentType,
+                $documentId,
+                $warehouseId,
+                $variant,
+                -$qty,
+                -$qty,
+                $payload,
+                $beforeStock,
+                $beforeReserved,
+                (int) $warehouseStock->stock,
+                (int) $warehouseStock->reserved_stock,
+            );
+
+            $this->syncVariantAggregates((int) $variant->id);
+            $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+
+            return;
+        }
+
+        $this->decreaseVariantStock($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
+    }
+
     private function reserveOrderItem(Order $order, OrderItem $item): array
     {
         if (!$item->variant_id || $item->qty <= 0) {
@@ -469,7 +698,87 @@ class StockInventoryService
             return ['reserved' => false, 'reason' => 'preorder_or_missing'];
         }
 
-        $warehouseId = $this->resolveOrderWarehouseId($item, $variant);
+        $qty = (int) $item->qty;
+        $mainWarehouseId = $this->getMainWarehouseId();
+        $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
+
+        $mainQty = 0;
+        if ($mainWarehouseId > 0) {
+            $mainStock = $this->getWarehouseStock($mainWarehouseId, (int) $variant->product_id, (int) $variant->id, true);
+            $mainAvailable = max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock);
+            $mainQty = min($qty, $mainAvailable);
+        }
+
+        $remainder = $qty - $mainQty;
+        $supplierQty = 0;
+        if ($remainder > 0 && $supplierWarehouseId > 0) {
+            $hasOffer = SupplierVariantOffer::query()
+                ->where('product_variant_id', $variant->id)
+                ->where('is_active', true)
+                ->exists();
+            if ($hasOffer) {
+                $supplierQty = $remainder;
+            }
+        }
+
+        $details = [];
+        $anyReserved = false;
+
+        if ($mainQty > 0) {
+            $r = $this->placeWarehouseReservation($order, $item, $variant, $mainWarehouseId, $mainQty, false);
+            $details[] = $r;
+            if (!empty($r['reserved'])) {
+                $anyReserved = true;
+            }
+        }
+
+        if ($supplierQty > 0) {
+            $r = $this->placeWarehouseReservation($order, $item, $variant, $supplierWarehouseId, $supplierQty, true);
+            $details[] = $r;
+            if (!empty($r['reserved'])) {
+                $anyReserved = true;
+            }
+        }
+
+        if ($anyReserved) {
+            $this->syncVariantAggregates((int) $variant->id);
+            $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+
+            return [
+                'reserved' => true,
+                'details' => $details,
+            ];
+        }
+
+        $reason = 'nothing_to_reserve';
+        if ($remainder > 0 && $supplierQty === 0) {
+            $reason = 'no_supplier_offer_for_remainder';
+        }
+
+        return [
+            'reserved' => false,
+            'reason' => $reason,
+            'variant_id' => $variant->id,
+            'requested_qty' => $qty,
+            'main_reserved_qty' => 0,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @return array{reserved: bool, reason?: string|null, reservation_id?: int, warehouse_id?: int}
+     */
+    private function placeWarehouseReservation(
+        Order $order,
+        OrderItem $item,
+        ProductVariantLink $variant,
+        int $warehouseId,
+        int $qty,
+        bool $virtualInfiniteStock,
+    ): array {
+        if ($qty <= 0 || $warehouseId <= 0) {
+            return ['reserved' => false, 'reason' => 'invalid_qty_or_warehouse'];
+        }
 
         $existingReservation = StockReservation::query()
             ->where('order_item_id', $item->id)
@@ -482,20 +791,34 @@ class StockInventoryService
                 'reserved' => false,
                 'reason' => 'already_reserved',
                 'reservation_id' => $existingReservation->id,
+                'warehouse_id' => $warehouseId,
             ];
         }
 
         $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
-        $available = max(0, (int) $warehouseStock->stock - (int) $warehouseStock->reserved_stock);
-        if ($available < (int) $item->qty) {
-            return [
-                'reserved' => false,
-                'reason' => 'insufficient_stock',
-                'variant_id' => $variant->id,
-                'warehouse_id' => $warehouseId,
-                'requested_qty' => (int) $item->qty,
-                'available_qty' => $available,
-            ];
+        $beforeStock = (int) $warehouseStock->stock;
+        $beforeReserved = (int) $warehouseStock->reserved_stock;
+
+        if ($virtualInfiniteStock) {
+            $needStock = $beforeReserved + $qty;
+            if ($beforeStock < $needStock) {
+                $warehouseStock->update(['stock' => $needStock]);
+                $warehouseStock->refresh();
+                $beforeStock = (int) $warehouseStock->stock;
+                $beforeReserved = (int) $warehouseStock->reserved_stock;
+            }
+        } else {
+            $available = max(0, $beforeStock - $beforeReserved);
+            if ($available < $qty) {
+                return [
+                    'reserved' => false,
+                    'reason' => 'insufficient_stock',
+                    'variant_id' => $variant->id,
+                    'warehouse_id' => $warehouseId,
+                    'requested_qty' => $qty,
+                    'available_qty' => $available,
+                ];
+            }
         }
 
         $reservation = StockReservation::query()->create([
@@ -504,23 +827,21 @@ class StockInventoryService
             'warehouse_id' => $warehouseId,
             'product_id' => $item->product_id,
             'variant_id' => $variant->id,
-            'qty' => (int) $item->qty,
+            'qty' => $qty,
             'status' => 'active',
             'reserved_at' => now(),
             'released_at' => null,
             'written_off_at' => null,
             'payload' => [
                 'variant_title' => $item->variant_title,
+                'virtual_infinite' => $virtualInfiniteStock,
             ],
         ]);
 
-        $beforeStock = (int) $warehouseStock->stock;
-        $beforeReserved = (int) $warehouseStock->reserved_stock;
-        $reservedDelta = (int) $item->qty;
-
         $warehouseStock->update([
-            'reserved_stock' => $beforeReserved + $reservedDelta,
+            'reserved_stock' => $beforeReserved + $qty,
         ]);
+        $warehouseStock->refresh();
 
         $this->createMovement(
             self::MOVEMENT_RESERVE,
@@ -529,7 +850,7 @@ class StockInventoryService
             $warehouseId,
             $variant,
             0,
-            $reservedDelta,
+            $qty,
             [
                 'order_id' => $order->id,
                 'order_item_id' => $item->id,
@@ -541,13 +862,11 @@ class StockInventoryService
             (int) $warehouseStock->reserved_stock,
         );
 
-        $this->syncVariantAggregates((int) $variant->id);
-        $this->syncProductStockFlagsByProductId((int) $variant->product_id);
-
         return [
             'reserved' => true,
             'reservation_id' => $reservation->id,
             'warehouse_id' => $warehouseId,
+            'qty' => $qty,
         ];
     }
 
@@ -632,8 +951,16 @@ class StockInventoryService
             return;
         }
 
-        $totals = WarehouseVariantStock::query()
-            ->where('variant_id', $variantId)
+        // Агрегат на product_variant_links — только «наши полки» (main и др. кроме supplier).
+        // Склад supplier: отдельный учёт резерва/списаний; не суммируем в витринный stock,
+        // иначе резерв по поставщику обнуляет available на карточке товара.
+        $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
+        $totalsQuery = WarehouseVariantStock::query()->where('variant_id', $variantId);
+        if ($supplierWarehouseId > 0) {
+            $totalsQuery->where('warehouse_id', '!=', $supplierWarehouseId);
+        }
+
+        $totals = $totalsQuery
             ->selectRaw('COALESCE(SUM(stock), 0) as stock_total')
             ->selectRaw('COALESCE(SUM(reserved_stock), 0) as reserved_total')
             ->first();
@@ -644,19 +971,27 @@ class StockInventoryService
         ]);
     }
 
-    private function resolveOrderWarehouseId(OrderItem $item, ProductVariantLink $variant): int
+    /**
+     * Склад в шапке списания по заказу (движения всё равно идут по warehouse_id из резерва).
+     * Если в заказе есть резерв на main — показываем основной склад; иначе канал поставщика.
+     */
+    private function resolveOrderWriteoffHeaderWarehouseId(Order $order): int
     {
-        $mainWarehouseId = $this->getMainWarehouseId();
-        if ($mainWarehouseId > 0) {
-            $mainStock = WarehouseVariantStock::query()
-                ->where('warehouse_id', $mainWarehouseId)
-                ->where('variant_id', $variant->id)
-                ->first();
-            if ($mainStock && $mainStock->available_stock >= (int) $item->qty) {
-                return $mainWarehouseId;
+        $mainId = $this->getMainWarehouseId();
+        if ($mainId > 0) {
+            $hasMainReservation = StockReservation::query()
+                ->where('order_id', $order->id)
+                ->where('status', 'active')
+                ->where('warehouse_id', $mainId)
+                ->exists();
+            if ($hasMainReservation) {
+                return $mainId;
             }
         }
 
-        return $this->getDefaultSupplierWarehouseId();
+        $supplierId = $this->getDefaultSupplierWarehouseId();
+
+        return $supplierId > 0 ? $supplierId : $mainId;
     }
+
 }

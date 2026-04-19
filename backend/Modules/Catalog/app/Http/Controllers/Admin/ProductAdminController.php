@@ -19,16 +19,48 @@ class ProductAdminController extends Controller
     {
         $query = Product::query()
             ->with(['brand'])
-            ->withCount('variants')
-            ->orderByDesc('id');
+            ->withCount('variants');
 
         if ($request->filled('search')) {
             $search = trim($request->string('search')->toString());
+            $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
 
-            $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search, $stem) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('slug', 'like', "%{$search}%");
+                if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
+                    // «Gucci Guilty - 90 ml» не матчит LIKE по имени «Gucci Guilty» — добавляем точное имя по stem.
+                    $q->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
+                }
             });
+
+            // Сортировка: точное имя (полная строка или stem) и slug выше частичных совпадений, затем id.
+
+            $bindings = [
+                $search,
+                $stem,
+                $search,
+                $stem,
+                $search . '%',
+            ];
+            $relevanceCase = '(CASE
+                WHEN LOWER(TRIM(`name`)) = LOWER(?) OR LOWER(TRIM(`name`)) = LOWER(?) THEN 0
+                WHEN LOWER(TRIM(`slug`)) = LOWER(?) OR LOWER(TRIM(`slug`)) = LOWER(?) THEN 1
+                WHEN LOWER(`name`) LIKE LOWER(?) THEN 2';
+
+            if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
+                $bindings[] = $stem . '%';
+                $relevanceCase .= '
+                WHEN LOWER(`name`) LIKE LOWER(?) THEN 3
+                ELSE 4 END)';
+            } else {
+                $relevanceCase .= '
+                ELSE 3 END)';
+            }
+
+            $query->orderByRaw($relevanceCase, $bindings);
+        } else {
+            $query->orderByDesc('id');
         }
 
         if ($request->filled('brand_id')) {
@@ -44,7 +76,9 @@ class ProductAdminController extends Controller
             }
         }
 
-        $products = $query->paginate(20);
+        $products = $query
+            ->when($request->filled('search'), fn ($q) => $q->orderByDesc('id'))
+            ->paginate(20);
 
         return response()->json($products);
     }

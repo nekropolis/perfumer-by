@@ -134,6 +134,27 @@ export type StockNotificationsListResponse = {
     };
 };
 
+export type StockNotificationStatsResponse = {
+    data: {
+        back_in_stock_new: number;
+        callback_new: number;
+    };
+};
+
+export async function fetchAdminStockNotificationStats(signal?: AbortSignal): Promise<StockNotificationStatsResponse> {
+    const res = await fetch(`${API_BASE}/admin/stock-notifications/stats`, {
+        headers: getHeaders(),
+        cache: "no-store",
+        signal,
+    });
+
+    if (!res.ok) {
+        throw new Error(`Stock notification stats API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
 export async function fetchAdminStockNotifications(params?: {
     search?: string;
     status?: string;

@@ -36,13 +36,24 @@ class StockWriteoffController extends Controller
         return response()->json($writeoffs);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, StockInventoryService $inventoryService): JsonResponse
     {
         $writeoff = StockWriteoff::query()
             ->with(['warehouse', 'items.variant.definition'])
             ->findOrFail($id);
 
         return response()->json([
+            'data' => $writeoff,
+            'can_reverse' => $inventoryService->canReverseWriteoff($writeoff),
+        ]);
+    }
+
+    public function reverse(int $id, StockInventoryService $service): JsonResponse
+    {
+        $writeoff = $service->reverseWriteoff($id);
+
+        return response()->json([
+            'message' => 'Списание отменено, остатки на физических складах восстановлены',
             'data' => $writeoff,
         ]);
     }
@@ -59,6 +70,7 @@ class StockWriteoffController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['nullable', 'numeric', 'min:0'],
             'items.*.payload' => ['nullable', 'array'],
+            'items.*.stock_source' => ['nullable', 'string', 'in:available,reserved'],
         ]);
 
         $writeoff = $service->createManualWriteoff($validated);

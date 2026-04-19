@@ -20,7 +20,8 @@ export default function AppShell({ children }: Props) {
     return (
         <>
             <Header />
-            <main>{children}</main>
+            {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
+            <div className="min-w-0">{children}</div>
             <Footer />
         </>
     );

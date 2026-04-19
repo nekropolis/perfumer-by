@@ -22,11 +22,13 @@ Route::middleware('throttle:10,1')->group(function () {
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/orders')->group(function () {
     Route::get('/', [OrderController::class, 'index']);
     Route::get('/stats', [OrderController::class, 'stats']);
+    Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock-notifications')->group(function () {
+    Route::get('/stats', [StockNotificationAdminController::class, 'stats']);
     Route::get('/', [StockNotificationAdminController::class, 'index']);
     Route::patch('/{id}/status', [StockNotificationAdminController::class, 'updateStatus']);
 });

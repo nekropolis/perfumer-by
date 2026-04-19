@@ -79,7 +79,7 @@ export async function fetchMe(token: string): Promise<MeResponse> {
     });
 
     if (!res.ok) {
-        throw new Error(`Me API error: ${res.status}`);
+        return { data: null };
     }
 
     return res.json();

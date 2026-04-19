@@ -23,6 +23,8 @@ type WriteoffFormItem = {
     qty: number;
     price: string;
     available_qty: number;
+    reserved_qty: number;
+    stock_source: "available" | "reserved";
 };
 
 type WriteoffFormState = {
@@ -39,6 +41,7 @@ type DraftWriteoffItem = {
     variant_query: string;
     qty: number;
     price: string;
+    stock_source: "available" | "reserved";
 };
 
 type ProductOption = {
@@ -53,6 +56,7 @@ const emptyDraftItem = (): DraftWriteoffItem => ({
     variant_query: "",
     qty: 1,
     price: "",
+    stock_source: "available",
 });
 
 const emptyForm = (): WriteoffFormState => ({
@@ -70,6 +74,7 @@ type PrefillItem = {
     variant_title: string;
     price?: string | number | null;
     available_qty?: number;
+    reserved_qty?: number;
 };
 
 type Props = {
@@ -124,6 +129,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 return prev;
             }
 
+            const availableQty = Math.max(0, Number(prefillItem.available_qty ?? 0));
+            const reservedQty = Math.max(0, Number(prefillItem.reserved_qty ?? 0));
+
             return {
                 ...prev,
                 items: [
@@ -135,7 +143,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         variant_title: prefillItem.variant_title,
                         qty: 1,
                         price: prefillItem.price != null ? String(prefillItem.price) : "",
-                        available_qty: Math.max(0, Number(prefillItem.available_qty ?? 0)),
+                        available_qty: availableQty,
+                        reserved_qty: reservedQty,
+                        stock_source: availableQty > 0 ? "available" : reservedQty > 0 ? "reserved" : "available",
                     },
                 ],
             };
@@ -171,24 +181,33 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         }
     }, [form.warehouse_id]);
 
-    const searchVariants = useCallback(async (productId: number, query: string) => {
-        try {
-            const response = await fetchStockBalances({
-                page: 1,
-                search: query.trim() || undefined,
-                stock_state: "in_stock",
-                warehouse_id: form.warehouse_id ?? undefined,
-            });
+    const searchVariants = useCallback(
+        async (productId: number, query: string, stockSource: "available" | "reserved") => {
+            try {
+                const response = await fetchStockBalances({
+                    page: 1,
+                    search: query.trim() || undefined,
+                    stock_state: stockSource === "reserved" ? "reserved" : "in_stock",
+                    warehouse_id: form.warehouse_id ?? undefined,
+                });
 
-            setVariantOptions(
-                (response.data ?? []).filter(
-                    (item) => item.product_id === productId && Number(item.available_stock ?? 0) > 0
-                )
-            );
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Не удалось загрузить варианты со склада");
-        }
-    }, [form.warehouse_id]);
+                setVariantOptions(
+                    (response.data ?? []).filter((item) => {
+                        if (item.product_id !== productId) {
+                            return false;
+                        }
+                        if (stockSource === "reserved") {
+                            return Number(item.reserved_stock ?? 0) > 0;
+                        }
+                        return Number(item.available_stock ?? 0) > 0;
+                    })
+                );
+            } catch (e) {
+                setError(e instanceof Error ? e.message : "Не удалось загрузить варианты со склада");
+            }
+        },
+        [form.warehouse_id]
+    );
 
     const addDraftItem = () => {
         if (!draftItem.product_id) {
@@ -210,12 +229,19 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             (item) => (item.variant_id ?? item.id) === draftItem.variant_id
         );
         const availableQty = Math.max(0, Number(selectedVariant?.available_stock ?? 0));
-        if (availableQty <= 0) {
-            setError("Недостаточно доступного остатка для списания");
+        const reservedQty = Math.max(0, Number(selectedVariant?.reserved_stock ?? 0));
+        const maxForSource =
+            draftItem.stock_source === "reserved" ? reservedQty : availableQty;
+        if (maxForSource <= 0) {
+            setError(
+                draftItem.stock_source === "reserved"
+                    ? "Нет зарезервированного количества для списания"
+                    : "Недостаточно доступного остатка для списания"
+            );
             return;
         }
-        if (draftItem.qty > availableQty) {
-            setError(`Можно списать не больше ${availableQty} шт. (с учетом резерва)`);
+        if (draftItem.qty > maxForSource) {
+            setError(`Можно списать не больше ${maxForSource} шт.`);
             return;
         }
 
@@ -233,6 +259,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     qty: draftItem.qty,
                     price: draftItem.price,
                     available_qty: availableQty,
+                    reserved_qty: reservedQty,
+                    stock_source: draftItem.stock_source,
                 },
             ],
         }));
@@ -259,8 +287,11 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 if (item.qty <= 0) {
                     throw new Error(`Строка ${index + 1}: укажите количество`);
                 }
-                if (item.available_qty > 0 && item.qty > item.available_qty) {
-                    throw new Error(`Строка ${index + 1}: можно списать максимум ${item.available_qty} шт. (с учетом резерва)`);
+                const cap = item.stock_source === "reserved" ? item.reserved_qty : item.available_qty;
+                if (cap > 0 && item.qty > cap) {
+                    throw new Error(
+                        `Строка ${index + 1}: можно списать максимум ${cap} шт. (${item.stock_source === "reserved" ? "резерв" : "свободно"})`
+                    );
                 }
             });
 
@@ -273,6 +304,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     variant_id: item.variant_id,
                     qty: item.qty,
                     price: item.price === "" ? null : Number(item.price),
+                    stock_source: item.stock_source,
                 })),
             };
 
@@ -301,7 +333,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 <div>
                     <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Новое списание</h1>
                     <p className="mt-1 text-sm text-slate-600">
-                        Ручное списание сразу уменьшает остаток на складе.
+                        Списание со свободного остатка или из резерва. Отмена движений на складе поставщика не поддерживается.
                     </p>
                 </div>
 
@@ -389,55 +421,95 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     <div className="p-3 sm:p-4">
                         {form.items.length === 0 ? (
                             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                                Пока нет строк. В списание попадают только товары и варианты, которые есть на складе.
+                                Пока нет строк. Добавьте варианты со свободным остатком или с активным резервом на выбранном складе.
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {form.items.map((item, index) => (
-                                    <div
-                                        key={`${item.product_id}-${item.variant_id}-${index}`}
-                                        className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
-                                    >
-                                        <div className="min-w-0">
-                                            <span>{item.product_name}</span>
-                                            <span className="mx-2 text-slate-300">/</span>
-                                            <span>{item.variant_title}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="number"
-                                                    min={1}
-                                                    max={Math.max(1, item.available_qty)}
-                                                    value={item.qty}
-                                                    onChange={(e) => {
-                                                        const raw = Number(e.target.value || 1);
-                                                        const bounded = Math.min(Math.max(1, raw), Math.max(1, item.available_qty || 1));
+                                {form.items.map((item, index) => {
+                                    const lineMax =
+                                        item.stock_source === "reserved" ? item.reserved_qty : item.available_qty;
+                                    const maxInput = Math.max(1, lineMax || 1);
+
+                                    return (
+                                        <div
+                                            key={`${item.product_id}-${item.variant_id}-${index}`}
+                                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                        >
+                                            <div className="min-w-0">
+                                                <span>{item.product_name}</span>
+                                                <span className="mx-2 text-slate-300">/</span>
+                                                <span>{item.variant_title}</span>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 text-sm md:gap-3">
+                                                <label className="flex items-center gap-1 text-xs text-slate-600">
+                                                    <span>Источник</span>
+                                                    <select
+                                                        value={item.stock_source}
+                                                        onChange={(e) => {
+                                                            const next = e.target.value as "available" | "reserved";
+                                                            setForm((prev) => ({
+                                                                ...prev,
+                                                                items: prev.items.map((row, rowIndex) => {
+                                                                    if (rowIndex !== index) {
+                                                                        return row;
+                                                                    }
+                                                                    const cap =
+                                                                        next === "reserved" ? row.reserved_qty : row.available_qty;
+                                                                    return {
+                                                                        ...row,
+                                                                        stock_source: next,
+                                                                        qty: Math.min(row.qty, Math.max(1, cap || 1)),
+                                                                    };
+                                                                }),
+                                                            }));
+                                                        }}
+                                                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
+                                                    >
+                                                        <option value="available">Свободно</option>
+                                                        <option value="reserved" disabled={item.reserved_qty <= 0}>
+                                                            Резерв
+                                                        </option>
+                                                    </select>
+                                                </label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        max={maxInput}
+                                                        value={item.qty}
+                                                        onChange={(e) => {
+                                                            const raw = Number(e.target.value || 1);
+                                                            const bounded = Math.min(Math.max(1, raw), maxInput);
+                                                            setForm((prev) => ({
+                                                                ...prev,
+                                                                items: prev.items.map((row, rowIndex) =>
+                                                                    rowIndex === index ? { ...row, qty: bounded } : row
+                                                                ),
+                                                            }));
+                                                        }}
+                                                        className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+                                                    />
+                                                    <span className="text-xs text-slate-500">
+                                                        св. {item.available_qty} / рез. {item.reserved_qty}
+                                                    </span>
+                                                </div>
+                                                <span>{item.price || "—"}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
                                                         setForm((prev) => ({
                                                             ...prev,
-                                                            items: prev.items.map((row, rowIndex) => (rowIndex === index ? { ...row, qty: bounded } : row)),
-                                                        }));
-                                                    }}
-                                                    className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-sm"
-                                                />
-                                                <span className="text-xs text-slate-500">/ {item.available_qty} шт</span>
+                                                            items: prev.items.filter((_, rowIndex) => rowIndex !== index),
+                                                        }))
+                                                    }
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                                >
+                                                    ×
+                                                </button>
                                             </div>
-                                            <span>{item.price || "—"}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        items: prev.items.filter((_, rowIndex) => rowIndex !== index),
-                                                    }))
-                                                }
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                                            >
-                                                ×
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -459,7 +531,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                             <div>
                                 <h2 className="text-base font-semibold text-slate-900">Добавить товар</h2>
-                                <p className="mt-1 text-sm text-slate-500">Только товары и варианты, которые есть на складе.</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Выберите источник: свободный остаток или резерв, затем вариант со склада.
+                                </p>
                             </div>
                             <button
                                 type="button"
@@ -471,6 +545,52 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         </div>
 
                         <div className="space-y-3 p-4">
+                            <div className="flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                                <label className="flex cursor-pointer items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="writeoff-stock-source"
+                                        checked={draftItem.stock_source === "available"}
+                                        onChange={() => {
+                                            const productId = draftItem.product_id;
+                                            setDraftItem((prev) => ({
+                                                ...prev,
+                                                stock_source: "available",
+                                                variant_id: null,
+                                                variant_query: "",
+                                            }));
+                                            setVariantOptions([]);
+                                            if (productId) {
+                                                void searchVariants(productId, "", "available");
+                                            }
+                                        }}
+                                        className="h-4 w-4"
+                                    />
+                                    <span>Свободный остаток</span>
+                                </label>
+                                <label className="flex cursor-pointer items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="writeoff-stock-source"
+                                        checked={draftItem.stock_source === "reserved"}
+                                        onChange={() => {
+                                            const productId = draftItem.product_id;
+                                            setDraftItem((prev) => ({
+                                                ...prev,
+                                                stock_source: "reserved",
+                                                variant_id: null,
+                                                variant_query: "",
+                                            }));
+                                            setVariantOptions([]);
+                                            if (productId) {
+                                                void searchVariants(productId, "", "reserved");
+                                            }
+                                        }}
+                                        className="h-4 w-4"
+                                    />
+                                    <span>Резерв</span>
+                                </label>
+                            </div>
                             <div className="grid gap-3 md:grid-cols-2">
                                 <div className="min-w-0">
                                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -534,7 +654,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                             }));
 
                                             if (draftItem.product_id) {
-                                                void searchVariants(draftItem.product_id, nextQuery);
+                                                void searchVariants(draftItem.product_id, nextQuery, draftItem.stock_source);
                                             }
                                         }}
                                         className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
@@ -559,8 +679,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                     className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50"
                                                 >
                                                     <span className="min-w-0 truncate">{variant.variant_title}</span>
-                                                    <span className="ml-3 shrink-0 text-[11px] text-emerald-600">
-                                                        {variant.available_stock} шт.
+                                                    <span className="ml-3 shrink-0 text-[11px] text-slate-600">
+                                                        св. {variant.available_stock} · рез. {variant.reserved_stock}
                                                     </span>
                                                 </button>
                                             ))}

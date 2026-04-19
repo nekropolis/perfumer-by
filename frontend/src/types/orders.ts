@@ -41,6 +41,8 @@ export type OrderData = {
     subtotal: string;
     total: string;
     items: OrderItem[];
+    /** Заказ выполнен, но нет списания по складу — можно досоздать через API. */
+    can_sync_inventory_writeoff?: boolean;
 };
 
 export type OrdersResponse = {

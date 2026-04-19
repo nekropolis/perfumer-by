@@ -4,6 +4,9 @@ namespace Modules\Cart\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class CartItemResource extends JsonResource
 {
@@ -14,7 +17,28 @@ class CartItemResource extends JsonResource
 
         $price = $variant?->price ? (float) $variant->price : 0;
         $total = $price * $this->qty;
-        $availableStock = $variant ? max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0)) : 0;
+
+        $availableStock = 0;
+        $displayStock = 0;
+        $displayReserved = 0;
+        $isAvailable = false;
+
+        if ($variant) {
+            $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+            $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+            $rows = WarehouseVariantStock::query()
+                ->where('variant_id', $variant->id)
+                ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+                ->get()
+                ->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $rows->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $rows->get($supplierWarehouseId) : null;
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+            $availableStock = $presented['available_stock'];
+            $displayStock = $presented['stock'];
+            $displayReserved = $presented['reserved_stock'];
+            $isAvailable = $presented['is_available'];
+        }
 
         $displayParts = [];
 
@@ -62,11 +86,11 @@ class CartItemResource extends JsonResource
                 : null,
 
             'total' => number_format($total, 2, '.', ''),
-            'stock' => $variant?->stock ?? 0,
-            'reserved_stock' => $variant?->reserved_stock ?? 0,
+            'stock' => $variant ? $displayStock : 0,
+            'reserved_stock' => $variant ? $displayReserved : 0,
             'available_stock' => $availableStock,
             'is_preorder' => (bool) ($variant?->is_preorder ?? false),
-            'is_available' => $variant ? ($availableStock > 0 || $variant->is_preorder) : false,
+            'is_available' => $variant ? $isAvailable : false,
         ];
     }
 }

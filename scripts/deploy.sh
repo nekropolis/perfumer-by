@@ -52,6 +52,7 @@ log "Switching Laravel into maintenance mode"
 MAINT_DOWN=1
 
 log "composer install --no-dev --optimize-autoloader"
+export COMPOSER_ALLOW_SUPERUSER=1
 (cd "$BACKEND" && "$PHP_BIN" -d memory_limit="$COMPOSER_MEMORY_LIMIT" "$COMPOSER_BIN" install \
     --no-dev --optimize-autoloader --no-interaction --prefer-dist)
 

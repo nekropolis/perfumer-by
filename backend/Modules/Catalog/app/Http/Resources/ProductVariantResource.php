@@ -4,6 +4,7 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -23,18 +24,11 @@ class ProductVariantResource extends JsonResource
         $mainStock = $mainWarehouseId > 0 ? $stocksByWarehouse->get($mainWarehouseId) : null;
         $supplierStock = $supplierWarehouseId > 0 ? $stocksByWarehouse->get($supplierWarehouseId) : null;
 
-        $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
-        $supplierAvailable = $supplierStock ? max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) : 0;
+        $presented = CatalogVariantStockPresenter::forListing($this->resource, $mainStock, $supplierStock);
 
-        $effectiveStockSource = $mainAvailable > 0 ? $mainStock : $supplierStock;
-        $effectivePrice = $mainAvailable > 0 && $this->price !== null
-            ? $this->price
-            : $this->price;
-
-        $effectivePreorder = (bool) $this->is_preorder;
-        $availableStock = $effectiveStockSource
-            ? max(0, (int) $effectiveStockSource->stock - (int) $effectiveStockSource->reserved_stock)
-            : max(0, (int) $this->stock - (int) ($this->reserved_stock ?? 0));
+        $effectivePrice = $this->price;
+        $effectivePreorder = $presented['is_preorder'];
+        $availableStock = $presented['available_stock'];
 
         $displayParts = [];
 
@@ -69,12 +63,10 @@ class ProductVariantResource extends JsonResource
             'old_price' => $this->old_price,
             'discount_percent' => $this->discount_percent,
 
-            'stock' => $effectiveStockSource ? (int) $effectiveStockSource->stock : (int) $this->stock,
-            'reserved_stock' => $effectiveStockSource ? (int) $effectiveStockSource->reserved_stock : (int) ($this->reserved_stock ?? 0),
+            'stock' => $presented['stock'],
             'available_stock' => $availableStock,
             'is_preorder' => $effectivePreorder,
-            'is_active' => $this->is_active,
-            'is_available' => $availableStock > 0 || $effectivePreorder,
+            'is_available' => $presented['is_available'],
         ];
     }
 }

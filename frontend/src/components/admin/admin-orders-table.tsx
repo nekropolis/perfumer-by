@@ -19,7 +19,6 @@ export default function AdminOrdersTable({
                                              onErrorMessageAction,
                                          }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
-    const [savingOrderId, setSavingOrderId] = useState<number | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
 
     useEffect(() => {
@@ -28,7 +27,6 @@ export default function AdminOrdersTable({
 
     const handleStatusChange = async (orderId: number, status: string) => {
         try {
-            setSavingOrderId(orderId);
             onErrorMessageAction?.("");
             onSuccessMessageAction?.("");
 
@@ -49,7 +47,6 @@ export default function AdminOrdersTable({
             console.error(error);
             onErrorMessageAction?.("Не удалось обновить статус");
         } finally {
-            setSavingOrderId(null);
         }
     };
 
@@ -85,7 +82,7 @@ export default function AdminOrdersTable({
                                 <select
                                     value={order.status}
                                     onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                    disabled={savingOrderId === order.id}
+                                    disabled={order.status === 'done'}
                                     className="min-w-[180px] rounded-xl border px-3 py-2 text-sm focus:outline-none"
                                 >
                                     {ORDER_STATUS_OPTIONS.map((item) => (

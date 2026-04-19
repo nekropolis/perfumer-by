@@ -30,7 +30,7 @@ class StockReceiptService
                 'supplier_id' => $validated['supplier_id'] ?? null,
                 'supplier_code' => $validated['supplier_code'] ?? null,
                 'supplier_name' => trim((string) $validated['supplier_name']),
-                'status' => 'posted',
+                'status' => StockReceipt::STATUS_POSTED,
                 'received_at' => $validated['received_at'] ?? now(),
                 'comment' => $validated['comment'] ?? null,
                 'created_by' => Auth::id(),

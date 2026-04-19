@@ -25,6 +25,7 @@ export default function CatalogPageView({
                                             basePath,
                                         }: Props) {
     const total = products.meta?.total ?? products.data.length;
+    const lastPage = products.meta?.last_page ?? 1;
     const showBrand = !basePath.includes("/brands/");
 
     return (
@@ -66,7 +67,7 @@ export default function CatalogPageView({
                             <div className="mt-8">
                                 <CatalogPagination
                                     currentPage={currentPage}
-                                    lastPage={products.meta.last_page}
+                                    lastPage={lastPage}
                                     basePath={basePath}
                                 />
                             </div>

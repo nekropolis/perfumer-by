@@ -9,6 +9,20 @@ use Modules\Catalog\Models\Supplier;
 
 class StockReceipt extends Model
 {
+    public const STATUS_POSTED = 'posted';
+
+    /** @var list<string> */
+    public const STATUSES = [
+        self::STATUS_POSTED,
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    public const STATUS_LABELS = [
+        self::STATUS_POSTED => 'Проведено',
+    ];
+
     protected $fillable = [
         'document_no',
         'warehouse_id',

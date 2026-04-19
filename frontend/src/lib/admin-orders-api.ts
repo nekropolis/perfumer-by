@@ -92,7 +92,45 @@ export async function updateOrderStatus(
   });
 
   if (!res.ok) {
-    throw new Error(`Order status API error: ${res.status}`);
+    const text = await res.text();
+    let message = `Order status API error: ${res.status}`;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (typeof parsed?.message === "string" && parsed.message.trim() !== "") {
+        message = parsed.message;
+      }
+    } catch {
+      if (text.trim() !== "") {
+        message = text;
+      }
+    }
+    throw new Error(message);
+  }
+
+  return res.json();
+}
+
+export async function syncOrderInventoryWriteoff(id: number): Promise<OrderResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders/${id}/sync-inventory-writeoff`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = `Order inventory sync API error: ${res.status}`;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (typeof parsed?.message === "string" && parsed.message.trim() !== "") {
+        message = parsed.message;
+      }
+    } catch {
+      if (text.trim() !== "") {
+        message = text;
+      }
+    }
+    throw new Error(message);
   }
 
   return res.json();
