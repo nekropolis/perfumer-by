@@ -6,7 +6,7 @@ if (!API_BASE) {
     throw new Error("NEXT_PUBLIC_API_URL is not defined");
 }
 
-function getAdminHeaders() {
+function getAdminHeaders(): Record<string, string> {
     const token = typeof window !== "undefined" ? getAuthToken() : "";
 
     return {
@@ -15,9 +15,12 @@ function getAdminHeaders() {
     };
 }
 
-function getAdminAuthHeaders() {
+function getAdminAuthHeaders(): Record<string, string> {
     const token = typeof window !== "undefined" ? getAuthToken() : "";
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    if (!token) {
+        return {};
+    }
+    return { Authorization: `Bearer ${token}` };
 }
 
 export type ProductImagesResponse = {
