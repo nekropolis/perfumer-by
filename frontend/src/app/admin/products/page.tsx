@@ -14,8 +14,10 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
+import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
+import { PRODUCT_STATUS_FILTER_OPTIONS } from "@/lib/product-statuses";
 import {
     deleteProduct,
     fetchProductVariantSuppliers,
@@ -25,12 +27,18 @@ import {
     type ProductsAdminResponse,
 } from "@/lib/admin-products-api";
 
+function formatSitePrice(value: number | string | null | undefined): string {
+    if (value === null || value === undefined || value === "") {
+        return "—";
+    }
+    return `${value} BYN`;
+}
+
 export default function AdminProductsPage() {
     const STOCK_FILTER_OPTIONS = [
         { value: "1", label: "Нет в наличии" },
         { value: "0", label: "В наличии" },
     ];
-
     const searchParamsFromUrl = useSearchParams();
 
     const [items, setItems] = useState<ProductAdminItem[]>([]);
@@ -41,6 +49,7 @@ export default function AdminProductsPage() {
         () => searchParamsFromUrl.get("search") ?? "",
     );
     const [outOfStockFilter, setOutOfStockFilter] = useState<"" | "1" | "0">("");
+    const [statusFilter, setStatusFilter] = useState<"" | "new" | "hit" | "discount">("");
     const [page, setPage] = useUrlPage();
     const [meta, setMeta] = useState<ProductsAdminResponse | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<ProductAdminItem | null>(null);
@@ -51,7 +60,12 @@ export default function AdminProductsPage() {
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
-    const loadItems = useCallback(async (targetPage: number, targetSearch: string, targetOutOfStock: "" | "1" | "0") => {
+    const loadItems = useCallback(async (
+        targetPage: number,
+        targetSearch: string,
+        targetOutOfStock: "" | "1" | "0",
+        targetStatus: "" | "new" | "hit" | "discount",
+    ) => {
         setLoading(true);
         setError("");
 
@@ -60,6 +74,7 @@ export default function AdminProductsPage() {
                 page: targetPage,
                 search: targetSearch.trim() || undefined,
                 out_of_stock: targetOutOfStock,
+                status: targetStatus,
             });
 
             setItems(data.data || []);
@@ -73,11 +88,11 @@ export default function AdminProductsPage() {
         }
     }, []);
 
-    useResetPageOnChange(setPage, [debouncedSearch, outOfStockFilter]);
+    useResetPageOnChange(setPage, [debouncedSearch, outOfStockFilter, statusFilter]);
 
     useEffect(() => {
-        void loadItems(page, debouncedSearch, outOfStockFilter);
-    }, [loadItems, page, outOfStockFilter, debouncedSearch]);
+        void loadItems(page, debouncedSearch, outOfStockFilter, statusFilter);
+    }, [loadItems, page, outOfStockFilter, statusFilter, debouncedSearch]);
 
     const requestDelete = (item: ProductAdminItem) => {
         setDeleteTarget(item);
@@ -113,7 +128,7 @@ export default function AdminProductsPage() {
             const data = await deleteProduct(deleteTarget.id);
             setSuccess(data.message || "Продукт удалён");
             setDeleteTarget(null);
-            await loadItems(page, debouncedSearch, outOfStockFilter);
+            await loadItems(page, debouncedSearch, outOfStockFilter, statusFilter);
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -138,6 +153,7 @@ export default function AdminProductsPage() {
                 }
             >
             </AdminTableToolbar>
+            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage
@@ -169,7 +185,14 @@ export default function AdminProductsPage() {
                             onChangeAction={(value) => setOutOfStockFilter(value as "" | "1" | "0")}
                             options={STOCK_FILTER_OPTIONS}
                             placeholder="Все товары"
-                            className="min-w-[220px]"
+                            className="min-w-[220px] md:min-w-[180px]"
+                        />
+                        <AdminFilterSelect
+                            value={statusFilter}
+                            onChangeAction={(value) => setStatusFilter(value as "" | "new" | "hit" | "discount")}
+                            options={[...PRODUCT_STATUS_FILTER_OPTIONS]}
+                            placeholder="Все статусы"
+                            className="min-w-[220px] md:min-w-[200px]"
                         />
                     </div>
                 }
@@ -219,11 +242,8 @@ export default function AdminProductsPage() {
                             <div className="flex items-start justify-between border-b px-4 py-3 sm:px-5">
                                 <div className="min-w-0">
                                     <h2 className="truncate text-sm font-semibold sm:text-base">
-                                        Варианты в наличии: {variantsTarget.name}
+                                        Продукт: {variantsTarget.name}
                                     </h2>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Показываются только активные варианты со складом больше 0
-                                    </p>
                                 </div>
                                 <button
                                     type="button"
@@ -253,6 +273,9 @@ export default function AdminProductsPage() {
                                                     </div>
                                                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
                                                         Остаток: {variant.stock}
+                                                    </span>
+                                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                                        {formatSitePrice(variant.site_price)}
                                                     </span>
                                                 </div>
 

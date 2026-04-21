@@ -32,5 +32,23 @@ export async function apiFetch<T>(path: string): Promise<T> {
         throw new Error(`API error: ${res.status} ${url}`);
     }
 
-    return res.json();
+    const raw = await res.text();
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    const looksLikeJson = contentType.includes("application/json") || raw.trim().startsWith("{") || raw.trim().startsWith("[");
+
+    if (!looksLikeJson) {
+        const preview = raw.slice(0, 180);
+        if (preview.toUpperCase().includes("NO HOST FOUND")) {
+            throw new Error(
+                `API returned "NO HOST FOUND" for ${url}. Configure frontend SSR env API_URL (e.g. http://127.0.0.1:8000/api) instead of unreachable host.`
+            );
+        }
+        throw new Error(`API returned non-JSON response for ${url}: ${preview}`);
+    }
+
+    try {
+        return JSON.parse(raw) as T;
+    } catch {
+        throw new Error(`Failed to parse API JSON for ${url}: ${raw.slice(0, 180)}`);
+    }
 }

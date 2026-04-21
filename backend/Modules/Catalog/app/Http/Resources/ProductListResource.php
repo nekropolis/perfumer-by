@@ -81,7 +81,8 @@ class ProductListResource extends JsonResource
             })
             ->filter()
             ->unique()
-            ->values();
+            ->values()
+            ->all();
 
         return [
             'id' => $this->id,

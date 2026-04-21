@@ -283,8 +283,38 @@ class SupplierPriceImportService
 
     public function refreshLinkedPrices(UploadedFile $file): array
     {
+        $path = $file->getRealPath();
+        if ($path === false || !is_readable($path)) {
+            throw new InvalidArgumentException('Не удалось прочитать файл');
+        }
+
+        return $this->refreshLinkedPricesFromAbsolutePath($path, null);
+    }
+
+    /**
+     * Обновляет цены только у связанных строк прайса (по коду в XLS).
+     *
+     * @param  callable(array<string, mixed>): void|null  $onProgress
+     * @return array{
+     *     message: string,
+     *     updated: int,
+     *     skipped: int,
+     *     price_history_rows: int,
+     *     missing_codes: int,
+     *     deactivated_offers: int,
+     *     deactivated_variants: int,
+     *     codes_in_price: int,
+     *     linked_products: int
+     * }
+     */
+    public function refreshLinkedPricesFromAbsolutePath(string $absolutePath, ?callable $onProgress = null): array
+    {
+        if (!is_readable($absolutePath)) {
+            throw new InvalidArgumentException('Файл недоступен для чтения');
+        }
+
         $supplier = $this->getOrCreateSellerOneSupplier();
-        $rows = $this->spreadsheetParser->readRowsFromFile($file);
+        $rows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
 
         $supplierPriceByCode = [];
         foreach ($rows as $row) {
@@ -306,7 +336,21 @@ class SupplierPriceImportService
         $missingCodes = [];
         $priceHistoryRows = 0;
 
-        foreach ($linkedProducts as $supplierProduct) {
+        $totalLinked = $linkedProducts->count();
+        if ($onProgress !== null) {
+            $onProgress([
+                'processed' => 0,
+                'total_linked' => $totalLinked,
+                'updated' => 0,
+                'skipped' => 0,
+                'price_history_rows' => 0,
+                'message' => $totalLinked > 0
+                    ? "Связанных строк: {$totalLinked}, чтение прайса завершено"
+                    : 'Нет связанных строк для обновления',
+            ]);
+        }
+
+        foreach ($linkedProducts as $index => $supplierProduct) {
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
             $externalCode = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
             if ($externalCode === '') {
@@ -424,6 +468,21 @@ class SupplierPriceImportService
                 $updated++;
                 $priceHistoryRows++;
             });
+
+            if (
+                $onProgress !== null
+                && $totalLinked > 0
+                && (($index + 1) % 10 === 0 || ($index + 1) === $totalLinked)
+            ) {
+                $onProgress([
+                    'processed' => $index + 1,
+                    'total_linked' => $totalLinked,
+                    'updated' => $updated,
+                    'skipped' => $skipped,
+                    'price_history_rows' => $priceHistoryRows,
+                    'message' => 'Обновление цен: ' . ($index + 1) . " / {$totalLinked}",
+                ]);
+            }
         }
 
         $missingCodes = array_values(array_unique($missingCodes));
@@ -431,18 +490,17 @@ class SupplierPriceImportService
         $deactivatedVariants = 0;
 
         if (!empty($missingCodes)) {
-            DB::transaction(function () use (
+            $deactivationStats = DB::transaction(function () use (
                 $supplier,
-                $missingCodes,
-                &$deactivatedOffers,
-                &$deactivatedVariants
-            ): void {
+                $missingCodes
+            ): array {
                 $offers = SupplierVariantOffer::query()
                     ->where('supplier_id', $supplier->id)
                     ->whereIn('external_id', $missingCodes)
                     ->where('is_active', true)
                     ->get();
 
+                $localDeactivatedOffers = 0;
                 $variantIds = [];
                 foreach ($offers as $offer) {
                     $offerPayload = is_array($offer->payload) ? $offer->payload : [];
@@ -459,10 +517,11 @@ class SupplierPriceImportService
                     if ($offer->product_variant_id) {
                         $variantIds[] = (int) $offer->product_variant_id;
                     }
-                    $deactivatedOffers++;
+                    $localDeactivatedOffers++;
                 }
 
                 $variantIds = array_values(array_unique($variantIds));
+                $localDeactivatedVariants = 0;
                 if (!empty($variantIds)) {
                     ProductVariant::query()
                         ->whereIn('id', $variantIds)
@@ -470,9 +529,17 @@ class SupplierPriceImportService
                             'is_preorder' => true,
                             'stock' => 0,
                         ]);
-                    $deactivatedVariants = count($variantIds);
+                    $localDeactivatedVariants = count($variantIds);
                 }
+
+                return [
+                    'deactivated_offers' => $localDeactivatedOffers,
+                    'deactivated_variants' => $localDeactivatedVariants,
+                ];
             });
+
+            $deactivatedOffers = (int) ($deactivationStats['deactivated_offers'] ?? 0);
+            $deactivatedVariants = (int) ($deactivationStats['deactivated_variants'] ?? 0);
         }
 
         return [
@@ -694,9 +761,9 @@ class SupplierPriceImportService
      *   stock=1 и is_active=true.
      *
      * Защиты от мусора:
-     *   1) ТОЛЬКО при `name_match_level === 'exact'` (base = 80). На partial
-     *      (base = 70) создавать опасно — поставщик мог иметь лишнее слово,
-     *      которое на самом деле означает другой продукт.
+     *   1) ТОЛЬКО при `name_match_level` в `exact`, `exact_multiset` (base = 80).
+     *      На `partial` (base = 70) создавать опасно — лишнее слово у поставщика
+     *      может означать другой продукт.
      *   2) Обязательны оба поля у поставщика: volume И concentration. Без них
      *      нет однозначной definition в справочнике.
      *   3) Обязателен `supplier_price > 0`. Иначе `linkSupplierProductToVariant`
@@ -721,7 +788,8 @@ class SupplierPriceImportService
         }
 
         $breakdown = $product['confidence_breakdown'] ?? [];
-        if (($breakdown['name_match_level'] ?? null) !== 'exact') {
+        $nameLevel = $breakdown['name_match_level'] ?? null;
+        if (!in_array($nameLevel, ['exact', 'exact_multiset'], true)) {
             return $parsed;
         }
 

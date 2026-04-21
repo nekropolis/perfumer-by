@@ -8,6 +8,8 @@ export type AttributeFormState = {
     type: AttributeType;
     sort_order: string;
     is_active: boolean;
+    is_filterable: boolean;
+    filter_sort_order: string;
 };
 
 type Props = {
@@ -26,20 +28,37 @@ export default function AttributeForm({
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
-                <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    <input
-                        type="checkbox"
-                        checked={Boolean(form.is_active)}
-                        onChange={(e) =>
-                            onChangeAction({
-                                ...form,
-                                is_active: e.target.checked,
-                            })
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                    />
-                    Активен
-                </label>
+                <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
+                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.is_active)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    is_active: e.target.checked,
+                                })
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Активен
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.is_filterable)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    is_filterable: e.target.checked,
+                                })
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Участвует в фильтре каталога
+                    </label>
+                </div>
 
                 <div className="md:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -93,6 +112,24 @@ export default function AttributeForm({
                             })
                         }
                         className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                    />
+                </div>
+
+                <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Порядок в фильтрах
+                    </label>
+                    <input
+                        type="number"
+                        value={form.filter_sort_order}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                filter_sort_order: e.target.value,
+                            })
+                        }
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        disabled={!form.is_filterable}
                     />
                 </div>
             </div>

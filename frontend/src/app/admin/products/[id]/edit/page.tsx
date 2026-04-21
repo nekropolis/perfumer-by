@@ -26,6 +26,7 @@ import {
     type AttributeBindingItem,
 } from "@/lib/admin-attributes-api";
 import ProductVariantsEditor from "@/components/admin/products/product-variant-editor";
+import ProductImagesEditor from "@/components/admin/products/product-images-editor";
 
 export default function AdminProductEditPage() {
     const params = useParams<{ id: string }>();
@@ -62,7 +63,8 @@ export default function AdminProductEditPage() {
                 name: item.name,
                 slug: item.slug,
                 is_active: Boolean(item.is_active),
-                is_stock_product: Boolean(item.is_stock_product),
+                is_new: Boolean(item.is_new),
+                is_hit: Boolean(item.is_hit),
                 h1: item.h1 || item.name,
                 short_description: item.short_description || "",
                 description: item.description || "",
@@ -104,7 +106,8 @@ export default function AdminProductEditPage() {
                 name: form.name,
                 slug: form.slug,
                 is_active: form.is_active,
-                is_stock_product: form.is_stock_product,
+                is_new: form.is_new,
+                is_hit: form.is_hit,
                 h1: form.h1,
                 short_description: form.short_description,
                 description: form.description,
@@ -181,9 +184,13 @@ export default function AdminProductEditPage() {
                     )}
 
                     {activeTab === "images" && (
-                        <div className="rounded-2xl border bg-white p-5 text-sm text-gray-600">
-                            Раздел картинок будет подключён следующим шагом.
-                        </div>
+                        <ProductImagesEditor
+                            productId={form.id!}
+                            images={productData.images || []}
+                            onImagesChangedAction={(images) =>
+                                setProductData((prev) => (prev ? { ...prev, images } : prev))
+                            }
+                        />
                     )}
 
                     {activeTab === "variants" && (

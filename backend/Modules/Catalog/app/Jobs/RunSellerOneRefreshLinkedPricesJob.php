@@ -1,0 +1,169 @@
+<?php
+
+namespace Modules\Catalog\Jobs;
+
+use App\Services\AuditLogService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
+use Throwable;
+
+class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
+
+    public int $tries = 1;
+
+    public int $timeout = 3600;
+
+    public bool $failOnTimeout = true;
+
+    public function __construct(
+        public string $jobId,
+        public string $storedFilePath,
+        public string $originalFileName = '',
+    ) {
+    }
+
+    public function handle(SupplierPriceImportService $service, AuditLogService $audit): void
+    {
+        $cacheKey = self::cacheKey($this->jobId);
+
+        $disk = null;
+        foreach (['local', 'public'] as $candidate) {
+            if (Storage::disk($candidate)->exists($this->storedFilePath)) {
+                $disk = $candidate;
+                break;
+            }
+        }
+
+        if ($disk === null) {
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'failed',
+                'message' => 'Файл для обновления цен не найден',
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+            self::clearActiveJobIfMatches($this->jobId);
+
+            return;
+        }
+
+        $absolutePath = Storage::disk($disk)->path($this->storedFilePath);
+
+        try {
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'running',
+                'processed' => 0,
+                'total_linked' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'price_history_rows' => 0,
+                'message' => 'Чтение прайса…',
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+
+            $result = $service->refreshLinkedPricesFromAbsolutePath(
+                $absolutePath,
+                function (array $progress) use ($cacheKey): void {
+                    Cache::put($cacheKey, array_merge(
+                        [
+                            'job_id' => $this->jobId,
+                            'job_type' => 'refresh_linked',
+                            'status' => 'running',
+                            'updated_at' => now()->toDateTimeString(),
+                        ],
+                        $progress
+                    ), now()->addHours(24));
+                }
+            );
+
+            try {
+                $audit->record(
+                    AuditLogService::ENTITY_VANILLE_IMPORT,
+                    null,
+                    AuditLogService::ACTION_UPDATED,
+                    'Seller One: обновлены цены связанных товаров из прайса (очередь)',
+                    [
+                        'operation' => 'seller_one_refresh_linked_prices',
+                        'file_name' => $this->originalFileName,
+                        'updated' => (int) ($result['updated'] ?? 0),
+                        'skipped' => (int) ($result['skipped'] ?? 0),
+                        'price_history_rows' => (int) ($result['price_history_rows'] ?? 0),
+                        'missing_codes' => (int) ($result['missing_codes'] ?? 0),
+                        'deactivated_offers' => (int) ($result['deactivated_offers'] ?? 0),
+                        'deactivated_variants' => (int) ($result['deactivated_variants'] ?? 0),
+                        'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
+                        'linked_products' => (int) ($result['linked_products'] ?? 0),
+                    ]
+                );
+            } catch (Throwable) {
+            }
+
+            $linked = (int) ($result['linked_products'] ?? 0);
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'completed',
+                'processed' => $linked,
+                'total_linked' => $linked,
+                'updated' => (int) ($result['updated'] ?? 0),
+                'skipped' => (int) ($result['skipped'] ?? 0),
+                'price_history_rows' => (int) ($result['price_history_rows'] ?? 0),
+                'missing_codes' => (int) ($result['missing_codes'] ?? 0),
+                'deactivated_offers' => (int) ($result['deactivated_offers'] ?? 0),
+                'deactivated_variants' => (int) ($result['deactivated_variants'] ?? 0),
+                'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
+                'linked_products' => $linked,
+                'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+        } catch (Throwable $e) {
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'failed',
+                'message' => $e->getMessage(),
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+        } finally {
+            self::clearActiveJobIfMatches($this->jobId);
+
+            if (isset($disk)) {
+                try {
+                    Storage::disk($disk)->delete($this->storedFilePath);
+                } catch (Throwable) {
+                }
+            }
+        }
+    }
+
+    public static function cacheKey(string $jobId): string
+    {
+        return "seller_one_refresh_linked_job:{$jobId}";
+    }
+
+    public static function activeKey(): string
+    {
+        return 'seller_one_refresh_linked_active_job';
+    }
+
+    public static function clearActiveJobIfMatches(string $jobId): void
+    {
+        $current = Cache::get(self::activeKey());
+        if ($current === $jobId) {
+            Cache::forget(self::activeKey());
+        }
+    }
+}

@@ -7,6 +7,7 @@ use Modules\Catalog\Http\Controllers\Admin\BrandController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
+use Modules\Catalog\Http\Controllers\Admin\ProductImageAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
@@ -14,7 +15,9 @@ use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
 Route::prefix('catalog')->group(function () {
     Route::get('/brands', [ProductController::class, 'brands']);
     Route::get('/brands/{slug}', [ProductController::class, 'brandBySlug']);
+    Route::get('/filters', [ProductController::class, 'filters']);
     Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/smart-search', [ProductController::class, 'smartSearch']);
     Route::get('/products/{slug}', [ProductController::class, 'show']);
 });
 
@@ -39,7 +42,8 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/sel
     Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);
     Route::get('/supplier-price/status/{jobId}', [VanilleImportController::class, 'sellerOneParseStatus']);
     Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
-    Route::post('/supplier-price/refresh-linked', [VanilleImportController::class, 'refreshSellerOnePrices']);
+    Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
+    Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
     Route::get('/supplier-products', [VanilleImportController::class, 'sellerOneSupplierProducts']);
     Route::post('/supplier-products/force-link', [VanilleImportController::class, 'forceLinkSellerOneProduct']);
     Route::post('/supplier-products/reset-link', [VanilleImportController::class, 'resetSellerOneProductLink']);
@@ -62,7 +66,9 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(f
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group(function () {
     Route::get('/', [ProductAdminController::class, 'index']);
+    Route::get('/search-smart', [ProductAdminController::class, 'smartSearch']);
     Route::post('/', [ProductAdminController::class, 'store']);
+    Route::post('/cache/reset', [ProductAdminController::class, 'resetApiCache']);
     Route::get('/variant-definitions', [ProductVariantAdminController::class, 'catalog']);
     Route::get('/variant-definitions/{id}', [ProductVariantAdminController::class, 'showDefinition']);
     Route::post('/variant-definitions', [ProductVariantAdminController::class, 'storeDefinition']);
@@ -73,6 +79,10 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::get('/{id}/variant-suppliers', [ProductAdminController::class, 'variantSuppliers']);
     Route::put('/{id}', [ProductAdminController::class, 'update']);
     Route::delete('/{id}', [ProductAdminController::class, 'destroy']);
+    Route::post('/{id}/images', [ProductImageAdminController::class, 'upload']);
+    Route::put('/{id}/images/reorder', [ProductImageAdminController::class, 'reorder']);
+    Route::put('/{id}/images/{imageId}/set-main', [ProductImageAdminController::class, 'setMain']);
+    Route::delete('/{id}/images/{imageId}', [ProductImageAdminController::class, 'destroy']);
 
     Route::post('/{id}/attributes', [ProductAttributeAdminController::class, 'store']);
     Route::put('/{id}/attributes/{attributeId}', [ProductAttributeAdminController::class, 'update']);

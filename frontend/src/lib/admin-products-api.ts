@@ -20,8 +20,10 @@ export type ProductAdminItem = {
     name: string;
     slug: string;
     is_active: boolean;
+    is_new: boolean;
+    is_hit: boolean;
+    discounted_variants_count?: number;
     is_out_of_stock?: boolean;
-    is_stock_product?: boolean;
     variants_count: number;
     brand: {
         id: number;
@@ -43,8 +45,20 @@ export type ProductBrandOption = {
     slug: string;
 };
 
+export type ProductSmartSearchItem = {
+    id: number;
+    name: string;
+    brand_name: string | null;
+    variant_titles: string[];
+    score: number;
+};
+
 export type ProductBrandsOptionsResponse = {
     data: ProductBrandOption[];
+};
+
+export type ProductSmartSearchResponse = {
+    data: ProductSmartSearchItem[];
 };
 
 export type ProductAdminDetail = {
@@ -52,8 +66,9 @@ export type ProductAdminDetail = {
     name: string;
     slug: string;
     is_active: boolean;
+    is_new: boolean;
+    is_hit: boolean;
     is_out_of_stock?: boolean;
-    is_stock_product?: boolean;
     h1?: string | null;
     short_description?: string | null;
     description?: string | null;
@@ -117,6 +132,7 @@ export type ProductAdminDetailResponse = {
 export type ProductVariantSupplierItem = {
     id: number;
     title: string;
+    site_price?: number | string | null;
     stock: number;
     warehouses: Array<{
         warehouse_name: string | null;
@@ -153,6 +169,7 @@ export async function fetchProducts(params?: {
     page?: number;
     brand_id?: number;
     out_of_stock?: "" | "1" | "0";
+    status?: "" | "new" | "hit" | "discount";
 }): Promise<ProductsAdminResponse> {
     const searchParams = new URLSearchParams();
 
@@ -168,6 +185,9 @@ export async function fetchProducts(params?: {
     }
     if (params?.out_of_stock === "1" || params?.out_of_stock === "0") {
         searchParams.set("out_of_stock", params.out_of_stock);
+    }
+    if (params?.status) {
+        searchParams.set("status", params.status);
     }
 
     const query = searchParams.toString();
@@ -194,6 +214,30 @@ export async function fetchProductBrandOptions(): Promise<ProductBrandsOptionsRe
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Product brands options API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function smartSearchProducts(params: {
+    q: string;
+    limit?: number;
+}): Promise<ProductSmartSearchResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("q", params.q);
+    if (params.limit) {
+        searchParams.set("limit", String(params.limit));
+    }
+    const query = searchParams.toString();
+
+    const res = await fetch(`${API_BASE}/admin/products/search-smart?${query}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Product smart search API error: ${res.status}`);
     }
 
     return res.json();
@@ -232,7 +276,8 @@ export async function createProduct(payload: {
     name: string;
     slug: string;
     is_active?: boolean;
-    is_stock_product?: boolean;
+    is_new?: boolean;
+    is_hit?: boolean;
     h1?: string;
     short_description?: string;
     description?: string;
@@ -261,7 +306,8 @@ export async function updateProduct(
         name: string;
         slug: string;
         is_active?: boolean;
-        is_stock_product?: boolean;
+        is_new?: boolean;
+        is_hit?: boolean;
         h1?: string;
         short_description?: string;
         description?: string;
@@ -298,3 +344,19 @@ export async function deleteProduct(id: number) {
 
     return res.json();
 }
+
+export async function resetCatalogApiCache(): Promise<{ message?: string; cache_version?: number }> {
+    const res = await fetch(`${API_BASE}/admin/products/cache/reset`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Reset catalog cache API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message?: string; cache_version?: number }>;
+}
+

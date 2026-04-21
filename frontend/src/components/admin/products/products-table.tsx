@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Boxes, Pencil, Trash2 } from "lucide-react";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
+import { resolveProductStatuses } from "@/lib/product-statuses";
 
 type Props = {
     items: ProductAdminItem[];
@@ -24,6 +25,35 @@ function StatusBadge({ active }: { active: boolean }) {
     );
 }
 
+function ProductStatusChips({
+    isNew,
+    isHit,
+    hasDiscount,
+}: {
+    isNew: boolean;
+    isHit: boolean;
+    hasDiscount: boolean;
+}) {
+    const chips = resolveProductStatuses({ isNew, isHit, hasDiscount });
+
+    if (chips.length === 0) {
+        return <span className="text-xs text-gray-400">—</span>;
+    }
+
+    return (
+        <div className="flex flex-wrap gap-1">
+            {chips.map((chip) => (
+                <span
+                    key={chip.code}
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${chip.adminClassName}`}
+                >
+                    {chip.shortLabel}
+                </span>
+            ))}
+        </div>
+    );
+}
+
 export default function ProductsTable({ items, onDeleteAction, onVariantsAction }: Props) {
     return (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -35,6 +65,7 @@ export default function ProductsTable({ items, onDeleteAction, onVariantsAction 
                     <th className="px-3 py-2.5">Бренд</th>
                     <th className="px-3 py-2.5">Slug</th>
                     <th className="px-3 py-2.5">Статус</th>
+                    <th className="px-3 py-2.5">Метки</th>
                     <th className="px-3 py-2.5">Вариантов</th>
                     <th className="px-3 py-2.5 text-right">Действия</th>
                 </tr>
@@ -48,6 +79,13 @@ export default function ProductsTable({ items, onDeleteAction, onVariantsAction 
                         <td className="px-3 py-3 text-gray-500">{item.slug}</td>
                         <td className="px-3 py-3">
                             <StatusBadge active={item.is_active} />
+                        </td>
+                        <td className="px-3 py-3">
+                            <ProductStatusChips
+                                isNew={Boolean(item.is_new)}
+                                isHit={Boolean(item.is_hit)}
+                                hasDiscount={Boolean((item.discounted_variants_count ?? 0) > 0)}
+                            />
                         </td>
                         <td className="px-3 py-3 text-gray-700">
                             <button

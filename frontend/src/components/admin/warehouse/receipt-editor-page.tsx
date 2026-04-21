@@ -12,11 +12,13 @@ import {
     fetchStockReceipt,
     fetchWarehouses,
     fetchWarehouseSuppliers,
+    postStockReceipt,
     updateStockReceipt,
     type StockReceiptPayload,
     type WarehouseOption,
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
+import { STOCK_RECEIPT_STATUS, getStockReceiptStatusLabel } from "@/lib/warehouse-document-status";
 import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
 import {
     fetchVariantDefinitions,
@@ -90,8 +92,11 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [variantOptions, setVariantOptions] = useState<VariantDefinitionItem[]>([]);
     const [loading, setLoading] = useState(isEdit);
     const [saving, setSaving] = useState(false);
+    const [posting, setPosting] = useState(false);
     const [error, setError] = useState("");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [receiptStatus, setReceiptStatus] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState("");
 
     const loadProducts = useCallback(async (query: string) => {
         try {
@@ -176,6 +181,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 };
 
                 setForm(nextForm);
+                setReceiptStatus(receipt.status ?? null);
             } catch (e) {
                 setError(e instanceof Error ? e.message : "Не удалось загрузить приход");
             } finally {
@@ -244,6 +250,25 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         }
     };
 
+    const postReceipt = async () => {
+        if (!isEdit || !receiptId) {
+            return;
+        }
+        setPosting(true);
+        setError("");
+        try {
+            const res = await postStockReceipt(receiptId);
+            setReceiptStatus(res.data.status ?? STOCK_RECEIPT_STATUS.POSTED);
+            setSuccessMessage(res.message || "Приход оприходован");
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось провести приход");
+        } finally {
+            setPosting(false);
+        }
+    };
+
+    const readOnlyPosted = isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED;
+
     const addDraftItem = () => {
         if (!draftItem.product_id) {
             setError("Выберите товар");
@@ -300,8 +325,14 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
                         {isEdit ? `Редактировать приход #${receiptId}` : "Новый приход"}
                     </h1>
+                    {isEdit && receiptStatus ? (
+                        <p className="mt-1 text-sm font-medium text-slate-700">
+                            Статус: {getStockReceiptStatusLabel(receiptStatus)}
+                        </p>
+                    ) : null}
                     <p className="mt-1 text-sm text-slate-600">
-                        Документ поступления товара с немедленным проведением на склад.
+                        Сначала сохраняется черновик; проведение (оприходование) переносит товар на склад и обновляет цены.
+                        Отмена проводки пока недоступна.
                     </p>
                 </div>
 
@@ -312,16 +343,40 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     >
                         Назад
                     </Link>
+                    {isEdit && receiptStatus === STOCK_RECEIPT_STATUS.DRAFT ? (
+                        <button
+                            type="button"
+                            onClick={() => void postReceipt()}
+                            disabled={posting || loading || saving}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-700 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
+                        >
+                            {posting ? "Проводим..." : "Провести оприходование"}
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         onClick={() => void submit()}
-                        disabled={saving || loading}
+                        disabled={
+                            saving ||
+                            loading ||
+                            (isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED)
+                        }
                         className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                     >
-                        {saving ? "Сохраняем..." : "Сохранить приход"}
+                        {saving ? "Сохраняем..." : "Сохранить черновик"}
                     </button>
                 </div>
             </div>
+
+            {successMessage ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="success"
+                        message={successMessage}
+                        onCloseAction={() => setSuccessMessage("")}
+                    />
+                </div>
+            ) : null}
 
             {error ? (
                 <div className="mb-4">
@@ -339,8 +394,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 <span className="text-slate-600">Склад</span>
                                 <select
                                     value={form.warehouse_id ?? ""}
+                                    disabled={readOnlyPosted}
                                     onChange={(e) => setForm((prev) => ({ ...prev, warehouse_id: e.target.value ? Number(e.target.value) : null }))}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
                                 >
                                     <option value="">Выберите склад</option>
                                     {warehouses.map((item) => (
@@ -354,6 +410,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 <span className="text-slate-600">Поставщик</span>
                                 <select
                                     value={form.supplier_id ?? ""}
+                                    disabled={readOnlyPosted}
                                     onChange={(e) => {
                                         const supplierId = e.target.value ? Number(e.target.value) : null;
                                         const supplier = suppliers.find((item) => item.id === supplierId) ?? null;
@@ -364,7 +421,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             supplier_name: supplier?.name ?? "",
                                         }));
                                     }}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
                                 >
                                     <option value="">Выберите поставщика</option>
                                     {suppliers.map((item) => (
@@ -380,8 +437,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 <input
                                     type="datetime-local"
                                     value={form.received_at}
+                                    disabled={readOnlyPosted}
                                     onChange={(e) => setForm((prev) => ({ ...prev, received_at: e.target.value }))}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
                                 />
                             </label>
                         </div>
@@ -390,8 +448,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <span className="text-slate-600">Комментарий</span>
                             <textarea
                                 value={form.comment}
+                                disabled={readOnlyPosted}
                                 onChange={(e) => setForm((prev) => ({ ...prev, comment: e.target.value }))}
-                                className="min-h-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                className="min-h-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
                                 placeholder="Комментарий к приходу"
                             />
                         </label>
@@ -403,7 +462,8 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(true)}
-                                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                                disabled={readOnlyPosted}
+                                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                             >
                                 Добавить товар
                             </button>
@@ -433,13 +493,14 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                                 <span>{item.supplier_price}</span>
                                                 <button
                                                     type="button"
+                                                    disabled={readOnlyPosted}
                                                     onClick={() =>
                                                         setForm((prev) => ({
                                                             ...prev,
                                                             items: prev.items.filter((_, rowIndex) => rowIndex !== index),
                                                         }))
                                                     }
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40"
                                                 >
                                                     ×
                                                 </button>

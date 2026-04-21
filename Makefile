@@ -42,12 +42,10 @@ build:
 	cd $(FRONTEND) && rm -rf .next && $(NPM) run build
 
 dev:
-	@echo "Stopping old dev processes..."
-	@$(PM2) delete $(FRONT_DEV_NAME) >/dev/null 2>&1 || true
+	@$(MAKE) dev-stop
 	@echo "Stopping prod frontend on :3000 if running (otherwise next dev jumps to 3001)..."
 	@$(PM2) stop $(FRONT_PROD_NAME) >/dev/null 2>&1 || true
-	@fuser -k 3000/tcp >/dev/null 2>&1 || true
-	@sleep 2
+	@sleep 1
 	@echo "Starting frontend dev (WATCHPACK_POLLING for SFTP/VM file visibility)..."
 	@cd $(FRONTEND) && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true $(PM2) start npm --name $(FRONT_DEV_NAME) -- run dev
 	@$(PM2) save >/dev/null 2>&1 || true

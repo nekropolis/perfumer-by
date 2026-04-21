@@ -42,7 +42,7 @@ export default function ProductInfoExtra() {
                     </div>
 
                     <div className="mt-1 font-medium">
-                        Life / Velcom / МТС
+                        МТС / A1 / life
                     </div>
 
                     <div className="text-lg font-semibold tracking-wide">

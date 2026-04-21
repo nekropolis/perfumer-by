@@ -16,6 +16,19 @@ export type OrderItemSupplierOffer = {
     last_synced_at: string | null;
 };
 
+export type OrderItemReceiptBatch = {
+    receipt_item_id: number;
+    receipt_id: number;
+    receipt_document_no: string | null;
+    supplier_name: string | null;
+    supplier_code: string | null;
+    supplier_product_name: string | null;
+    supplier_price: string | null;
+    warehouse_name: string | null;
+    qty: number;
+    received_at: string | null;
+};
+
 export type OrderItem = {
     id: number;
     product_id: number | null;
@@ -29,6 +42,7 @@ export type OrderItem = {
     price: string;
     total: string;
     supplier_offers?: OrderItemSupplierOffer[];
+    receipt_batches?: OrderItemReceiptBatch[];
 };
 
 export type OrderData = {

@@ -38,6 +38,7 @@ export type ProductAttributeValueData = {
 export type ProductImageData = {
     id: number;
     path: string;
+    alt?: string | null;
     is_main: boolean;
     sort_order: number;
 };
@@ -95,8 +96,41 @@ export type ProductsResponse = {
     };
 };
 
+export type CatalogFilterAttributeOption = {
+    id: number;
+    name: string;
+    sort_order: number;
+    products_count: number;
+};
+
+export type CatalogFilterAttribute = {
+    id: number;
+    name: string;
+    type: "text" | "select" | "multiselect";
+    sort_order: number;
+    options: CatalogFilterAttributeOption[];
+};
+
+export type CatalogFiltersResponse = {
+    data: {
+        price: {
+            min: number | null;
+            max: number | null;
+        };
+        volume: {
+            key: string;
+            label: string;
+            products_count: number;
+        }[];
+        attributes: CatalogFilterAttribute[];
+    };
+};
+
 export type ProductDetailData = {
     id: number;
+    is_active?: boolean;
+    is_new?: boolean;
+    is_hit?: boolean;
     is_out_of_stock: boolean;
     name: string;
     slug: string;

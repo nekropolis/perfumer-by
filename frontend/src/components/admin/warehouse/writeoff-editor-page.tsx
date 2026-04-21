@@ -28,6 +28,7 @@ type WriteoffFormItem = {
 };
 
 type WriteoffFormState = {
+    document_kind: "writeoff" | "reserve";
     warehouse_id: number | null;
     written_off_at: string;
     comment: string;
@@ -60,6 +61,7 @@ const emptyDraftItem = (): DraftWriteoffItem => ({
 });
 
 const emptyForm = (): WriteoffFormState => ({
+    document_kind: "writeoff",
     warehouse_id: null,
     written_off_at: new Date().toISOString().slice(0, 16),
     comment: "",
@@ -230,8 +232,10 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         );
         const availableQty = Math.max(0, Number(selectedVariant?.available_stock ?? 0));
         const reservedQty = Math.max(0, Number(selectedVariant?.reserved_stock ?? 0));
+        const effectiveSource: "available" | "reserved" =
+            form.document_kind === "reserve" ? "available" : draftItem.stock_source;
         const maxForSource =
-            draftItem.stock_source === "reserved" ? reservedQty : availableQty;
+            effectiveSource === "reserved" ? reservedQty : availableQty;
         if (maxForSource <= 0) {
             setError(
                 draftItem.stock_source === "reserved"
@@ -260,7 +264,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     price: draftItem.price,
                     available_qty: availableQty,
                     reserved_qty: reservedQty,
-                    stock_source: draftItem.stock_source,
+                    stock_source: effectiveSource,
                 },
             ],
         }));
@@ -296,6 +300,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             });
 
             const payload: StockWriteoffPayload = {
+                document_kind: form.document_kind,
                 warehouse_id: form.warehouse_id,
                 written_off_at: form.written_off_at || null,
                 comment: form.comment.trim(),
@@ -331,9 +336,13 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Новое списание</h1>
+                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+                        {form.document_kind === "reserve" ? "Новый резерв" : "Новое списание"}
+                    </h1>
                     <p className="mt-1 text-sm text-slate-600">
-                        Списание со свободного остатка или из резерва. Отмена движений на складе поставщика не поддерживается.
+                        {form.document_kind === "reserve"
+                            ? "Ручной документ резерва. Добавляет резерв на выбранном складе без изменения фактического остатка."
+                            : "Списание со свободного остатка или из резерва. Отмена движений на складе поставщика не поддерживается."}
                     </p>
                 </div>
 
@@ -350,7 +359,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         disabled={saving}
                         className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                     >
-                        {saving ? "Сохраняем..." : "Сохранить списание"}
+                        {saving ? "Сохраняем..." : form.document_kind === "reserve" ? "Сохранить резерв" : "Сохранить списание"}
                     </button>
                 </div>
             </div>
@@ -363,6 +372,29 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             <div className="space-y-4">
                 <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                    <div className="mb-3 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                        <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                                type="radio"
+                                name="document-kind"
+                                checked={form.document_kind === "writeoff"}
+                                onChange={() => setForm((prev) => ({ ...prev, document_kind: "writeoff" }))}
+                                className="h-4 w-4"
+                            />
+                            <span>Списание</span>
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                                type="radio"
+                                name="document-kind"
+                                checked={form.document_kind === "reserve"}
+                                onChange={() => setForm((prev) => ({ ...prev, document_kind: "reserve" }))}
+                                className="h-4 w-4"
+                            />
+                            <span>Резерв</span>
+                        </label>
+                    </div>
+
                     <div className="flex flex-nowrap items-end gap-3">
                         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                             <span className="text-slate-600">Склад</span>
@@ -396,7 +428,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             value={form.comment}
                             onChange={(e) => setForm((prev) => ({ ...prev, comment: e.target.value }))}
                             className="min-h-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
-                            placeholder="Причина списания"
+                            placeholder={form.document_kind === "reserve" ? "Причина резерва" : "Причина списания"}
                         />
                     </label>
                 </div>
@@ -421,7 +453,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     <div className="p-3 sm:p-4">
                         {form.items.length === 0 ? (
                             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                                Пока нет строк. Добавьте варианты со свободным остатком или с активным резервом на выбранном складе.
+                                {form.document_kind === "reserve"
+                                    ? "Пока нет строк. Добавьте варианты со свободным остатком для ручного резерва."
+                                    : "Пока нет строк. Добавьте варианты со свободным остатком или с активным резервом на выбранном складе."}
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -464,6 +498,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                             }));
                                                         }}
                                                         className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
+                                                        disabled={form.document_kind === "reserve"}
                                                     >
                                                         <option value="available">Свободно</option>
                                                         <option value="reserved" disabled={item.reserved_qty <= 0}>
@@ -550,7 +585,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                     <input
                                         type="radio"
                                         name="writeoff-stock-source"
-                                        checked={draftItem.stock_source === "available"}
+                                        checked={draftItem.stock_source === "available" || form.document_kind === "reserve"}
                                         onChange={() => {
                                             const productId = draftItem.product_id;
                                             setDraftItem((prev) => ({
@@ -565,6 +600,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                             }
                                         }}
                                         className="h-4 w-4"
+                                        disabled={form.document_kind === "reserve"}
                                     />
                                     <span>Свободный остаток</span>
                                 </label>
@@ -587,6 +623,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                             }
                                         }}
                                         className="h-4 w-4"
+                                        disabled={form.document_kind === "reserve"}
                                     />
                                     <span>Резерв</span>
                                 </label>

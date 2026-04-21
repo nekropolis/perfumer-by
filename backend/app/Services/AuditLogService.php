@@ -35,6 +35,8 @@ class AuditLogService
 
     public const ENTITY_STOCK_IMPORT = 'stock_import';
 
+    public const ENTITY_CMS_PAGE = 'cms_page';
+
     public function record(
         string $entityType,
         ?int $entityId,

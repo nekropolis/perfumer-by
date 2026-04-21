@@ -6,8 +6,11 @@ if (!API_BASE) {
 
 export type RequestCodeResponse = {
     message: string;
-    dev_code: string;
+    dev_code?: string;
     phone: string;
+    delivery_channel?: "viber" | "sms" | "manual";
+    delivery_status?: string;
+    fallback_used?: boolean;
 };
 
 export type VerifyCodeResponse = {
@@ -32,18 +35,44 @@ export type MeResponse = {
     } | null;
 };
 
-export async function requestPhoneCode(phone: string): Promise<RequestCodeResponse> {
+export class ApiRequestError extends Error {
+    code?: string;
+    status: number;
+
+    constructor(message: string, status: number, code?: string) {
+        super(message);
+        this.name = "ApiRequestError";
+        this.status = status;
+        this.code = code;
+    }
+}
+
+async function throwApiError(res: Response, fallback: string): Promise<never> {
+    const text = await res.text();
+    try {
+        const payload = text ? JSON.parse(text) : null;
+        throw new ApiRequestError(
+            payload?.message || fallback,
+            res.status,
+            typeof payload?.code === "string" ? payload.code : undefined
+        );
+    } catch {
+        throw new ApiRequestError(text || fallback, res.status);
+    }
+}
+
+export async function requestPhoneCode(phone: string, captchaToken?: string): Promise<RequestCodeResponse> {
     const res = await fetch(`${API_BASE}/auth/request-code`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, captcha_token: captchaToken || undefined }),
         cache: "no-store",
     });
 
     if (!res.ok) {
-        throw new Error(`Request code API error: ${res.status}`);
+        return throwApiError(res, `Request code API error: ${res.status}`);
     }
 
     return res.json();
@@ -64,7 +93,7 @@ export async function verifyPhoneCode(
     });
 
     if (!res.ok) {
-        throw new Error(`Verify code API error: ${res.status}`);
+        return throwApiError(res, `Verify code API error: ${res.status}`);
     }
 
     return res.json();

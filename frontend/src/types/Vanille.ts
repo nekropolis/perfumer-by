@@ -150,13 +150,24 @@ export type SellerOneParseStartResponse = {
 
 export type SellerOneParseStatus = {
     job_id: string;
+    /** Парсинг прайса (`parse`) или фоновое обновление цен связанных (`refresh_linked`). */
+    job_type?: "parse" | "refresh_linked";
     status: "queued" | "running" | "completed" | "failed";
     processed?: number;
     total_rows?: number;
+    /** Для refresh_linked: число связанных строк каталога. */
+    total_linked?: number;
     matched?: number;
     inserted?: number;
     updated?: number;
     skipped_linked?: number;
+    skipped?: number;
+    price_history_rows?: number;
+    missing_codes?: number;
+    deactivated_offers?: number;
+    deactivated_variants?: number;
+    codes_in_price?: number;
+    linked_products?: number;
     message?: string;
     updated_at?: string;
 };
@@ -193,6 +204,8 @@ export type SellerOneSupplierProductItem = {
         total: number;
         name_percent: number;
         name_points: number;
+        /** Уровень совпадения имени (бэкенд SellerOneVariantMatcher). */
+        name_match_level?: "none" | "exact" | "exact_multiset" | "partial";
         volume_match: boolean;
         volume_points: number;
         concentration_match: boolean;
@@ -220,7 +233,7 @@ export type SellerOneSupplierProductItem = {
         brand_name: string | null;
         display: string;
     } | null;
-    // Продукт-кандидат без варианта: матч по имени сработал (80% точный / 70% частичный),
+    // Продукт-кандидат без варианта: матч по имени (80% exact / exact_multiset, 70% partial),
     // но подходящего варианта нет. UI предлагает «Создать вариант».
     suggested_product?: {
         id: number;
@@ -264,6 +277,5 @@ export type SellerOnePricingSettings = {
     price_markup: number;
     price_rate: number;
     price_fixed_fee: number;
-    price_intermediate_precision: number;
-    price_final_precision: number;
+    price_precision: number;
 };

@@ -69,6 +69,8 @@ class StockInventoryService
             }
         }
 
+        $reserveDocument = $this->createOrderReserveDocument($order);
+
         $this->writeAudit(
             AuditLogService::ENTITY_STOCK_RESERVATION,
             null,
@@ -78,6 +80,8 @@ class StockInventoryService
                 'order_id' => $order->id,
                 'created_count' => $created,
                 'skipped' => $skipped,
+                'reserve_document_id' => $reserveDocument['document_id'],
+                'reserve_document_created' => $reserveDocument['created'],
             ]
         );
 
@@ -413,6 +417,97 @@ class StockInventoryService
         });
     }
 
+    public function createManualReserve(array $validated): StockWriteoff
+    {
+        return DB::transaction(function () use ($validated) {
+            $warehouseId = (int) ($validated['warehouse_id'] ?? $this->getDefaultSupplierWarehouseId());
+            $writeoff = StockWriteoff::query()->create([
+                'warehouse_id' => $warehouseId,
+                'type' => 'reserve',
+                'order_id' => null,
+                'status' => StockWriteoff::STATUS_POSTED,
+                'written_off_at' => $validated['written_off_at'] ?? now(),
+                'comment' => $validated['comment'] ?? null,
+                'created_by' => Auth::id(),
+                'updated_by' => Auth::id(),
+            ]);
+            $writeoff->update(['document_no' => (string) $writeoff->id]);
+
+            $auditItems = [];
+
+            foreach ($validated['items'] as $item) {
+                $product = Product::query()->findOrFail((int) $item['product_id']);
+                $variant = ProductVariantLink::query()
+                    ->where('product_id', $product->id)
+                    ->with('definition')
+                    ->lockForUpdate()
+                    ->findOrFail((int) $item['variant_id']);
+
+                $qty = (int) $item['qty'];
+                $price = array_key_exists('price', $item) ? (float) $item['price'] : null;
+
+                StockWriteoffItem::query()->create([
+                    'stock_writeoff_id' => $writeoff->id,
+                    'product_id' => $product->id,
+                    'variant_id' => $variant->id,
+                    'product_name' => $product->name,
+                    'variant_title' => $variant->title,
+                    'qty' => $qty,
+                    'price' => $price,
+                    'payload' => array_merge($item['payload'] ?? [], [
+                        'warehouse_id' => $warehouseId,
+                        'stock_source' => 'available',
+                        'reserve_document' => true,
+                    ]),
+                ]);
+
+                $this->applyManualReserveLine(
+                    $variant,
+                    $qty,
+                    'stock_writeoff',
+                    $writeoff->id,
+                    [
+                        'reserve_type' => 'manual',
+                        'comment' => $validated['comment'] ?? null,
+                        'warehouse_id' => $warehouseId,
+                    ],
+                    $warehouseId
+                );
+
+                $auditItems[] = [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'variant_id' => $variant->id,
+                    'variant_title' => $variant->title,
+                    'qty' => $qty,
+                    'price' => $price,
+                    'warehouse_id' => $warehouseId,
+                ];
+            }
+
+            $this->writeAudit(
+                AuditLogService::ENTITY_STOCK_RESERVATION,
+                $writeoff->id,
+                AuditLogService::ACTION_CREATED,
+                "Создан ручной резерв #{$writeoff->document_no}",
+                [
+                    'reserve_document_id' => $writeoff->id,
+                    'document_no' => $writeoff->document_no,
+                    'warehouse_id' => $warehouseId,
+                    'warehouse_name' => Warehouse::query()->find($warehouseId)?->name,
+                    'reserved_at' => $writeoff->written_off_at,
+                    'items_count' => count($validated['items']),
+                    'qty_total' => array_sum(array_map(static fn (array $line): int => (int) ($line['qty'] ?? 0), $validated['items'])),
+                    'comment' => $validated['comment'] ?? null,
+                    'items' => $auditItems,
+                ],
+                $warehouseId
+            );
+
+            return $writeoff->load('items');
+        });
+    }
+
     /**
      * Есть ли движения списания, которые можно откатить (все кроме виртуального склада поставщика).
      */
@@ -685,6 +780,52 @@ class StockInventoryService
         }
 
         $this->decreaseVariantStock($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
+    }
+
+    private function applyManualReserveLine(
+        ProductVariantLink $variant,
+        int $qty,
+        string $documentType,
+        int $documentId,
+        array $payload,
+        int $warehouseId,
+    ): void {
+        if ($qty <= 0) {
+            return;
+        }
+
+        $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+        $beforeStock = (int) $warehouseStock->stock;
+        $beforeReserved = (int) $warehouseStock->reserved_stock;
+        $available = max(0, $beforeStock - $beforeReserved);
+
+        if ($available < $qty) {
+            throw ValidationException::withMessages([
+                'items' => "Недостаточно свободного остатка для резерва варианта #{$variant->id} на складе #{$warehouseId}",
+            ]);
+        }
+
+        $warehouseStock->update([
+            'reserved_stock' => $beforeReserved + $qty,
+        ]);
+
+        $this->createMovement(
+            self::MOVEMENT_RESERVE,
+            $documentType,
+            $documentId,
+            $warehouseId,
+            $variant,
+            0,
+            $qty,
+            $payload,
+            $beforeStock,
+            $beforeReserved,
+            (int) $warehouseStock->stock,
+            (int) $warehouseStock->reserved_stock,
+        );
+
+        $this->syncVariantAggregates((int) $variant->id);
+        $this->syncProductStockFlagsByProductId((int) $variant->product_id);
     }
 
     private function reserveOrderItem(Order $order, OrderItem $item): array
@@ -992,6 +1133,111 @@ class StockInventoryService
         $supplierId = $this->getDefaultSupplierWarehouseId();
 
         return $supplierId > 0 ? $supplierId : $mainId;
+    }
+
+    /**
+     * Создаёт документ резерва по заказу (для отображения в админке),
+     * если его ещё нет. Не меняет остатки — это только журнал документа.
+     *
+     * @return array{document_id: ?int, created: bool}
+     */
+    private function createOrderReserveDocument(Order $order): array
+    {
+        $existing = StockWriteoff::query()
+            ->where('type', 'reserve')
+            ->where('order_id', $order->id)
+            ->first();
+        if ($existing) {
+            return [
+                'document_id' => (int) $existing->id,
+                'created' => false,
+            ];
+        }
+
+        $reservations = StockReservation::query()
+            ->where('order_id', $order->id)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->get();
+        if ($reservations->isEmpty()) {
+            return [
+                'document_id' => null,
+                'created' => false,
+            ];
+        }
+
+        $headerWarehouseId = $this->resolveOrderWriteoffHeaderWarehouseId($order);
+        $writeoff = StockWriteoff::query()->create([
+            'warehouse_id' => $headerWarehouseId,
+            'type' => 'reserve',
+            'order_id' => $order->id,
+            'status' => StockWriteoff::STATUS_POSTED,
+            'written_off_at' => now(),
+            'comment' => "Автоматический резерв по заказу #{$order->id}",
+            'created_by' => Auth::id(),
+            'updated_by' => Auth::id(),
+        ]);
+        $writeoff->update(['document_no' => (string) $writeoff->id]);
+
+        $orderItems = $order->relationLoaded('items')
+            ? $order->items->keyBy('id')
+            : OrderItem::query()->where('order_id', $order->id)->get()->keyBy('id');
+
+        $byOrderItem = $reservations->groupBy('order_item_id');
+        foreach ($byOrderItem as $orderItemId => $group) {
+            $orderItem = $orderItems->get((int) $orderItemId);
+            $first = $group->first();
+            if (!$orderItem || !$first) {
+                continue;
+            }
+
+            $qty = (int) $group->sum('qty');
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $warehouseLines = $group->map(static function (StockReservation $reservation): array {
+                return [
+                    'warehouse_id' => (int) $reservation->warehouse_id,
+                    'qty' => (int) $reservation->qty,
+                    'reservation_id' => (int) $reservation->id,
+                ];
+            })->values()->all();
+
+            StockWriteoffItem::query()->create([
+                'stock_writeoff_id' => $writeoff->id,
+                'product_id' => (int) $orderItem->product_id,
+                'variant_id' => (int) $first->variant_id,
+                'product_name' => (string) $orderItem->product_name,
+                'variant_title' => (string) $orderItem->variant_title,
+                'qty' => $qty,
+                'price' => $orderItem->price,
+                'payload' => [
+                    'order_item_id' => (int) $orderItem->id,
+                    'order_qty' => (int) $orderItem->qty,
+                    'stock_source' => 'reserved',
+                    'reserve_document' => true,
+                    'warehouse_lines' => $warehouseLines,
+                ],
+            ]);
+        }
+
+        $this->writeAudit(
+            AuditLogService::ENTITY_STOCK_WRITEOFF,
+            $writeoff->id,
+            AuditLogService::ACTION_CREATED,
+            "Создан документ резерва по заказу #{$order->id}",
+            [
+                'order_id' => $order->id,
+                'reserve_document_id' => $writeoff->id,
+            ],
+            (int) $writeoff->warehouse_id
+        );
+
+        return [
+            'document_id' => (int) $writeoff->id,
+            'created' => true,
+        ];
     }
 
 }

@@ -18,6 +18,7 @@ import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     deleteAttribute,
     fetchAttributes,
+    updateAttribute,
     type AttributeAdminItem,
     type AttributesAdminResponse,
 } from "@/lib/admin-attributes-api";
@@ -38,6 +39,7 @@ export default function AdminAttributesPage() {
 
     const [deleteTarget, setDeleteTarget] = useState<AttributeAdminItem | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [pendingFilterIds, setPendingFilterIds] = useState<number[]>([]);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -90,6 +92,39 @@ export default function AdminAttributesPage() {
             );
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const handleToggleFilter = async (item: AttributeAdminItem, nextValue: boolean) => {
+        setError("");
+        setSuccess("");
+        setPendingFilterIds((prev) => [...prev, item.id]);
+
+        try {
+            const payload = {
+                name: item.name,
+                type: item.type,
+                sort_order: item.sort_order,
+                is_active: item.is_active,
+                is_filterable: nextValue,
+                filter_sort_order: item.filter_sort_order,
+            };
+            const result = await updateAttribute(item.id, payload);
+
+            setItems((prev) =>
+                prev.map((current) =>
+                    current.id === item.id ? { ...current, is_filterable: nextValue } : current
+                )
+            );
+            setSuccess(result.message || "Флаг фильтра обновлен");
+        } catch (e: unknown) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Ошибка обновления флага фильтра"
+            );
+        } finally {
+            setPendingFilterIds((prev) => prev.filter((id) => id !== item.id));
         }
     };
 
@@ -155,7 +190,12 @@ export default function AdminAttributesPage() {
                         />
                     }
                 >
-                    <AttributesTable items={items} onDeleteAction={setDeleteTarget} />
+                    <AttributesTable
+                        items={items}
+                        onDeleteAction={setDeleteTarget}
+                        onToggleFilterAction={handleToggleFilter}
+                        pendingFilterIds={pendingFilterIds}
+                    />
                 </AdminTableShell>
             )}
 

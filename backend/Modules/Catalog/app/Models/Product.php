@@ -24,7 +24,6 @@ class Product extends Model
         'is_new',
         'is_hit',
         'is_out_of_stock',
-        'is_stock_product',
         'sort_order',
     ];
 
@@ -33,7 +32,6 @@ class Product extends Model
         'is_new' => 'boolean',
         'is_hit' => 'boolean',
         'is_out_of_stock' => 'boolean',
-        'is_stock_product' => 'boolean',
     ];
 
     public function brand(): BelongsTo
@@ -59,7 +57,14 @@ class Product extends Model
     public function activeVariants(): HasMany
     {
         return $this->hasMany(ProductVariantLink::class)
-            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->where('is_active', true)
+                    ->orWhere('stock', '>', 0)
+                    ->orWhere('is_preorder', true)
+                    ->orWhereHas('supplierOffers', function ($supplierQuery) {
+                        $supplierQuery->where('is_active', true);
+                    });
+            })
             ->orderBy('sort_order');
     }
 

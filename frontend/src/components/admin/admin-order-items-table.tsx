@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Info } from "lucide-react";
 import type { OrderItem } from "@/types/orders";
 import AdminOrderItemSuppliersModal from "@/components/admin/admin-order-item-suppliers-modal";
+import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 import CopyText from "@/components/ui/copy-text";
 
 type Props = {
@@ -29,7 +29,9 @@ export default function AdminOrderItemsTable({ items }: Props) {
                     </thead>
                     <tbody className="divide-y">
                         {items.map((item) => {
-                            const suppliersCount = item.supplier_offers?.length ?? 0;
+                            const suppliersCount =
+                                (item.supplier_offers?.length ?? 0) +
+                                (item.receipt_batches?.length ?? 0);
 
                             return (
                                 <tr key={item.id} className="align-top">
@@ -75,24 +77,13 @@ export default function AdminOrderItemsTable({ items }: Props) {
                                         {item.total}
                                     </td>
                                     <td className="px-3 py-3 text-center">
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
+                                        <AdminInfoButton
+                                            count={suppliersCount}
+                                            onClickAction={(e) => {
                                                 e.stopPropagation();
-                                                console.log("[AdminOrderItemsTable] click i-button", item);
                                                 setActiveItem(item);
                                             }}
-                                            className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border text-gray-600 transition hover:bg-gray-50"
-                                            title="Подробности позиции"
-                                            aria-label="Подробности позиции"
-                                        >
-                                            <Info className="h-4 w-4" />
-                                            {suppliersCount > 0 && (
-                                                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-gray-900 px-1 text-[10px] font-semibold text-white">
-                                                    {suppliersCount}
-                                                </span>
-                                            )}
-                                        </button>
+                                        />
                                     </td>
                                 </tr>
                             );

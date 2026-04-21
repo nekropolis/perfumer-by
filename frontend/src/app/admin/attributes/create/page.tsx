@@ -16,6 +16,8 @@ const emptyForm: AttributeFormState = {
     type: "text",
     sort_order: "0",
     is_active: true,
+    is_filterable: false,
+    filter_sort_order: "0",
 };
 
 export default function AdminAttributeCreatePage() {
@@ -41,6 +43,8 @@ export default function AdminAttributeCreatePage() {
                 type: form.type,
                 sort_order: Number(form.sort_order || 0),
                 is_active: form.is_active,
+                is_filterable: form.is_filterable,
+                filter_sort_order: Number(form.filter_sort_order || 0),
             });
 
             router.push("/admin/attributes");

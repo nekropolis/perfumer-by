@@ -7,7 +7,7 @@ type SeoInput = {
 };
 
 const SITE_NAME = "Perfumer";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://192.168.0.25";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
 
 export function buildSeoMetadata({
                                      title,

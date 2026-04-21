@@ -41,6 +41,8 @@ class AttributeController extends Controller
             'type' => ['required', Rule::in(['text', 'select', 'multiselect'])],
             'sort_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
+            'is_filterable' => ['nullable', 'boolean'],
+            'filter_sort_order' => ['nullable', 'integer'],
         ]);
 
         $attribute = ProductAttribute::query()->create([
@@ -48,6 +50,8 @@ class AttributeController extends Controller
             'type' => $validated['type'],
             'sort_order' => $validated['sort_order'] ?? 0,
             'is_active' => $validated['is_active'] ?? true,
+            'is_filterable' => $validated['is_filterable'] ?? false,
+            'filter_sort_order' => $validated['filter_sort_order'] ?? 0,
         ]);
 
         return response()->json([
@@ -77,6 +81,8 @@ class AttributeController extends Controller
             'type' => ['required', Rule::in(['text', 'select', 'multiselect'])],
             'sort_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
+            'is_filterable' => ['nullable', 'boolean'],
+            'filter_sort_order' => ['nullable', 'integer'],
         ]);
 
         $attribute->update([
@@ -84,6 +90,8 @@ class AttributeController extends Controller
             'type' => $validated['type'],
             'sort_order' => $validated['sort_order'] ?? $attribute->sort_order,
             'is_active' => $validated['is_active'] ?? $attribute->is_active,
+            'is_filterable' => $validated['is_filterable'] ?? $attribute->is_filterable,
+            'filter_sort_order' => $validated['filter_sort_order'] ?? $attribute->filter_sort_order,
         ]);
 
         return response()->json([

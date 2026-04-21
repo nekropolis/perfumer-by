@@ -28,6 +28,8 @@ export type AttributeAdminItem = {
     type: AttributeType;
     sort_order: number;
     is_active: boolean;
+    is_filterable: boolean;
+    filter_sort_order: number;
     options_count?: number;
 };
 
@@ -37,6 +39,8 @@ export type AttributeAdminDetail = {
     type: AttributeType;
     sort_order: number;
     is_active: boolean;
+    is_filterable: boolean;
+    filter_sort_order: number;
     options_count?: number;
     options?: AttributeOptionAdminItem[];
 };
@@ -106,6 +110,8 @@ export async function createAttribute(payload: {
     type: AttributeType;
     sort_order?: number;
     is_active?: boolean;
+    is_filterable?: boolean;
+    filter_sort_order?: number;
 }) {
     const res = await fetch(`${API_BASE}/admin/attributes`, {
         method: "POST",
@@ -129,6 +135,8 @@ export async function updateAttribute(
         type: AttributeType;
         sort_order?: number;
         is_active?: boolean;
+        is_filterable?: boolean;
+        filter_sort_order?: number;
     }
 ) {
     const res = await fetch(`${API_BASE}/admin/attributes/${id}`, {

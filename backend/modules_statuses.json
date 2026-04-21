@@ -2,7 +2,10 @@
     "Catalog": true,
     "Cart": true,
     "Checkout": true,
+    "Communications": false,
     "Users": true,
     "ImportExport": true,
-    "Warehouse": true
+    "Warehouse": true,
+    "Wishlist": true,
+    "Pages": true
 }

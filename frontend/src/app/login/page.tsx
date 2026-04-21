@@ -1,11 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { requestPhoneCode, verifyPhoneCode } from "@/lib/auth-api";
+import { useEffect, useState, useTransition } from "react";
+import { ApiRequestError, requestPhoneCode, verifyPhoneCode } from "@/lib/auth-api";
 import { useAuth } from "@/components/auth/auth-provider";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
 import {isPrivilegedRole} from "@/constants/admin-roles";
+
+declare global {
+    interface Window {
+        grecaptcha?: {
+            ready: (cb: () => void) => void;
+            execute: (siteKey: string, options: { action: string }) => Promise<string>;
+        };
+    }
+}
 
 export default function LoginPage() {
     const router = useRouter();
@@ -17,12 +26,80 @@ export default function LoginPage() {
     const [code, setCode] = useState("");
     const [devCode, setDevCode] = useState("");
     const [message, setMessage] = useState("");
+    const [captchaSecurityNotice, setCaptchaSecurityNotice] = useState(false);
     const [isPending, startTransition] = useTransition();
+    const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
 
     const phoneIsValid = isBelarusPhoneComplete(phone);
 
+    useEffect(() => {
+        if (!recaptchaSiteKey || typeof window === "undefined" || document.getElementById("recaptcha-v3-script")) {
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.id = "recaptcha-v3-script";
+        script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(recaptchaSiteKey)}`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+    }, [recaptchaSiteKey]);
+
+    const getRecaptchaToken = async (): Promise<string | undefined> => {
+        if (!recaptchaSiteKey || typeof window === "undefined" || !window.grecaptcha) {
+            return undefined;
+        }
+
+        return await new Promise<string | undefined>((resolve) => {
+            window.grecaptcha?.ready(async () => {
+                try {
+                    const token = await window.grecaptcha?.execute(recaptchaSiteKey, { action: "request_code" });
+                    resolve(token || undefined);
+                } catch {
+                    resolve(undefined);
+                }
+            });
+        });
+    };
+
+    const getFriendlyAuthError = (error: unknown, fallback: string): string => {
+        if (error instanceof ApiRequestError) {
+            if (error.code === "auth.captcha.required" || error.code === "auth.captcha.failed") {
+                setCaptchaSecurityNotice(true);
+                return "Подтвердите, что вы не робот, и повторите запрос.";
+            }
+            setCaptchaSecurityNotice(false);
+            if (error.code === "auth.otp.request.cooldown") {
+                return error.message;
+            }
+            if (error.code === "auth.otp.request.phone_limit_15m" || error.code === "auth.otp.request.phone_limit_day") {
+                return "Слишком часто запрашиваете код для этого номера. Попробуйте позже.";
+            }
+            if (error.code === "auth.otp.request.ip_limit_15m" || error.code === "auth.otp.request.ip_phone_limit_15m") {
+                return "Слишком много запросов с вашего устройства. Попробуйте позже.";
+            }
+            if (error.code === "auth.otp.verify.blocked") {
+                return "Слишком много неверных попыток. Попробуйте позже.";
+            }
+            if (error.code === "auth.otp.verify.invalid_code" || error.code === "auth.otp.verify.expired") {
+                return error.message;
+            }
+
+            return error.message || fallback;
+        }
+
+        if (error instanceof Error) {
+            setCaptchaSecurityNotice(false);
+            return error.message || fallback;
+        }
+
+        setCaptchaSecurityNotice(false);
+        return fallback;
+    };
+
     const handleRequestCode = () => {
         setMessage("");
+        setCaptchaSecurityNotice(false);
 
         if (!phoneIsValid) {
             setMessage("Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX");
@@ -31,18 +108,23 @@ export default function LoginPage() {
 
         startTransition(async () => {
             try {
-                const response = await requestPhoneCode(phone);
-                setDevCode(response.dev_code);
+                const captchaToken = await getRecaptchaToken();
+                const response = await requestPhoneCode(phone, captchaToken);
+                setDevCode(response.dev_code ?? "");
+                if (response.delivery_channel === "manual" && response.dev_code) {
+                    setMessage(`Viber/SMS недоступны. Временный код: ${response.dev_code}`);
+                }
                 setStep("code");
             } catch (error) {
                 console.error(error);
-                setMessage("Не удалось запросить код");
+                setMessage(getFriendlyAuthError(error, "Не удалось запросить код"));
             }
         });
     };
 
     const handleVerifyCode = () => {
         setMessage("");
+        setCaptchaSecurityNotice(false);
 
         startTransition(async () => {
             try {
@@ -62,7 +144,7 @@ export default function LoginPage() {
                 }
             } catch (error) {
                 console.error(error);
-                setMessage("Неверный код или ошибка авторизации");
+                setMessage(getFriendlyAuthError(error, "Неверный код или ошибка авторизации"));
             }
         });
     };
@@ -132,6 +214,12 @@ export default function LoginPage() {
                 {message && (
                     <div className="mt-4 rounded-xl border px-4 py-3 text-sm text-gray-700">
                         {message}
+                    </div>
+                )}
+
+                {captchaSecurityNotice && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Включена дополнительная проверка безопасности. Это нормально при частых попытках входа.
                     </div>
                 )}
             </div>

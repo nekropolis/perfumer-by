@@ -12,10 +12,13 @@ class ProductAttribute extends Model
         'type',
         'sort_order',
         'is_active',
+        'is_filterable',
+        'filter_sort_order',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_filterable' => 'boolean',
     ];
 
     public function options(): HasMany

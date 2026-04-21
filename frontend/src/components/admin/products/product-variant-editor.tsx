@@ -6,6 +6,7 @@ import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import {
     createProductVariant,
     deleteProductVariant,
+    fetchProductVariants,
     fetchVariantDefinitions,
     updateProductVariant,
     type AdminProductVariantItem,
@@ -118,20 +119,57 @@ function extractMlSearch(query: string): string | undefined {
 }
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
+    const hasStock = Number(item.main_available_stock ?? 0) > 0;
+    const hasSupplier = Number(item.active_supplier_offers_count ?? 0) > 0;
+    const hasPreorder = Boolean(item.is_preorder);
+    const manuallyEnabled = Boolean(item.is_active);
+    const isEffectiveActive =
+        manuallyEnabled || hasPreorder || hasStock || hasSupplier;
+    const reasonLabel = hasStock
+        ? "Остаток"
+        : hasSupplier
+            ? "Поставщик"
+            : hasPreorder
+                ? "Предзаказ"
+                : manuallyEnabled
+                    ? "Включен"
+                    : null;
+    const reasonDetails = [
+        hasStock ? "Остаток" : null,
+        hasSupplier ? "Поставщик" : null,
+        hasPreorder ? "Предзаказ" : null,
+        manuallyEnabled ? "Включен" : null,
+    ].filter(Boolean) as string[];
+    const statusTooltip = isEffectiveActive
+        ? `Причины активности: ${reasonDetails.join(", ")}`
+        : "Вариант выключен и не имеет доступности по остатку/поставщику/предзаказу";
+
     return (
         <div className="flex flex-wrap items-center gap-1">
             <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.is_active
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isEffectiveActive
                     ? "bg-green-50 text-green-700"
                     : "bg-gray-100 text-gray-600"
                     }`}
+                title={statusTooltip}
             >
-                {item.is_active ? "Активен" : "Выкл"}
+                {isEffectiveActive ? "Активен" : "Выкл"}
             </span>
 
-            {item.is_preorder ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                    Предзаказ
+            {reasonLabel ? (
+                <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        reasonLabel === "Остаток"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : reasonLabel === "Поставщик"
+                                ? "bg-blue-50 text-blue-700"
+                                : reasonLabel === "Предзаказ"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-gray-100 text-gray-700"
+                    }`}
+                    title={`Основная причина: ${reasonLabel}`}
+                >
+                    {reasonLabel}
                 </span>
             ) : null}
         </div>
@@ -246,9 +284,23 @@ export default function ProductVariantsEditor({
     const [variantSupplierInfo, setVariantSupplierInfo] = useState<Record<number, ProductVariantSupplierItem>>({});
     const [variantSupplierInfoLoading, setVariantSupplierInfoLoading] = useState(false);
     const [variantSupplierInfoError, setVariantSupplierInfoError] = useState("");
+    const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
+
+    const loadVariants = useCallback(async () => {
+        const response = await fetchProductVariants(productId);
+        setRuntimeItems(response.data || []);
+    }, [productId]);
+
+    useEffect(() => {
+        setRuntimeItems(items);
+    }, [items]);
+
+    useEffect(() => {
+        void loadVariants();
+    }, [loadVariants]);
 
     const sortedItems = useMemo(() => {
-        return [...items].sort((a, b) => {
+        return [...runtimeItems].sort((a, b) => {
             const sortA = a.sort_order ?? 0;
             const sortB = b.sort_order ?? 0;
 
@@ -258,15 +310,15 @@ export default function ProductVariantsEditor({
 
             return a.id - b.id;
         });
-    }, [items]);
+    }, [runtimeItems]);
 
     const editModalVariantTitle = useMemo(() => {
         if (!editForm?.id) {
             return "";
         }
-        const row = items.find((i) => i.id === editForm.id);
+        const row = runtimeItems.find((i) => i.id === editForm.id);
         return row ? formatVariantEditTitle(row) : editForm.variant_definition_title || "";
-    }, [editForm?.id, editForm?.variant_definition_title, items]);
+    }, [editForm?.id, editForm?.variant_definition_title, runtimeItems]);
 
     const loadVariantSupplierInfo = async () => {
         setVariantSupplierInfoLoading(true);
@@ -349,6 +401,7 @@ export default function ProductVariantsEditor({
             setCreateModalOpen(false);
             setCreateForm(emptyForm);
             await onReloadAction();
+            await loadVariants();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка создания варианта");
         } finally {
@@ -381,6 +434,7 @@ export default function ProductVariantsEditor({
             setSuccess(result.message || "Вариант обновлен");
             setEditForm(null);
             await onReloadAction();
+            await loadVariants();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка обновления варианта");
         } finally {
@@ -402,6 +456,7 @@ export default function ProductVariantsEditor({
             setSuccess(result.message || "Вариант удален");
             setDeleteTarget(null);
             await onReloadAction();
+            await loadVariants();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка удаления варианта");
         } finally {
@@ -450,7 +505,7 @@ export default function ProductVariantsEditor({
                                 className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-gray-50/60"
                             >
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(120px,1fr)_110px_70px] sm:items-center sm:gap-3">
+                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_56px] sm:items-center sm:gap-3">
                                         <div className="min-w-0">
                                             <VariantBadges item={item} />
                                         </div>
@@ -459,20 +514,16 @@ export default function ProductVariantsEditor({
                                             {buildDisplayName(item)}
                                         </div>
 
-                                        <div className="min-w-0 text-sm text-gray-600 break-words">
-                                            {item.type || "—"}
-                                        </div>
-
-                                        <div className="text-sm font-medium text-gray-900">
+                                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">
                                             {formatMoney(item.price)}
                                         </div>
 
-                                        <div className="text-sm text-gray-600">
-                                            {item.stock ?? 0} шт.
+                                        <div className="text-sm text-gray-600 whitespace-nowrap">
+                                            {item.main_available_stock ?? 0} шт.
                                         </div>
                                     </div>
 
-                                    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:w-[210px] sm:justify-end sm:pt-0.5">
+                                    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:w-[124px] sm:justify-end sm:pt-0.5">
                                         <div className="flex items-center gap-1.5 sm:hidden">
                                             <button
                                                 type="button"

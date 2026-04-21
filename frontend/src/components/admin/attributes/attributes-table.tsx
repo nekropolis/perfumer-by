@@ -7,6 +7,8 @@ import type { AttributeAdminItem } from "@/lib/admin-attributes-api";
 type Props = {
     items: AttributeAdminItem[];
     onDeleteAction: (item: AttributeAdminItem) => void;
+    onToggleFilterAction: (item: AttributeAdminItem, nextValue: boolean) => void;
+    pendingFilterIds?: number[];
 };
 
 function renderTypeLabel(type: AttributeAdminItem["type"]) {
@@ -21,13 +23,19 @@ function renderTypeLabel(type: AttributeAdminItem["type"]) {
     return "Несколько из списка";
 }
 
-export default function AttributesTable({ items, onDeleteAction }: Props) {
+export default function AttributesTable({
+    items,
+    onDeleteAction,
+    onToggleFilterAction,
+    pendingFilterIds = [],
+}: Props) {
     return (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="min-w-full text-sm">
                 <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
                 <tr>
                     <th className="px-3 py-2.5">ID</th>
+                    <th className="px-3 py-2.5">Фильтр</th>
                     <th className="px-3 py-2.5">Название</th>
                     <th className="px-3 py-2.5">Тип</th>
                     <th className="px-3 py-2.5">Опций</th>
@@ -39,6 +47,17 @@ export default function AttributesTable({ items, onDeleteAction }: Props) {
                 {items.map((item) => (
                     <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
                         <td className="px-3 py-3 text-gray-500">{item.id}</td>
+                        <td className="px-3 py-3 text-gray-700">
+                            <label className="inline-flex cursor-pointer items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(item.is_filterable)}
+                                    disabled={pendingFilterIds.includes(item.id)}
+                                    onChange={(e) => onToggleFilterAction(item, e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                />
+                            </label>
+                        </td>
                         <td className="px-3 py-3 font-medium text-gray-900">{item.name}</td>
                         <td className="px-3 py-3 text-gray-700">{renderTypeLabel(item.type)}</td>
                         <td className="px-3 py-3 text-gray-700">{item.options_count ?? 0}</td>

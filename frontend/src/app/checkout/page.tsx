@@ -2,20 +2,28 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition, useState } from "react";
+import { useEffect, useTransition, useState } from "react";
 import { createOrder } from "@/lib/checkout-api";
 import { useCart } from "@/components/cart/cart-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
 
 export default function CheckoutPage() {
     const router = useRouter();
     const { cart, setCartState } = useCart();
+    const { user } = useAuth();
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
     const [comment, setComment] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isPending, startTransition] = useTransition();
+
+    useEffect(() => {
+        if (!phone && user?.phone) {
+            setPhone(user.phone);
+        }
+    }, [user?.phone, phone]);
 
     const phoneIsValid = isBelarusPhoneComplete(phone);
 

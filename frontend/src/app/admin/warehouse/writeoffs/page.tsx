@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -27,6 +28,9 @@ import {
 function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string {
     if (writeoffType === "order") {
         return "Заказ";
+    }
+    if (writeoffType === "reserve") {
+        return "Резерв";
     }
     const src =
         payload && typeof payload === "object" && payload !== null && "stock_source" in payload
@@ -108,7 +112,7 @@ function WriteoffDetailsModal({
             >
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
-                        <h2 className="text-lg font-semibold">Списание #{doc.document_no ?? doc.id}</h2>
+                        <h2 className="text-lg font-semibold">{typeLabel(doc.type)} #{doc.document_no ?? doc.id}</h2>
                         <p className="mt-1 text-sm text-gray-500">
                             {typeLabel(doc.type)} · {formatDate(doc.written_off_at)} · {getStockWriteoffStatusLabel(doc.status)}
                         </p>
@@ -227,6 +231,10 @@ function typeLabel(type: string): string {
         return "Заказ";
     }
 
+    if (type === "reserve") {
+        return "Резерв";
+    }
+
     if (type === "manual") {
         return "Ручное";
     }
@@ -306,13 +314,13 @@ export default function AdminWarehouseWriteoffsPage() {
         <AdminPageCard>
             <AdminTableToolbar
                 title="Склад: списания"
-                description="Списания по заказам и будущие ручные списания."
+                description="Документы списаний и резервов по складу."
                 action={
                     <Link
                         href="/admin/warehouse/writeoffs/new"
                         className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
                     >
-                        Создать списание
+                        Создать документ
                     </Link>
                 }
             >
@@ -341,6 +349,7 @@ export default function AdminWarehouseWriteoffsPage() {
                     <option value="">Все типы</option>
                     <option value="order">Заказ</option>
                     <option value="manual">Ручное</option>
+                    <option value="reserve">Резерв</option>
                 </select>
             </AdminTableToolbar>
 
@@ -398,9 +407,11 @@ export default function AdminWarehouseWriteoffsPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => setDetailRow(item)}
-                                                className="rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                                aria-label="Просмотр списания"
+                                                title="Просмотр"
                                             >
-                                                Детали
+                                                <Eye size={16} />
                                             </button>
                                         </td>
                                     </tr>

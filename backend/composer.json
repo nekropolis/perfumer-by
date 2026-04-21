@@ -41,7 +41,13 @@
             "Modules\\Users\\Database\\Seeders\\": "Modules/Users/database/seeders/",
             "Modules\\Warehouse\\": "Modules/Warehouse/app/",
             "Modules\\Warehouse\\Database\\Factories\\": "Modules/Warehouse/database/factories/",
-            "Modules\\Warehouse\\Database\\Seeders\\": "Modules/Warehouse/database/seeders/"
+            "Modules\\Warehouse\\Database\\Seeders\\": "Modules/Warehouse/database/seeders/",
+            "Modules\\Wishlist\\": "Modules/Wishlist/app/",
+            "Modules\\Wishlist\\Database\\Factories\\": "Modules/Wishlist/database/factories/",
+            "Modules\\Wishlist\\Database\\Seeders\\": "Modules/Wishlist/database/seeders/",
+            "Modules\\Pages\\": "Modules/Pages/app/",
+            "Modules\\Pages\\Database\\Factories\\": "Modules/Pages/database/factories/",
+            "Modules\\Pages\\Database\\Seeders\\": "Modules/Pages/database/seeders/"
         }
     },
     "autoload-dev": {

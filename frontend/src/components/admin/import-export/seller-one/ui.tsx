@@ -360,11 +360,11 @@ export function PricingSettingsModal({
                     </div>
                     <div className="space-y-4 overflow-y-auto px-5 py-4">
                         <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                            C = цена прайса, D = ROUND(C * markup * rate + fee, intermediate), Цена = ROUND(D - C * rate, final)
+                            C = цена прайса, Цена=ОКРУГЛ((C*1,28+7)*3,15;0)
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Markup (1.28)</span>
+                                <span className="text-gray-600">Коэффициент на умножение (1.28)</span>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -374,7 +374,7 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Rate (3.15)</span>
+                                <span className="text-gray-600">Курс RUB (3.15)</span>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -384,7 +384,7 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Fixed fee (22)</span>
+                                <span className="text-gray-600">Коэффициент на сложение</span>
                                 <input
                                     type="number"
                                     step="0.1"
@@ -394,24 +394,13 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">ROUND D precision</span>
+                                <span className="text-gray-600">Округление до (1)</span>
                                 <input
                                     type="number"
                                     min={0}
                                     max={4}
-                                    value={form.price_intermediate_precision}
-                                    onChange={(e) => onChangeAction("price_intermediate_precision", Number(e.target.value))}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
-                                />
-                            </label>
-                            <label className="space-y-1 text-sm md:col-span-2">
-                                <span className="text-gray-600">Final precision</span>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={4}
-                                    value={form.price_final_precision}
-                                    onChange={(e) => onChangeAction("price_final_precision", Number(e.target.value))}
+                                    value={form.price_precision}
+                                    onChange={(e) => onChangeAction("price_precision", Number(e.target.value))}
                                     className="w-full rounded-xl border px-3 py-2 text-sm"
                                 />
                             </label>

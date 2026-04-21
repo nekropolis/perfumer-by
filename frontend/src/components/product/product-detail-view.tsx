@@ -2,14 +2,17 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
+import type { ProductDetailData, ProductImageData, ProductVariantData } from "@/types/catalog";
 import { useTransition } from "react";
 import { addToCart } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import ProductStatusLabels from "@/components/product/product-status-labels";
 
 type Props = {
     product: ProductDetailData;
@@ -20,18 +23,58 @@ function formatPrice(price: string | null) {
     return `${price} BYN`;
 }
 
-function getMainImage(product: ProductDetailData) {
-    return product.images.find((image) => image.is_main) || product.images[0] || null;
+function normalizeImages(value: unknown): ProductImageData[] {
+    if (Array.isArray(value)) {
+        return value.filter((item): item is ProductImageData => Boolean(item && typeof item === "object"));
+    }
+
+    if (value && typeof value === "object") {
+        return Object.values(value).filter((item): item is ProductImageData => Boolean(item && typeof item === "object"));
+    }
+
+    return [];
+}
+
+function normalizeVariants(value: unknown): ProductVariantData[] {
+    const normalizeList = (items: unknown[]): ProductVariantData[] => {
+        const byId = new Map<number, ProductVariantData>();
+        for (const raw of items) {
+            if (!raw || typeof raw !== "object") {
+                continue;
+            }
+            const candidate = raw as Partial<ProductVariantData>;
+            const id = Number(candidate.id);
+            if (!Number.isFinite(id) || id <= 0) {
+                continue;
+            }
+            byId.set(id, { ...candidate, id } as ProductVariantData);
+        }
+        return Array.from(byId.values());
+    };
+
+    if (Array.isArray(value)) {
+        return normalizeList(value);
+    }
+
+    if (value && typeof value === "object") {
+        return normalizeList(Object.values(value));
+    }
+
+    return [];
 }
 
 export default function ProductDetailView({ product }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "description">("attributes");
     const { setCartState } = useCart();
+    const { isInWishlist, toggleWishlist } = useWishlist();
+    const variants = useMemo(() => normalizeVariants(product.variants), [product.variants]);
+    const images = useMemo(() => normalizeImages(product.images), [product.images]);
+    const defaultImage = images.find((image) => image.is_main) || images[0] || null;
 
     const defaultVariant =
-        product.variants.find((variant) => variant.id === product.default_variant_id) ||
-        product.variants[0] ||
+        variants.find((variant) => variant.id === product.default_variant_id) ||
+        variants[0] ||
         null;
 
     const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
@@ -39,21 +82,27 @@ export default function ProductDetailView({ product }: Props) {
     );
 
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
-        return product.variants.find((variant) => variant.id === selectedVariantId) || null;
-    }, [product.variants, selectedVariantId]);
+        return variants.find((variant) => variant.id === selectedVariantId) || null;
+    }, [variants, selectedVariantId]);
+    const selectedVariantHasDiscount = Boolean(
+        selectedVariant &&
+        selectedVariant.old_price &&
+        selectedVariant.price &&
+        Number(selectedVariant.old_price) > Number(selectedVariant.price)
+    );
 
-    const mainImage = getMainImage(product);
+    const [selectedImageId, setSelectedImageId] = useState<number | null>(defaultImage?.id ?? null);
+    const mainImage = useMemo(() => {
+        if (selectedImageId == null) {
+            return defaultImage;
+        }
+        return images.find((image) => image.id === selectedImageId) || defaultImage;
+    }, [defaultImage, images, selectedImageId]);
 
     const mainImageUrl =
         mainImage == null
             ? null
-            : mainImage.path.startsWith("http")
-                ? mainImage.path
-                : `/${mainImage.path.replace(/^\/+/, "")}`;
-
-    const mainImageIsRemote = Boolean(
-        mainImageUrl?.startsWith("http://") || mainImageUrl?.startsWith("https://")
-    );
+            : normalizeProductImageUrl(mainImage.path);
 
     const handleAddToCart = () => {
         if (!selectedVariant?.id) return;
@@ -85,15 +134,21 @@ export default function ProductDetailView({ product }: Props) {
             <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-start">
                 <section>
                     <div className="relative aspect-square overflow-hidden rounded-3xl border bg-white shadow-sm">
+                        <ProductStatusLabels
+                            isNew={Boolean(product.is_new)}
+                            isHit={Boolean(product.is_hit)}
+                            hasDiscount={selectedVariantHasDiscount}
+                        />
                         {mainImageUrl ? (
                             <Image
                                 src={mainImageUrl}
-                                alt={product.name}
+                                loader={productImageLoader}
+                                alt={mainImage?.alt?.trim() || product.name}
                                 fill
                                 priority
+                                loading="eager"
                                 sizes="(max-width: 1280px) 100vw, 320px"
                                 className="object-cover"
-                                unoptimized={mainImageIsRemote}
                             />
                         ) : (
                             <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
@@ -119,6 +174,34 @@ export default function ProductDetailView({ product }: Props) {
                             </div>
                         )}
                     </div>
+
+                    {images.length > 1 ? (
+                        <div className="mt-3 grid grid-cols-5 gap-2">
+                            {images.map((image, index) => {
+                                const thumbUrl = normalizeProductImageUrl(image.path);
+                                const isActive = image.id === (mainImage?.id ?? null);
+
+                                return (
+                                    <button
+                                        key={image.id}
+                                        type="button"
+                                        onClick={() => setSelectedImageId(image.id)}
+                                        className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-black ring-1 ring-black/10" : "border-gray-200"}`}
+                                    >
+                                        <Image
+                                            src={thumbUrl}
+                                            loader={productImageLoader}
+                                            alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
+                                            fill
+                                            loading="eager"
+                                            sizes="96px"
+                                            className="object-cover"
+                                        />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : null}
                 </section>
 
                 <section className="min-w-0">
@@ -135,14 +218,27 @@ export default function ProductDetailView({ product }: Props) {
                         {product.h1 || product.name}
                     </h1>
 
+                    <button
+                        type="button"
+                        onClick={() => void toggleWishlist(product.id)}
+                        className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
+                            isInWishlist(product.id)
+                                ? "border-black bg-black text-white hover:bg-gray-900"
+                                : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                        }`}
+                    >
+                        <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
+                        <span>{isInWishlist(product.id) ? "В избранном" : "В избранное"}</span>
+                    </button>
 
-                    {product.variants.length > 0 ? (
+
+                    {variants.length > 0 ? (
                         <>
 
                             <div className="mb-3 text-sm font-medium text-gray-700">Выбор вариантов</div>
                             <div className="mb-6 rounded-3xl bg-gray-100 p-3">
                                 <div className="flex flex-wrap gap-2">
-                                    {product.variants.map((variant) => {
+                                    {variants.map((variant) => {
                                         const isSelected = variant.id === selectedVariantId;
 
                                         let availabilityText = "Нет";
@@ -160,7 +256,7 @@ export default function ProductDetailView({ product }: Props) {
 
                                         return (
                                             <button
-                                                key={variant.id}
+                                                key={`variant-${variant.id}`}
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
                                                 className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${isSelected
@@ -248,8 +344,8 @@ export default function ProductDetailView({ product }: Props) {
                         </div>
 
                         <div className="p-5 sm:p-6">
-                            {activeTab === "attributes" &&
-                                (product.attribute_values.length > 0 ? (
+                            <div className={activeTab === "attributes" ? "block" : "hidden"}>
+                                {product.attribute_values.length > 0 ? (
                                     <div className="space-y-3">
                                         {product.attribute_values.map((item) => {
                                             const label = item.attribute?.name || "Характеристика";
@@ -272,16 +368,28 @@ export default function ProductDetailView({ product }: Props) {
                                     </div>
                                 ) : (
                                     <div className="text-sm text-gray-500">Характеристики отсутствуют</div>
-                                ))}
+                                )}
+                            </div>
 
-                            {activeTab === "description" &&
-                                (product.description ? (
-                                    <div className="whitespace-pre-line text-sm leading-6 text-gray-700">
-                                        {product.description}
-                                    </div>
+                            <div className={activeTab === "description" ? "block" : "hidden"}>
+                                {product.description ? (
+                                    <div
+                                        className="prose prose-sm max-w-none text-gray-700 sm:prose-base"
+                                        dangerouslySetInnerHTML={{ __html: product.description }}
+                                    />
                                 ) : (
                                     <div className="text-sm text-gray-500">Описание отсутствует</div>
-                                ))}
+                                )}
+                            </div>
+
+                            {/* Keep description in initial HTML output for SEO crawlers even when Attributes tab is active. */}
+                            {activeTab !== "description" && product.description ? (
+                                <div
+                                    className="sr-only"
+                                    aria-hidden="true"
+                                    dangerouslySetInnerHTML={{ __html: product.description }}
+                                />
+                            ) : null}
                         </div>
                     </div>
                 </section>

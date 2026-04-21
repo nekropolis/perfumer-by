@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import type { OrderData } from "@/types/orders";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
@@ -98,9 +99,11 @@ export default function AdminOrdersTable({
                                 <button
                                     type="button"
                                     onClick={() => setSelectedOrder(order)}
-                                    className="rounded-xl border px-3 py-2 text-sm transition hover:bg-gray-50"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                    aria-label={`Состав заказа #${order.id}`}
+                                    title="Состав"
                                 >
-                                    Состав
+                                    <Eye size={16} />
                                 </button>
                             </td>
                         </tr>

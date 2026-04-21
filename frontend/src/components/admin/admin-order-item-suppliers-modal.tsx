@@ -13,8 +13,6 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
     useEffect(() => {
         if (!item) return;
 
-        console.log("[AdminOrderItemSuppliersModal] mounted with item", item);
-
         const handleEsc = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 onCloseAction();
@@ -30,6 +28,39 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
     }
 
     const offers = item.supplier_offers ?? [];
+    const receiptBatches = item.receipt_batches ?? [];
+    const combinedRows = [
+        ...offers.map((offer) => ({
+            source: "Оффер",
+            supplierName: offer.supplier_name || offer.supplier_code || `#${offer.supplier_id}`,
+            code: offer.external_id || offer.sku || "—",
+            title: offer.external_variant_name || offer.external_product_name || "—",
+            purchasePrice: offer.purchase_price ?? "—",
+            warehouseName: "—",
+            qtyText: String(offer.stock),
+            status: !offer.is_active
+                ? "Отключен"
+                : offer.is_preorder
+                    ? "Предзаказ"
+                    : offer.stock > 0
+                        ? "В наличии"
+                        : "Нет в наличии",
+            externalUrl: offer.external_product_url || null,
+            key: `offer-${offer.id}`,
+        })),
+        ...receiptBatches.map((batch) => ({
+            source: "Приход",
+            supplierName: batch.supplier_name || "Магазин",
+            code: batch.supplier_code || (batch.receipt_document_no ? `#${batch.receipt_document_no}` : `#${batch.receipt_id}`),
+            title: batch.supplier_product_name || "—",
+            purchasePrice: batch.supplier_price ?? "—",
+            warehouseName: batch.warehouse_name || "—",
+            qtyText: `${batch.qty} шт.`,
+            status: batch.received_at ? `Принят ${batch.received_at}` : "Принят",
+            externalUrl: null,
+            key: `receipt-batch-${batch.receipt_item_id}`,
+        })),
+    ];
 
     return (
         <div
@@ -77,7 +108,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                     <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-gray-500">
                         Позиция не привязана к варианту каталога, поэтому поставщики недоступны.
                     </div>
-                ) : offers.length === 0 ? (
+                ) : combinedRows.length === 0 ? (
                     <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-gray-500">
                         Для этого варианта нет привязанных поставщиков.
                     </div>
@@ -86,67 +117,55 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                                 <tr>
+                                    <th className="px-3 py-2 text-left">Источник</th>
                                     <th className="px-3 py-2 text-left">Поставщик</th>
                                     <th className="px-3 py-2 text-left">Код</th>
-                                    <th className="px-3 py-2 text-right">Цена</th>
+                                    <th className="px-3 py-2 text-left">Название</th>
                                     <th className="px-3 py-2 text-right">Закуп</th>
-                                    <th className="px-3 py-2 text-right">Остаток</th>
+                                    <th className="px-3 py-2 text-left">Склад</th>
+                                    <th className="px-3 py-2 text-right">Кол-во</th>
                                     <th className="px-3 py-2 text-left">Статус</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
-                                {offers.map((offer) => {
-                                    const code = offer.external_id || offer.sku || "—";
-                                    const statusLabel = !offer.is_active
-                                        ? "Отключен"
-                                        : offer.is_preorder
-                                            ? "Предзаказ"
-                                            : offer.stock > 0
-                                                ? "В наличии"
-                                                : "Нет в наличии";
-
+                                {combinedRows.map((row) => {
                                     return (
-                                        <tr key={offer.id} className="align-top">
+                                        <tr key={row.key} className="align-top">
                                             <td className="px-3 py-2">
-                                                {offer.external_product_url ? (
+                                                <span className="rounded-full border px-2 py-0.5 text-xs">
+                                                    {row.source}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                {row.externalUrl ? (
                                                     <a
-                                                        href={offer.external_product_url}
+                                                        href={row.externalUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900"
                                                     >
-                                                        {offer.supplier_name || offer.supplier_code || `#${offer.supplier_id}`}
+                                                        {row.supplierName}
                                                     </a>
                                                 ) : (
-                                                    <span>
-                                                        {offer.supplier_name || offer.supplier_code || `#${offer.supplier_id}`}
-                                                    </span>
-                                                )}
-                                                {offer.external_variant_name && (
-                                                    <div className="mt-0.5 text-xs text-gray-500">
-                                                        {offer.external_variant_name}
-                                                    </div>
+                                                    <span>{row.supplierName}</span>
                                                 )}
                                             </td>
                                             <td className="px-3 py-2 font-mono text-xs text-gray-700">
-                                                {code === "—" ? (
+                                                {row.code === "—" ? (
                                                     "—"
                                                 ) : (
                                                     <CopyText
-                                                        value={code}
+                                                        value={row.code}
                                                         title="Скопировать код поставщика"
                                                         iconSize={12}
                                                     />
                                                 )}
                                             </td>
-                                            <td className="px-3 py-2 text-right">
-                                                {offer.price ?? "—"}
-                                            </td>
-                                            <td className="px-3 py-2 text-right text-gray-600">
-                                                {offer.purchase_price ?? "—"}
-                                            </td>
-                                            <td className="px-3 py-2 text-right">{offer.stock}</td>
-                                            <td className="px-3 py-2 text-gray-600">{statusLabel}</td>
+                                            <td className="px-3 py-2">{row.title}</td>
+                                            <td className="px-3 py-2 text-right">{row.purchasePrice}</td>
+                                            <td className="px-3 py-2">{row.warehouseName}</td>
+                                            <td className="px-3 py-2 text-right">{row.qtyText}</td>
+                                            <td className="px-3 py-2 text-gray-600">{row.status}</td>
                                         </tr>
                                     );
                                 })}

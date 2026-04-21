@@ -61,6 +61,7 @@ class StockWriteoffController extends Controller
     public function store(Request $request, StockInventoryService $service): JsonResponse
     {
         $validated = $request->validate([
+            'document_kind' => ['nullable', 'string', 'in:writeoff,reserve'],
             'written_off_at' => ['nullable', 'date'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'comment' => ['nullable', 'string'],
@@ -73,10 +74,13 @@ class StockWriteoffController extends Controller
             'items.*.stock_source' => ['nullable', 'string', 'in:available,reserved'],
         ]);
 
-        $writeoff = $service->createManualWriteoff($validated);
+        $documentKind = (string) ($validated['document_kind'] ?? 'writeoff');
+        $writeoff = $documentKind === 'reserve'
+            ? $service->createManualReserve($validated)
+            : $service->createManualWriteoff($validated);
 
         return response()->json([
-            'message' => 'Списание создано',
+            'message' => $documentKind === 'reserve' ? 'Резерв создан' : 'Списание создано',
             'data' => $writeoff,
         ], 201);
     }

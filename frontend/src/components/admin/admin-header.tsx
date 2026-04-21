@@ -6,6 +6,7 @@ import { Menu, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
+import { resetCatalogApiCache } from "@/lib/admin-products-api";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -35,13 +36,30 @@ export default function AdminHeader({
                                     }: Props) {
     const { user, logout } = useAuth();
     const [accountOpen, setAccountOpen] = useState(false);
+    const [cacheResetBusy, setCacheResetBusy] = useState(false);
     const accountRef = useRef<HTMLDivElement | null>(null);
     const roleLabel = getRoleLabel(user?.role);
 
+    const handleResetCatalogCache = async () => {
+        if (cacheResetBusy) return;
+        setCacheResetBusy(true);
+        try {
+            const res = await resetCatalogApiCache();
+            if (typeof window !== "undefined") {
+                window.alert(res.message || "Кеш каталога сброшен");
+            }
+        } catch (e) {
+            if (typeof window !== "undefined") {
+                window.alert(e instanceof Error ? e.message : "Ошибка сброса кеша каталога");
+            }
+        } finally {
+            setCacheResetBusy(false);
+        }
+    };
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (!accountRef.current) return;
-            if (!accountRef.current.contains(event.target as Node)) {
+            if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
                 setAccountOpen(false);
             }
         };
@@ -70,6 +88,16 @@ export default function AdminHeader({
 
                 <div className="flex items-center gap-3">
                     <AdminActiveTasksWidget />
+
+                    <button
+                        type="button"
+                        onClick={() => void handleResetCatalogCache()}
+                        disabled={cacheResetBusy}
+                        className="hidden items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 disabled:opacity-60 sm:inline-flex"
+                        title="Сбросить кеш"
+                    >
+                        {cacheResetBusy ? "Сбрасываем кеш..." : "Сбросить кеш"}
+                    </button>
 
                     <a
                         href="/"

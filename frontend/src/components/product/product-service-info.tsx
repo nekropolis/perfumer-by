@@ -36,7 +36,7 @@ export default function ProductServiceInfo() {
                         <div className="text-sm font-medium">Нужна помощь?</div>
                     </div>
 
-                    <div className="text-sm text-gray-600">Life / Velcom / МТС</div>
+                    <div className="text-sm text-gray-600">МТС / A1 / life</div>
                     <div className="mt-2 text-2xl font-semibold tracking-tight">640-88-33</div>
 
                     <button

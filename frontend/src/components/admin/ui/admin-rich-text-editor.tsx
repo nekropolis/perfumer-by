@@ -1,13 +1,17 @@
 "use client";
 
 import { EditorContent, useEditor } from "@tiptap/react";
+import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getAuthToken } from "@/lib/auth-token";
 
 type Props = {
     value: string;
     onChangeAction: (value: string) => void;
     placeholder?: string;
+    imageUploadUrl?: string;
 };
 
 function ToolbarButton({
@@ -45,13 +49,22 @@ export default function AdminRichTextEditor({
                                                 value,
                                                 onChangeAction,
                                                 placeholder = "Введите текст...",
+                                                imageUploadUrl,
                                             }: Props) {
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
                 heading: {
                     levels: [2, 3, 4],
                 },
+            }),
+            Underline,
+            Link.configure({
+                openOnClick: false,
+                autolink: true,
             }),
         ],
         content: value || "",
@@ -102,6 +115,57 @@ export default function AdminRichTextEditor({
         }
 
         editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+    };
+
+    const uploadAndInsertImage = async (file: File) => {
+        if (!imageUploadUrl || !editor) {
+            return;
+        }
+        const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+        if (!base) {
+            window.alert("NEXT_PUBLIC_API_URL не задан");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        setUploadingImage(true);
+        try {
+            const token = getAuthToken();
+            const res = await fetch(`${base}${imageUploadUrl.startsWith("/") ? imageUploadUrl : `/${imageUploadUrl}`}`, {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || `Ошибка загрузки: ${res.status}`);
+            }
+
+            const json = (await res.json()) as { data?: { picture_html?: string; url?: string } };
+            const pictureHtml = json.data?.picture_html;
+            const url = json.data?.url;
+            if (pictureHtml) {
+                editor.chain().focus().insertContent(pictureHtml).run();
+                return;
+            }
+            if (url) {
+                editor.chain().focus().insertContent(`<picture><img src="${url}" alt="" loading="lazy" decoding="async" /></picture>`).run();
+                return;
+            }
+
+            throw new Error("Пустой ответ от сервера");
+        } catch (e) {
+            const message = e instanceof Error ? e.message : "Ошибка загрузки изображения";
+            window.alert(message);
+        } finally {
+            setUploadingImage(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
     };
 
     return (
@@ -171,6 +235,30 @@ export default function AdminRichTextEditor({
                     active={editor.isActive("link")}
                     onClick={setLink}
                 />
+
+                {imageUploadUrl ? (
+                    <>
+                        <ToolbarDivider />
+                        <ToolbarButton
+                            label={uploadingImage ? "Загрузка..." : "Картинка"}
+                            disabled={uploadingImage}
+                            onClick={() => fileInputRef.current?.click()}
+                        />
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) {
+                                    return;
+                                }
+                                void uploadAndInsertImage(file);
+                            }}
+                        />
+                    </>
+                ) : null}
 
                 <ToolbarDivider />
 

@@ -4,11 +4,28 @@ namespace Modules\Checkout\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Warehouse\Models\StockReceiptItem;
 
 class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $variantIds = $this->items
+            ->pluck('variant_id')
+            ->filter(fn ($id) => $id !== null)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $receiptItemsByVariant = $variantIds->isEmpty()
+            ? collect()
+            : StockReceiptItem::query()
+                ->whereIn('variant_id', $variantIds->all())
+                ->with(['receipt.warehouse'])
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('variant_id');
+
         return [
             'id' => $this->id,
             'customer_name' => $this->customer_name,
@@ -18,7 +35,7 @@ class OrderResource extends JsonResource
             'items_qty' => $this->items_qty,
             'subtotal' => number_format((float) $this->subtotal, 2, '.', ''),
             'total' => number_format((float) $this->total, 2, '.', ''),
-            'items' => $this->items->map(function ($item) {
+            'items' => $this->items->map(function ($item) use ($receiptItemsByVariant) {
                 $data = [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
@@ -59,6 +76,33 @@ class OrderResource extends JsonResource
                                 'is_preorder' => (bool) $offer->is_preorder,
                                 'is_active' => (bool) $offer->is_active,
                                 'last_synced_at' => $offer->last_synced_at?->toIso8601String(),
+                            ];
+                        })
+                        ->values()
+                        ->all();
+                }
+
+                if ($item->variant_id !== null) {
+                    $receiptItems = $receiptItemsByVariant->get((int) $item->variant_id, collect());
+                    $data['receipt_batches'] = $receiptItems
+                        ->map(function (StockReceiptItem $receiptItem) {
+                            $payload = is_array($receiptItem->payload) ? $receiptItem->payload : [];
+
+                            return [
+                                'receipt_item_id' => $receiptItem->id,
+                                'receipt_id' => $receiptItem->stock_receipt_id,
+                                'receipt_document_no' => $receiptItem->receipt?->document_no,
+                                'supplier_name' => $receiptItem->receipt?->supplier_name,
+                                'supplier_code' => $receiptItem->supplier_sku,
+                                'supplier_product_name' => $payload['supplier_product_name']
+                                    ?? $payload['name']
+                                    ?? $receiptItem->variant_title,
+                                'supplier_price' => $receiptItem->supplier_price !== null
+                                    ? number_format((float) $receiptItem->supplier_price, 2, '.', '')
+                                    : null,
+                                'warehouse_name' => $receiptItem->receipt?->warehouse?->name,
+                                'qty' => (int) ($receiptItem->qty ?? 0),
+                                'received_at' => $receiptItem->receipt?->received_at?->toDateString(),
                             ];
                         })
                         ->values()

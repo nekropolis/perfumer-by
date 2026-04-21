@@ -10,16 +10,29 @@ use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
+use Modules\Warehouse\Services\StockInventoryService;
 
 class ProductAdminController extends Controller
 {
+    private const SMART_SEARCH_POOL_LIMIT = 1200;
+    private const SMART_SEARCH_RESULT_LIMIT = 40;
+
     public function index(Request $request): JsonResponse
     {
         $query = Product::query()
             ->with(['brand'])
-            ->withCount('variants');
+            ->withCount('variants')
+            ->withCount([
+                'activeVariants as discounted_variants_count' => function ($variantQuery) {
+                    $variantQuery
+                        ->whereNotNull('old_price')
+                        ->whereNotNull('price')
+                        ->whereColumn('old_price', '>', 'price');
+                },
+            ]);
 
         if ($request->filled('search')) {
             $search = trim($request->string('search')->toString());
@@ -70,9 +83,38 @@ class ProductAdminController extends Controller
         if ($request->filled('out_of_stock')) {
             $outOfStock = (string) $request->input('out_of_stock');
             if ($outOfStock === '1') {
-                $query->where('is_out_of_stock', true);
+                $query->whereDoesntHave('activeVariants', function ($variantQuery) {
+                    $variantQuery->where(function ($availableQuery) {
+                        $availableQuery
+                            ->where('stock', '>', 0)
+                            ->orWhere('is_preorder', true);
+                    });
+                });
             } elseif ($outOfStock === '0') {
-                $query->where('is_out_of_stock', false);
+                $query->whereHas('activeVariants', function ($variantQuery) {
+                    $variantQuery->where(function ($availableQuery) {
+                        $availableQuery
+                            ->where('stock', '>', 0)
+                            ->orWhere('is_preorder', true);
+                    });
+                });
+            }
+        }
+
+        if ($request->filled('status')) {
+            $status = (string) $request->input('status');
+
+            if ($status === 'new') {
+                $query->where('is_new', true);
+            } elseif ($status === 'hit') {
+                $query->where('is_hit', true);
+            } elseif ($status === 'discount') {
+                $query->whereHas('activeVariants', function ($variantQuery) {
+                    $variantQuery
+                        ->whereNotNull('old_price')
+                        ->whereNotNull('price')
+                        ->whereColumn('old_price', '>', 'price');
+                });
             }
         }
 
@@ -90,12 +132,13 @@ class ProductAdminController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'unique:products,slug'],
             'is_active' => ['nullable', 'boolean'],
+            'is_new' => ['nullable', 'boolean'],
+            'is_hit' => ['nullable', 'boolean'],
             'h1' => ['nullable', 'string', 'max:255'],
             'short_description' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
-            'is_stock_product' => ['nullable', 'boolean'],
         ]);
 
         $slug = VanilleHelper::slugify($validated['slug']);
@@ -116,10 +159,9 @@ class ProductAdminController extends Controller
             'seo_title' => $validated['seo_title'] ?: $validated['name'],
             'seo_description' => $validated['seo_description'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
-            'is_new' => false,
-            'is_hit' => false,
+            'is_new' => (bool) ($validated['is_new'] ?? false),
+            'is_hit' => (bool) ($validated['is_hit'] ?? false),
             'is_out_of_stock' => true,
-            'is_stock_product' => $validated['is_stock_product'] ?? false,
             'sort_order' => 0,
         ]);
 
@@ -145,12 +187,13 @@ class ProductAdminController extends Controller
                 Rule::unique('products', 'slug')->ignore($product->id),
             ],
             'is_active' => ['nullable', 'boolean'],
+            'is_new' => ['nullable', 'boolean'],
+            'is_hit' => ['nullable', 'boolean'],
             'h1' => ['nullable', 'string', 'max:255'],
             'short_description' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
-            'is_stock_product' => ['nullable', 'boolean'],
         ]);
 
         $slug = VanilleHelper::slugify($validated['slug']);
@@ -170,7 +213,8 @@ class ProductAdminController extends Controller
             'seo_title' => $validated['seo_title'] ?: $validated['name'],
             'seo_description' => $validated['seo_description'] ?? null,
             'is_active' => $validated['is_active'] ?? $product->is_active,
-            'is_stock_product' => $validated['is_stock_product'] ?? $product->is_stock_product,
+            'is_new' => (bool) ($validated['is_new'] ?? false),
+            'is_hit' => (bool) ($validated['is_hit'] ?? false),
         ]);
 
         $this->syncStockFlags($product);
@@ -191,6 +235,7 @@ class ProductAdminController extends Controller
             'message' => 'Продукт удалён',
         ]);
     }
+
     public function brands(): JsonResponse
     {
         $brands = Brand::query()
@@ -200,6 +245,61 @@ class ProductAdminController extends Controller
 
         return response()->json([
             'data' => $brands,
+        ]);
+    }
+
+    public function smartSearch(Request $request): JsonResponse
+    {
+        $query = trim($request->string('q')->toString());
+        $limit = max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_RESULT_LIMIT));
+
+        if (mb_strlen($query, 'UTF-8') < 2) {
+            return response()->json(['data' => []]);
+        }
+
+        $normalizedQuery = $this->normalizeSearchText($query);
+        $pool = Product::query()
+            ->with(['brand:id,name', 'variants:id,product_id,title'])
+            ->orderByDesc('id')
+            ->limit(self::SMART_SEARCH_POOL_LIMIT)
+            ->get(['id', 'brand_id', 'name', 'slug']);
+
+        $ranked = $pool->map(function (Product $product) use ($normalizedQuery) {
+            $name = (string) $product->name;
+            $slug = (string) $product->slug;
+            $brandName = (string) ($product->brand?->name ?? '');
+            $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
+
+            $scoreName = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($name));
+            $scoreSlug = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($slug));
+            $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $this->normalizeSearchText($brandName)) : 0.0;
+            $scoreVariant = $variants->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
+                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
+                return max($carry, $score);
+            }, 0.0);
+
+            $bestScore = max($scoreName, $scoreSlug * 0.95, $scoreBrand * 0.8, $scoreVariant * 0.9);
+
+            if ($bestScore < 0.18) {
+                return null;
+            }
+
+            return [
+                'id' => (int) $product->id,
+                'name' => $name,
+                'brand_name' => $brandName !== '' ? $brandName : null,
+                'variant_titles' => $variants->take(5)->values()->all(),
+                'score' => round($bestScore, 6),
+            ];
+        })
+            ->filter()
+            ->sortByDesc('score')
+            ->take($limit)
+            ->values()
+            ->all();
+
+        return response()->json([
+            'data' => $ranked,
         ]);
     }
 
@@ -257,6 +357,7 @@ class ProductAdminController extends Controller
             return [
                 'id' => $variant->id,
                 'title' => $variant->title,
+                'site_price' => $variant->price,
                 'stock' => (int) ($variant->stock ?? 0),
                 'warehouses' => $variant->warehouseStocks
                     ->filter(fn ($stock) => (int) ($stock->stock ?? 0) > 0)
@@ -305,19 +406,104 @@ class ProductAdminController extends Controller
         ]);
     }
 
+    public function resetApiCache(CatalogApiCacheService $cacheService): JsonResponse
+    {
+        $version = $cacheService->bumpVersion();
+
+        return response()->json([
+            'message' => 'Кеш каталога принудительно сброшен',
+            'cache_version' => $version,
+        ]);
+    }
+
     private function syncStockFlags(Product $product): void
     {
-        if (!$product->is_stock_product) {
-            return;
+        app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
+    }
+
+    private function normalizeSearchText(string $value): string
+    {
+        $value = mb_strtolower($value, 'UTF-8');
+        $value = preg_replace('/[^[:alnum:]\s]+/u', ' ', $value) ?? '';
+        $value = preg_replace('/\s+/u', ' ', $value) ?? '';
+        return trim($value);
+    }
+
+    private function similarityScore(string $needle, string $haystack): float
+    {
+        if ($needle === '' || $haystack === '') {
+            return 0.0;
+        }
+        if ($needle === $haystack) {
+            return 1.0;
+        }
+        if (str_contains($haystack, $needle)) {
+            return 0.96;
         }
 
-        $stockSum = (int) ProductVariantLink::query()
-            ->where('product_id', $product->id)
-            ->where('is_active', true)
-            ->sum('stock');
+        $needleTokens = array_values(array_filter(explode(' ', $needle)));
+        $haystackTokens = array_values(array_filter(explode(' ', $haystack)));
 
-        $product->update([
-            'is_out_of_stock' => $stockSum <= 0,
-        ]);
+        $tokenScoreSum = 0.0;
+        foreach ($needleTokens as $needleToken) {
+            $bestTokenScore = $this->diceCoefficient($needleToken, $haystack);
+            foreach ($haystackTokens as $haystackToken) {
+                $bestTokenScore = max($bestTokenScore, $this->diceCoefficient($needleToken, $haystackToken));
+            }
+            $tokenScoreSum += $bestTokenScore;
+        }
+
+        $avgTokenScore = $tokenScoreSum / max(1, count($needleTokens));
+        $phraseScore = $this->diceCoefficient($needle, $haystack);
+
+        return max($avgTokenScore, $phraseScore * 0.9);
+    }
+
+    private function diceCoefficient(string $a, string $b): float
+    {
+        if ($a === '' || $b === '') {
+            return 0.0;
+        }
+        if ($a === $b) {
+            return 1.0;
+        }
+
+        $aBigrams = $this->mbBigrams($a);
+        $bBigrams = $this->mbBigrams($b);
+
+        if (empty($aBigrams) || empty($bBigrams)) {
+            return 0.0;
+        }
+
+        $aCounts = array_count_values($aBigrams);
+        $bCounts = array_count_values($bBigrams);
+        $intersection = 0;
+
+        foreach ($aCounts as $gram => $count) {
+            if (!isset($bCounts[$gram])) {
+                continue;
+            }
+            $intersection += min($count, $bCounts[$gram]);
+        }
+
+        return (2 * $intersection) / (count($aBigrams) + count($bBigrams));
+    }
+
+    /**
+     * @return string[]
+     */
+    private function mbBigrams(string $value): array
+    {
+        $length = mb_strlen($value, 'UTF-8');
+        if ($length < 2) {
+            return [];
+        }
+
+        $grams = [];
+        for ($i = 0; $i < $length - 1; $i++) {
+            $grams[] = mb_substr($value, $i, 2, 'UTF-8');
+        }
+
+        return $grams;
     }
 }

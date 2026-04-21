@@ -9,10 +9,13 @@ use Modules\Catalog\Models\Supplier;
 
 class StockReceipt extends Model
 {
+    public const STATUS_DRAFT = 'draft';
+
     public const STATUS_POSTED = 'posted';
 
     /** @var list<string> */
     public const STATUSES = [
+        self::STATUS_DRAFT,
         self::STATUS_POSTED,
     ];
 
@@ -20,7 +23,8 @@ class StockReceipt extends Model
      * @var array<string, string>
      */
     public const STATUS_LABELS = [
-        self::STATUS_POSTED => 'Проведено',
+        self::STATUS_DRAFT => 'Черновик',
+        self::STATUS_POSTED => 'Оприходован',
     ];
 
     protected $fillable = [

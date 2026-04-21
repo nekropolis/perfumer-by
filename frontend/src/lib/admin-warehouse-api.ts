@@ -117,6 +117,49 @@ export type StockReceiptPayload = {
     }>;
 };
 
+export type StockReceiptImportXlsPrepareResponse = {
+    session_id: string;
+    total_rows: number;
+};
+
+export type StockReceiptImportXlsResolveBatchResponse = {
+    next_offset: number;
+    total_rows: number;
+    done: boolean;
+    unresolved: Array<Record<string, unknown>>;
+};
+
+export type StockReceiptImportXlsCommitPayload = {
+    session_id: string;
+    warehouse_id?: number | null;
+    supplier_id?: number | null;
+    supplier_code?: string | null;
+    supplier_name?: string | null;
+    received_at?: string | null;
+    comment?: string;
+    mapping?: StockReceiptImportXlsPayload["mapping"];
+};
+
+export type StockReceiptImportXlsCommitResponse = {
+    message?: string;
+    data: StockReceiptListItem;
+    committed_map_keys: string[];
+    committed_rows_count: number;
+    created_new_receipt: boolean;
+};
+
+export type StockReceiptImportXlsState = {
+    session_id?: string | null;
+    warehouse_id?: number | null;
+    supplier_id?: number | null;
+    received_at?: string | null;
+    comment?: string | null;
+    parsed_total_rows?: number | null;
+    linked_draft_receipt_id?: number | null;
+    unresolved?: Array<Record<string, unknown>>;
+    mapping_by_key?: Record<string, string>;
+};
+
 export type StockReceiptImportXlsPayload = {
     file: File;
     warehouse_id?: number | null;
@@ -166,6 +209,7 @@ export type StockWriteoffsResponse = {
 };
 
 export type StockWriteoffPayload = {
+    document_kind?: "writeoff" | "reserve";
     warehouse_id?: number | null;
     written_off_at?: string | null;
     comment?: string;
@@ -232,19 +276,45 @@ export type StockReportWriteoffsResponse = {
 };
 
 export type StockSalesReportRow = {
-    period: string;
-    orders_count: number;
+    period?: string;
+    orders_count?: number;
     qty_total: number;
-    revenue_total: number | string;
+    revenue_total?: number | string;
+    product_id?: number;
+    product_name?: string | null;
+    variant_title?: string | null;
 };
 
 export type StockSalesReportResponse = {
     data: StockSalesReportRow[];
+    report_by?: "orders" | "products";
     summary: {
         orders_count: number;
         qty_total: number;
         revenue_total: number;
     };
+};
+
+export type SupplierOrderReservationRow = {
+    reservation_id: number;
+    order_id: number;
+    product_id: number;
+    variant_id: number;
+    product_name: string | null;
+    variant_title: string | null;
+    qty: number;
+    reserved_at: string | null;
+    supplier_name: string | null;
+    supplier_product_name: string | null;
+    supplier_code: string | null;
+    supplier_price: string | null;
+};
+
+export type SupplierOrderReservationsResponse = {
+    data: SupplierOrderReservationRow[];
+    current_page: number;
+    last_page: number;
+    total: number;
 };
 
 export async function fetchWarehouseSuppliers(): Promise<WarehouseSuppliersResponse> {
@@ -367,6 +437,128 @@ export async function deleteStockReceipt(id: number | string): Promise<{ message
     }
 
     return res.json();
+}
+
+export async function prepareStockReceiptXlsImport(file: File): Promise<StockReceiptImportXlsPrepareResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/prepare`, {
+        method: "POST",
+        headers: getAdminAuthHeaders(),
+        body: formData,
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Prepare stock receipt XLS API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<StockReceiptImportXlsPrepareResponse>;
+}
+
+export async function resolveStockReceiptXlsImportBatch(payload: {
+    session_id: string;
+    offset: number;
+    limit?: number;
+}): Promise<StockReceiptImportXlsResolveBatchResponse> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/resolve-batch`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({
+            session_id: payload.session_id,
+            offset: payload.offset,
+            limit: payload.limit ?? 75,
+        }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Resolve stock receipt XLS batch API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<StockReceiptImportXlsResolveBatchResponse>;
+}
+
+export async function commitStockReceiptXlsImport(
+    payload: StockReceiptImportXlsCommitPayload
+): Promise<StockReceiptImportXlsCommitResponse> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/commit`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Commit stock receipt XLS API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<StockReceiptImportXlsCommitResponse>;
+}
+
+export async function clearStockReceiptXlsImportReceiptTarget(sessionId: string): Promise<{ message?: string }> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/clear-receipt`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ session_id: sessionId }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Clear stock receipt XLS session API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message?: string }>;
+}
+
+export async function fetchStockReceiptXlsImportState(): Promise<{ data: StockReceiptImportXlsState | null }> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/state`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Fetch stock receipt XLS import state API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ data: StockReceiptImportXlsState | null }>;
+}
+
+export async function saveStockReceiptXlsImportState(payload: StockReceiptImportXlsState): Promise<{ message?: string }> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-xls/state`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Save stock receipt XLS import state API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message?: string }>;
+}
+
+export async function postStockReceipt(id: number | string): Promise<{ message?: string; data: StockReceiptListItem }> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/${id}/post`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Post stock receipt API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message?: string; data: StockReceiptListItem }>;
 }
 
 export async function importStockReceiptXls(
@@ -587,15 +779,21 @@ export async function fetchStockWriteoffsReport(params?: {
 export async function fetchStockSalesReport(params?: {
     date_from?: string;
     date_to?: string;
-    group_by?: "day" | "month";
+    report_by?: "orders" | "products";
+    group_by?: "day" | "month" | "year";
     product_id?: number;
+    product_ids?: number[];
     warehouse_id?: number;
 }): Promise<StockSalesReportResponse> {
     const searchParams = new URLSearchParams();
+    if (params?.report_by) searchParams.set("report_by", params.report_by);
     if (params?.date_from) searchParams.set("date_from", params.date_from);
     if (params?.date_to) searchParams.set("date_to", params.date_to);
     if (params?.group_by) searchParams.set("group_by", params.group_by);
     if (params?.product_id) searchParams.set("product_id", String(params.product_id));
+    if (params?.product_ids?.length) {
+        params.product_ids.forEach((id) => searchParams.append("product_ids[]", String(id)));
+    }
     if (params?.warehouse_id) searchParams.set("warehouse_id", String(params.warehouse_id));
 
     const query = searchParams.toString();
@@ -607,6 +805,28 @@ export async function fetchStockSalesReport(params?: {
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Stock sales report API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchSupplierOrderReservationsReport(params?: {
+    page?: number;
+    product_id?: number;
+}): Promise<SupplierOrderReservationsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.product_id) searchParams.set("product_id", String(params.product_id));
+
+    const query = searchParams.toString();
+    const res = await fetch(`${API_BASE}/admin/stock/reports/order-reservations${query ? `?${query}` : ""}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Supplier order reservations report API error: ${res.status}`);
     }
 
     return res.json();

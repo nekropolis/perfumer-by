@@ -7,9 +7,10 @@ import type { CatalogBrandItem } from "@/types/catalog";
 type Props = {
     brands: CatalogBrandItem[];
     selectedBrandId?: string;
+    basePath?: string;
 };
 
-export default function CatalogBrandSelect({ brands, selectedBrandId }: Props) {
+export default function CatalogBrandSelect({ brands, selectedBrandId, basePath = "/catalog" }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -44,7 +45,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId }: Props) {
             params.delete("brand");
         }
 
-        router.push(`/catalog${params.toString() ? `?${params.toString()}` : ""}`);
+        router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
         setOpen(false);
     };
     return (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Check, Eye, Pencil, Trash2 } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -12,6 +13,7 @@ import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
+import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
@@ -19,9 +21,11 @@ import {
     fetchStockReceipts,
     fetchWarehouses,
     getStockReceiptStatusLabel,
+    postStockReceipt,
     type StockReceiptListItem,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
+import { STOCK_RECEIPT_STATUS } from "@/lib/warehouse-document-status";
 
 function formatDate(value?: string | null): string {
     if (!value) {
@@ -117,6 +121,7 @@ export default function AdminWarehouseReceiptsPage() {
     const [detailRow, setDetailRow] = useState<StockReceiptListItem | null>(null);
     const [warehouseId, setWarehouseId] = useState<number | "">("");
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+    const [postingId, setPostingId] = useState<number | null>(null);
 
     const debouncedSearch = useDebouncedValue(search, 350);
 
@@ -181,11 +186,24 @@ export default function AdminWarehouseReceiptsPage() {
         }
     };
 
+    const handlePostReceipt = async (row: StockReceiptListItem) => {
+        setPostingId(row.id);
+        setError("");
+        try {
+            await postStockReceipt(row.id);
+            await loadReceipts(page, debouncedSearch, warehouseId);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось провести приход");
+        } finally {
+            setPostingId(null);
+        }
+    };
+
     return (
         <AdminPageCard>
             <AdminTableToolbar
                 title="Склад: приходы"
-                description="Документы поступления товара от поставщика с немедленным проведением на склад."
+                description="Черновик можно править; кнопка «Провести» оприходует товар на склад. Отмена проводки пока недоступна."
                 action={
                     <div className="flex gap-2">
                         <Link
@@ -263,29 +281,47 @@ export default function AdminWarehouseReceiptsPage() {
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-600">{item.warehouse?.name ?? "—"}</td>
                                         <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.received_at)}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">{item.items?.length ?? 0}</td>
+                                        <td className="px-4 py-3 text-xs text-gray-600">
+                                        <AdminInfoButton
+                                            count={item.items?.length ?? 0}
+                                            onClickAction={() => setDetailRow(item)}
+                                        />
+                                            </td>
                                         <td className="max-w-[320px] px-4 py-3 text-xs text-gray-600">{item.comment || "—"}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDetailRow(item)}
-                                                    className="rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
-                                                >
-                                                    Детали
-                                                </button>
+                                            <div className="flex justify-end gap-1.5">
                                                 <Link
-                                                    href={`/admin/warehouse/receipts/${item.id}/edit`}
-                                                    className="rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
+                                                    href={
+                                                        item.status === STOCK_RECEIPT_STATUS.POSTED
+                                                            ? `/admin/warehouse/receipts/${item.id}/show`
+                                                            : `/admin/warehouse/receipts/${item.id}/edit`
+                                                    }
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                                    aria-label={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр документа" : "Редактировать документ"}
+                                                    title={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр" : "Изменить"}
                                                 >
-                                                    Изменить
+                                                    {item.status === STOCK_RECEIPT_STATUS.POSTED ? <Eye size={16} /> : <Pencil size={16} />}
                                                 </Link>
+                                                {item.status === STOCK_RECEIPT_STATUS.DRAFT ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={postingId === item.id}
+                                                        onClick={() => void handlePostReceipt(item)}
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
+                                                        aria-label="Провести документ"
+                                                        title={postingId === item.id ? "Проводим…" : "Провести"}
+                                                    >
+                                                        <Check size={16} />
+                                                    </button>
+                                                ) : null}
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeleteTarget(item)}
-                                                    className="rounded-xl border border-red-200 px-3 py-2 text-xs text-red-700 hover:bg-red-50"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                    aria-label="Удалить документ"
+                                                    title="Удалить"
                                                 >
-                                                    Удалить
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </td>

@@ -8,14 +8,12 @@ class SellerOnePricingService
 {
     private const DEFAULT_PRICE_MARKUP = 1.28;
     private const DEFAULT_PRICE_RATE = 3.15;
-    private const DEFAULT_PRICE_FIXED_FEE = 22.0;
-    private const DEFAULT_INTERMEDIATE_PRECISION = 0;
-    private const DEFAULT_FINAL_PRECISION = 1;
+    private const DEFAULT_PRICE_FIXED_FEE = 7.0;
+    private const DEFAULTL_PRECISION = 1;
     public const SETTING_PRICE_MARKUP = 'seller_one.price_markup';
     public const SETTING_PRICE_RATE = 'seller_one.price_rate';
     public const SETTING_PRICE_FIXED_FEE = 'seller_one.price_fixed_fee';
-    public const SETTING_PRICE_INTERMEDIATE_PRECISION = 'seller_one.price_intermediate_precision';
-    public const SETTING_PRICE_FINAL_PRECISION = 'seller_one.price_final_precision';
+    public const SETTING_PRICE_PRECISION = 'seller_one.price_precision';
 
     public function getSettings(): array
     {
@@ -23,8 +21,7 @@ class SellerOnePricingService
             self::SETTING_PRICE_MARKUP,
             self::SETTING_PRICE_RATE,
             self::SETTING_PRICE_FIXED_FEE,
-            self::SETTING_PRICE_INTERMEDIATE_PRECISION,
-            self::SETTING_PRICE_FINAL_PRECISION,
+            self::SETTING_PRICE_PRECISION,
         ];
 
         $stored = SellerOneSetting::query()
@@ -47,15 +44,10 @@ class SellerOnePricingService
                 'SELLER_ONE_PRICE_FIXED_FEE',
                 self::DEFAULT_PRICE_FIXED_FEE
             ),
-            'price_intermediate_precision' => $this->resolveIntSetting(
-                $stored->get(self::SETTING_PRICE_INTERMEDIATE_PRECISION),
-                'SELLER_ONE_PRICE_INTERMEDIATE_PRECISION',
-                self::DEFAULT_INTERMEDIATE_PRECISION
-            ),
-            'price_final_precision' => $this->resolveIntSetting(
-                $stored->get(self::SETTING_PRICE_FINAL_PRECISION),
+            'price_precision' => $this->resolveIntSetting(
+                $stored->get(self::SETTING_PRICE_PRECISION),
                 'SELLER_ONE_PRICE_FINAL_PRECISION',
-                self::DEFAULT_FINAL_PRECISION
+                self::DEFAULTL_PRECISION
             ),
         ];
     }
@@ -66,8 +58,7 @@ class SellerOnePricingService
             self::SETTING_PRICE_MARKUP => (string) $settings['price_markup'],
             self::SETTING_PRICE_RATE => (string) $settings['price_rate'],
             self::SETTING_PRICE_FIXED_FEE => (string) $settings['price_fixed_fee'],
-            self::SETTING_PRICE_INTERMEDIATE_PRECISION => (string) $settings['price_intermediate_precision'],
-            self::SETTING_PRICE_FINAL_PRECISION => (string) $settings['price_final_precision'],
+            self::SETTING_PRICE_PRECISION => (string) $settings['price_final_precision'],
         ];
 
         foreach ($map as $key => $value) {
@@ -86,11 +77,9 @@ class SellerOnePricingService
         $markup = (float) $settings['price_markup'];
         $rate = (float) $settings['price_rate'];
         $fixedFee = (float) $settings['price_fixed_fee'];
-        $intermediatePrecision = (int) $settings['price_intermediate_precision'];
-        $finalPrecision = (int) $settings['price_final_precision'];
+        $precision = (int) $settings['price_precision'];
 
-        $intermediate = round(($supplierPrice * $markup * $rate) + $fixedFee, $intermediatePrecision);
-        return round($intermediate - ($supplierPrice * $rate), $finalPrecision);
+        return round(($supplierPrice * $markup + $fixedFee) * $rate, $precision);
     }
 
     private function resolveFloatSetting(mixed $storedValue, string $envKey, float $default): float

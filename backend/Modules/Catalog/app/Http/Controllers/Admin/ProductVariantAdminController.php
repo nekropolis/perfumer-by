@@ -9,6 +9,9 @@ use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockInventoryService;
 
 class ProductVariantAdminController extends Controller
 {
@@ -170,16 +173,46 @@ class ProductVariantAdminController extends Controller
     public function index(int $productId): JsonResponse
     {
         $product = Product::query()->findOrFail($productId);
+        $mainWarehouseId = (int) Warehouse::query()
+            ->where('code', Warehouse::CODE_MAIN)
+            ->value('id');
 
         $variants = ProductVariantLink::query()
             ->where('product_id', $product->id)
             ->with('definition')
+            ->withCount([
+                'supplierOffers as supplier_offers_count',
+                'supplierOffers as active_supplier_offers_count' => static function ($query) {
+                    $query->where('is_active', true);
+                },
+            ])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
 
+        $stocksByVariant = $mainWarehouseId > 0
+            ? WarehouseVariantStock::query()
+                ->where('product_id', $product->id)
+                ->where('warehouse_id', $mainWarehouseId)
+                ->get(['variant_id', 'stock', 'reserved_stock'])
+                ->keyBy('variant_id')
+            : collect();
+
+        $items = $variants->map(function (ProductVariantLink $variant) use ($stocksByVariant): array {
+            $mainStock = $stocksByVariant->get($variant->id);
+            $mainAvailableStock = $mainStock
+                ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+                : 0;
+
+            return array_merge($variant->toArray(), [
+                'main_available_stock' => $mainAvailableStock,
+                'supplier_offers_count' => (int) ($variant->supplier_offers_count ?? 0),
+                'active_supplier_offers_count' => (int) ($variant->active_supplier_offers_count ?? 0),
+            ]);
+        })->values();
+
         return response()->json([
-            'data' => $variants,
+            'data' => $items,
         ]);
     }
 
@@ -290,18 +323,7 @@ class ProductVariantAdminController extends Controller
 
     private function syncProductStockFlags(Product $product): void
     {
-        if (!$product->is_stock_product) {
-            return;
-        }
-
-        $stockSum = (int) ProductVariantLink::query()
-            ->where('product_id', $product->id)
-            ->where('is_active', true)
-            ->sum('stock');
-
-        $product->update([
-            'is_out_of_stock' => $stockSum <= 0,
-        ]);
+        app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
     }
 
     private function buildDefinitionTitle(

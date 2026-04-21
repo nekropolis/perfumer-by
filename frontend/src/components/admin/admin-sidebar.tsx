@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import {
     BarChart3,
     BellRing,
-    Boxes,
     FileBarChart,
     FolderSync,
     Inbox,
@@ -14,6 +13,7 @@ import {
     ListFilter,
     Package,
     PackageMinus,
+    PanelsTopLeft,
     PhoneCall,
     ScrollText,
     ShieldUser,
@@ -72,8 +72,8 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
             { type: "link", href: "/admin/products", label: "Продукты", icon: Package },
-            { type: "link", href: "/admin/products/variants", label: "Варианты продукта", icon: Boxes },
             { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },
+            { type: "link", href: "/admin/pages", label: "Страницы", icon: PanelsTopLeft },
         ],
     },
     {
@@ -81,7 +81,7 @@ const sections: SidebarSection[] = [
         label: "Склад",
         items: [
             { type: "link", href: "/admin/warehouse/receipts", label: "Приходы", icon: Inbox },
-            { type: "link", href: "/admin/warehouse/writeoffs", label: "Списания", icon: PackageMinus },
+            { type: "link", href: "/admin/warehouse/writeoffs", label: "Списания/Резервы", icon: PackageMinus },
             { type: "link", href: "/admin/warehouse/balances", label: "Остатки", icon: BarChart3 },
             { type: "link", href: "/admin/warehouse/reports", label: "Отчеты", icon: FileBarChart },
         ],

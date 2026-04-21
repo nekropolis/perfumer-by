@@ -13,6 +13,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import ProductVariantDefinitionsTable from "@/components/admin/products/product-variant-definitions-table";
+import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
@@ -115,7 +116,7 @@ export default function AdminProductVariantsPage() {
         params.delete("page");
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    }, [pathname, router, searchParamsFromUrl]);
+    }, [pathname, router, searchParamsFromUrl, setPage]);
 
     return (
         <AdminPageCard>
@@ -131,6 +132,7 @@ export default function AdminProductVariantsPage() {
                     </Link>
                 }
             />
+            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />

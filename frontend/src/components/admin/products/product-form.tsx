@@ -11,7 +11,8 @@ export type ProductFormState = {
     name: string;
     slug: string;
     is_active: boolean;
-    is_stock_product: boolean;
+    is_new: boolean;
+    is_hit: boolean;
     h1: string;
     short_description: string;
     description: string;
@@ -37,8 +38,8 @@ export default function ProductForm({
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
-                <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
-                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                <div className="md:col-span-2 grid gap-2 sm:grid-cols-3">
+                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -52,23 +53,36 @@ export default function ProductForm({
                         />
                         Активен
                     </label>
-
-                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                         <input
                             type="checkbox"
-                            checked={Boolean(form.is_stock_product)}
+                            checked={Boolean(form.is_new)}
                             onChange={(e) =>
                                 onChangeAction({
                                     ...form,
-                                    is_stock_product: e.target.checked,
+                                    is_new: e.target.checked,
                                 })
                             }
                             className="h-4 w-4 rounded border-gray-300"
                         />
-                        Товар склада (остаток влияет на наличие)
+                        Новинка
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(form.is_hit)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    is_hit: e.target.checked,
+                                })
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Хит
                     </label>
                 </div>
-
+                
                 <div className="md:col-span-2">
                     <AdminBrandSelect
                         value={form.brand_id}

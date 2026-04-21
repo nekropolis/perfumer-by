@@ -83,18 +83,19 @@ function buildVanilleTask(job: VanilleImportQueueJob): ActiveTask {
 }
 
 function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
+    const isRefresh = status.job_type === "refresh_linked";
     const processed = Number(status.processed ?? 0);
-    const totalRows = Number(status.total_rows ?? 0);
+    const totalRows = isRefresh ? Number(status.total_linked ?? 0) : Number(status.total_rows ?? 0);
     const progress =
         totalRows > 0 ? Math.round((processed / totalRows) * 100) : status.status === "running" ? 5 : 0;
     const counter = totalRows > 0 ? `${processed} / ${totalRows}` : null;
     const message =
         totalRows > 0
-            ? `Обработано ${processed} / ${totalRows}`
+            ? (isRefresh ? `Обновление цен ${processed} / ${totalRows}` : `Обработано ${processed} / ${totalRows}`)
             : status.message || "Ожидание…";
     return {
-        key: `seller-one:${status.job_id}`,
-        title: "Парсинг Seller One",
+        key: `seller-one:${status.job_id}:${status.job_type ?? "parse"}`,
+        title: isRefresh ? "Цены Seller One (связанные)" : "Парсинг Seller One",
         statusLabel: SELLER_ONE_STATUS_LABELS[status.status] ?? status.status,
         message,
         counter,

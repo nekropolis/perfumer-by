@@ -85,10 +85,34 @@ pm2 save
 - `QUEUE_CONNECTION=redis`
 - `SESSION_DRIVER=redis`
 
+Для OTP (Viber + SMS + manual fallback) также добавь:
+
+- `OTP_VIBER_FIRST=true`
+- `VIBER_OTP_ENABLED=true`
+- `VIBER_OTP_DRIVER=mock` (`mock` или `http`)
+- `VIBER_OTP_ENDPOINT=...`
+- `VIBER_OTP_TOKEN=...`
+- `VIBER_OTP_SENDER=Perfumer`
+- `VIBER_OTP_TIMEOUT=5`
+- `VIBER_MOCK_REGISTRATION_MODE=all` (`all|none|list`)
+- `VIBER_MOCK_REGISTERED_PHONES=37529XXXXXXX,37544XXXXXXX`
+- `SMS_OTP_ENABLED=true`
+- `SMS_OTP_DRIVER=mock` (`mock` или `http`)
+- `SMS_OTP_ENDPOINT=...`
+- `SMS_OTP_TOKEN=...`
+- `SMS_OTP_SENDER=Perfumer`
+- `SMS_OTP_TIMEOUT=5`
+- `AUTH_OTP_CAPTCHA_ENABLED=false`
+- `AUTH_OTP_CAPTCHA_TRIGGER_IP_ATTEMPTS=3`
+- `AUTH_OTP_CAPTCHA_TRIGGER_IP_PHONE_ATTEMPTS=2`
+- `RECAPTCHA_SECRET_KEY=...`
+- `RECAPTCHA_MIN_SCORE=0.5`
+
 ### Frontend `.env.local`
 
 - `NEXT_PUBLIC_API_URL` — базовый URL backend API
 - `NEXT_ALLOWED_DEV_ORIGINS` — список origins для dev/HMR (через запятую)
+- `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` — site key для Google reCAPTCHA v3
 
 ---
 
@@ -165,6 +189,99 @@ php artisan catalog:import-vanille-sample /path/to/file.json
 ---
 
 ## Troubleshooting
+
+### OTP: как пошагово подключить Viber + SMS
+
+Сейчас в проекте уже заложена цепочка:
+
+1. `Viber` (первый канал),
+2. `SMS` (fallback),
+3. `manual fallback` (если оба канала недоступны, код возвращается в ответе `request-code` и вводится вручную).
+
+Шаги подключения реального провайдера:
+
+1) **Привести backend в актуальное состояние**
+
+```bash
+cd /var/www/perfumer-by/backend
+composer install
+composer dump-autoload
+php artisan optimize:clear
+php artisan migrate
+```
+
+2) **Проверить, что модуль Communications включен**
+
+Файл `backend/modules_statuses.json`:
+
+```json
+{
+  "Communications": true
+}
+```
+
+Если временно выключен — включи и снова выполни `composer dump-autoload` + `php artisan optimize:clear`.
+
+3) **Настроить `.env` под реальный провайдер**
+
+Минимально для production:
+
+```dotenv
+OTP_VIBER_FIRST=true
+
+VIBER_OTP_ENABLED=true
+VIBER_OTP_DRIVER=http
+VIBER_OTP_ENDPOINT=https://<provider>/viber/send
+VIBER_OTP_TOKEN=...
+VIBER_OTP_SENDER=Perfumer
+VIBER_OTP_TIMEOUT=5
+
+SMS_OTP_ENABLED=true
+SMS_OTP_DRIVER=http
+SMS_OTP_ENDPOINT=https://<provider>/sms/send
+SMS_OTP_TOKEN=...
+SMS_OTP_SENDER=Perfumer
+SMS_OTP_TIMEOUT=5
+
+AUTH_OTP_CAPTCHA_ENABLED=true
+AUTH_OTP_CAPTCHA_TRIGGER_IP_ATTEMPTS=3
+AUTH_OTP_CAPTCHA_TRIGGER_IP_PHONE_ATTEMPTS=2
+RECAPTCHA_SECRET_KEY=...
+RECAPTCHA_MIN_SCORE=0.5
+```
+
+4) **Проверить API контракт провайдера**
+
+Сейчас отправка в `http` драйвере идет с payload:
+
+- `to`
+- `sender`
+- `message`
+
+Если у провайдера другие поля/заголовки/подпись, адаптируй маппинг в `backend/Modules/Communications/app/Services/OtpDeliveryService.php`.
+
+5) **Проверить миграции таблицы верификаций**
+
+В `phone_verifications` должны быть поля доставки:
+
+- `delivery_channel`
+- `delivery_status`
+- `delivery_provider_message_id`
+- `delivery_error`
+- `delivered_at`
+
+6) **Сделать smoke-тест**
+
+- вызвать `POST /auth/request-code` с валидным телефоном;
+- проверить, что ответ содержит `delivery_channel`;
+- проверить успешный `POST /auth/verify-code`.
+
+7) **Временный безопасный режим**
+
+Если провайдер недоступен или неверные креды:
+
+- Viber не доставил -> пробуем SMS;
+- SMS не доставил -> возвращаем `manual` код (не блокируем вход пользователей).
 
 ### Permission denied при записи файлов парсинга
 

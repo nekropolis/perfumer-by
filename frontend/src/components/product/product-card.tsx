@@ -1,10 +1,16 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
+import ProductStatusLabels from "@/components/product/product-status-labels";
 import type { ProductListItem } from "@/types/catalog";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 
 type Props = {
     product: ProductListItem;
     showBrand?: boolean;
+    eager?: boolean;
 };
 
 function formatPrice(product: ProductListItem) {
@@ -27,28 +33,41 @@ function compactVariantLabel(label: string) {
     return match ? match[0] : label;
 }
 
+function normalizeVariantLabels(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string");
+    }
+
+    if (value && typeof value === "object") {
+        return Object.values(value).filter((item): item is string => typeof item === "string");
+    }
+
+    if (typeof value === "string") {
+        return value.trim() ? [value] : [];
+    }
+
+    return [];
+}
+
 export default function ProductCard({
                                         product,
                                         showBrand = true,
+                                        eager = false,
                                     }: Props) {
-    const rawVariants = product.variant_labels ?? [];
+    const { isInWishlist, toggleWishlist } = useWishlist();
+    const rawVariants = normalizeVariantLabels(product.variant_labels);
     const compactVariants = rawVariants.map(compactVariantLabel);
 
     const visibleVariants = compactVariants.slice(0, 3);
     const hiddenVariantsCount = Math.max(compactVariants.length - 3, 0);
 
     const imagePath = product.image
-        ? product.image.startsWith("http")
-            ? product.image
-            : `/${product.image.replace(/^\/+/, "")}`
+        ? normalizeProductImageUrl(product.image)
         : null;
-
-    const imageIsRemote = Boolean(
-        imagePath?.startsWith("http://") || imagePath?.startsWith("https://")
-    );
 
     const showEmptyVolumeLabel =
         visibleVariants.length === 0 && !product.is_preorder_available;
+    const inWishlist = isInWishlist(product.id);
 
     return (
         <Link
@@ -56,14 +75,39 @@ export default function ProductCard({
             className="group flex h-full flex-col overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-200 hover:-translate-y-[2px] hover:shadow-md"
         >
             <div className="relative aspect-[4/3.2] w-full overflow-hidden bg-gray-50">
+                <ProductStatusLabels
+                    isNew={Boolean(product.is_new)}
+                    isHit={Boolean(product.is_hit)}
+                    hasDiscount={Boolean(product.has_discount)}
+                />
+                <button
+                    type="button"
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void toggleWishlist(product.id);
+                    }}
+                    aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                    className={`absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition ${
+                        inWishlist
+                            ? "border-black bg-black text-white hover:bg-gray-900"
+                            : "border-white/70 bg-white/95 text-gray-700 hover:bg-white hover:text-black"
+                    }`}
+                >
+                    <span aria-hidden className="text-sm leading-none">
+                        {inWishlist ? "♥" : "♡"}
+                    </span>
+                </button>
+
                 {imagePath ? (
                     <Image
                         src={imagePath}
+                        loader={productImageLoader}
                         alt={product.name}
                         fill
+                        loading={eager ? "eager" : "lazy"}
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 280px"
                         className="object-cover transition duration-300 group-hover:scale-[1.02]"
-                        unoptimized={imageIsRemote}
                     />
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">

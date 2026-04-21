@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Modules\Catalog\Jobs\RunSellerOneParseJob;
+use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
 use Modules\Catalog\Models\VanilleImportJob;
 use Modules\Catalog\Models\VanilleImportJobLog;
@@ -228,6 +229,12 @@ class VanilleImportController extends Controller
             'file' => ['required', 'file', 'mimes:xls,xlsx'],
         ]);
 
+        if (Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey())) {
+            return response()->json([
+                'message' => 'Сначала дождитесь окончания обновления цен Seller One',
+            ], 409);
+        }
+
         $jobId = (string) Str::uuid();
         // Явно кладём на `local` диск: RunSellerOneParseJob читает именно его.
         // Без второго аргумента Storage берёт FILESYSTEM_DISK, который на проде
@@ -291,29 +298,41 @@ class VanilleImportController extends Controller
      */
     public function sellerOneActiveStatus(): \Illuminate\Http\JsonResponse
     {
-        $activeJobId = Cache::get(RunSellerOneParseJob::activeKey());
-        if (!is_string($activeJobId) || $activeJobId === '') {
+        $parseActiveId = Cache::get(RunSellerOneParseJob::activeKey());
+        if (is_string($parseActiveId) && $parseActiveId !== '') {
+            $status = Cache::get(RunSellerOneParseJob::cacheKey($parseActiveId));
+            if (!$status) {
+                Cache::forget(RunSellerOneParseJob::activeKey());
+            } else {
+                $statusName = is_array($status) ? ($status['status'] ?? null) : null;
+                if ($statusName === 'completed' || $statusName === 'failed') {
+                    Cache::forget(RunSellerOneParseJob::activeKey());
+                } else {
+                    return response()->json(['data' => $status]);
+                }
+            }
+        }
+
+        $refreshActiveId = Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey());
+        if (!is_string($refreshActiveId) || $refreshActiveId === '') {
             return response()->json(['data' => null]);
         }
 
-        $status = Cache::get(RunSellerOneParseJob::cacheKey($activeJobId));
-        if (!$status) {
-            // Ключ активности есть, а статуса уже нет (TTL / ручная очистка).
-            // Снимаем флаг активности, чтобы не оставаться в противоречивом состоянии.
-            Cache::forget(RunSellerOneParseJob::activeKey());
+        $refreshStatus = Cache::get(RunSellerOneRefreshLinkedPricesJob::cacheKey($refreshActiveId));
+        if (!$refreshStatus) {
+            Cache::forget(RunSellerOneRefreshLinkedPricesJob::activeKey());
+
             return response()->json(['data' => null]);
         }
 
-        $statusName = is_array($status) ? ($status['status'] ?? null) : null;
-        if ($statusName === 'completed' || $statusName === 'failed') {
-            // Job уже финализирован — в discovery-эндпоинте такое не отдаём,
-            // иначе виджет будет бесконечно показывать «завершено». Сам клиент
-            // продолжит видеть финальный статус через status/{jobId}, если ему надо.
-            Cache::forget(RunSellerOneParseJob::activeKey());
+        $refreshName = is_array($refreshStatus) ? ($refreshStatus['status'] ?? null) : null;
+        if ($refreshName === 'completed' || $refreshName === 'failed') {
+            Cache::forget(RunSellerOneRefreshLinkedPricesJob::activeKey());
+
             return response()->json(['data' => null]);
         }
 
-        return response()->json(['data' => $status]);
+        return response()->json(['data' => $refreshStatus]);
     }
 
     public function applySupplierPrice(Request $request, SupplierPriceImportService $service)
@@ -331,37 +350,62 @@ class VanilleImportController extends Controller
         return response()->json($result);
     }
 
-    public function refreshSellerOnePrices(Request $request, SupplierPriceImportService $service)
+    public function startSellerOneRefreshLinkedPrices(Request $request): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xls,xlsx'],
         ]);
 
-        $result = $service->refreshLinkedPrices($validated['file']);
-
-        try {
-            app(AuditLogService::class)->record(
-                AuditLogService::ENTITY_VANILLE_IMPORT,
-                null,
-                AuditLogService::ACTION_UPDATED,
-                'Seller One: обновлены цены связанных товаров из прайса',
-                [
-                    'operation' => 'seller_one_refresh_linked_prices',
-                    'file_name' => $validated['file']->getClientOriginalName(),
-                    'updated' => (int) ($result['updated'] ?? 0),
-                    'skipped' => (int) ($result['skipped'] ?? 0),
-                    'price_history_rows' => (int) ($result['price_history_rows'] ?? 0),
-                    'missing_codes' => (int) ($result['missing_codes'] ?? 0),
-                    'deactivated_offers' => (int) ($result['deactivated_offers'] ?? 0),
-                    'deactivated_variants' => (int) ($result['deactivated_variants'] ?? 0),
-                    'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
-                    'linked_products' => (int) ($result['linked_products'] ?? 0),
-                ]
-            );
-        } catch (Throwable) {
+        if (Cache::get(RunSellerOneParseJob::activeKey())) {
+            return response()->json([
+                'message' => 'Сначала дождитесь окончания парсинга Seller One',
+            ], 409);
         }
 
-        return response()->json($result);
+        $jobId = (string) Str::uuid();
+        $storedPath = $validated['file']->store('seller-one-refresh-linked-temp', 'local');
+        $originalName = $validated['file']->getClientOriginalName();
+
+        Cache::put(
+            RunSellerOneRefreshLinkedPricesJob::cacheKey($jobId),
+            [
+                'job_id' => $jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'queued',
+                'processed' => 0,
+                'total_linked' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'price_history_rows' => 0,
+                'message' => 'Задача обновления цен поставлена в очередь',
+                'updated_at' => now()->toDateTimeString(),
+            ],
+            now()->addHours(24)
+        );
+
+        Cache::put(RunSellerOneRefreshLinkedPricesJob::activeKey(), $jobId, now()->addHours(24));
+
+        RunSellerOneRefreshLinkedPricesJob::dispatch($jobId, $storedPath, $originalName);
+
+        return response()->json([
+            'message' => 'Обновление цен связанных товаров поставлено в очередь',
+            'job_id' => $jobId,
+        ], 202);
+    }
+
+    public function sellerOneRefreshLinkedStatus(string $jobId): \Illuminate\Http\JsonResponse
+    {
+        $status = Cache::get(RunSellerOneRefreshLinkedPricesJob::cacheKey($jobId));
+
+        if (!$status) {
+            return response()->json([
+                'message' => 'Статус задачи не найден',
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => $status,
+        ]);
     }
 
     public function sellerOneSupplierProducts(Request $request)
@@ -626,8 +670,7 @@ class VanilleImportController extends Controller
             'price_markup' => ['required', 'numeric', 'min:0'],
             'price_rate' => ['required', 'numeric', 'min:0'],
             'price_fixed_fee' => ['required', 'numeric'],
-            'price_intermediate_precision' => ['required', 'integer', 'min:0', 'max:4'],
-            'price_final_precision' => ['required', 'integer', 'min:0', 'max:4'],
+            'price_precision' => ['required', 'integer', 'min:0', 'max:4'],
         ]);
 
         return response()->json([

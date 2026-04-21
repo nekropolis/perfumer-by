@@ -14,11 +14,12 @@ import {
     createSellerOneRule,
     deleteSellerOneRule,
     fetchSellerOneParseStatus,
+    fetchSellerOneRefreshLinkedJobStatus,
     fetchSellerOneSupplierProducts,
     fetchSellerOnePricingSettings,
     fetchSellerOneRules,
     forceLinkSellerOneProduct,
-    refreshSellerOneLinkedPrices,
+    startSellerOneRefreshLinkedPricesJob,
     resetSellerOneProductLink,
     startSellerOneParseJob,
     updateSellerOnePricingSettings,
@@ -185,7 +186,6 @@ function ManualLinkSearchHost({
         };
     }, [manualLink.rowId, manualLink.selectedProductId, debouncedDefinitionSearch, setManualLink, setSupplierError]);
 
-    console.log(manualLink)
     return (
         <ManualLinkModal
             manualLink={manualLink}
@@ -201,12 +201,15 @@ function ManualLinkSearchHost({
 
 const SELLER_ONE_ACTIVE_JOB_STORAGE_KEY = "seller-one-active-job-id";
 
+const SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY = "seller-one-refresh-linked-job-id";
+
 export default function SellerOneImportPage() {
     const [supplierFile, setSupplierFile] = useState<File | null>(null);
     const [supplierPreviewLoading, setSupplierPreviewLoading] = useState(false);
     const [supplierRefreshPricesLoading, setSupplierRefreshPricesLoading] = useState(false);
     const [batchProgress, setBatchProgress] = useState("");
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [refreshLinkedJobId, setRefreshLinkedJobId] = useState<string | null>(null);
     const [supplierError, setSupplierError] = useState("");
     const [supplierSuccess, setSupplierSuccess] = useState("");
 
@@ -233,9 +236,8 @@ export default function SellerOneImportPage() {
     const [pricingForm, setPricingForm] = useState<SellerOnePricingSettings>({
         price_markup: 1.28,
         price_rate: 3.15,
-        price_fixed_fee: 22,
-        price_intermediate_precision: 0,
-        price_final_precision: 1,
+        price_fixed_fee: 7,
+        price_precision: 1,
     });
     const debouncedSearch = useDebouncedValue(searchInput, 350);
 
@@ -244,6 +246,11 @@ export default function SellerOneImportPage() {
         if (storedJobId) {
             setActiveJobId(storedJobId);
             setBatchProgress("Восстановление статуса фонового парсинга...");
+        }
+        const storedRefreshId = window.localStorage.getItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+        if (storedRefreshId) {
+            setRefreshLinkedJobId(storedRefreshId);
+            setBatchProgress((prev) => (prev ? prev : "Восстановление статуса обновления цен…"));
         }
     }, []);
 
@@ -297,6 +304,7 @@ export default function SellerOneImportPage() {
 
                 if (data.status === "completed") {
                     setSupplierPreviewLoading(false);
+                    setBatchProgress("");
                     setSupplierSuccess("Прайс успешно обработан и таблица обновлена");
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
                     setActiveJobId(null);
@@ -307,6 +315,7 @@ export default function SellerOneImportPage() {
 
                 if (data.status === "failed") {
                     setSupplierPreviewLoading(false);
+                    setBatchProgress("");
                     setSupplierError(data.message || "Ошибка фонового парсинга");
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
                     setActiveJobId(null);
@@ -337,7 +346,80 @@ export default function SellerOneImportPage() {
                 clearTimeout(timer);
             }
         };
-    }, [activeJobId, loadRows]);
+    }, [activeJobId, loadRows, setPage]);
+
+    useEffect(() => {
+        if (!refreshLinkedJobId) {
+            return;
+        }
+
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        const poll = async () => {
+            try {
+                const res = await fetchSellerOneRefreshLinkedJobStatus(refreshLinkedJobId);
+                if (cancelled) {
+                    return;
+                }
+
+                const data = res.data;
+                const processed = Number(data.processed ?? 0);
+                const totalLinked = Number(data.total_linked ?? 0);
+                const progressText =
+                    totalLinked > 0
+                        ? `Обновление цен: ${processed} / ${totalLinked}`
+                        : data.message || "Выполняется…";
+                setBatchProgress(progressText);
+                setSupplierRefreshPricesLoading(data.status === "queued" || data.status === "running");
+
+                if (data.status === "completed") {
+                    setSupplierRefreshPricesLoading(false);
+                    setBatchProgress("");
+                    const msg =
+                        data.message
+                        || `Цены обновлены: ${data.updated ?? 0}, нет в прайсе (кодов): ${data.missing_codes ?? 0}`;
+                    setSupplierSuccess(msg);
+                    window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+                    setRefreshLinkedJobId(null);
+                    await loadRows(page);
+                    return;
+                }
+
+                if (data.status === "failed") {
+                    setSupplierRefreshPricesLoading(false);
+                    setBatchProgress("");
+                    setSupplierError(data.message || "Ошибка обновления цен");
+                    window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+                    setRefreshLinkedJobId(null);
+                    return;
+                }
+            } catch (e: unknown) {
+                if (!cancelled) {
+                    setSupplierError(e instanceof Error ? e.message : "Ошибка получения статуса обновления цен");
+                    setSupplierRefreshPricesLoading(false);
+                    window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+                    setRefreshLinkedJobId(null);
+                }
+                return;
+            }
+
+            if (!cancelled) {
+                timer = setTimeout(() => {
+                    void poll();
+                }, 2000);
+            }
+        };
+
+        void poll();
+
+        return () => {
+            cancelled = true;
+            if (timer) {
+                clearTimeout(timer);
+            }
+        };
+    }, [refreshLinkedJobId, loadRows, page]);
 
     const handlePreviewSupplierPrice = async () => {
         if (!supplierFile) {
@@ -367,17 +449,17 @@ export default function SellerOneImportPage() {
         }
         setSupplierRefreshPricesLoading(true);
         setSupplierError("");
+        setSupplierSuccess("");
+        setBatchProgress("");
         try {
-            const result = await refreshSellerOneLinkedPrices(supplierFile);
-            await loadRows(page);
-            setSupplierSuccess(
-                result.message
-                || `Цены обновлены: ${result.updated ?? 0}, отсутствуют в прайсе: ${result.missing_codes ?? 0}`
-            );
+            const data = await startSellerOneRefreshLinkedPricesJob(supplierFile);
+            setRefreshLinkedJobId(data.job_id);
+            window.localStorage.setItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY, data.job_id);
+            setBatchProgress("Задача обновления цен поставлена в очередь…");
         } catch (e: unknown) {
-            setSupplierError(e instanceof Error ? e.message : "Ошибка обновления цен");
-        } finally {
+            setBatchProgress("");
             setSupplierRefreshPricesLoading(false);
+            setSupplierError(e instanceof Error ? e.message : "Ошибка запуска обновления цен");
         }
     };
 
@@ -669,10 +751,30 @@ export default function SellerOneImportPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button type="button" onClick={handlePreviewSupplierPrice} disabled={supplierPreviewLoading || !supplierFile} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">
+                    <button
+                        type="button"
+                        onClick={handlePreviewSupplierPrice}
+                        disabled={
+                            supplierPreviewLoading
+                            || supplierRefreshPricesLoading
+                            || !!refreshLinkedJobId
+                            || !supplierFile
+                        }
+                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                    >
                         {supplierPreviewLoading ? "Парсинг..." : "Новый парсинг"}
                     </button>
-                    <button type="button" onClick={handleRefreshLinkedPrices} disabled={supplierRefreshPricesLoading || !supplierFile} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">
+                    <button
+                        type="button"
+                        onClick={handleRefreshLinkedPrices}
+                        disabled={
+                            supplierRefreshPricesLoading
+                            || supplierPreviewLoading
+                            || !!activeJobId
+                            || !supplierFile
+                        }
+                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                    >
                         {supplierRefreshPricesLoading ? "Обновление..." : "Обновить цены"}
                     </button>
                     <button type="button" onClick={() => void openRulesModal()} className="rounded-xl border px-4 py-2 text-sm">
@@ -686,13 +788,17 @@ export default function SellerOneImportPage() {
                 {batchProgress ? (
                     <div
                         className={`rounded-xl border px-3 py-2 text-sm ${
-                            supplierPreviewLoading
+                            supplierPreviewLoading || supplierRefreshPricesLoading
                                 ? "border-blue-200 bg-blue-50 text-blue-700"
                                 : "border-gray-200 bg-gray-50 text-gray-700"
                         }`}
                     >
                         <span className="font-medium">
-                            {supplierPreviewLoading ? "Прогресс парсинга: " : "Последний запуск: "}
+                            {supplierPreviewLoading
+                                ? "Прогресс парсинга: "
+                                : supplierRefreshPricesLoading
+                                    ? "Прогресс обновления цен: "
+                                    : "Последний запуск: "}
                         </span>
                         {batchProgress}
                     </div>

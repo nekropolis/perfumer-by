@@ -1,0 +1,11 @@
+{
+    "name": "Communications",
+    "alias": "communications",
+    "description": "Messaging channels for OTP and notifications",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Communications\\Providers\\CommunicationsServiceProvider"
+    ],
+    "files": []
+}

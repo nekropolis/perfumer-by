@@ -60,6 +60,9 @@ class ProductDetailResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'is_active' => (bool) $this->is_active,
+            'is_new' => (bool) $this->is_new,
+            'is_hit' => (bool) $this->is_hit,
             'is_out_of_stock' => (bool) $this->is_out_of_stock,
             'name' => $this->name,
             'slug' => $this->slug,
@@ -79,9 +82,10 @@ class ProductDetailResource extends JsonResource
                 return $this->images->map(fn ($image) => [
                     'id' => $image->id,
                     'path' => $image->path,
+                    'alt' => $image->alt,
                     'is_main' => (bool) $image->is_main,
                     'sort_order' => $image->sort_order,
-                ])->values();
+                ])->values()->all();
             }),
 
             'attribute_values' => $this->whenLoaded('attributeValues', function () {
@@ -106,10 +110,10 @@ class ProductDetailResource extends JsonResource
                                         'id' => $selected->productAttributeOption->id,
                                         'name' => $selected->productAttributeOption->name,
                                     ];
-                                })->values()
+                                })->values()->all()
                             : [],
                     ];
-                })->values();
+                })->values()->all();
             }),
 
 
@@ -120,7 +124,7 @@ class ProductDetailResource extends JsonResource
 
             'stock_total' => $stockTotal,
 
-            'variants' => ProductVariantResource::collection($variants),
+            'variants' => ProductVariantResource::collection($variants)->resolve(),
             'default_variant_id' => $defaultVariant?->id,
         ];
     }

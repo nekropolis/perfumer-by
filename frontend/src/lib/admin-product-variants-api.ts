@@ -28,8 +28,10 @@ export type AdminProductVariantItem = {
     price?: string | null;
     old_price?: string | null;
     stock?: number;
+    main_available_stock?: number;
     is_preorder?: boolean;
     is_active?: boolean;
+    active_supplier_offers_count?: number;
     sort_order?: number;
     definition?: {
         id: number;

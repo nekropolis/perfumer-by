@@ -21,7 +21,8 @@ async function cartFetch<T>(path: string, options?: RequestInit): Promise<T> {
     });
 
     if (!res.ok) {
-        throw new Error(`Cart API error: ${res.status}`);
+        const errorText = await res.text();
+        throw new Error(`Cart API error: ${res.status}${errorText ? ` - ${errorText}` : ""}`);
     }
 
     return res.json();

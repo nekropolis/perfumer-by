@@ -12,9 +12,12 @@ use Modules\Catalog\Models\ProductVariantLink;
  * Правило скоринга (после явного запроса заказчика):
  *   1) имя продукта в каталоге — «строгий префикс» имени у поставщика
  *      (после нормализации и снятия бренда с обеих сторон);
- *   2) diff токенов == 0                        → base = 80% («exact»);
- *   3) diff токенов == 1 (supplier длиннее на 1) → base = 70% («partial»);
- *   4) иначе                                    → совпадения нет.
+ *   2) diff токенов == 0 (каталог — префикс supplier, длины равны) → base = 80% («exact»);
+ *   3) diff токенов == 1 (supplier длиннее ровно на 1 токен)       → base = 70% («partial»);
+ *   4) иначе, если набор токенов совпадает как мультимножество и длины равны
+ *      (другой порядок слов, напр. «Pour Homme Dylan Blue» vs «Dylan Blue Pour Homme»)
+ *      → base = 80% («exact_multiset»), как при полном совпадении по словам;
+ *   5) иначе → совпадения нет.
  *
  * Варианты:
  *   • is_tester — ЖЁСТКИЙ фильтр: флаг тестера у поставщика и у варианта
@@ -23,10 +26,14 @@ use Modules\Catalog\Models\ProductVariantLink;
  *     случайно «прицепить» обычный item к tester-варианту или наоборот,
  *     когда у продукта в каталоге есть только один тип вариантов.
  *
- *   • БОНУСЫ к базе (после того, как tester-фильтр пройден):
+ *   • БОНУСЫ к базе 80% (exact / exact_multiset, после tester-фильтра):
  *       — совпал объём (±0.01ml)   → +12
  *       — совпала концентрация     → +8
  *     Суммарный score ограничен 100.
+ *
+ *   • При base 70% («partial») итог всегда 70%: бонусы за объём/концентрацию не
+ *     добавляются и suggested_variant не выбирается (чтобы не разгонять до 90%
+ *     другой флакон той же линии вроде «… Ispahan» vs «… Ispahan Silver»).
  *
  * Если у подходящего продукта вариантов нет (или ни один не прошёл tester-фильтр) —
  * всё равно возвращаем `suggested_product` с базовыми 80/70%. UI в этом случае
@@ -145,7 +152,7 @@ class SellerOneVariantMatcher
      * Основная точка входа: ищет лучший продукт и (опционально) его вариант-бонус.
      *
      * @return array{product: Product, variant: ProductVariantLink|null, base_points: int,
-     *               name_level: string, name_percent: float, volume_match: bool,
+     *               name_level: 'exact'|'exact_multiset'|'partial', name_percent: float, volume_match: bool,
      *               volume_points: int, concentration_match: bool, concentration_points: int,
      *               tester_match: bool, tester_points: int, total: int}|null
      */
@@ -175,29 +182,50 @@ class SellerOneVariantMatcher
                 continue;
             }
 
-            // Правило: catalog — строгий префикс supplier; supplier длиннее на ≤ 1 токен.
+            // 1) Каталог — префикс supplier по порядку; supplier не короче, лишних токенов ≤ 1.
             $diff = count($targetTokens) - count($candidateTokens);
-            if ($diff < 0 || $diff > 1) {
-                continue;
-            }
-
-            $isPrefix = true;
-            for ($i = 0, $n = count($candidateTokens); $i < $n; $i++) {
-                if ($candidateTokens[$i] !== $targetTokens[$i]) {
-                    $isPrefix = false;
-                    break;
+            $prefixOrdered = false;
+            if ($diff >= 0 && $diff <= 1) {
+                $prefixOrdered = true;
+                for ($i = 0, $n = count($candidateTokens); $i < $n; $i++) {
+                    if ($candidateTokens[$i] !== $targetTokens[$i]) {
+                        $prefixOrdered = false;
+                        break;
+                    }
                 }
             }
-            if (!$isPrefix) {
+
+            // 2) То же множество токенов, другой порядок (равная длина).
+            $multisetExact = !$prefixOrdered
+                && count($targetTokens) === count($candidateTokens)
+                && $this->tokensMultisetEqual($targetTokens, $candidateTokens);
+
+            if (!$prefixOrdered && !$multisetExact) {
                 continue;
             }
 
-            $basePoints = $diff === 0 ? 80 : 70;
-            $nameLevel = $diff === 0 ? 'exact' : 'partial';
-            $namePercent = $diff === 0 ? 90.0 : 70.0;
-
-            $variantBonus = $this->findBestVariantBonus($product, $volume, $concentration, $isTester);
-            $total = min($basePoints + $variantBonus['bonus'], 100);
+            if ($prefixOrdered && $diff === 1) {
+                $basePoints = 70;
+                $nameLevel = 'partial';
+                $namePercent = 70.0;
+                $variantBonus = [
+                    'variant' => null,
+                    'bonus' => 0,
+                    'volume_match' => false,
+                    'volume_points' => 0,
+                    'concentration_match' => false,
+                    'concentration_points' => 0,
+                    'tester_match' => false,
+                    'tester_points' => 0,
+                ];
+                $total = 70;
+            } else {
+                $basePoints = 80;
+                $nameLevel = $multisetExact ? 'exact_multiset' : 'exact';
+                $namePercent = 80.0;
+                $variantBonus = $this->findBestVariantBonus($product, $volume, $concentration, $isTester);
+                $total = min($basePoints + $variantBonus['bonus'], 100);
+            }
 
             $candidate = [
                 'product' => $product,
@@ -364,6 +392,24 @@ class SellerOneVariantMatcher
         $parts = preg_split('/\s+/u', $normalized) ?: [];
 
         return array_values(array_filter($parts, static fn (string $t): bool => mb_strlen($t) >= 2));
+    }
+
+    /**
+     * @param  list<string>  $a
+     * @param  list<string>  $b
+     */
+    private function tokensMultisetEqual(array $a, array $b): bool
+    {
+        if (count($a) !== count($b)) {
+            return false;
+        }
+
+        $left = $a;
+        $right = $b;
+        sort($left, SORT_STRING);
+        sort($right, SORT_STRING);
+
+        return $left === $right;
     }
 
     private function makeBreakdown(?array $match): array

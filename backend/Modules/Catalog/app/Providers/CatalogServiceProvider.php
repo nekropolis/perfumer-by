@@ -2,6 +2,15 @@
 
 namespace Modules\Catalog\Providers;
 
+use Modules\Catalog\Models\Brand;
+use Modules\Catalog\Models\Category;
+use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductAttribute;
+use Modules\Catalog\Models\ProductAttributeOption;
+use Modules\Catalog\Models\ProductImage;
+use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
@@ -52,5 +61,28 @@ class CatalogServiceProvider extends ModuleServiceProvider
         ParseVanilleProductsCommand::class,
         VanilleImportQueueCommand::class,
     ];
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        $bump = static function (): void {
+            app(CatalogApiCacheService::class)->bumpVersion();
+        };
+
+        foreach ([
+            Product::class,
+            Brand::class,
+            Category::class,
+            ProductVariantLink::class,
+            ProductImage::class,
+            VariantDefinition::class,
+            ProductAttribute::class,
+            ProductAttributeOption::class,
+        ] as $modelClass) {
+            $modelClass::saved($bump);
+            $modelClass::deleted($bump);
+        }
+    }
 
 }

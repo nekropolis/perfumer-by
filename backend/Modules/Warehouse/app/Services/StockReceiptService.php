@@ -30,7 +30,7 @@ class StockReceiptService
                 'supplier_id' => $validated['supplier_id'] ?? null,
                 'supplier_code' => $validated['supplier_code'] ?? null,
                 'supplier_name' => trim((string) $validated['supplier_name']),
-                'status' => StockReceipt::STATUS_POSTED,
+                'status' => StockReceipt::STATUS_DRAFT,
                 'received_at' => $validated['received_at'] ?? now(),
                 'comment' => $validated['comment'] ?? null,
                 'created_by' => Auth::id(),
@@ -41,13 +41,13 @@ class StockReceiptService
                 'document_no' => (string) $receipt->id,
             ]);
 
-            $items = $this->storeItems($receipt, $validated['items']);
+            $items = $this->storeReceiptItems($receipt, $validated['items'], false);
 
             $this->writeAudit(
                 AuditLogService::ENTITY_STOCK_RECEIPT,
                 $receipt->id,
                 AuditLogService::ACTION_CREATED,
-                "Создан приход #{$receipt->document_no}",
+                "Создан черновик прихода #{$receipt->document_no}",
                 [
                     'supplier_name' => $receipt->supplier_name,
                     'items_count' => count($items),
@@ -61,11 +61,92 @@ class StockReceiptService
         });
     }
 
+    /**
+     * Проводка: движение остатков и цены (как при старом «немедленном» приходе).
+     */
+    public function post(StockReceipt $receipt): StockReceipt
+    {
+        return DB::transaction(function () use ($receipt) {
+            if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
+                abort(422, 'Можно провести только черновик прихода');
+            }
+
+            $receipt->load('items');
+            if ($receipt->items->isEmpty()) {
+                abort(422, 'Нельзя провести пустой приход');
+            }
+
+            foreach ($receipt->items as $item) {
+                $this->applyPostedInventoryForItem($receipt, $item);
+            }
+
+            $receipt->update([
+                'status' => StockReceipt::STATUS_POSTED,
+                'updated_by' => Auth::id(),
+            ]);
+
+            $receipt->refresh();
+
+            $this->writeAudit(
+                AuditLogService::ENTITY_STOCK_RECEIPT,
+                $receipt->id,
+                AuditLogService::ACTION_UPDATED,
+                "Проведён приход (оприходован) #{$receipt->document_no}",
+                [
+                    'supplier_name' => $receipt->supplier_name,
+                    'items_count' => $receipt->items->count(),
+                    'warehouse_id' => $receipt->warehouse_id,
+                    'warehouse_name' => Warehouse::query()->find((int) $receipt->warehouse_id)?->name,
+                ],
+                (int) $receipt->warehouse_id
+            );
+
+            return $receipt->fresh(['supplier', 'items']);
+        });
+    }
+
+    /**
+     * Добавление строк в черновик (импорт XLS пакетами).
+     *
+     * @param  list<array<string, mixed>>  $items
+     */
+    public function appendDraftItems(StockReceipt $receipt, array $items): StockReceipt
+    {
+        return DB::transaction(function () use ($receipt, $items) {
+            if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
+                abort(422, 'В документ можно добавлять строки только пока он в статусе «Черновик».');
+            }
+
+            $stored = $this->storeReceiptItems($receipt, $items, false);
+
+            $receipt->update([
+                'updated_by' => Auth::id(),
+            ]);
+
+            $this->writeAudit(
+                AuditLogService::ENTITY_STOCK_RECEIPT,
+                $receipt->id,
+                AuditLogService::ACTION_UPDATED,
+                "В приход #{$receipt->document_no} добавлены строки из импорта",
+                [
+                    'added_items_count' => count($stored),
+                    'warehouse_id' => $receipt->warehouse_id,
+                ],
+                (int) $receipt->warehouse_id
+            );
+
+            return $receipt->fresh(['supplier', 'items']);
+        });
+    }
+
     public function update(StockReceipt $receipt, array $validated): StockReceipt
     {
         return DB::transaction(function () use ($receipt, $validated) {
+            if ($receipt->status === StockReceipt::STATUS_POSTED) {
+                abort(422, 'Нельзя изменить оприходованный документ. Отмена проводки пока недоступна.');
+            }
+
             $receipt->load('items');
-            $this->rollbackItems($receipt);
             $receipt->items()->delete();
 
             $receipt->update([
@@ -78,13 +159,13 @@ class StockReceiptService
                 'updated_by' => Auth::id(),
             ]);
 
-            $items = $this->storeItems($receipt, $validated['items']);
+            $items = $this->storeReceiptItems($receipt, $validated['items'], false);
 
             $this->writeAudit(
                 AuditLogService::ENTITY_STOCK_RECEIPT,
                 $receipt->id,
                 AuditLogService::ACTION_UPDATED,
-                "Обновлен приход #{$receipt->document_no}",
+                "Обновлён черновик прихода #{$receipt->document_no}",
                 [
                     'supplier_name' => $receipt->supplier_name,
                     'items_count' => count($items),
@@ -102,7 +183,9 @@ class StockReceiptService
     {
         DB::transaction(function () use ($receipt) {
             $receipt->load('items');
-            $this->rollbackItems($receipt);
+            if ($receipt->status === StockReceipt::STATUS_POSTED) {
+                $this->rollbackItems($receipt);
+            }
             $receipt->items()->delete();
             $receiptId = $receipt->id;
             $documentNo = $receipt->document_no;
@@ -122,73 +205,91 @@ class StockReceiptService
         });
     }
 
-    private function storeItems(StockReceipt $receipt, array $items): array
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<StockReceiptItem>
+     */
+    private function storeReceiptItems(StockReceipt $receipt, array $items, bool $applyInventory): array
     {
         $stored = [];
 
         foreach ($items as $item) {
-            $product = Product::query()->findOrFail((int) $item['product_id']);
-            $variant = $this->resolveVariant($product, $item);
-
-            $qty = (int) $item['qty'];
-            $supplierPrice = round((float) $item['supplier_price'], 2);
-            $retailPrice = $supplierPrice > 0
-                ? round($this->pricingService->calculateRetailPrice($supplierPrice), 2)
-                : null;
-
-            $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
-            if ($isMainWarehouseReceipt) {
-                $previousPrice = $variant->price !== null ? (float) $variant->price : null;
-                $variant->update([
-                    'old_price' => $retailPrice !== null && $previousPrice !== null && $previousPrice !== $retailPrice
-                        ? $previousPrice
-                        : $variant->old_price,
-                    'price' => $retailPrice,
-                    'is_preorder' => false,
-                    'is_active' => true,
-                ]);
-            } else {
-                $variant->update([
-                    'is_preorder' => false,
-                    'is_active' => true,
-                ]);
+            $storedItem = $this->createReceiptItemRecord($receipt, $item);
+            if ($applyInventory) {
+                $this->applyPostedInventoryForItem($receipt, $storedItem);
             }
-
-            $storedItem = StockReceiptItem::query()->create([
-                'stock_receipt_id' => $receipt->id,
-                'product_id' => $product->id,
-                'variant_id' => $variant->id,
-                'product_name' => $product->name,
-                'variant_title' => $variant->title,
-                'qty' => $qty,
-                'supplier_price' => $supplierPrice,
-                'line_total' => round($qty * $supplierPrice, 2),
-                'supplier_sku' => trim((string) ($item['supplier_sku'] ?? '')) ?: null,
-                'payload' => $item['payload'] ?? null,
-            ]);
-
-            $variant = ProductVariantLink::query()->lockForUpdate()->findOrFail($variant->id);
-            $this->inventoryService->increaseVariantStock(
-                $variant,
-                $qty,
-                'stock_receipt',
-                $receipt->id,
-                [
-                    'receipt_id' => $receipt->id,
-                    'receipt_item_id' => $storedItem->id,
-                    'supplier_price' => $supplierPrice,
-                    'retail_price' => $retailPrice,
-                    'supplier_sku' => $storedItem->supplier_sku,
-                    'warehouse_id' => $receipt->warehouse_id,
-                ]
-                ,
-                (int) $receipt->warehouse_id
-            );
-
             $stored[] = $storedItem;
         }
 
         return $stored;
+    }
+
+    private function createReceiptItemRecord(StockReceipt $receipt, array $item): StockReceiptItem
+    {
+        $product = Product::query()->findOrFail((int) $item['product_id']);
+        $variant = $this->resolveVariant($product, $item);
+
+        $qty = (int) $item['qty'];
+        $supplierPrice = round((float) $item['supplier_price'], 2);
+
+        return StockReceiptItem::query()->create([
+            'stock_receipt_id' => $receipt->id,
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'product_name' => $product->name,
+            'variant_title' => $variant->title,
+            'qty' => $qty,
+            'supplier_price' => $supplierPrice,
+            'line_total' => round($qty * $supplierPrice, 2),
+            'supplier_sku' => trim((string) ($item['supplier_sku'] ?? '')) ?: null,
+            'payload' => $item['payload'] ?? null,
+        ]);
+    }
+
+    private function applyPostedInventoryForItem(StockReceipt $receipt, StockReceiptItem $storedItem): void
+    {
+        $variant = ProductVariantLink::query()->findOrFail((int) $storedItem->variant_id);
+
+        $qty = (int) $storedItem->qty;
+        $supplierPrice = round((float) $storedItem->supplier_price, 2);
+        $retailPrice = $supplierPrice > 0
+            ? round($this->pricingService->calculateRetailPrice($supplierPrice), 2)
+            : null;
+
+        $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
+        if ($isMainWarehouseReceipt) {
+            $previousPrice = $variant->price !== null ? (float) $variant->price : null;
+            $variant->update([
+                'old_price' => $retailPrice !== null && $previousPrice !== null && $previousPrice !== $retailPrice
+                    ? $previousPrice
+                    : $variant->old_price,
+                'price' => $retailPrice,
+                'is_preorder' => false,
+                'is_active' => true,
+            ]);
+        } else {
+            $variant->update([
+                'is_preorder' => false,
+                'is_active' => true,
+            ]);
+        }
+
+        $variant = ProductVariantLink::query()->lockForUpdate()->findOrFail($variant->id);
+        $this->inventoryService->increaseVariantStock(
+            $variant,
+            $qty,
+            'stock_receipt',
+            $receipt->id,
+            [
+                'receipt_id' => $receipt->id,
+                'receipt_item_id' => $storedItem->id,
+                'supplier_price' => $supplierPrice,
+                'retail_price' => $retailPrice,
+                'supplier_sku' => $storedItem->supplier_sku,
+                'warehouse_id' => $receipt->warehouse_id,
+            ],
+            (int) $receipt->warehouse_id
+        );
     }
 
     private function resolveVariant(Product $product, array $item): ProductVariantLink
@@ -305,8 +406,7 @@ class StockReceiptService
                     'receipt_id' => $receipt->id,
                     'receipt_item_id' => $item->id,
                     'warehouse_id' => $receipt->warehouse_id,
-                ]
-                ,
+                ],
                 (int) $receipt->warehouse_id
             );
 

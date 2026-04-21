@@ -23,13 +23,15 @@ export function getStockWriteoffStatusLabel(status: string | null | undefined): 
 }
 
 export const STOCK_RECEIPT_STATUS = {
+    DRAFT: "draft",
     POSTED: "posted",
 } as const;
 
 export type StockReceiptStatus = (typeof STOCK_RECEIPT_STATUS)[keyof typeof STOCK_RECEIPT_STATUS];
 
 export const STOCK_RECEIPT_STATUS_LABELS: Record<StockReceiptStatus, string> = {
-    [STOCK_RECEIPT_STATUS.POSTED]: "Проведено",
+    [STOCK_RECEIPT_STATUS.DRAFT]: "Черновик",
+    [STOCK_RECEIPT_STATUS.POSTED]: "Оприходован",
 };
 
 export function getStockReceiptStatusLabel(status: string | null | undefined): string {

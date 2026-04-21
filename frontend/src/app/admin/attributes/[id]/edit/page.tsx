@@ -46,6 +46,8 @@ export default function AdminAttributeEditPage() {
                 type: item.type,
                 sort_order: String(item.sort_order ?? 0),
                 is_active: item.is_active,
+                is_filterable: Boolean(item.is_filterable),
+                filter_sort_order: String(item.filter_sort_order ?? 0),
             });
         } catch (e: unknown) {
             setError(
@@ -81,6 +83,8 @@ export default function AdminAttributeEditPage() {
                 type: form.type,
                 sort_order: Number(form.sort_order || 0),
                 is_active: form.is_active,
+                is_filterable: form.is_filterable,
+                filter_sort_order: Number(form.filter_sort_order || 0),
             });
 
             setSuccess(result.message || "Атрибут сохранен");

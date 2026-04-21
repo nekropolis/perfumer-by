@@ -414,24 +414,14 @@ export async function applySellerOnePrice(rows: Array<{
     );
 }
 
-export async function refreshSellerOneLinkedPrices(file: File): Promise<{
-    message?: string;
-    updated?: number;
-    skipped?: number;
-    price_history_rows?: number;
-    missing_codes?: number;
-    deactivated_offers?: number;
-    deactivated_variants?: number;
-    codes_in_price?: number;
-    linked_products?: number;
-}> {
+export async function startSellerOneRefreshLinkedPricesJob(file: File): Promise<SellerOneParseStartResponse> {
     const formData = new FormData();
     formData.append("file", file);
 
     const method = "POST";
     const paths = [
-        "/admin/import-export/seller-one/supplier-price/refresh-linked",
-        "/admin/import-export/vanille/supplier-price/refresh-linked",
+        "/admin/import-export/seller-one/supplier-price/refresh-linked/start",
+        "/admin/import-export/vanille/supplier-price/refresh-linked/start",
     ];
     const errors: string[] = [];
 
@@ -448,17 +438,7 @@ export async function refreshSellerOneLinkedPrices(file: File): Promise<{
         });
 
         const text = await res.text();
-        const data = tryParseJsonResponse<{
-            message?: string;
-            updated?: number;
-            skipped?: number;
-            price_history_rows?: number;
-            missing_codes?: number;
-            deactivated_offers?: number;
-            deactivated_variants?: number;
-            codes_in_price?: number;
-            linked_products?: number;
-        }>(text);
+        const data = tryParseJsonResponse<SellerOneParseStartResponse & { message?: string }>(text);
 
         if (res.ok && data) {
             return data;
@@ -478,13 +458,23 @@ export async function refreshSellerOneLinkedPrices(file: File): Promise<{
         if (res.status === 404 && hasNextFallback) {
             continue;
         }
+
         throw new Error(message);
     }
 
     throw new Error(
         errors.length > 0
-            ? `All refresh prices API fallbacks failed:\n- ${errors.join("\n- ")}`
-            : "Refresh prices API fallback failed"
+            ? `All refresh-linked start API fallbacks failed:\n- ${errors.join("\n- ")}`
+            : "Refresh-linked start API fallback failed"
+    );
+}
+
+export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promise<{ data: SellerOneParseStatus }> {
+    return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus }>(
+        [
+            `/admin/import-export/seller-one/supplier-price/refresh-linked/status/${jobId}`,
+            `/admin/import-export/vanille/supplier-price/refresh-linked/status/${jobId}`,
+        ]
     );
 }
 

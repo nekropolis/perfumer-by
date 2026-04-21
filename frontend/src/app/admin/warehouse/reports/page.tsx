@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
-import { BarChart3, PackagePlus, ReceiptText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart3, Eye, PackagePlus, ReceiptText } from "lucide-react";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -12,7 +12,7 @@ import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admi
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
+import { fetchProducts, smartSearchProducts, type ProductAdminItem, type ProductSmartSearchItem } from "@/lib/admin-products-api";
 import {
     fetchWarehouses,
     fetchWarehouseSuppliers,
@@ -29,6 +29,7 @@ import {
     type WarehouseOption,
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
+import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 
 type ReportTab = "receipts" | "writeoffs" | "sales";
 
@@ -187,8 +188,13 @@ export default function WarehouseReportsPage() {
 
     const [supplierId, setSupplierId] = useState<number | "">("");
     const [writeoffType, setWriteoffType] = useState("");
-    const [groupBy, setGroupBy] = useState<"day" | "month">("day");
-    const [productId, setProductId] = useState<number | "">("");
+    const [salesReportBy, setSalesReportBy] = useState<"orders" | "products">("orders");
+    const [groupBy, setGroupBy] = useState<"day" | "month" | "year">("day");
+    const [salesProductIds, setSalesProductIds] = useState<number[]>([]);
+    const [salesProductsOpen, setSalesProductsOpen] = useState(false);
+    const [salesProductsQuery, setSalesProductsQuery] = useState("");
+    const [salesSmartOptions, setSalesSmartOptions] = useState<ProductSmartSearchItem[]>([]);
+    const [salesSmartLoading, setSalesSmartLoading] = useState(false);
     const [receiptProductId, setReceiptProductId] = useState<number | "">("");
     const [writeoffProductId, setWriteoffProductId] = useState<number | "">("");
     const [warehouseId, setWarehouseId] = useState<number | "">("");
@@ -196,6 +202,29 @@ export default function WarehouseReportsPage() {
     const [suppliers, setSuppliers] = useState<WarehouseSupplierOption[]>([]);
 
     const [products, setProducts] = useState<ProductAdminItem[]>([]);
+    const selectedSalesProducts = useMemo(
+        () =>
+            salesProductIds
+                .map((id) => salesSmartOptions.find((option) => option.id === id) ?? products.find((product) => product.id === id))
+                .filter((item): item is ProductSmartSearchItem | ProductAdminItem => Boolean(item)),
+        [products, salesProductIds, salesSmartOptions]
+    );
+
+    const filteredSalesProducts = useMemo(() => {
+        if (salesProductsQuery.trim().length >= 2) {
+            return salesSmartOptions;
+        }
+        return products.slice(0, 100).map((product) => ({
+            id: product.id,
+            name: product.name,
+            brand_name: null,
+            variant_titles: [],
+            score: 1,
+        }));
+    }, [products, salesProductsQuery, salesSmartOptions]);
+    const salesProductToggle = useCallback((id: number) => {
+        setSalesProductIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
+    }, []);
 
     const [receiptItems, setReceiptItems] = useState<StockReceiptListItem[]>([]);
     const [receiptMeta, setReceiptMeta] = useState<{ current_page: number; last_page: number; total: number } | null>(null);
@@ -252,6 +281,58 @@ export default function WarehouseReportsPage() {
         void loadWarehouses();
     }, []);
 
+    useEffect(() => {
+        if (activeTab !== "sales") {
+            return;
+        }
+        if (dateFrom || dateTo) {
+            return;
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        setDateFrom(today);
+        setDateTo(today);
+    }, [activeTab, dateFrom, dateTo]);
+
+    useEffect(() => {
+        if (!salesProductsOpen) {
+            return;
+        }
+
+        const query = salesProductsQuery.trim();
+        if (query.length < 2) {
+            setSalesSmartOptions([]);
+            setSalesSmartLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setSalesSmartLoading(true);
+        const timeoutId = setTimeout(() => {
+            void smartSearchProducts({ q: query, limit: 40 })
+                .then((response) => {
+                    if (!cancelled) {
+                        setSalesSmartOptions(response.data ?? []);
+                    }
+                })
+                .catch((e) => {
+                    if (!cancelled) {
+                        console.error(e);
+                        setSalesSmartOptions([]);
+                    }
+                })
+                .finally(() => {
+                    if (!cancelled) {
+                        setSalesSmartLoading(false);
+                    }
+                });
+        }, 280);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
+        };
+    }, [salesProductsOpen, salesProductsQuery]);
+
     useResetPageOnChange(setPage, [
         activeTab,
         dateFrom,
@@ -301,15 +382,16 @@ export default function WarehouseReportsPage() {
 
     const loadSales = useCallback(async () => {
         const response = await fetchStockSalesReport({
+            report_by: salesReportBy,
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
-            group_by: groupBy,
-            product_id: typeof productId === "number" ? productId : undefined,
+            group_by: salesReportBy === "orders" ? groupBy : undefined,
+            product_ids: salesProductIds.length > 0 ? salesProductIds : undefined,
             warehouse_id: typeof warehouseId === "number" ? warehouseId : undefined,
         });
         setSalesRows(response.data ?? []);
         setSalesSummary(response.summary);
-    }, [dateFrom, dateTo, groupBy, productId, warehouseId]);
+    }, [dateFrom, dateTo, groupBy, salesProductIds, warehouseId, salesReportBy]);
 
     useEffect(() => {
         const run = async () => {
@@ -465,6 +547,7 @@ export default function WarehouseReportsPage() {
                             <option value="">Все типы</option>
                             <option value="order">Заказ</option>
                             <option value="manual">Ручное</option>
+                            <option value="reserve">Резерв</option>
                         </select>
                     </>
                 ) : null}
@@ -472,25 +555,94 @@ export default function WarehouseReportsPage() {
                 {activeTab === "sales" ? (
                     <>
                         <select
+                            value={salesReportBy}
+                            onChange={(e) => setSalesReportBy(e.target.value as "orders" | "products")}
+                            className="rounded-xl border px-3 py-2 text-sm"
+                        >
+                            <option value="orders">По заказам</option>
+                            <option value="products">По товарам</option>
+                        </select>
+                        {salesReportBy === "orders" ? (
+                        <select
                             value={groupBy}
-                            onChange={(e) => setGroupBy(e.target.value as "day" | "month")}
+                            onChange={(e) => setGroupBy(e.target.value as "day" | "month" | "year")}
                             className="rounded-xl border px-3 py-2 text-sm"
                         >
                             <option value="day">По дням</option>
                             <option value="month">По месяцам</option>
+                            <option value="year">По годам</option>
                         </select>
-                        <select
-                            value={productId}
-                            onChange={(e) => setProductId(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border px-3 py-2 text-sm"
-                        >
-                            <option value="">Все товары</option>
-                            {products.map((product) => (
-                                <option key={product.id} value={product.id}>
-                                    {product.name}
-                                </option>
-                            ))}
-                        </select>
+                        ) : null}
+                        <div className="relative min-w-[260px]">
+                            <button
+                                type="button"
+                                onClick={() => setSalesProductsOpen((prev) => !prev)}
+                                className="w-full rounded-xl border bg-white px-3 py-2 text-left text-sm"
+                            >
+                                {salesProductIds.length > 0 ? `Товары: ${salesProductIds.length}` : "Все товары"}
+                            </button>
+                            {salesProductsOpen ? (
+                                <div className="absolute z-20 mt-2 w-[380px] max-w-[80vw] rounded-xl border bg-white p-3 shadow-xl">
+                                    <input
+                                        value={salesProductsQuery}
+                                        onChange={(e) => setSalesProductsQuery(e.target.value)}
+                                        placeholder="Умный поиск товара..."
+                                        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
+                                    />
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <span className="text-xs text-gray-500">
+                                            Выбрано: {salesProductIds.length}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSalesProductIds([])}
+                                            className="text-xs text-gray-600 underline"
+                                        >
+                                            Сбросить
+                                        </button>
+                                    </div>
+                                    <div className="max-h-60 space-y-1 overflow-y-auto">
+                                        {selectedSalesProducts.length > 0 ? (
+                                            <div className="mb-1 border-b pb-2">
+                                                {selectedSalesProducts.map((product) => (
+                                                    <label key={`selected-${product.id}`} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-gray-50">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked
+                                                            onChange={() => salesProductToggle(product.id)}
+                                                        />
+                                                        <span className="truncate">{product.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                        {filteredSalesProducts.map((product) => {
+                                            const checked = salesProductIds.includes(product.id);
+                                            return (
+                                                <label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-gray-50">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => salesProductToggle(product.id)}
+                                                    />
+                                                    <span className="truncate">
+                                                        {product.name}
+                                                        {"brand_name" in product && product.brand_name ? ` (${product.brand_name})` : ""}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
+                                        {salesSmartLoading ? (
+                                            <div className="px-2 py-3 text-xs text-gray-500">Поиск...</div>
+                                        ) : filteredSalesProducts.length === 0 ? (
+                                            <div className="px-2 py-3 text-xs text-gray-500">
+                                                {salesProductsQuery.trim().length >= 2 ? "Ничего не найдено" : "Введите минимум 2 символа"}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
                     </>
                 ) : null}
             </div>
@@ -514,9 +666,17 @@ export default function WarehouseReportsPage() {
 
             {activeTab === "sales" && salesSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
+                    {salesReportBy === "orders" ? (
+                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
+                    ) : (
+                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Позиций в отчете: <span className="font-semibold">{salesRows.length}</span></div>
+                    )}
                     <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Единиц: <span className="font-semibold">{salesSummary.qty_total}</span></div>
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
+                    {salesReportBy === "orders" ? (
+                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
+                    ) : (
+                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Период: <span className="font-semibold">{dateFrom || "—"} - {dateTo || "—"}</span></div>
+                    )}
                 </div>
             ) : null}
 
@@ -527,26 +687,50 @@ export default function WarehouseReportsPage() {
                     <AdminEmptyState title="Данных нет" description="Попробуйте изменить фильтры отчета по продажам." />
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-left text-gray-500">
-                                    <th className="px-4 py-3">Период</th>
-                                    <th className="px-4 py-3">Заказы</th>
-                                    <th className="px-4 py-3">Единицы</th>
-                                    <th className="px-4 py-3">Выручка</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {salesRows.map((row) => (
-                                    <tr key={row.period} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3 font-medium">{row.period}</td>
-                                        <td className="px-4 py-3">{row.orders_count}</td>
-                                        <td className="px-4 py-3">{row.qty_total}</td>
-                                        <td className="px-4 py-3">{Number(row.revenue_total).toFixed(2)}</td>
+                        {salesReportBy === "orders" ? (
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b text-left text-gray-500">
+                                        <th className="px-4 py-3">Период</th>
+                                        <th className="px-4 py-3">Заказы</th>
+                                        <th className="px-4 py-3">Единицы</th>
+                                        <th className="px-4 py-3">Выручка</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {salesRows.map((row) => (
+                                        <tr key={row.period ?? `${row.product_id}-${row.variant_title}`} className="border-b last:border-b-0">
+                                            <td className="px-4 py-3 font-medium">{row.period ?? "—"}</td>
+                                            <td className="px-4 py-3">{row.orders_count ?? 0}</td>
+                                            <td className="px-4 py-3">{row.qty_total}</td>
+                                            <td className="px-4 py-3">{Number(row.revenue_total ?? 0).toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b text-left text-gray-500">
+                                        <th className="px-4 py-3">ID товара</th>
+                                        <th className="px-4 py-3">Имя товара / вариант</th>
+                                        <th className="px-4 py-3">Кол-во</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {salesRows.map((row) => (
+                                        <tr key={`${row.product_id}-${row.variant_title}`} className="border-b last:border-b-0">
+                                            <td className="px-4 py-3 font-medium">{row.product_id ?? "—"}</td>
+                                            <td className="px-4 py-3">
+                                                {row.product_name ?? "—"}
+                                                {row.variant_title ? ` / ${row.variant_title}` : ""}
+                                            </td>
+                                            <td className="px-4 py-3">{row.qty_total}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 )
             ) : (
@@ -582,26 +766,21 @@ export default function WarehouseReportsPage() {
                                         <th className="px-4 py-3">Дата</th>
                                         <th className="px-4 py-3">Строки</th>
                                         <th className="px-4 py-3">Комментарий</th>
-                                        <th className="px-4 py-3 text-right">Действия</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {receiptItems.map((item) => (
                                         <tr key={item.id} className="border-b last:border-b-0">
-                                            <td className="px-4 py-3 font-medium">#{item.document_no ?? item.id}</td>
+                                            <td className="px-4 py-3 font-medium">{`Приход #${item.document_no ?? item.id}`}</td>
                                             <td className="px-4 py-3">{item.supplier_name}</td>
                                             <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.received_at)}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{item.items?.length ?? 0}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-600">
+                                                <AdminInfoButton
+                                                    count={item.items?.length ?? 0}
+                                                    onClickAction={() => setReceiptDetailRow(item)}
+                                                />  
+                                                </td>
                                             <td className="px-4 py-3 text-xs text-gray-600">{item.comment || "—"}</td>
-                                            <td className="px-4 py-3 text-right">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setReceiptDetailRow(item)}
-                                                    className="rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
-                                                >
-                                                    Просмотр
-                                                </button>
-                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -623,7 +802,7 @@ export default function WarehouseReportsPage() {
                                 <tbody>
                                     {writeoffItems.map((item) => (
                                         <tr key={item.id} className="border-b last:border-b-0">
-                                            <td className="px-4 py-3 font-medium">#{item.document_no ?? item.id}</td>
+                                            <td className="px-4 py-3 font-medium">{`Списание #${item.document_no ?? item.id}`}</td>
                                             <td className="px-4 py-3">{item.type}</td>
                                             <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.written_off_at)}</td>
                                             <td className="px-4 py-3 text-xs text-gray-600">{item.items?.length ?? 0}</td>
@@ -632,9 +811,11 @@ export default function WarehouseReportsPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setWriteoffDetailRow(item)}
-                                                    className="rounded-xl border px-3 py-2 text-xs hover:bg-gray-50"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                                    aria-label="Просмотр списания"
+                                                    title="Просмотр"
                                                 >
-                                                    Просмотр
+                                                    <Eye size={16} />
                                                 </button>
                                             </td>
                                         </tr>
