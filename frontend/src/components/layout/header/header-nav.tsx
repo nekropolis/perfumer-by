@@ -10,11 +10,10 @@ type HeaderNavProps = {
 export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
     return (
         <div
-            className={`hidden bg-[var(--background)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${
-                isCompact
+            className={`hidden bg-[var(--background)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${isCompact
                     ? "max-h-0 overflow-hidden border-t border-transparent opacity-0"
                     : "max-h-11 border-t border-[var(--line)] opacity-100"
-            }`}
+                }`}
             aria-hidden={isCompact}
         >
             <div className="mx-auto flex h-11 max-w-7xl items-center gap-7 px-4 sm:px-6 lg:px-8">

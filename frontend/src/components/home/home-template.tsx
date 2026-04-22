@@ -69,12 +69,12 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml }
     return (
         <main className="mx-auto max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
             <section className="overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--background)] px-5 py-7 md:px-8 md:py-9">
-                <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div>
+                <div className="flex flex-col gap-6 md:flex-row md:items-center">
+                    <div className="order-1 md:min-w-0 md:flex-[1.28]">
                         <div className="mb-4 inline-flex rounded-full border border-[var(--accent-soft)] px-3 py-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">
                             Soft Luxury Editorial
                         </div>
-                        <h1 className="font-display max-w-[14ch] text-5xl leading-[0.95] text-[var(--foreground)] sm:text-6xl">
+                        <h1 className="font-display max-w-[19ch] text-5xl leading-[0.95] text-[var(--foreground)] sm:text-6xl">
                             {heroTitle}
                         </h1>
                         <p className="mt-4 max-w-[44ch] text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
@@ -90,7 +90,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml }
                         </div>
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-[420px]">
+                    <div className="order-2 relative mx-auto w-full max-w-[360px] md:mx-0 md:ml-auto md:flex-[0.72]">
                         <div className="rounded-[28px] border border-[var(--line)] bg-gradient-to-b from-[#F4EEE8] to-[#ECE5DF] p-6">
                             <div className="relative h-72">
                                 <div className="absolute left-1/2 top-5 h-56 w-36 -translate-x-1/2 rounded-[28px] border border-[#b59a8f] bg-gradient-to-b from-[#3e2a31] to-[#1f1419] shadow-[0_26px_40px_rgba(36,22,24,0.35)]" />

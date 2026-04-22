@@ -180,7 +180,7 @@ export default function HeaderMobileMenu({
                                         </div>
                                     </div>
                                 ) : searchBrandResults.length === 0 &&
-                                  searchResults.length === 0 ? (
+                                    searchResults.length === 0 ? (
                                     <div className="px-3 py-3 text-sm text-[var(--text-secondary)]">
                                         Ничего не найдено
                                     </div>
@@ -244,9 +244,9 @@ export default function HeaderMobileMenu({
                                                                     )
                                                                         ? item.image
                                                                         : `/${item.image.replace(
-                                                                              /^\/+/,
-                                                                              "",
-                                                                          )}`
+                                                                            /^\/+/,
+                                                                            "",
+                                                                        )}`
                                                                 }
                                                                 alt={item.name}
                                                                 fill

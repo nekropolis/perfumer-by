@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
     const page = await fetchCmsPageBySlug("glavnaya");
-    const heroTitle = page?.h1 || "Ароматы, которые хочется носить каждый день";
+    const heroTitle = page?.h1 || "Оригинальная парфюмерия для тех, кто выбирает аромат как стиль";
     const heroDescription = page?.seo_description || "Интернет-магазин парфюмерии с доставкой по Минску и всей Беларуси.";
     const contentHtml = page?.content || "";
 

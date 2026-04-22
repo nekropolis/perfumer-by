@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 type Props = {
@@ -20,7 +21,13 @@ export default function HeaderCatalogDrawer({
     sections,
     onCloseAction,
 }: Props) {
-    if (typeof document === "undefined") {
+    const mounted = useSyncExternalStore(
+        () => () => {},
+        () => true,
+        () => false
+    );
+
+    if (!mounted || typeof document === "undefined") {
         return null;
     }
 

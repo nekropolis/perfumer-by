@@ -34,11 +34,10 @@ export default function HeaderServiceBar({
 }: HeaderServiceBarProps) {
     return (
         <div
-            className={`hidden bg-[var(--background)] text-[var(--text-secondary)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${
-                isCompact
+            className={`hidden bg-[var(--background)] text-[var(--text-secondary)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${isCompact
                     ? "max-h-0 overflow-hidden border-b border-transparent opacity-0"
                     : "max-h-9 border-b border-[var(--line)] opacity-100"
-            }`}
+                }`}
             aria-hidden={isCompact}
         >
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -59,9 +58,8 @@ export default function HeaderServiceBar({
                                 <svg
                                     aria-hidden
                                     viewBox="0 0 20 20"
-                                    className={`h-3.5 w-3.5 text-[var(--text-secondary)] transition-transform duration-200 ${
-                                        isPhoneDropdownOpen ? "rotate-180" : ""
-                                    }`}
+                                    className={`h-3.5 w-3.5 text-[var(--text-secondary)] transition-transform duration-200 ${isPhoneDropdownOpen ? "rotate-180" : ""
+                                        }`}
                                     fill="none"
                                 >
                                     <path
