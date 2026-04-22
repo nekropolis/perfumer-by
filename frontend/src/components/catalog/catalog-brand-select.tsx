@@ -53,12 +53,12 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="flex w-full items-center justify-between rounded-xl border bg-white px-4 py-2 text-sm"
+                className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)]"
             >
                 <span className="truncate">
                     {selectedBrand ? selectedBrand.name : "Выберите бренд"}
                 </span>
-                <span className="ml-3 text-gray-400">▾</span>
+                <span className="ml-3 text-[var(--text-secondary)]">▾</span>
             </button>
 
             {open && (
@@ -68,14 +68,14 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                         onClick={() => setOpen(false)}
                     />
 
-                    <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border bg-white shadow-lg lg:min-w-[320px]">
-                        <div className="border-b p-3">
+                    <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-lg lg:min-w-[320px]">
+                        <div className="border-b border-[var(--line)] p-3">
                             <input
                                 type="text"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Поиск бренда..."
-                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--text-secondary)]"
                             />
                         </div>
 
@@ -84,7 +84,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                 type="button"
                                 onClick={() => applyBrand()}
                                 className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
-                                    !selectedBrandId ? "bg-black text-white" : "hover:bg-gray-50"
+                                    !selectedBrandId ? "bg-[var(--accent)] text-white" : "text-[var(--foreground)] hover:bg-[var(--background)]"
                                 }`}
                             >
                                 Все бренды
@@ -100,7 +100,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                             type="button"
                                             onClick={() => applyBrand(String(brand.id))}
                                             className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
-                                                isActive ? "bg-black text-white" : "hover:bg-gray-50"
+                                                isActive ? "bg-[var(--accent)] text-white" : "text-[var(--foreground)] hover:bg-[var(--background)]"
                                             }`}
                                         >
                                             {brand.name}
@@ -108,7 +108,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                     );
                                 })
                             ) : (
-                                <div className="px-3 py-2 text-sm text-gray-500">
+                                <div className="px-3 py-2 text-sm text-[var(--text-secondary)]">
                                     Ничего не найдено
                                 </div>
                             )}

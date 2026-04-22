@@ -66,7 +66,7 @@ function normalizeVariants(value: unknown): ProductVariantData[] {
 export default function ProductDetailView({ product }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "description">("attributes");
-    const { setCartState } = useCart();
+    const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const variants = useMemo(() => normalizeVariants(product.variants), [product.variants]);
     const images = useMemo(() => normalizeImages(product.images), [product.images]);
@@ -84,6 +84,12 @@ export default function ProductDetailView({ product }: Props) {
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
     }, [variants, selectedVariantId]);
+    const isSelectedVariantInCart = useMemo(() => {
+        if (!selectedVariant?.id || !cart?.items?.length) {
+            return false;
+        }
+        return cart.items.some((item) => item.product_variant_id === selectedVariant.id);
+    }, [cart?.items, selectedVariant?.id]);
     const selectedVariantHasDiscount = Boolean(
         selectedVariant &&
         selectedVariant.old_price &&
@@ -133,7 +139,7 @@ export default function ProductDetailView({ product }: Props) {
 
             <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-start">
                 <section>
-                    <div className="relative aspect-square overflow-hidden rounded-3xl border bg-white shadow-sm">
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] shadow-sm">
                         <ProductStatusLabels
                             isNew={Boolean(product.is_new)}
                             isHit={Boolean(product.is_hit)}
@@ -151,8 +157,8 @@ export default function ProductDetailView({ product }: Props) {
                                 className="object-cover"
                             />
                         ) : (
-                            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 text-gray-400">
-                                <div className="mb-4 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm">
+                            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--surface)] text-[var(--text-secondary)]">
+                                <div className="mb-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 24 24"
@@ -169,8 +175,8 @@ export default function ProductDetailView({ product }: Props) {
                                     </svg>
                                 </div>
 
-                                <div className="text-base font-medium text-gray-500">Фото появится позже</div>
-                                <div className="mt-1 text-sm text-gray-400">Изображение товара загружается</div>
+                                <div className="text-base font-medium text-[var(--text-secondary)]">Фото появится позже</div>
+                                <div className="mt-1 text-sm text-[var(--text-secondary)]">Изображение товара загружается</div>
                             </div>
                         )}
                     </div>
@@ -186,7 +192,7 @@ export default function ProductDetailView({ product }: Props) {
                                         key={image.id}
                                         type="button"
                                         onClick={() => setSelectedImageId(image.id)}
-                                        className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-black ring-1 ring-black/10" : "border-gray-200"}`}
+                                        className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-[var(--accent)] ring-1 ring-[var(--accent-soft)]" : "border-[var(--line)]"}`}
                                     >
                                         <Image
                                             src={thumbUrl}
@@ -205,7 +211,7 @@ export default function ProductDetailView({ product }: Props) {
                 </section>
 
                 <section className="min-w-0">
-                    <div className="mb-2 flex items-center gap-1 text-sm text-gray-500">
+                    <div className="mb-2 flex items-center gap-1 text-sm text-[var(--text-secondary)]">
                         <span>Код товара:</span>
                         <CopyText
                             value={String(product.id)}
@@ -223,8 +229,8 @@ export default function ProductDetailView({ product }: Props) {
                         onClick={() => void toggleWishlist(product.id)}
                         className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
                             isInWishlist(product.id)
-                                ? "border-black bg-black text-white hover:bg-gray-900"
-                                : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                                ? "border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-95"
+                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--background)]"
                         }`}
                     >
                         <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
@@ -235,8 +241,8 @@ export default function ProductDetailView({ product }: Props) {
                     {variants.length > 0 ? (
                         <>
 
-                            <div className="mb-3 text-sm font-medium text-gray-700">Выбор вариантов</div>
-                            <div className="mb-6 rounded-3xl bg-gray-100 p-3">
+                            <div className="mb-3 text-sm font-medium text-[var(--foreground)]">Выбор вариантов</div>
+                            <div className="mb-6 rounded-3xl border border-[var(--line)] bg-[var(--background)] p-3">
                                 <div className="flex flex-wrap gap-2">
                                     {variants.map((variant) => {
                                         const isSelected = variant.id === selectedVariantId;
@@ -260,8 +266,8 @@ export default function ProductDetailView({ product }: Props) {
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
                                                 className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${isSelected
-                                                    ? "bg-white border-black shadow-sm ring-1 ring-black/10"
-                                                    : "bg-white/70 border-gray-200 hover:bg-white hover:border-gray-300 hover:-translate-y-[1px] active:scale-[0.97]"
+                                                    ? "bg-[var(--surface)] border-[var(--accent)] shadow-[0_0_0_2px_var(--accent-soft)]"
+                                                    : "bg-[var(--surface)] border-[var(--line)] hover:bg-[var(--background)] hover:border-[var(--accent-soft)] hover:-translate-y-[1px] active:scale-[0.97]"
                                                     }`}
                                             >
                                                 <div className="flex flex-col gap-0.5">
@@ -271,7 +277,7 @@ export default function ProductDetailView({ product }: Props) {
 
                                                     <div className="flex items-center gap-2">
                                                         {variant.price && (
-                                                            <span className="text-xs text-gray-500 group-hover:text-gray-700">
+                                                            <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--foreground)]">
                                                                 {formatPrice(variant.price)}
                                                             </span>
                                                         )}
@@ -305,6 +311,7 @@ export default function ProductDetailView({ product }: Props) {
                 <aside className="self-start xl:sticky xl:top-24">
                     <ProductBuyBox
                         selectedVariant={selectedVariant}
+                        isSelectedVariantInCart={isSelectedVariantInCart}
                         isPending={isPending}
                         onAddToCart={handleAddToCart}
                         formatPrice={formatPrice}
@@ -318,14 +325,14 @@ export default function ProductDetailView({ product }: Props) {
                 </section>
 
                 <section className="min-w-0 xl:col-span-2">
-                    <div className="rounded-3xl border bg-white">
-                        <div className="flex overflow-x-auto border-b">
+                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)]">
+                        <div className="flex overflow-x-auto border-b border-[var(--line)]">
                             <button
                                 type="button"
                                 onClick={() => setActiveTab("attributes")}
                                 className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "attributes"
-                                    ? "border-b-2 border-black text-black"
-                                    : "text-gray-500"
+                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
+                                    : "text-[var(--text-secondary)]"
                                     }`}
                             >
                                 Характеристики
@@ -335,8 +342,8 @@ export default function ProductDetailView({ product }: Props) {
                                 type="button"
                                 onClick={() => setActiveTab("description")}
                                 className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "description"
-                                    ? "border-b-2 border-black text-black"
-                                    : "text-gray-500"
+                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
+                                    : "text-[var(--text-secondary)]"
                                     }`}
                             >
                                 Описание
@@ -358,27 +365,27 @@ export default function ProductDetailView({ product }: Props) {
                                             return (
                                                 <div
                                                     key={item.id}
-                                                    className="grid grid-cols-1 gap-1 border-b pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr] sm:gap-4"
+                                                    className="grid grid-cols-1 gap-1 border-b border-[var(--line)] pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr] sm:gap-4"
                                                 >
-                                                    <div className="text-sm text-gray-500">{label}</div>
+                                                    <div className="text-sm text-[var(--text-secondary)]">{label}</div>
                                                     <div className="text-sm">{valueText}</div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="text-sm text-gray-500">Характеристики отсутствуют</div>
+                                    <div className="text-sm text-[var(--text-secondary)]">Характеристики отсутствуют</div>
                                 )}
                             </div>
 
                             <div className={activeTab === "description" ? "block" : "hidden"}>
                                 {product.description ? (
                                     <div
-                                        className="prose prose-sm max-w-none text-gray-700 sm:prose-base"
+                                        className="prose prose-sm max-w-none text-[var(--foreground)] sm:prose-base"
                                         dangerouslySetInnerHTML={{ __html: product.description }}
                                     />
                                 ) : (
-                                    <div className="text-sm text-gray-500">Описание отсутствует</div>
+                                    <div className="text-sm text-[var(--text-secondary)]">Описание отсутствует</div>
                                 )}
                             </div>
 

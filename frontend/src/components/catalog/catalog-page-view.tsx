@@ -57,7 +57,7 @@ export default function CatalogPageView({
                         {title}
                     </h1>
 
-                    <p className="mt-2 text-sm text-gray-500">
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
                         Найдено товаров: {total}
                     </p>
                 </div>
@@ -65,7 +65,7 @@ export default function CatalogPageView({
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
-                    <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}
@@ -78,7 +78,7 @@ export default function CatalogPageView({
                 </aside>
 
                 <section className="min-w-0">
-                    <div className="sticky top-16 z-30 bg-[#f8f8f8] pb-2 lg:static lg:bg-transparent lg:pb-0">
+                    <div className="sticky top-16 z-30 bg-[var(--background)] pb-2 lg:static lg:bg-transparent lg:pb-0">
                         <CatalogGridToolbar
                             basePath={basePath}
                             brands={brands}
@@ -120,12 +120,12 @@ export default function CatalogPageView({
                             </div>
                         </>
                     ) : (
-                        <div className="rounded-3xl border bg-white px-6 py-12 text-center">
+                        <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
                             <div className="mb-2 text-2xl font-semibold">
                                 Ничего не найдено
                             </div>
 
-                            <p className="mx-auto max-w-md text-sm leading-6 text-gray-500">
+                            <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
                                 Попробуйте изменить фильтры или перейти в общий каталог,
                                 чтобы посмотреть другие товары.
                             </p>

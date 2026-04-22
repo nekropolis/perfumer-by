@@ -3,8 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette */
+  --background: #F7F3EE;
+  --foreground: #1F1722;
+  --surface: #FFFCF8;
+  --text-secondary: #6E6572;
+  --accent: #6F4A7E;
+  --accent-soft: #D8C2E6;
+  --line: #E8DED4;
+
+  /* Header-specific palette */
+  --header-bg: #F7F3EE;
+  --header-control-bg: #FBF7F3;
+
+  /* Typography */
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
 }
 
 html,
@@ -13,11 +27,17 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background-image: linear-gradient(180deg, #F9F5F1 0%, #F7F3EE 100%);
 }
 
 * {
   box-sizing: border-box;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
 }
 
 input,

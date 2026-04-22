@@ -89,7 +89,7 @@ export default async function SearchPage({
                                 {brands.map((brand) => (
                                     <Link
                                         key={brand.id}
-                                        href={`/catalog?brand_slug=${encodeURIComponent(brand.slug)}`}
+                                        href={`/brands/${encodeURIComponent(brand.slug)}`}
                                         className="flex items-center justify-between rounded-xl px-3 py-2 text-sm transition hover:bg-gray-50"
                                     >
                                         <span>{brand.name}</span>

@@ -95,7 +95,7 @@ function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
             : status.message || "Ожидание…";
     return {
         key: `seller-one:${status.job_id}:${status.job_type ?? "parse"}`,
-        title: isRefresh ? "Цены Seller One (связанные)" : "Парсинг Seller One",
+        title: isRefresh ? "Цены Seller One" : "Парсинг Seller One",
         statusLabel: SELLER_ONE_STATUS_LABELS[status.status] ?? status.status,
         message,
         counter,

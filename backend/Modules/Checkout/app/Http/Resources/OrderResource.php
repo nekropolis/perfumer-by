@@ -32,6 +32,7 @@ class OrderResource extends JsonResource
             'phone' => $this->phone,
             'comment' => $this->comment,
             'status' => $this->status,
+            'created_at' => $this->created_at?->toIso8601String(),
             'items_qty' => $this->items_qty,
             'subtotal' => number_format((float) $this->subtotal, 2, '.', ''),
             'total' => number_format((float) $this->total, 2, '.', ''),

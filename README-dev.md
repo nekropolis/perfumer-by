@@ -174,6 +174,10 @@ redirect_stderr=true
 stdout_logfile=/var/log/supervisor/perfumer-queue.log
 ```
 
+`numprocs=1` обязателен для dev, чтобы очередь не запускала heavy-задачи
+параллельно. Дополнительно в коде Seller One parse/refresh включен общий
+`WithoutOverlapping` lock (`seller_one_heavy_global`) как страховка от гонок.
+
 Применить:
 
 ```bash

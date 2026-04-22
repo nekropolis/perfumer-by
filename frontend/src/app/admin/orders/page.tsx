@@ -31,7 +31,7 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     },
     {
         id: "order_products",
-        label: "Товары для заказа",
+        label: "Товары для заказов",
         description: "Резервы новых заказов на складе поставщика",
         icon: ShoppingCart,
     },
@@ -51,9 +51,15 @@ export default function AdminOrdersPage() {
     const [searchInput, setSearchInput] = useState(
         () => searchParamsFromUrl.get("search") ?? "",
     );
-    const [statusFilter, setStatusFilter] = useState("");
+    const [statusFilter, setStatusFilter] = useState(
+        () => searchParamsFromUrl.get("status") ?? "",
+    );
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+    useEffect(() => {
+        setStatusFilter(searchParamsFromUrl.get("status") ?? "");
+    }, [searchParamsFromUrl]);
 
     useEffect(() => {
         if (activeTab !== "orders") {
@@ -136,7 +142,7 @@ export default function AdminOrdersPage() {
             />
 
             <AdminTableToolbar
-                title={activeTab === "orders" ? "Заказы" : "Товары для заказа"}
+                title={activeTab === "orders" ? "Заказы" : "Товары для заказов"}
                 description={
                     activeTab === "orders"
                         ? "Поиск по номеру заказа, имени клиента или телефону"

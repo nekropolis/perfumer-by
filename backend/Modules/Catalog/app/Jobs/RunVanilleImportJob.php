@@ -9,7 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Modules\Catalog\Models\VanilleImportJob;
-use Modules\Catalog\Services\Notifications\TelegramNotificationService;
+use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
 use Throwable;
 
@@ -61,7 +61,7 @@ class RunVanilleImportJob implements ShouldQueue
         ]);
 
         try {
-            app(TelegramNotificationService::class)->notifyVanilleImportJob($job->fresh());
+            app(ImportTelegramNotificationService::class)->notifyVanilleJobFinished($job->fresh());
         } catch (Throwable) {
         }
     }

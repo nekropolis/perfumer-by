@@ -7,12 +7,16 @@ import { updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 import CopyText from "@/components/ui/copy-text";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 
 type Props = {
     initialOrders: OrderData[];
     onSuccessMessageAction?: (message: string) => void;
     onErrorMessageAction?: (message: string) => void;
 };
+
+const STATUS_DROPDOWN_WIDTH_CLASS = "w-[176px]";
+const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
 
 export default function AdminOrdersTable({
                                              initialOrders,
@@ -51,6 +55,23 @@ export default function AdminOrdersTable({
         }
     };
 
+    const formatDate = (value?: string | null): string => {
+        if (!value) {
+            return "—";
+        }
+        try {
+            return new Date(value).toLocaleString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch {
+            return value;
+        }
+    };
+
     return (
         <>
             <div className="overflow-x-auto">
@@ -58,9 +79,10 @@ export default function AdminOrdersTable({
                     <thead>
                     <tr className="border-b text-left text-gray-500">
                         <th className="px-4 py-4">Заказ</th>
+                        <th className="px-4 py-4">Дата</th>
                         <th className="px-4 py-4">Клиент</th>
                         <th className="px-4 py-4">Телефон</th>
-                        <th className="px-4 py-4">Статус</th>
+                        <th className="w-[200px] px-4 py-4">Статус</th>
                         <th className="px-4 py-4">Товаров</th>
                         <th className="px-4 py-4">Сумма</th>
                         <th className="px-4 py-4">Действия</th>
@@ -77,21 +99,20 @@ export default function AdminOrdersTable({
                                     title="Скопировать номер заказа"
                                 />
                             </td>
+                            <td className="whitespace-nowrap px-4 py-4 text-gray-600">
+                                {formatDate(order.created_at)}
+                            </td>
                             <td className="px-4 py-4">{order.customer_name || "—"}</td>
                             <td className="px-4 py-4">{order.phone}</td>
                             <td className="px-4 py-4">
-                                <select
+                                <AdminStatusDropdown
                                     value={order.status}
-                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                    disabled={order.status === 'done'}
-                                    className="min-w-[180px] rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                >
-                                    {ORDER_STATUS_OPTIONS.map((item) => (
-                                        <option key={item.value} value={item.value}>
-                                            {item.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={ORDER_STATUS_OPTIONS}
+                                    onChangeAction={(nextStatus) => handleStatusChange(order.id, nextStatus)}
+                                    disabled={order.status === "done"}
+                                    widthClassName={STATUS_DROPDOWN_WIDTH_CLASS}
+                                    menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
+                                />
                             </td>
                             <td className="px-4 py-4">{order.items_qty}</td>
                             <td className="px-4 py-4 whitespace-nowrap">{order.total} руб.</td>

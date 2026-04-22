@@ -19,6 +19,7 @@ type Variant = {
 
 type Props = {
     selectedVariant: Variant | null;
+    isSelectedVariantInCart: boolean;
     isPending: boolean;
     onAddToCart: () => void;
     formatPrice: (price: string | null) => string;
@@ -28,6 +29,7 @@ type Props = {
 
 export default function ProductBuyBox({
     selectedVariant,
+    isSelectedVariantInCart,
     isPending,
     onAddToCart,
     formatPrice,
@@ -41,17 +43,17 @@ export default function ProductBuyBox({
     const canAddToCart = hasVariant && selectedVariant.is_available;
 
     return (
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
             {hasVariant ? (
                 <>
-                    <div className="mb-2 text-sm text-gray-500">Выбранный вариант</div>
+                    <div className="mb-2 text-sm text-[var(--text-secondary)]">Выбранный вариант</div>
 
                     <div className="mb-1 text-2xl font-semibold leading-tight">
                         {selectedVariant.display_name}
                     </div>
 
                     {selectedVariant.type && (
-                        <div className="mb-5 text-sm text-gray-500">
+                        <div className="mb-5 text-sm text-[var(--text-secondary)]">
                             {selectedVariant.type}
                         </div>
                     )}
@@ -66,14 +68,14 @@ export default function ProductBuyBox({
                         </div>
 
                         {selectedVariant.old_price && (
-                            <div className="text-base text-gray-400 line-through">
+                            <div className="text-base text-[var(--text-secondary)] line-through">
                                 {formatPrice(selectedVariant.old_price)}
                             </div>
                         )}
                     </div>
 
                     {selectedVariant.discount_percent && (
-                        <div className="mb-4 inline-flex rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">
+                        <div className="mb-4 inline-flex rounded-full bg-[var(--accent-soft)] px-3 py-1 text-sm font-medium text-[var(--foreground)]">
                             - {selectedVariant.discount_percent}%
                         </div>
                     )}
@@ -97,29 +99,42 @@ export default function ProductBuyBox({
                     </div>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                        {canAddToCart && <button
-                            type="button"
-                            onClick={onAddToCart}
-                            disabled={!canAddToCart || isPending}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-black to-neutral-800 px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                className="h-5 w-5"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M2.25 3h1.386c.51 0 .955.343 1.087.836L5.61 7.5m0 0h12.84c.75 0 1.398.52 1.56 1.252l1.038 4.5a1.125 1.125 0 01-1.098 1.373H7.125a1.125 1.125 0 01-1.098-.877L5.61 7.5zM8.25 19.5a.75.75 0 100 1.5.75.75 0 000-1.5zm10.5 0a.75.75 0 100 1.5.75.75 0 000-1.5z"
-                                />
-                            </svg>
+                        {canAddToCart ? (
+                            isSelectedVariantInCart ? (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="inline-flex flex-1 cursor-default items-center justify-center gap-2 rounded-2xl border border-[var(--accent-soft)] bg-[var(--background)] px-5 py-4 text-base font-medium text-[var(--accent)]"
+                                >
+                                    <span aria-hidden>✓</span>
+                                    <span>Товар в корзине</span>
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={onAddToCart}
+                                    disabled={!canAddToCart || isPending}
+                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        className="h-5 w-5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M2.25 3h1.386c.51 0 .955.343 1.087.836L5.61 7.5m0 0h12.84c.75 0 1.398.52 1.56 1.252l1.038 4.5a1.125 1.125 0 01-1.098 1.373H7.125a1.125 1.125 0 01-1.098-.877L5.61 7.5zM8.25 19.5a.75.75 0 100 1.5.75.75 0 000-1.5zm10.5 0a.75.75 0 100 1.5.75.75 0 000-1.5z"
+                                        />
+                                    </svg>
 
-                            <span>{isPending ? "Добавление..." : "Добавить в корзину"}</span>
-                        </button>}
+                                    <span>{isPending ? "Добавление..." : "Добавить в корзину"}</span>
+                                </button>
+                            )
+                        ) : null}
                     </div>
 
                     <div className="mt-4 flex justify-center">
@@ -156,10 +171,10 @@ export default function ProductBuyBox({
                                 onMouseLeave={(e) => {
                                     e.currentTarget.style.transform = "scale(1)";
                                 }}
-                                className="inline-flex items-center gap-1.5 text-sm text-gray-700"
+                                className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)]"
                             >
                                 <BellRing className="h-4 w-4" />
-                                <span className="underline underline-offset-4 decoration-gray-300">
+                                <span className="underline underline-offset-4 decoration-[var(--line)]">
                                     Сообщить о появлении
                                 </span>
                             </button>
@@ -168,10 +183,10 @@ export default function ProductBuyBox({
                 </>
             ) : (
                 <>
-                    <div className="mb-4 text-xl font-semibold leading-tight text-gray-900">
+                    <div className="mb-4 text-xl font-semibold leading-tight text-[var(--foreground)]">
                         Ожидается поступление
                     </div>
-                    <p className="mb-5 text-sm leading-6 text-gray-600">
+                    <p className="mb-5 text-sm leading-6 text-[var(--text-secondary)]">
                         Оставьте номер телефона — мы Вам сообщим, как только товар появится в продаже,
                         и сразу сориентируем по цене.
                     </p>
@@ -188,7 +203,7 @@ export default function ProductBuyBox({
                     <button
                         type="button"
                         onClick={() => setCallbackOpen(true)}
-                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3.5 text-sm font-medium text-emerald-800 transition-all duration-150 hover:-translate-y-[1px] hover:border-emerald-300 hover:bg-emerald-100 active:translate-y-0 active:scale-[0.99]"
+                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-5 py-3.5 text-sm font-medium text-[var(--foreground)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[var(--accent-soft)] hover:bg-[var(--surface)] active:translate-y-0 active:scale-[0.99]"
                     >
                         <PhoneCall className="h-4 w-4" />
                         Заказать звонок

@@ -49,15 +49,15 @@ function DrawerPanel({
             />
 
             <aside
-                className="absolute inset-y-0 left-0 z-10 flex h-full w-[min(90vw,26rem)] max-w-full flex-col bg-white shadow-2xl"
+                className="absolute inset-y-0 left-0 z-10 flex h-full w-[min(90vw,26rem)] max-w-full flex-col bg-[var(--surface)] shadow-2xl"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="catalog-mobile-filters-title"
             >
-                <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-3 py-3">
+                <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-3 py-3">
                     <h2
                         id="catalog-mobile-filters-title"
-                        className="min-w-0 flex-1 text-lg font-bold leading-tight text-gray-900"
+                        className="min-w-0 flex-1 text-lg font-bold leading-tight text-[var(--foreground)]"
                     >
                         Фильтры
                     </h2>
@@ -65,7 +65,7 @@ function DrawerPanel({
                         ref={closeRef}
                         type="button"
                         onClick={onClose}
-                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border bg-white text-gray-700 transition hover:bg-gray-50"
+                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
                         aria-label="Закрыть фильтры"
                     >
                         <X className="h-6 w-6 shrink-0" strokeWidth={2.5} aria-hidden />
@@ -133,12 +133,12 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                     onClick={() => setOpen(true)}
                     className={
                         compact
-                            ? "inline-flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-50 [touch-action:manipulation] active:bg-gray-50"
-                            : "w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left text-sm font-semibold text-gray-900 shadow-sm transition [touch-action:manipulation] active:bg-gray-50"
+                            ? "inline-flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] [touch-action:manipulation] active:bg-[var(--background)]"
+                            : "w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 text-left text-sm font-semibold text-[var(--foreground)] shadow-sm transition [touch-action:manipulation] active:bg-[var(--background)]"
                     }
                 >
                     <span>Фильтры</span>
-                    {compact ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden /> : null}
+                    {compact ? <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden /> : null}
                 </button>
             </div>
 

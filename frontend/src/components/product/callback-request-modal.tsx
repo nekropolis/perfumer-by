@@ -135,26 +135,26 @@ export default function CallbackRequestModal({
             onMouseDown={handleOverlayClick}
         >
             <div
-                className="relative w-full max-w-sm overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+                className="relative w-full max-w-sm overflow-hidden rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="callback-request-title"
             >
-                <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
                     <div className="min-w-0">
                         <h2
                             id="callback-request-title"
                             className="flex items-center gap-2 text-lg font-semibold leading-tight"
                         >
-                            <PhoneCall className="h-5 w-5 text-emerald-600" />
+                            <PhoneCall className="h-5 w-5 text-[var(--accent)]" />
                             Заказать звонок
                         </h2>
                         {contextLine ? (
-                            <div className="mt-0.5 truncate text-sm text-gray-500">
+                            <div className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
                                 {contextLine}
                             </div>
                         ) : (
-                            <div className="mt-0.5 text-sm text-gray-500">
+                            <div className="mt-0.5 text-sm text-[var(--text-secondary)]">
                                 Оставьте номер — мы перезвоним
                             </div>
                         )}
@@ -163,7 +163,7 @@ export default function CallbackRequestModal({
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="shrink-0 rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                        className="shrink-0 rounded-full p-1.5 text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                         aria-label="Закрыть"
                     >
                         <X size={18} />
@@ -172,7 +172,7 @@ export default function CallbackRequestModal({
 
                 {successMessage ? (
                     <div className="px-5 py-6">
-                        <div className="rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
+                        <div className="rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm leading-6 text-[var(--foreground)]">
                             {successMessage}
                         </div>
                         <div className="mt-4 flex justify-end">
@@ -197,11 +197,11 @@ export default function CallbackRequestModal({
                         />
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                            <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
                                 Телефон
                             </label>
                             <PhoneInput value={phone} onChangeAction={setPhone} />
-                            <p className="mt-1 text-xs text-gray-400">
+                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
                                 Формат: +375 (25/29/33/44) XXX-XX-XX
                             </p>
                         </div>
@@ -216,14 +216,14 @@ export default function CallbackRequestModal({
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50"
+                                className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm transition hover:bg-[var(--background)]"
                             >
                                 Отмена
                             </button>
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !phoneIsValid}
-                                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex items-center justify-center rounded-xl bg-[var(--accent)] px-5 py-2 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isSubmitting ? "Отправка..." : "Заказать звонок"}
                             </button>

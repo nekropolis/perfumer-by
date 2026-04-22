@@ -26,4 +26,11 @@ return [
         'sender' => env('SMS_OTP_SENDER', 'Perfumer'),
         'timeout' => (int) env('SMS_OTP_TIMEOUT', 5),
     ],
+
+    'telegram' => [
+        'enabled' => env('TELEGRAM_NOTIFICATIONS_ENABLED', true),
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'chat_id' => env('TELEGRAM_CHAT_ID'),
+        'timeout' => (int) env('TELEGRAM_TIMEOUT', 10),
+    ],
 ];

@@ -4,7 +4,7 @@ import { Truck, CreditCard, Phone } from "lucide-react";
 
 export default function ProductInfoExtra() {
     return (
-        <div className="rounded-2xl border p-5 text-sm">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 text-sm">
             <div className="space-y-5">
 
                 <div>
@@ -12,7 +12,7 @@ export default function ProductInfoExtra() {
                         <Truck size={16} />
                         Доставка г. Минск
                     </div>
-                    <ul className="space-y-1 text-gray-600">
+                    <ul className="space-y-1 text-[var(--text-secondary)]">
                         <li>Белпочтой</li>
                         <li>Европочтой до отделения</li>
                         <li>Курьером по РБ</li>
@@ -24,7 +24,7 @@ export default function ProductInfoExtra() {
                         <CreditCard size={16} />
                         Оплата
                     </div>
-                    <ul className="space-y-1 text-gray-600">
+                    <ul className="space-y-1 text-[var(--text-secondary)]">
                         <li>Наличными курьеру</li>
                         <li>Наложенным платежом</li>
                         <li>Банковской картой онлайн</li>
@@ -37,7 +37,7 @@ export default function ProductInfoExtra() {
                         Возникли вопросы?
                     </div>
 
-                    <div className="text-gray-600">
+                    <div className="text-[var(--text-secondary)]">
                         Звоните:
                     </div>
 

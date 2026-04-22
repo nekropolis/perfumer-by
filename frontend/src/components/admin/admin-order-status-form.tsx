@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 
 type Props = {
     orderId: number;
@@ -67,18 +68,16 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
         <div>
             <div className="mb-2 text-sm font-medium">Статус заказа</div>
 
-            <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                disabled={isTerminal}
-                className="mb-3 w-full rounded-xl border px-4 py-3 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
-            >
-                {ORDER_STATUS_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                        {item.label}
-                    </option>
-                ))}
-            </select>
+            <div className="mb-3">
+                <AdminStatusDropdown
+                    value={status}
+                    options={ORDER_STATUS_OPTIONS}
+                    onChangeAction={setStatus}
+                    disabled={isTerminal}
+                    widthClassName="w-full"
+                    menuWidthClassName="w-full"
+                />
+            </div>
 
             <button
                 type="button"

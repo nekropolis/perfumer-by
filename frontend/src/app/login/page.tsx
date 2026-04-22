@@ -151,7 +151,7 @@ export default function LoginPage() {
 
     return (
         <main className="mx-auto max-w-xl px-4 py-10 sm:px-6">
-            <div className="rounded-2xl border p-6">
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6">
                 <h1 className="mb-6 text-3xl font-semibold">Вход по телефону</h1>
 
                 {step === "phone" && (
@@ -162,7 +162,7 @@ export default function LoginPage() {
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full rounded-xl border px-4 py-3"
+                                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)]"
                                 placeholder="Ваше имя"
                             />
                         </div>
@@ -195,7 +195,7 @@ export default function LoginPage() {
                                 type="text"
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
-                                className="w-full rounded-xl border px-4 py-3"
+                                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)]"
                                 placeholder="Введите код"
                             />
                         </div>

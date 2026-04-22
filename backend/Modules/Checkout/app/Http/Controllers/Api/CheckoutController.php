@@ -11,6 +11,7 @@ use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
+use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
 use Modules\Warehouse\Services\StockInventoryService;
 
 class CheckoutController extends Controller
@@ -101,6 +102,7 @@ class CheckoutController extends Controller
         });
 
         $order->load('items');
+        app(CheckoutTelegramNotificationService::class)->notifyNewOrder($order);
 
         return response()->json([
             'data' => new OrderResource($order),

@@ -22,7 +22,7 @@ use Modules\ImportExport\Services\Vanille\Parsers\VanilleOfferVariantParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleProductParser;
 use Modules\ImportExport\Services\Vanille\Support\VanilleQueuedJobExecutor;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
-use Modules\Catalog\Services\Notifications\TelegramNotificationService;
+use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use App\Services\AuditLogService;
 use Throwable;
 
@@ -709,7 +709,7 @@ class VanilleImportService
                 ]);
 
                 try {
-                    app(TelegramNotificationService::class)->notifyVanilleImportJob($job->fresh());
+                    app(ImportTelegramNotificationService::class)->notifyVanilleJobFinished($job->fresh());
                 } catch (Throwable) {
                 }
 
@@ -759,7 +759,7 @@ class VanilleImportService
             }
 
             try {
-                app(TelegramNotificationService::class)->notifyVanilleImportJob($job->fresh());
+                app(ImportTelegramNotificationService::class)->notifyVanilleJobFinished($job->fresh());
             } catch (Throwable) {
             }
         }

@@ -7,6 +7,8 @@ use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
 use Modules\Checkout\Http\Controllers\Api\CallbackRequestController;
+use Modules\Checkout\Http\Controllers\Api\AdminDashboardController;
+use Modules\Communications\Http\Controllers\Admin\TelegramTestController;
 
 Route::prefix('checkout')->group(function () {
     Route::post('/', [CheckoutController::class, 'checkout']);
@@ -25,6 +27,14 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/orders')->group(f
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->group(function () {
+    Route::get('/stats', [AdminDashboardController::class, 'stats']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/communications')->group(function () {
+    Route::post('/test-telegram', [TelegramTestController::class, 'send']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock-notifications')->group(function () {

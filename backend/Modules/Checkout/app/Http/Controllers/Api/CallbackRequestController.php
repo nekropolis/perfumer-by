@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Str;
+use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Checkout\Http\Resources\StockNotificationRequestResource;
@@ -67,6 +68,7 @@ class CallbackRequestController extends Controller
             'ip_address' => $request->ip(),
             'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
         ]);
+        app(CheckoutTelegramNotificationService::class)->notifyCustomerRequest($record);
 
         return response()->json([
             'data' => new StockNotificationRequestResource($record),

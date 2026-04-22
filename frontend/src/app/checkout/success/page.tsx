@@ -12,14 +12,14 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
 
     return (
         <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-            <div className="rounded-3xl border p-8 sm:p-10 text-center">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border text-2xl">
+            <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center sm:p-10">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--background)] text-2xl">
                     ✓
                 </div>
 
                 <h1 className="mb-4 text-3xl font-semibold">Заказ оформлен</h1>
 
-                <p className="mb-6 text-gray-600">
+                <p className="mb-6 text-[var(--text-secondary)]">
                     Спасибо за заказ. Мы скоро свяжемся с вами для подтверждения.
                 </p>
 
@@ -32,14 +32,14 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
                 <div className="flex flex-col justify-center gap-3 sm:flex-row">
                     <Link
                         href="/catalog"
-                        className="rounded-xl bg-black px-5 py-3 text-white"
+                        className="rounded-xl bg-[var(--accent)] px-5 py-3 text-white"
                     >
                         Вернуться в каталог
                     </Link>
 
                     <Link
                         href="/cart"
-                        className="rounded-xl border px-5 py-3"
+                        className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-5 py-3"
                     >
                         Перейти в корзину
                     </Link>

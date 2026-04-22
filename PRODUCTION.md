@@ -234,6 +234,7 @@ REDIS_PASSWORD=null
 LOG_CHANNEL=daily
 LOG_LEVEL=warning
 
+TELEGRAM_NOTIFICATIONS_ENABLED=true
 TELEGRAM_BOT_TOKEN=       # опционально, для уведомлений
 TELEGRAM_CHAT_ID=
 ```
@@ -712,3 +713,58 @@ make bootstrap-shared # = scripts/bootstrap-shared.sh (один раз)
 - [ ] `certbot renew --dry-run` → успех.
 - [ ] Бэкап БД запускался хотя бы один раз успешно.
 - [ ] В `.env` `APP_DEBUG=false`, `APP_ENV=production`.
+
+---
+
+## 15) Anti-504 hardening (Redis/MySQL/PHP-FPM/Nginx)
+
+Когда видим `upstream timed out` и всплеск CPU/RAM:
+
+1. **Kernel overcommit (для Redis)**
+   ```bash
+   echo 'vm.overcommit_memory = 1' | sudo tee /etc/sysctl.d/99-perfumer.conf
+   sudo sysctl --system
+   ```
+
+2. **Redis persistence + memory policy**
+   - в `/etc/redis/redis.conf`:
+     - `maxmemory <адекватный лимит>`
+     - `maxmemory-policy allkeys-lru` (или нужная стратегия)
+     - оставить AOF/RDB согласно вашей RPO
+   - после изменения: `sudo systemctl restart redis-server`
+
+3. **PHP-FPM pool tuning**
+   - проверить `pm.max_children`, `pm.max_requests`, `request_terminate_timeout`
+   - типично для 2-4 GB RAM:
+     - `pm = dynamic`
+     - `pm.max_children = 20..40` (по профилю памяти)
+     - `pm.max_requests = 300..500`
+   - после изменения: `sudo systemctl restart php8.2-fpm`
+
+4. **Nginx upstream timeouts (не завышать без причины)**
+   - `fastcgi_read_timeout 60s;`
+   - `proxy_read_timeout 60s;`
+   - при долгих endpoint лучше выносить в очередь, а не растягивать timeout
+
+5. **Queue worker resilience**
+   - supervisor должен держать `queue:work` постоянно
+   - перезапуск:
+     ```bash
+     php artisan queue:restart
+     sudo supervisorctl restart perfumer-queue:*
+     ```
+
+6. **Telegram/внешние интеграции — только async**
+   - отправка в Telegram через queue jobs (в проекте уже переведено)
+   - при недоступном Redis `dispatch` оборачивать в `try/catch` (уже сделано)
+
+7. **Быстрый recovery runbook**
+   ```bash
+   sudo systemctl restart redis-server
+   sudo systemctl restart mysql
+   sudo systemctl restart php8.2-fpm
+   sudo systemctl restart nginx
+   php artisan optimize:clear
+   php artisan queue:restart
+   sudo supervisorctl restart perfumer-queue:*
+   ```

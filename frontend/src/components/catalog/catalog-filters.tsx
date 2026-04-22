@@ -201,7 +201,7 @@ export default function CatalogFilters({
                     <button
                         type="button"
                         onClick={resetFilters}
-                        className="text-xs font-medium text-gray-500 transition hover:text-black"
+                        className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
                     >
                         Очистить всё
                     </button>
@@ -210,21 +210,22 @@ export default function CatalogFilters({
 
             {showBrandFilter ? (
                 <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                         Бренд
                     </div>
                     <div className="space-y-1">
                         {previewBrands.map((brand) => (
                             <label
                                 key={`brand-preview-${brand.id}`}
-                                className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-sm text-gray-800 transition hover:bg-gray-50"
+                                className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                             >
                                 <span className="inline-flex items-center gap-2">
                                     <input
                                         type="checkbox"
                                         checked={isBrandSelected(brand.id)}
                                         onChange={() => toggleBrand(brand.id)}
-                                        className="h-4 w-4 rounded border-gray-300"
+                                        suppressHydrationWarning
+                                        className="h-4 w-4 rounded border-[var(--line)]"
                                     />
                                     {brand.name}
                                 </span>
@@ -234,7 +235,7 @@ export default function CatalogFilters({
                     <button
                         type="button"
                         onClick={() => setIsBrandModalOpen(true)}
-                        className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+                        className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
                     >
                         <span>Все {brands.length} варианта</span>
                         <span>›</span>
@@ -242,12 +243,12 @@ export default function CatalogFilters({
                 </div>
             ) : null}
 
-            <div className="space-y-2 rounded-2xl border border-gray-100 bg-gray-50 p-3">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <div className="space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                     Цена
                 </div>
                 {priceRange.min !== null && priceRange.max !== null ? (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-[var(--text-secondary)]">
                         Диапазон: {formatPrice(priceRange.min)} - {formatPrice(priceRange.max)} BYN
                     </div>
                 ) : null}
@@ -257,45 +258,48 @@ export default function CatalogFilters({
                         placeholder="От"
                         value={priceMinDraft}
                         onChange={(e) => setPriceMinDraft(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        suppressHydrationWarning
+                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
                     />
                     <input
                         type="number"
                         placeholder="До"
                         value={priceMaxDraft}
                         onChange={(e) => setPriceMaxDraft(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        suppressHydrationWarning
+                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
                     />
                 </div>
                 <button
                     type="button"
                     onClick={applyPrice}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-100"
+                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
                 >
                     Применить цену
                 </button>
             </div>
 
             <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                     Объем
                 </div>
                 <div className="space-y-1">
                     {safeVolumeOptions.map((item) => (
                         <label
                             key={item.key}
-                            className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-50"
+                            className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                         >
                             <span className="inline-flex items-center gap-2">
                                 <input
                                     type="checkbox"
                                     checked={isVolumeSelected(item.key)}
                                     onChange={() => toggleVolumeOption(item.key)}
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    suppressHydrationWarning
+                                    className="h-4 w-4 rounded border-[var(--line)]"
                                 />
                                 {item.label}
                             </span>
-                            <span className="text-xs text-gray-500">{item.products_count}</span>
+                            <span className="text-xs text-[var(--text-secondary)]">{item.products_count}</span>
                         </label>
                     ))}
                 </div>
@@ -303,32 +307,33 @@ export default function CatalogFilters({
 
             {safeAttributes.map((attribute) => (
                 <div key={attribute.id} className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                         {attribute.name}
                     </div>
                     <div className="space-y-1">
                         {attribute.options.slice(0, 4).map((option) => (
                             <label
                                 key={option.id}
-                                className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-50"
+                                className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                             >
                                 <span className="inline-flex items-center gap-2">
                                     <input
                                         type="checkbox"
                                         checked={isOptionSelected(attribute.id, option.id)}
                                         onChange={() => toggleAttributeOption(attribute.id, option.id)}
-                                        className="h-4 w-4 rounded border-gray-300"
+                                        suppressHydrationWarning
+                                        className="h-4 w-4 rounded border-[var(--line)]"
                                     />
                                     {option.name}
                                 </span>
-                                <span className="text-xs text-gray-500">{option.products_count}</span>
+                                <span className="text-xs text-[var(--text-secondary)]">{option.products_count}</span>
                             </label>
                         ))}
                         {attribute.options.length > 4 ? (
                             <button
                                 type="button"
                                 onClick={() => setPopupAttributeId(attribute.id)}
-                                className="w-full rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                                className="w-full rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
                             >
                                 Показать все ({attribute.options.length})
                             </button>
@@ -339,13 +344,13 @@ export default function CatalogFilters({
 
             {popupAttribute ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl">
+                    <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl">
                         <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-gray-900">{popupAttribute.name}</div>
+                            <div className="text-sm font-semibold text-[var(--foreground)]">{popupAttribute.name}</div>
                             <button
                                 type="button"
                                 onClick={() => setPopupAttributeId(null)}
-                                className="rounded-lg px-2 py-1 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-black"
+                                className="rounded-lg px-2 py-1 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                             >
                                 Закрыть
                             </button>
@@ -354,18 +359,19 @@ export default function CatalogFilters({
                             {popupAttribute.options.map((option) => (
                                 <label
                                     key={option.id}
-                                    className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 transition hover:bg-gray-50"
+                                    className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                 >
                                     <span className="inline-flex items-center gap-2">
                                         <input
                                             type="checkbox"
                                             checked={isOptionSelected(popupAttribute.id, option.id)}
                                             onChange={() => toggleAttributeOption(popupAttribute.id, option.id)}
-                                            className="h-4 w-4 rounded border-gray-300"
+                                            suppressHydrationWarning
+                                            className="h-4 w-4 rounded border-[var(--line)]"
                                         />
                                         {option.name}
                                     </span>
-                                    <span className="text-xs text-gray-500">{option.products_count}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">{option.products_count}</span>
                                 </label>
                             ))}
                         </div>
@@ -379,15 +385,15 @@ export default function CatalogFilters({
                     onClick={() => setIsBrandModalOpen(false)}
                 >
                     <div
-                        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-xl"
+                        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-gray-900">Бренд</div>
+                            <div className="text-sm font-semibold text-[var(--foreground)]">Бренд</div>
                             <button
                                 type="button"
                                 onClick={() => setIsBrandModalOpen(false)}
-                                className="rounded-lg px-2 py-1 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-black"
+                                className="rounded-lg px-2 py-1 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                             >
                                 Закрыть
                             </button>
@@ -398,16 +404,17 @@ export default function CatalogFilters({
                             value={brandQuery}
                             onChange={(e) => setBrandQuery(e.target.value)}
                             placeholder="Поиск"
-                            className="mb-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            suppressHydrationWarning
+                            className="mb-3 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
                         />
 
-                        <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-100 pb-3">
+                        <div className="mb-3 flex flex-wrap gap-1 border-b border-[var(--line)] pb-3">
                             {brandLetters.map((letter) => (
                                 <button
                                     key={`anchor-${letter}`}
                                     type="button"
                                     onClick={() => scrollToBrandLetter(letter)}
-                                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
+                                    className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                 >
                                     {letter}
                                 </button>
@@ -418,20 +425,21 @@ export default function CatalogFilters({
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {brandLetters.map((letter) => (
                                     <div key={`group-${letter}`} id={`brand-letter-${letter}`} className="space-y-1">
-                                        <div className="sticky top-0 z-10 bg-white py-1 text-xs font-semibold text-gray-500">
+                                        <div className="sticky top-0 z-10 bg-[var(--surface)] py-1 text-xs font-semibold text-[var(--text-secondary)]">
                                             {letter}
                                         </div>
                                         {(brandGroups.get(letter) ?? []).map((brand) => (
                                             <label
                                                 key={`brand-modal-${brand.id}`}
-                                                className="flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-sm text-gray-800 transition hover:bg-gray-50"
+                                                className="flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                             >
                                                 <span className="inline-flex items-center gap-2">
                                                     <input
                                                         type="checkbox"
                                                         checked={isBrandSelected(brand.id)}
                                                         onChange={() => toggleBrand(brand.id)}
-                                                        className="h-4 w-4 rounded border-gray-300"
+                                                        suppressHydrationWarning
+                                                        className="h-4 w-4 rounded border-[var(--line)]"
                                                     />
                                                     {brand.name}
                                                 </span>

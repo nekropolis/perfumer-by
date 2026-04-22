@@ -66,14 +66,14 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
             onClick={onCloseOrderAction}
         >
             <div
-                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+                className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-2xl sm:p-8"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-6 flex items-start justify-between gap-4">
                     <div>
                         <h3 className="text-2xl font-semibold">Заказ #{orderId}</h3>
                         {order && (
-                            <div className="mt-2 text-sm text-gray-600">
+                            <div className="mt-2 text-sm text-[var(--text-secondary)]">
                                 Товаров: {order.items_qty} · Сумма: {order.total} руб.
                             </div>
                         )}
@@ -88,7 +88,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                     </button>
                 </div>
 
-                {loading && <div className="text-gray-600">Загрузка заказа...</div>}
+                {loading && <div className="text-[var(--text-secondary)]">Загрузка заказа...</div>}
 
                 {!loading && errorMessage && (
                     <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -105,26 +105,26 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                 {getOrderStatusLabel(order.status)}
                             </div>
 
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-[var(--text-secondary)]">
                                 Телефон: {order.phone}
                             </div>
                         </div>
 
                         {order.comment && (
-                            <div className="mb-6 rounded-2xl border p-4">
-                                <div className="mb-2 text-sm text-gray-500">Комментарий</div>
+                            <div className="mb-6 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4">
+                                <div className="mb-2 text-sm text-[var(--text-secondary)]">Комментарий</div>
                                 <div>{order.comment}</div>
                             </div>
                         )}
 
                         <div className="space-y-4">
                             {order.items.map((item) => (
-                                <div key={item.id} className="rounded-2xl border p-4">
-                                    <div className="text-sm text-gray-500">{item.brand_name}</div>
+                                <div key={item.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+                                    <div className="text-sm text-[var(--text-secondary)]">{item.brand_name}</div>
                                     <div className="text-lg font-medium">{item.product_name}</div>
-                                    <div className="text-sm text-gray-600">{item.variant_title}</div>
+                                    <div className="text-sm text-[var(--text-secondary)]">{item.variant_title}</div>
 
-                                    <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-700">
+                                    <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--foreground)]">
                                         <div>SKU: {item.sku || "—"}</div>
                                         <div>Количество: {item.qty}</div>
                                         <div>Цена: {item.price} руб.</div>
@@ -134,8 +134,8 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                             ))}
                         </div>
 
-                        <div className="mt-6 border-t pt-4 text-right">
-                            <div className="text-sm text-gray-500">Итого</div>
+                        <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">
+                            <div className="text-sm text-[var(--text-secondary)]">Итого</div>
                             <div className="text-2xl font-semibold">{order.total} руб.</div>
                         </div>
                     </div>

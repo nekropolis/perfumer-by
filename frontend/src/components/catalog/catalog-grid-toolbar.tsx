@@ -200,23 +200,23 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
 
     return (
         <div className="mb-4 space-y-3">
-            <div className="-mx-2 rounded-xl border border-gray-200 bg-white px-2 py-2 shadow-sm lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+            <div className="-mx-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-2 py-2 shadow-sm lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
                 <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:justify-between">
                     <div className="relative min-w-0 md:w-fit" ref={sortMenuRef}>
                         <button
                             type="button"
                             onClick={() => setIsSortOpen((prev) => !prev)}
-                            className="flex h-11 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 text-left text-sm font-medium text-gray-800 shadow-sm transition hover:bg-gray-50 md:w-auto md:min-w-[220px]"
+                            className="flex h-11 w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-left text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] md:w-auto md:min-w-[220px]"
                             aria-haspopup="listbox"
                             aria-expanded={isSortOpen}
                             aria-label="Сортировка"
                         >
                             <span className="truncate">{currentSortLabel}</span>
-                            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition ${isSortOpen ? "rotate-180" : ""}`} />
+                            <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition ${isSortOpen ? "rotate-180" : ""}`} />
                         </button>
 
                         {isSortOpen ? (
-                            <div className="absolute left-0 top-[calc(100%+0.4rem)] z-40 w-full rounded-xl border border-gray-200 bg-white p-1 shadow-xl md:min-w-[280px] md:w-max">
+                            <div className="absolute left-0 top-[calc(100%+0.4rem)] z-40 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-xl md:min-w-[280px] md:w-max">
                                 {SORT_OPTIONS.map((item) => {
                                     const isActive = item.value === currentSort;
                                     return (
@@ -232,11 +232,11 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                                                 });
                                             }}
                                             className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                                                isActive ? "bg-gray-100 text-black" : "text-gray-700 hover:bg-gray-50"
+                                                isActive ? "bg-[var(--accent-soft)] text-[var(--foreground)]" : "text-[var(--foreground)] hover:bg-[var(--background)]"
                                             }`}
                                         >
                                             <span>{item.label}</span>
-                                            {isActive ? <Check className="h-4 w-4 text-gray-700" /> : null}
+                                            {isActive ? <Check className="h-4 w-4 text-[var(--accent)]" /> : null}
                                         </button>
                                     );
                                 })}
@@ -252,7 +252,7 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                         <button
                             type="button"
                             onClick={() => router.push(basePath)}
-                            className="text-xs font-medium text-gray-500 transition hover:text-black"
+                            className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
                         >
                             Сбросить фильтры
                         </button>
@@ -267,7 +267,7 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                             key={chip.id}
                             type="button"
                             onClick={chip.removeAction}
-                            className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                            className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)]"
                             title="Убрать фильтр"
                         >
                             {chip.label} ×

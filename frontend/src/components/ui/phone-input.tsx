@@ -248,7 +248,7 @@ export default function PhoneInput({ value, onChangeAction, className = "" }: Pr
             onClick={handleClick}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            className={`w-full rounded-xl border px-4 py-3 ${className}`}
+            className={`w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] ${className}`}
         />
     );
 }

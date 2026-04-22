@@ -6,9 +6,11 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Throwable;
 
@@ -97,6 +99,18 @@ class RunSellerOneParseJob implements ShouldQueue
                 'message' => "Готово: обработано {$processed}",
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            try {
+                app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
+                    'status' => 'completed',
+                    'processed' => $processed,
+                    'total_rows' => (int) ($result['total_rows'] ?? 0),
+                    'updated' => (int) ($result['updated'] ?? 0),
+                    'inserted' => (int) ($result['inserted'] ?? 0),
+                    'message' => "Готово: обработано {$processed}",
+                ]);
+            } catch (Throwable) {
+            }
         } catch (Throwable $e) {
             Cache::put($cacheKey, [
                 'job_id' => $this->jobId,
@@ -104,6 +118,14 @@ class RunSellerOneParseJob implements ShouldQueue
                 'message' => $e->getMessage(),
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            try {
+                app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
+                    'status' => 'failed',
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (Throwable) {
+            }
         } finally {
             // Снимаем флаг активности для discovery-эндпоинта (виджета в шапке),
             // даже если была ошибка — иначе виджет будет показывать «зомби»-задачу.
@@ -113,6 +135,30 @@ class RunSellerOneParseJob implements ShouldQueue
                 Storage::disk($disk)->delete($this->storedFilePath);
             } catch (Throwable) {
             }
+        }
+    }
+
+    public function middleware(): array
+    {
+        return [
+            // Глобальный lock на heavy Seller One операции:
+            // parse и refresh не должны выполняться параллельно.
+            (new WithoutOverlapping('seller_one_heavy_global'))
+                ->expireAfter(3900)
+                ->dontRelease(),
+        ];
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $message = $exception?->getMessage() ?: 'Seller One parse job failed unexpectedly.';
+
+        try {
+            app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
+                'status' => 'failed',
+                'message' => $message,
+            ]);
+        } catch (Throwable) {
         }
     }
 

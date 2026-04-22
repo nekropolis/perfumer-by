@@ -7,9 +7,11 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Throwable;
 
@@ -129,6 +131,17 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                 'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            try {
+                app(ImportTelegramNotificationService::class)->notifySellerOneRefreshFinished($this->jobId, [
+                    'status' => 'completed',
+                    'total_linked' => $linked,
+                    'updated' => (int) ($result['updated'] ?? 0),
+                    'skipped' => (int) ($result['skipped'] ?? 0),
+                    'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
+                ]);
+            } catch (Throwable) {
+            }
         } catch (Throwable $e) {
             Cache::put($cacheKey, [
                 'job_id' => $this->jobId,
@@ -137,6 +150,14 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                 'message' => $e->getMessage(),
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            try {
+                app(ImportTelegramNotificationService::class)->notifySellerOneRefreshFinished($this->jobId, [
+                    'status' => 'failed',
+                    'message' => $e->getMessage(),
+                ]);
+            } catch (Throwable) {
+            }
         } finally {
             self::clearActiveJobIfMatches($this->jobId);
 
@@ -146,6 +167,30 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                 } catch (Throwable) {
                 }
             }
+        }
+    }
+
+    public function middleware(): array
+    {
+        return [
+            // Делим общий lock с RunSellerOneParseJob, чтобы heavy-джобы
+            // Seller One не выполнялись параллельно.
+            (new WithoutOverlapping('seller_one_heavy_global'))
+                ->expireAfter(3900)
+                ->dontRelease(),
+        ];
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        $message = $exception?->getMessage() ?: 'Seller One refresh linked prices job failed unexpectedly.';
+
+        try {
+            app(ImportTelegramNotificationService::class)->notifySellerOneRefreshFinished($this->jobId, [
+                'status' => 'failed',
+                'message' => $message,
+            ]);
+        } catch (Throwable) {
         }
     }
 

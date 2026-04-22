@@ -51,6 +51,7 @@ export type OrderData = {
     phone: string;
     comment: string | null;
     status: string;
+    created_at?: string | null;
     items_qty: number;
     subtotal: string;
     total: string;

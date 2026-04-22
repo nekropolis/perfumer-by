@@ -16,6 +16,7 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import CopyText from "@/components/ui/copy-text";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import type { AdminToast } from "@/types/admin";
@@ -45,6 +46,8 @@ const KIND_BADGE_CLASS: Record<string, string> = {
     back_in_stock: "bg-amber-50 text-amber-800 border border-amber-200",
     callback: "bg-emerald-50 text-emerald-800 border border-emerald-200",
 };
+const STATUS_DROPDOWN_WIDTH_CLASS = "w-[176px]";
+const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
 
 function formatDate(iso: string | null): string {
     if (!iso) return "—";
@@ -190,7 +193,7 @@ export default function AdminStockNotificationsPage() {
                                 <th className="px-4 py-3">Вариант</th>
                                 <th className="px-4 py-3">Телефон</th>
                                 <th className="px-4 py-3">Комментарий</th>
-                                <th className="px-4 py-3">Статус</th>
+                                <th className="w-[200px] px-4 py-3">Статус</th>
                             </tr>
                         </thead>
                         <tbody className="align-top">
@@ -263,26 +266,24 @@ export default function AdminStockNotificationsPage() {
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <select
+                                            <AdminStatusDropdown
                                                 value={item.status}
-                                                onChange={(e) =>
+                                                options={[
+                                                    ...STATUS_OPTIONS,
+                                                    ...(!STATUS_LABEL[item.status]
+                                                        ? [{ value: item.status, label: item.status }]
+                                                        : []),
+                                                ]}
+                                                onChangeAction={(nextStatus) =>
                                                     handleStatusChange(
                                                         item.id,
-                                                        e.target.value as "new" | "notified" | "cancelled",
+                                                        nextStatus as "new" | "notified" | "cancelled",
                                                     )
                                                 }
                                                 disabled={savingId === item.id}
-                                                className="min-w-[160px] rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                                            >
-                                                {STATUS_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                                {!STATUS_LABEL[item.status] && (
-                                                    <option value={item.status}>{item.status}</option>
-                                                )}
-                                            </select>
+                                                widthClassName={STATUS_DROPDOWN_WIDTH_CLASS}
+                                                menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
+                                            />
                                         </td>
                                     </tr>
                                 );

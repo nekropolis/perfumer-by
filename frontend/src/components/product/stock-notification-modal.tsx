@@ -168,12 +168,12 @@ export default function StockNotificationModal({
             onMouseDown={handleOverlayClick}
         >
             <div
-                className="relative w-full max-w-md overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+                className="relative w-full max-w-md overflow-hidden rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="stock-notification-title"
             >
-                <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+                <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
                     <div className="min-w-0">
                         <h2
                             id="stock-notification-title"
@@ -181,7 +181,7 @@ export default function StockNotificationModal({
                         >
                             Сообщить о появлении
                         </h2>
-                        <div className="mt-0.5 truncate text-sm text-gray-500">
+                        <div className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
                             {productName}
                             {variantTitle ? ` · ${variantTitle}` : ""}
                         </div>
@@ -190,7 +190,7 @@ export default function StockNotificationModal({
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="shrink-0 rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                        className="shrink-0 rounded-full p-1.5 text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                         aria-label="Закрыть"
                     >
                         <X size={18} />
@@ -199,7 +199,7 @@ export default function StockNotificationModal({
 
                 {successMessage ? (
                     <div className="px-5 py-6">
-                        <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                        <div className="rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm text-[var(--foreground)]">
                             {successMessage}
                         </div>
                         <div className="mt-4 flex justify-end">
@@ -229,19 +229,19 @@ export default function StockNotificationModal({
                         />
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                            <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
                                 Телефон
                             </label>
                             <PhoneInput value={phone} onChangeAction={setPhone} />
-                            <p className="mt-1 text-xs text-gray-400">
+                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
                                 Формат: +375 (25/29/33/44) XXX-XX-XX
                             </p>
                         </div>
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                            <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
                                 Комментарий{" "}
-                                <span className="text-gray-400">(необязательно)</span>
+                                <span className="text-[var(--text-secondary)]">(необязательно)</span>
                             </label>
                             <textarea
                                 value={comment}
@@ -251,9 +251,9 @@ export default function StockNotificationModal({
                                 maxLength={COMMENT_MAX_LENGTH}
                                 rows={3}
                                 placeholder="Например: интересует флакон 100 мл"
-                                className="w-full resize-none rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                                className="w-full resize-none rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
                             />
-                            <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
+                            <div className="mt-1 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                                 <span>
                                     {comment.length} / {COMMENT_MAX_LENGTH}
                                 </span>
@@ -270,7 +270,7 @@ export default function StockNotificationModal({
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50"
+                                className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm transition hover:bg-[var(--background)]"
                             >
                                 Отмена
                             </button>

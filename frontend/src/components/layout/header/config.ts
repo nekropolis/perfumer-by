@@ -56,10 +56,10 @@ export const HEADER_CATALOG_DRAWER_SECTIONS = [
         title: "Популярные бренды",
         links: [
             { label: "Все бренды", href: "/brands" },
-            { label: "Tom Ford", href: "/catalog?brand_slug=tom-ford" },
-            { label: "Chanel", href: "/catalog?brand_slug=chanel" },
-            { label: "Dior", href: "/catalog?brand_slug=dior" },
-            { label: "Mancera", href: "/catalog?brand_slug=mancera" },
+            { label: "Tom Ford", href: "/brands/tom-ford" },
+            { label: "Chanel", href: "/brands/chanel" },
+            { label: "Dior", href: "/brands/dior" },
+            { label: "Mancera", href: "/brands/mancera" },
         ],
     },
 ];
