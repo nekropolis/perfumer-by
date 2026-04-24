@@ -27,7 +27,7 @@ type OrderFormItem = {
 type Props = {
   mode: "create" | "edit";
   order?: OrderData;
-  onSubmitAction: (payload: AdminOrderPayload) => Promise<void>;
+  onSubmitAction: (payload: AdminOrderPayload) => Promise<unknown>;
 };
 
 function toInitialItems(order?: OrderData): OrderFormItem[] {
