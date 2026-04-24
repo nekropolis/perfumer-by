@@ -167,10 +167,13 @@ export default function CheckoutPage() {
                     token: cart?.token ?? "",
                     qty: 0,
                     subtotal: "0.00",
+                    products_subtotal: "0.00",
+                    gift_certificates_subtotal: "0.00",
                     total: "0.00",
                     gift_certificate: null,
                     discount_card: null,
                     items: [],
+                    gift_certificate_items: [],
                 });
 
                 router.push(`/checkout/success?order=${response.data.id}`);
