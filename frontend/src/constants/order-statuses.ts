@@ -29,3 +29,20 @@ export function getOrderStatusStyle(status: string): string {
 export function getOrderStatusLabel(status: string): string {
     return ORDER_STATUS_LABELS[status] || status;
 }
+
+/** Цвет подписи статуса в списке заказов (текстовый триггер). */
+export function getOrderStatusTableTextClass(status: string): string {
+    switch (status) {
+        case "new":
+            return "text-green-700";
+        case "confirmed":
+        case "processing":
+            return "text-blue-700";
+        case "cancelled":
+            return "text-red-600";
+        case "done":
+            return "text-gray-500";
+        default:
+            return "text-gray-800";
+    }
+}

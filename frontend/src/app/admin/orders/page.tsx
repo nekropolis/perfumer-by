@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ListOrdered, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -10,6 +10,10 @@ import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow 
 import type { OrderData } from "@/types/orders";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrdersTable from "@/components/admin/admin-orders-table";
+import AdminOrdersDateRangeButton, {
+    type AdminOrdersDateRangeButtonHandle,
+    getAdminOrdersDateFilterLabel,
+} from "@/components/admin/orders/admin-orders-date-range-button";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -22,6 +26,13 @@ import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admi
 import {AdminToast} from "@/types/admin";
 
 type OrdersTab = "orders" | "order_products";
+
+const ORDER_PERIOD_OPTIONS = [
+    { value: "today", label: "Сегодня" },
+    { value: "week", label: "Последние 7 дней" },
+    { value: "month", label: "Текущий месяц" },
+    { value: "year", label: "Текущий год" },
+];
 
 const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     {
@@ -55,11 +66,25 @@ export default function AdminOrdersPage() {
     const [statusFilter, setStatusFilter] = useState(
         () => searchParamsFromUrl.get("status") ?? "",
     );
+    const [periodFilter, setPeriodFilter] = useState(
+        () => searchParamsFromUrl.get("period") ?? "",
+    );
+    const [dateFrom, setDateFrom] = useState(() => searchParamsFromUrl.get("from") ?? "");
+    const [dateTo, setDateTo] = useState(() => searchParamsFromUrl.get("to") ?? "");
+
+    const dateFilterRef = useRef<AdminOrdersDateRangeButtonHandle>(null);
+    const dateFilterSummary = useMemo(
+        () => getAdminOrdersDateFilterLabel(ORDER_PERIOD_OPTIONS, { period: periodFilter, dateFrom, dateTo }),
+        [periodFilter, dateFrom, dateTo],
+    );
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
     useEffect(() => {
         setStatusFilter(searchParamsFromUrl.get("status") ?? "");
+        setPeriodFilter(searchParamsFromUrl.get("period") ?? "");
+        setDateFrom(searchParamsFromUrl.get("from") ?? "");
+        setDateTo(searchParamsFromUrl.get("to") ?? "");
     }, [searchParamsFromUrl]);
 
     useEffect(() => {
@@ -72,9 +97,13 @@ export default function AdminOrdersPage() {
                 setLoading(true);
                 setToast(null);
 
+                const manualRange = Boolean(dateFrom.trim()) || Boolean(dateTo.trim());
                 const response = await fetchOrders({
                     search: debouncedSearch,
                     status: statusFilter,
+                    period: manualRange ? undefined : periodFilter || undefined,
+                    from: dateFrom.trim() || undefined,
+                    to: dateTo.trim() || undefined,
                 });
 
                 setOrders(response.data);
@@ -87,7 +116,7 @@ export default function AdminOrdersPage() {
         };
 
         void loadOrders();
-    }, [activeTab, debouncedSearch, statusFilter]);
+    }, [activeTab, debouncedSearch, statusFilter, periodFilter, dateFrom, dateTo]);
 
     useEffect(() => {
         if (activeTab !== "order_products") {
@@ -129,6 +158,9 @@ export default function AdminOrdersPage() {
     const handleReset = () => {
         setSearchInput("");
         setStatusFilter("");
+        setPeriodFilter("");
+        setDateFrom("");
+        setDateTo("");
         setProductFilter("");
         setToast(null);
     };
@@ -161,42 +193,68 @@ export default function AdminOrdersPage() {
                 }
             >
                 {activeTab === "orders" ? (
-                    <>
-                        <AdminSearchInput
-                            value={searchInput}
-                            onChangeAction={setSearchInput}
-                            placeholder="ID, имя, телефон"
-                        />
+                    <div className="flex w-full min-w-0 flex-col gap-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+                            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                                <AdminSearchInput
+                                    value={searchInput}
+                                    onChangeAction={setSearchInput}
+                                    placeholder="ID, имя, телефон"
+                                />
 
-                        <AdminFilterSelect
-                            value={statusFilter}
-                            onChangeAction={setStatusFilter}
-                            options={ORDER_STATUS_OPTIONS}
-                            placeholder="Все статусы"
+                                <AdminFilterSelect
+                                    value={statusFilter}
+                                    onChangeAction={setStatusFilter}
+                                    options={ORDER_STATUS_OPTIONS}
+                                    placeholder="Все статусы"
+                                />
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="shrink-0 self-start rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 sm:self-end"
+                            >
+                                Сбросить
+                            </button>
+                        </div>
+
+                        <AdminOrdersDateRangeButton
+                            ref={dateFilterRef}
+                            hideTrigger
+                            presets={ORDER_PERIOD_OPTIONS}
+                            value={{ period: periodFilter, dateFrom, dateTo }}
+                            onApplyAction={(next) => {
+                                setPeriodFilter(next.period);
+                                setDateFrom(next.dateFrom);
+                                setDateTo(next.dateTo);
+                            }}
                         />
-                    </>
+                    </div>
                 ) : (
-                    <select
-                        value={productFilter}
-                        onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
-                        className="rounded-xl border px-3 py-2 text-sm"
-                    >
-                        <option value="">Все товары</option>
-                        {products.map((product) => (
-                            <option key={product.id} value={product.id}>
-                                {product.name}
-                            </option>
-                        ))}
-                    </select>
-                )}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                        <select
+                            value={productFilter}
+                            onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                        >
+                            <option value="">Все товары</option>
+                            {products.map((product) => (
+                                <option key={product.id} value={product.id}>
+                                    {product.name}
+                                </option>
+                            ))}
+                        </select>
 
-                <button
-                    type="button"
-                    onClick={handleReset}
-                    className="rounded-xl border px-4 py-2 text-sm"
-                >
-                    Сбросить
-                </button>
+                        <button
+                            type="button"
+                            onClick={handleReset}
+                            className="shrink-0 self-start rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 sm:self-end"
+                        >
+                            Сбросить
+                        </button>
+                    </div>
+                )}
             </AdminTableToolbar>
 
             {loading && <AdminLoadingState text="Загрузка заказов..." />}
@@ -204,7 +262,7 @@ export default function AdminOrdersPage() {
             {!loading && activeTab === "orders" && orders.length === 0 && (
                 <AdminEmptyState
                     title="Заказы не найдены"
-                    description="Попробуйте изменить поиск или фильтр по статусу."
+                    description="Попробуйте изменить поиск, статус или фильтр по дате создания."
                 />
             )}
 
@@ -213,6 +271,8 @@ export default function AdminOrdersPage() {
                     initialOrders={orders}
                     onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                     onErrorMessageAction={(message) => setToast({ type: "error", message })}
+                    dateFilterSummary={dateFilterSummary}
+                    onDateFilterHeaderClick={() => dateFilterRef.current?.open()}
                 />
             )}
 

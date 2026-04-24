@@ -135,6 +135,40 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                     </div>
                                 </div>
                             ))}
+                            {order.gift_certificate_purchases?.map((row) => (
+                                <div
+                                    key={row.id}
+                                    className="rounded-2xl border border-violet-200/80 bg-violet-50/40 p-4"
+                                >
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-violet-900">
+                                        Подарочный сертификат
+                                    </div>
+                                    <div className="mt-1 text-lg font-medium">{row.template_title}</div>
+                                    <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                                        Номинал {row.amount} руб. × {row.qty} шт. — {row.total} руб.
+                                    </div>
+                                </div>
+                            ))}
+                            {order.sold_gift_certificates?.map((row) => (
+                                <div
+                                    key={row.id}
+                                    className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-4"
+                                >
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-900">
+                                        Подарочный сертификат
+                                    </div>
+                                    <div className="mt-1 text-lg font-medium">
+                                        {row.template_title ?? "Сертификат"} · {row.initial_amount} руб.
+                                    </div>
+                                    {row.code ? (
+                                        <div className="mt-2 font-mono text-sm">Код: {row.code}</div>
+                                    ) : (
+                                        <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                                            Код сообщат после выполнения заказа (номер наносится на сертификат в магазине).
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
 
                         <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">

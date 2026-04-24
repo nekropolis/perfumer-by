@@ -4,6 +4,7 @@ namespace Modules\Checkout\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\OrderGiftCertificate;
 
 class Order extends Model
@@ -52,5 +53,11 @@ class Order extends Model
     public function giftCertificatePurchases(): HasMany
     {
         return $this->hasMany(OrderGiftCertificatePurchase::class, 'order_id');
+    }
+
+    /** Сертификаты, выпущенные по этому заказу (продажа номинала), включая ожидающие код (status new). */
+    public function soldGiftCertificates(): HasMany
+    {
+        return $this->hasMany(GiftCertificate::class, 'sold_order_id');
     }
 }

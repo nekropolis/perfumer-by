@@ -12,6 +12,9 @@ class GiftCertificate extends Model
 {
     public const STATUS_ACTIVE = 'active';
 
+    /** Ожидает ввода кода менеджером (выпуск из заказа на сертификат). */
+    public const STATUS_NEW = 'new';
+
     public const STATUS_USED = 'used';
 
     public const STATUS_REDEEMED = 'redeemed';

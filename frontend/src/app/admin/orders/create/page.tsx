@@ -3,8 +3,7 @@
 import Link from "next/link";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
-import AdminOrderForm from "@/components/admin/orders/order-form";
-import { createOrder } from "@/lib/admin-orders-api";
+import AdminOrderCreateForm from "@/components/admin/orders/admin-order-create-form";
 
 export default function AdminOrderCreatePage() {
   return (
@@ -28,7 +27,7 @@ export default function AdminOrderCreatePage() {
         </Link>
       </div>
 
-      <AdminOrderForm mode="create" onSubmitAction={createOrder} />
+      <AdminOrderCreateForm />
     </AdminPageCard>
   );
 }

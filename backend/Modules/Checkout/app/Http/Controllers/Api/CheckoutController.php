@@ -14,6 +14,7 @@ use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Services\CheckoutQuoteService;
+use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
@@ -172,6 +173,8 @@ class CheckoutController extends Controller
                 'total' => $quote['total'],
             ], $giftPatch));
 
+            app(SoldGiftCertificateFromOrderService::class)->issueFromPurchases($order);
+
             $cart->items()->delete();
             $cart->giftCertificateItems()->delete();
             $cart->update([
@@ -183,14 +186,14 @@ class CheckoutController extends Controller
             return $order;
         });
 
-        $order->load(['items', 'orderGiftCertificates']);
+        $order->load(['items', 'orderGiftCertificates', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         DB::transaction(function () use ($order) {
             $order->load('items');
             app(StockInventoryService::class)->reserveForOrder($order);
         });
 
-        $order->load(['items', 'orderGiftCertificates']);
+        $order->load(['items', 'orderGiftCertificates', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         app(CheckoutTelegramNotificationService::class)->notifyNewOrder($order);
 

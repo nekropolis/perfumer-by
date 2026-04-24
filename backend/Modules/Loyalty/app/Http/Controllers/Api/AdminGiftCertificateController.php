@@ -6,6 +6,7 @@ use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\GiftCertificateTemplate;
 use Modules\Loyalty\Services\GiftCertificateIssueService;
@@ -28,7 +29,15 @@ class AdminGiftCertificateController extends Controller
         $search = trim((string) $request->input('search', ''));
 
         $items = GiftCertificate::query()
-            ->when($search !== '', fn ($q) => $q->where('code', 'like', "%{$search}%"))
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('code', 'like', "%{$search}%");
+                    if (ctype_digit($search)) {
+                        $id = (int) $search;
+                        $sub->orWhere('id', $id)->orWhere('sold_order_id', $id);
+                    }
+                });
+            })
             ->latest('id')
             ->paginate(20);
 
@@ -86,11 +95,12 @@ class AdminGiftCertificateController extends Controller
     {
         $item = GiftCertificate::query()->findOrFail($id);
         $validated = $request->validate([
+            'code' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('gift_certificates', 'code')->ignore($item->id)],
             'template_id' => ['nullable', 'integer', 'exists:gift_certificate_templates,id'],
             'initial_amount' => ['nullable', 'numeric', 'min:0.01'],
             'balance_amount' => ['nullable', 'numeric', 'min:0'],
             'reserved_amount' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['nullable', 'string', 'in:active,used,redeemed,void,expired'],
+            'status' => ['nullable', 'string', 'in:new,active,used,redeemed,void,expired'],
             'source' => ['nullable', 'string', 'max:32'],
             'expires_at' => ['nullable', 'date'],
             'issued_to_user_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -122,6 +132,11 @@ class AdminGiftCertificateController extends Controller
             if (array_key_exists($field, $validated) && $validated[$field] !== null) {
                 $patch[$field] = $validated[$field];
             }
+        }
+
+        if (array_key_exists('code', $validated)) {
+            $raw = $validated['code'];
+            $patch['code'] = ($raw === null || $raw === '') ? null : trim((string) $raw);
         }
 
         if ($patch !== []) {

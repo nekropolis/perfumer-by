@@ -5,14 +5,20 @@ namespace Modules\Catalog\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
+use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockInventoryService;
 
 class ProductAdminController extends Controller
@@ -46,7 +52,12 @@ class ProductAdminController extends Controller
 
             $query->where(function ($q) use ($search, $stem) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('slug', 'like', "%{$search}%");
+                    ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhereHas('variants.definition', function ($def) use ($search) {
+                        $def->where('title', 'like', "%{$search}%")
+                            ->orWhere('concentration_label', 'like', "%{$search}%")
+                            ->orWhere('concentration_code', 'like', "%{$search}%");
+                    });
                 if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
                     // «Gucci Guilty - 90 ml» не матчит LIKE по имени «Gucci Guilty» — добавляем точное имя по stem.
                     $q->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
@@ -264,29 +275,81 @@ class ProductAdminController extends Controller
         }
 
         $normalizedQuery = $this->normalizeSearchText($query);
-        $pool = Product::query()
-            ->with(['brand:id,name', 'variants:id,product_id,title'])
+        $eager = $this->adminSmartSearchProductEagerLoads();
+        $escaped = addcslashes($query, '%_\\');
+        $needle = '%'.$escaped.'%';
+
+        $likeMatches = Product::query()
+            ->select(['id', 'brand_id', 'name', 'slug'])
+            ->with($eager)
+            ->where(function ($q) use ($needle) {
+                $q->where('name', 'like', $needle)
+                    ->orWhere('slug', 'like', $needle)
+                    ->orWhereHas('variants.definition', function ($def) use ($needle) {
+                        $def->where('title', 'like', $needle)
+                            ->orWhere('concentration_label', 'like', $needle)
+                            ->orWhere('concentration_code', 'like', $needle);
+                    });
+            })
             ->orderByDesc('id')
             ->limit(self::SMART_SEARCH_POOL_LIMIT)
-            ->get(['id', 'brand_id', 'name', 'slug']);
+            ->get();
 
-        $ranked = $pool->map(function (Product $product) use ($normalizedQuery) {
+        if ($likeMatches->count() >= 80) {
+            $pool = $likeMatches;
+        } else {
+            $fallback = Product::query()
+                ->select(['id', 'brand_id', 'name', 'slug'])
+                ->with($eager)
+                ->orderByDesc('id')
+                ->limit(self::SMART_SEARCH_POOL_LIMIT)
+                ->get();
+            $byId = $likeMatches->keyBy('id');
+            foreach ($fallback as $p) {
+                if ($byId->count() >= self::SMART_SEARCH_POOL_LIMIT) {
+                    break;
+                }
+                if (!$byId->has($p->id)) {
+                    $byId->put($p->id, $p);
+                }
+            }
+            $pool = $byId->values();
+        }
+
+        [$stocksByVariant, $mainWarehouseId, $supplierWarehouseId] = $this->batchWarehouseStocksByVariantIds(
+            $pool->flatMap(static fn (Product $p) => $p->variants->pluck('id'))->unique()->filter()->values()->all()
+        );
+
+        $ranked = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
-            $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
+            $variantTitles = $product->variants?->pluck('title')->filter()->values() ?? collect();
+            $variantSlices = collect();
+            foreach ($product->variants ?? [] as $link) {
+                $d = $link->definition;
+                if (!$d) {
+                    continue;
+                }
+                foreach ([$d->title, $d->concentration_label, $d->concentration_code] as $piece) {
+                    if ($piece !== null && trim((string) $piece) !== '') {
+                        $variantSlices->push((string) $piece);
+                    }
+                }
+            }
 
             $scoreName = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($name));
             $scoreSlug = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($slug));
             $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $this->normalizeSearchText($brandName)) : 0.0;
-            $scoreVariant = $variants->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
-                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
+            $scoreVariant = $variantSlices->reduce(function (float $carry, string $piece) use ($normalizedQuery) {
+                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($piece));
+
                 return max($carry, $score);
             }, 0.0);
 
             $bestScore = max($scoreName, $scoreSlug * 0.95, $scoreBrand * 0.8, $scoreVariant * 0.9);
 
-            if ($bestScore < 0.18) {
+            if ($bestScore < 0.10) {
                 return null;
             }
 
@@ -294,7 +357,13 @@ class ProductAdminController extends Controller
                 'id' => (int) $product->id,
                 'name' => $name,
                 'brand_name' => $brandName !== '' ? $brandName : null,
-                'variant_titles' => $variants->take(5)->values()->all(),
+                'variant_titles' => $variantTitles->take(5)->values()->all(),
+                'variants_preview' => $this->smartSearchVariantLines(
+                    $product->variants->take(5),
+                    $stocksByVariant,
+                    $mainWarehouseId,
+                    $supplierWarehouseId
+                ),
                 'score' => round($bestScore, 6),
             ];
         })
@@ -304,9 +373,100 @@ class ProductAdminController extends Controller
             ->values()
             ->all();
 
+        $ranked = $this->appendAdminSmartSearchSkuAndIdHits($query, $ranked, $limit);
+
         return response()->json([
             'data' => $ranked,
         ]);
+    }
+
+    /**
+     * Добавляет совпадения по числовому id товара и по SKU из прайса поставщика (для ручного заказа в админке).
+     *
+     * @param  list<array<string, mixed>>  $ranked
+     * @return list<array<string, mixed>>
+     */
+    private function appendAdminSmartSearchSkuAndIdHits(string $rawQuery, array $ranked, int $limit): array
+    {
+        $byId = [];
+        foreach ($ranked as $row) {
+            $byId[(int) $row['id']] = $row;
+        }
+
+        $trim = trim($rawQuery);
+        if (preg_match('/^\d{1,12}$/', $trim) && (int) $trim > 0) {
+            $pid = (int) $trim;
+            $product = Product::query()
+                ->with($this->adminSmartSearchProductEagerLoads())
+                ->find($pid);
+            if ($product) {
+                $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
+                [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
+                    $product->variants->take(5)->pluck('id')->filter()->values()->all()
+                );
+                $byId[$product->id] = [
+                    'id' => (int) $product->id,
+                    'name' => (string) $product->name,
+                    'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
+                    'variant_titles' => $variants->take(5)->values()->all(),
+                    'variants_preview' => $this->smartSearchVariantLines(
+                        $product->variants->take(5),
+                        $stByV,
+                        $mw,
+                        $sw
+                    ),
+                    'score' => 1.0,
+                ];
+            }
+        }
+
+        if (mb_strlen($trim, 'UTF-8') >= 2) {
+            $escaped = addcslashes($trim, '%_\\');
+            $productIds = SupplierVariantOffer::query()
+                ->where('supplier_variant_offers.is_active', true)
+                ->whereNotNull('supplier_variant_offers.sku')
+                ->where('supplier_variant_offers.sku', 'like', '%'.$escaped.'%')
+                ->join('product_variant_links', 'product_variant_links.id', '=', 'supplier_variant_offers.product_variant_id')
+                ->select('product_variant_links.product_id')
+                ->distinct()
+                ->limit(25)
+                ->pluck('product_variant_links.product_id');
+
+            foreach ($productIds as $pid) {
+                $pid = (int) $pid;
+                if ($pid <= 0 || isset($byId[$pid])) {
+                    continue;
+                }
+                $product = Product::query()
+                    ->with($this->adminSmartSearchProductEagerLoads())
+                    ->find($pid);
+                if (!$product) {
+                    continue;
+                }
+                $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
+                [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
+                    $product->variants->take(5)->pluck('id')->filter()->values()->all()
+                );
+                $byId[$pid] = [
+                    'id' => (int) $product->id,
+                    'name' => (string) $product->name,
+                    'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
+                    'variant_titles' => $variants->take(5)->values()->all(),
+                    'variants_preview' => $this->smartSearchVariantLines(
+                        $product->variants->take(5),
+                        $stByV,
+                        $mw,
+                        $sw
+                    ),
+                    'score' => 0.35,
+                ];
+            }
+        }
+
+        $merged = array_values($byId);
+        usort($merged, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        return array_slice($merged, 0, $limit);
     }
 
     public function show(int $id): JsonResponse
@@ -424,6 +584,76 @@ class ProductAdminController extends Controller
     private function syncStockFlags(Product $product): void
     {
         app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array{0: Collection<int, Collection<int, WarehouseVariantStock>>, 1: int, 2: int}
+     */
+    private function batchWarehouseStocksByVariantIds(array $variantIds): array
+    {
+        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+
+        if ($variantIds === []) {
+            return [collect(), $mainWarehouseId, $supplierWarehouseId];
+        }
+
+        $rows = WarehouseVariantStock::query()
+            ->whereIn('variant_id', $variantIds)
+            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+            ->get();
+
+        return [
+            $rows->groupBy('variant_id')->map(static fn ($g) => $g->keyBy('warehouse_id')),
+            $mainWarehouseId,
+            $supplierWarehouseId,
+        ];
+    }
+
+    /**
+     * @param  iterable<ProductVariantLink>  $variants
+     * @param  Collection<int, Collection<int, WarehouseVariantStock>>  $stocksByVariant
+     * @return list<array{title: string, availability: string, available_stock: int, is_available: bool, is_preorder: bool}>
+     */
+    private function smartSearchVariantLines(
+        iterable $variants,
+        Collection $stocksByVariant,
+        int $mainWarehouseId,
+        int $supplierWarehouseId,
+    ): array {
+        $out = [];
+        foreach ($variants as $link) {
+            $byW = $stocksByVariant->get($link->id, collect());
+            $mainStock = $mainWarehouseId > 0 ? $byW->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $byW->get($supplierWarehouseId) : null;
+            $presented = CatalogVariantStockPresenter::forListing($link, $mainStock, $supplierStock);
+            $out[] = [
+                'title' => (string) $link->title,
+                'availability' => ProductVariantResource::adminFulfillmentTooltip($link, $mainStock, $supplierStock),
+                'available_stock' => (int) $presented['available_stock'],
+                'is_available' => (bool) $presented['is_available'],
+                'is_preorder' => (bool) $presented['is_preorder'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Для smart-search: у `product_variant_links` нет колонки title — она в `variant_definitions`.
+     *
+     * @return array<string, mixed>
+     */
+    private function adminSmartSearchProductEagerLoads(): array
+    {
+        return [
+            'brand:id,name',
+            'variants' => static function ($q): void {
+                $q->select(['id', 'product_id', 'variant_definition_id'])
+                    ->with(['definition:id,title,concentration_code,concentration_label,volume_ml']);
+            },
+        ];
     }
 
     private function normalizeSearchText(string $value): string

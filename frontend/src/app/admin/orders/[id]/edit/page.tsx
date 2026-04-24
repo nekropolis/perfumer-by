@@ -7,8 +7,8 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import AdminOrderForm from "@/components/admin/orders/order-form";
-import { fetchOrder, updateOrder } from "@/lib/admin-orders-api";
+import AdminOrderCreateForm from "@/components/admin/orders/admin-order-create-form";
+import { fetchOrder } from "@/lib/admin-orders-api";
 import type { OrderData } from "@/types/orders";
 
 export default function AdminOrderEditPage() {
@@ -64,7 +64,7 @@ export default function AdminOrderEditPage() {
       {loading ? (
         <AdminLoadingState text="Загрузка заказа..." />
       ) : order ? (
-        <AdminOrderForm mode="edit" order={order} onSubmitAction={(payload) => updateOrder(order.id, payload)} />
+        <AdminOrderCreateForm mode="edit" initialOrder={order} />
       ) : null}
     </AdminPageCard>
   );

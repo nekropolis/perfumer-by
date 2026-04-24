@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import type { OrderData } from "@/types/orders";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
+import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 
 type Props = {
     order: OrderData | null;
@@ -22,7 +24,7 @@ function InfoItem({
             <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
                 {label}
             </div>
-            <div className="truncate text-[13px] font-medium text-gray-900" title={value}>
+            <div className="break-words whitespace-normal text-[13px] font-medium text-gray-900" title={value}>
                 {value}
             </div>
         </div>
@@ -45,7 +47,7 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
         return null;
     }
 
-    const hasGiftCertificate =
+    const hasGiftPayment =
         (order.gift_certificates?.length ?? 0) > 0 ||
         Boolean(order.gift_certificate_code || order.gift_certificate_number);
 
@@ -53,6 +55,9 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
         Boolean(order.discount_card_number) ||
         Number(order.discount_amount ?? "0") > 0 ||
         Number(order.discount_percent_snapshot ?? "0") > 0;
+
+    const hasGiftPurchases = (order.gift_certificate_purchases?.length ?? 0) > 0;
+    const hasSoldGiftCerts = (order.sold_gift_certificates?.length ?? 0) > 0;
 
     const giftLine = order.gift_certificates?.[0];
 
@@ -69,6 +74,24 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
     const deliveryAddress = order.delivery_address || order.delivery_city || "—";
     const deliveryMethod = order.delivery_method_label || order.delivery_method || "—";
     const paymentMethod = order.payment_method_label || order.payment_method || "—";
+    const deliveryCity = order.delivery_city || "—";
+
+    const formatDate = (value?: string | null): string => {
+        if (!value) {
+            return "—";
+        }
+        try {
+            return new Date(value).toLocaleString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch {
+            return value;
+        }
+    };
 
     return createPortal(
         <div
@@ -98,7 +121,7 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                                 id="admin-order-items-title"
                                 className="truncate text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"
                             >
-                                Заказ #{order.id}
+                                Заказ #{order.id} - {formatDate(order.created_at)}
                             </h3>
 
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-600">
@@ -133,8 +156,8 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                                 Клиент
                             </div>
 
-                            <div className="grid grid-cols-1 gap-2">
-                                <InfoItem label="Клиент" value={order.customer_name || "—"} />
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <InfoItem label="Клиент" value={order.customer_name ? order.customer_name : "Не указан"} />
                                 <InfoItem label="Телефон" value={order.phone || "—"} />
                             </div>
                         </div>
@@ -146,30 +169,37 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
 
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="col-span-2">
-                                    <InfoItem label="Адрес" value={deliveryAddress} />
+                                    <InfoItem
+                                        label="Адрес"
+                                        value={deliveryCity + ", " + deliveryAddress}
+                                    />
                                 </div>
 
-                                <InfoItem label="Доставка" value={deliveryMethod} />
-                                <InfoItem label="Оплата" value={paymentMethod} />
-                                <InfoItem
-                                    label="Стоимость"
-                                    value={`${order.delivery_fee ?? "0.00"} руб.`}
-                                />
+                                <div className="col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                    <InfoItem label="Доставка" value={deliveryMethod} />
+
+                                    <InfoItem
+                                        label="Стоимость доставки"
+                                        value={`${order.delivery_fee ?? "0.00"} руб.`}
+                                    />
+
+                                    <InfoItem label="Оплата" value={paymentMethod} />
+
+                                </div>
                             </div>
                         </div>
 
                         <div
-                            className={`rounded-2xl border p-3 ${
-                                hasGiftCertificate
-                                    ? "border-amber-200 bg-amber-50"
-                                    : "border-gray-100 bg-gray-50/70"
-                            }`}
+                            className={`rounded-2xl border p-3 ${hasGiftPayment
+                                ? "border-amber-200 bg-amber-50"
+                                : "border-gray-100 bg-gray-50/70"
+                                }`}
                         >
                             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                Сертификат
+                                Оплата сертификатом
                             </div>
 
-                            {hasGiftCertificate ? (
+                            {hasGiftPayment ? (
                                 <div className="grid grid-cols-2 gap-2">
                                     <InfoItem label="Номер" value={giftCode} />
                                     <InfoItem
@@ -216,26 +246,73 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                             )}
                         </div>
 
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-3 text-white md:col-span-2">
-                            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                                Итог к оплате
-                            </div>
-
-                            <div className="mt-1 flex items-end gap-1">
-                                <div className="truncate text-2xl font-semibold leading-none sm:text-3xl">
-                                    {order.total}
+                        {hasGiftPurchases || hasSoldGiftCerts ? (
+                            <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-3 md:col-span-2">
+                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-violet-900">
+                                    Подарочные сертификаты по заказу
                                 </div>
-                                <div className="pb-0.5 text-sm text-slate-400">руб.</div>
+                                {hasSoldGiftCerts ? (
+                                    <div>
+                                        <div className="mb-1 text-xs font-medium text-gray-700">
+                                            Выпущенные сертификаты (запись в каталоге)
+                                        </div>
+                                        <ul className="space-y-2 text-sm">
+                                            {order.sold_gift_certificates!.map((row) => (
+                                                <Fragment key={row.id}>
+                                                    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-100 bg-white px-2 py-2"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
+                                                            <div className="truncate font-medium text-gray-900">
+                                                                {row.template_title ?? "Сертификат"}
+                                                            </div>
+                                                            <div className="text-xs text-gray-600">
+                                                                Номинал {row.initial_amount} руб. ·{" "}
+                                                                {giftCertificateStatusLabel(row.status, row.code)}
+                                                                {row.code ? ` · код ${row.code}` : ""}
+                                                            </div>
+                                                        </div>
+                                                        <Link
+                                                            href={`/admin/loyalty/certificates/${row.id}/edit`}
+                                                            className="shrink-0 rounded-lg border border-violet-200 px-2 py-1 text-xs font-medium text-violet-900 transition hover:bg-violet-100"
+                                                        >
+                                                            {row.code ? "Открыть" : "Добавить код"}
+                                                        </Link>
+                                                    </li>
+                                                    {row.code
+                                                        ? ""
+                                                        :
+                                                        <p className="mt-2 text-xs text-gray-600">
+                                                            Нужно добавить код сертификата — тогда его можно применить в корзине, после активации.
+                                                        </p>
+                                                    }
+                                                </Fragment>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ) : null}
                             </div>
-                        </div>
+                        ) : null}
                     </div>
 
-                    <div className="min-h-[260px] overflow-x-auto rounded-2xl border border-gray-100">
-                        <AdminOrderItemsTable items={order.items} />
+                    <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                        <AdminOrderItemsTable
+                            items={order.items}
+                            certificatePurchases={order.gift_certificate_purchases}
+                        />
+                    </div>
+
+                    <div className="mt-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-white">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-300">Итого:</span>
+                            <span className="text-xl font-semibold">
+                                {order.total} руб.
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>,
+        </div >,
         document.body
     );
 }

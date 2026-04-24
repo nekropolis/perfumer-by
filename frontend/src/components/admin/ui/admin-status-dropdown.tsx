@@ -13,6 +13,10 @@ type Props = {
     options: Option[];
     onChangeAction: (value: string) => void;
     disabled?: boolean;
+    /** «text» — показывать только подпись статуса; дропдаун по клику (как у кнопки). */
+    triggerVariant?: "default" | "text";
+    /** Классы цвета текста для `triggerVariant="text"` (например из `getOrderStatusTableTextClass`). */
+    triggerTextClassName?: string;
     widthClassName?: string;
     menuWidthClassName?: string;
 };
@@ -22,6 +26,8 @@ export default function AdminStatusDropdown({
     options,
     onChangeAction,
     disabled = false,
+    triggerVariant = "default",
+    triggerTextClassName,
     widthClassName = "w-[168px]",
     menuWidthClassName = "w-[220px]",
 }: Props) {
@@ -57,22 +63,53 @@ export default function AdminStatusDropdown({
         };
     }, [isOpen]);
 
+    const rootClassName =
+        triggerVariant === "text"
+            ? "relative inline-block align-middle max-w-full"
+            : `relative inline-flex ${widthClassName}`;
+
+    const defaultTrigger = (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            disabled={disabled}
+            className="flex h-10 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-label="Статус"
+        >
+            <span className="truncate">{currentLabel}</span>
+            <ChevronDown
+                className={`h-4 w-4 shrink-0 text-gray-500 transition ${isOpen ? "rotate-180" : ""}`}
+            />
+        </button>
+    );
+
+    const textColorClass = triggerTextClassName?.trim() || "text-gray-800";
+
+    const textTrigger = disabled ? (
+        <span className={`text-sm font-medium ${textColorClass}`}>{currentLabel}</span>
+    ) : (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={`inline-flex max-w-full cursor-pointer items-center gap-1.5 border-x-0 border-t-0 border-b-2 border-solid border-current bg-transparent px-0 pb-0.5 pt-0 text-left text-sm font-medium transition hover:opacity-90 ${textColorClass}`}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-label="Изменить статус"
+        >
+            <span className="min-w-0 break-words">{currentLabel}</span>
+            <ChevronDown
+                aria-hidden
+                strokeWidth={2.25}
+                className={`h-3.5 w-3.5 shrink-0 opacity-55 transition-transform duration-200 ease-out will-change-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+        </button>
+    );
+
     return (
-        <div className={`relative inline-flex ${widthClassName}`} ref={rootRef}>
-            <button
-                type="button"
-                onClick={() => setIsOpen((prev) => !prev)}
-                disabled={disabled}
-                className="flex h-10 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-                aria-haspopup="listbox"
-                aria-expanded={isOpen}
-                aria-label="Статус"
-            >
-                <span className="truncate">{currentLabel}</span>
-                <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-gray-500 transition ${isOpen ? "rotate-180" : ""}`}
-                />
-            </button>
+        <div className={rootClassName} ref={rootRef}>
+            {triggerVariant === "text" ? textTrigger : defaultTrigger}
 
             {isOpen ? (
                 <div

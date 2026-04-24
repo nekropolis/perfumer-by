@@ -50,11 +50,18 @@ export default function AdminGiftCertificatesPage() {
     }, [load]);
 
     const toggleActive = async (item: GiftCertificateItem) => {
+        if (item.status === "new") {
+            setMessage({
+                type: "error",
+                text: "Заказ ещё не выполнен: после статуса «Выполнен» сертификат станет активным. Код вносит менеджер в редактировании.",
+            });
+            return;
+        }
         try {
             await updateGiftCertificate(item.id, {
                 status: item.status === "active" ? "void" : "active",
             });
-            setMessage({ type: "success", text: `Сертификат ${item.code} обновлен` });
+            setMessage({ type: "success", text: `Сертификат ${item.code ?? `#${item.id}`} обновлён` });
             await load();
         } catch (e) {
             setMessage({ type: "error", text: e instanceof Error ? e.message : "Ошибка обновления сертификата" });

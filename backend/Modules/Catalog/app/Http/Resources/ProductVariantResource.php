@@ -4,6 +4,7 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -68,6 +69,59 @@ class ProductVariantResource extends JsonResource
             'available_stock' => $availableStock,
             'is_preorder' => $effectivePreorder,
             'is_available' => $presented['is_available'],
+
+            /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
+            'fulfillment_tooltip' => self::adminFulfillmentTooltip($this->resource, $mainStock, $supplierStock),
         ];
+    }
+
+    /**
+     * Краткое описание канала отгрузки для тултипа и умного поиска в админке.
+     */
+    public static function adminFulfillmentTooltip(
+        ProductVariantLink $variant,
+        ?WarehouseVariantStock $mainStock,
+        ?WarehouseVariantStock $supplierStock,
+    ): string {
+        $preorder = (bool) $variant->is_preorder;
+
+        $mainAvailable = $mainStock
+            ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+            : 0;
+
+        if ($mainAvailable > 0) {
+            $core = "Склад · доступно {$mainAvailable} шт.";
+
+            return $preorder ? $core.' · предзаказ' : $core;
+        }
+
+        if (CatalogVariantStockPresenter::supplierListingActive($variant)) {
+            return $preorder
+                ? 'Поставщик · доступно по прайсу (канал отгрузки) · предзаказ'
+                : 'Поставщик · доступно по прайсу (канал отгрузки)';
+        }
+
+        if ($supplierStock) {
+            $supplierAvailable = max(
+                0,
+                (int) $supplierStock->stock - (int) $supplierStock->reserved_stock
+            );
+
+            if ($supplierAvailable > 0 || $preorder) {
+                $core = "Склад поставщика · доступно {$supplierAvailable} шт.";
+
+                return $preorder ? $core.' · предзаказ' : $core;
+            }
+        }
+
+        $fallback = max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
+
+        if ($fallback > 0) {
+            $core = "Остаток по карточке варианта · {$fallback} шт.";
+
+            return $preorder ? $core.' · предзаказ' : $core;
+        }
+
+        return $preorder ? 'Предзаказ' : 'Нет доступного остатка для отгрузки';
     }
 }

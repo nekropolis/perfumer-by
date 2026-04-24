@@ -49,11 +49,13 @@ export default function LoyaltyCardForm({ form, submitting = false, onChangeActi
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Процент скидки</label>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Процент скидки (накопление до 10% включительно)
+                    </label>
                     <input
                         type="number"
                         min={0}
-                        max={100}
+                        max={10}
                         step="0.01"
                         value={form.discount_percent}
                         onChange={(e) => onChangeAction({ ...form, discount_percent: e.target.value })}

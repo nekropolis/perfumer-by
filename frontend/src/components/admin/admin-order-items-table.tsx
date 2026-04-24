@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { OrderItem } from "@/types/orders";
+import type { OrderGiftCertificatePurchase, OrderItem } from "@/types/orders";
 import AdminOrderItemSuppliersModal from "@/components/admin/admin-order-item-suppliers-modal";
 import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 import CopyText from "@/components/ui/copy-text";
 
 type Props = {
     items: OrderItem[];
+    certificatePurchases?: OrderGiftCertificatePurchase[];
 };
 
-export default function AdminOrderItemsTable({ items }: Props) {
+export default function AdminOrderItemsTable({ items, certificatePurchases }: Props) {
     const [activeItem, setActiveItem] = useState<OrderItem | null>(null);
 
     return (
@@ -89,6 +90,34 @@ export default function AdminOrderItemsTable({ items }: Props) {
                             );
                         })}
                     </tbody>
+                    {certificatePurchases && certificatePurchases.length > 0 ? (
+                        <>
+                            <tbody>
+                                <tr className="bg-violet-50/80">
+                                    <td
+                                        colSpan={5}
+                                        className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-violet-900"
+                                    >
+                                        Подарочные сертификаты (покупка)
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tbody className="divide-y">
+                                {certificatePurchases.map((row) => (
+                                    <tr key={row.id} className="align-top bg-violet-50/40">
+                                        <td className="px-3 py-3">
+                                            <span className="font-medium text-gray-900">{row.template_title}</span>
+                                            <div className="mt-0.5 text-xs text-gray-500">Шаблон #{row.template_id}</div>
+                                        </td>
+                                        <td className="px-3 py-3 text-right">{row.qty}</td>
+                                        <td className="px-3 py-3 text-right">{row.amount}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{row.total}</td>
+                                        <td className="px-3 py-3 text-center text-xs text-gray-400">—</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </>
+                    ) : null}
                 </table>
             </div>
 

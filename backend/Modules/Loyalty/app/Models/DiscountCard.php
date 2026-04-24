@@ -9,11 +9,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DiscountCard extends Model
 {
+    /** Максимальный процент скидки по накопительной карте (включительно). */
+    public const MAX_DISCOUNT_PERCENT = 10.0;
+
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_BLOCKED = 'blocked';
 
     public const STATUS_EXPIRED = 'expired';
+
+    /**
+     * Ограничение процента для витрины и корзины (защита от устаревших данных в БД).
+     */
+    public static function effectiveDiscountPercent(float $stored): float
+    {
+        return min(self::MAX_DISCOUNT_PERCENT, max(0.0, round($stored, 2)));
+    }
 
     protected $table = 'discount_cards';
 

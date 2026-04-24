@@ -11,6 +11,7 @@ use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductAttribute;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
@@ -394,7 +395,7 @@ class ProductController extends Controller
                     ->with(['definition:id,title']);
             }]);
 
-        $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes): void {
+        $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
             $q->where('name', 'like', $queryLike)
                 ->orWhere('slug', 'like', $queryLike)
                 ->orWhereHas('brand', function ($bq) use ($queryLike): void {
@@ -418,9 +419,10 @@ class ProductController extends Controller
                     });
                 $this->orWhereBrandPlusProductNameLike($q, $like);
             }
+            $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
         });
 
-        $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike): void {
+        $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $query): void {
             $q->where('name', 'like', $queryLike)
                 ->orWhere('slug', 'like', $queryLike)
                 ->orWhereHas('brand', function ($bq) use ($queryLike): void {
@@ -431,6 +433,7 @@ class ProductController extends Controller
                     $vq->where('title', 'like', $queryLike);
                 });
             $this->orWhereBrandPlusProductNameLike($q, $queryLike);
+            $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
         });
         $directPool = $directMatchQuery
             ->orderByDesc('id')
@@ -449,6 +452,20 @@ class ProductController extends Controller
 
         $pool = $directPool->concat($broadPool)->unique('id');
 
+        $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
+        if ($codeOrSkuBoostIds !== []) {
+            $existing = $pool->pluck('id')->all();
+            $missingIds = array_values(array_diff($codeOrSkuBoostIds, $existing));
+            if ($missingIds !== []) {
+                $extraPool = (clone $baseProductQuery)
+                    ->whereIn('id', $missingIds)
+                    ->orderByDesc('id')
+                    ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
+                $pool = $pool->concat($extraPool)->unique('id');
+            }
+        }
+        $codeOrSkuBoostSet = array_fill_keys($codeOrSkuBoostIds, true);
+
         $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
         $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
         $activeVariantIds = $pool->flatMap(static function (Product $p): array {
@@ -464,7 +481,7 @@ class ProductController extends Controller
                 ->groupBy('variant_id');
         }
 
-        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId) {
+        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
@@ -536,6 +553,9 @@ class ProductController extends Controller
                 $scoreVariant * 0.9,
                 $scoreDisplay * 1.08
             );
+            if (isset($codeOrSkuBoostSet[$product->id])) {
+                $bestScore = max($bestScore, 1.0);
+            }
             if ($bestScore < 0.3) {
                 return null;
             }
@@ -681,6 +701,60 @@ class ProductController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Числовой id товара или SKU активного оффера поставщика — попадают в выдачу шапки / поиска.
+     */
+    private function orWhereProductIdOrSupplierSku(Builder $q, string $rawQuery, string $queryLike): void
+    {
+        $trim = trim($rawQuery);
+        if (preg_match('/^\d{1,12}$/', $trim) && (int) $trim > 0) {
+            $q->orWhere((new Product())->getQualifiedKeyName(), (int) $trim);
+        }
+        if (mb_strlen($trim, 'UTF-8') >= 2) {
+            $q->orWhereHas('variants', function (Builder $vq) use ($queryLike): void {
+                $vq->whereHas('supplierOffers', function (Builder $sq) use ($queryLike): void {
+                    $sq->where('is_active', true)
+                        ->whereNotNull('sku')
+                        ->where('sku', 'like', $queryLike);
+                });
+            });
+        }
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function activeProductIdsMatchingCodeOrSku(string $rawQuery): array
+    {
+        $trim = trim($rawQuery);
+        $ids = collect();
+
+        if (preg_match('/^\d{1,12}$/', $trim) && (int) $trim > 0) {
+            $pid = (int) $trim;
+            if (Product::query()->where('is_active', true)->whereKey($pid)->exists()) {
+                $ids->push($pid);
+            }
+        }
+
+        if (mb_strlen($trim, 'UTF-8') >= 2) {
+            $escaped = addcslashes($trim, '%_\\');
+            $like = '%'.$escaped.'%';
+            $fromSku = SupplierVariantOffer::query()
+                ->where('supplier_variant_offers.is_active', true)
+                ->whereNotNull('supplier_variant_offers.sku')
+                ->where('supplier_variant_offers.sku', 'like', $like)
+                ->join('product_variant_links', 'product_variant_links.id', '=', 'supplier_variant_offers.product_variant_id')
+                ->join('products', 'products.id', '=', 'product_variant_links.product_id')
+                ->where('products.is_active', true)
+                ->select('products.id')
+                ->distinct()
+                ->pluck('products.id');
+            $ids = $ids->merge($fromSku);
+        }
+
+        return $ids->unique()->map(static fn ($id): int => (int) $id)->values()->all();
     }
 
     /**

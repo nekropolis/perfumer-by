@@ -74,6 +74,8 @@ class OrderResource extends JsonResource
                     'balance_amount' => $balance !== null ? number_format($balance, 2, '.', '') : null,
                 ];
             })->values()->all(),
+            'gift_certificate_purchases' => $this->giftCertificatePurchasesForResource(),
+            'sold_gift_certificates' => $this->soldGiftCertificatesForResource(),
             'discount_card_number' => $this->discount_card_number,
             'discount_percent_snapshot' => number_format((float) $this->discount_percent_snapshot, 2, '.', ''),
             'discount_amount' => number_format((float) $this->discount_amount, 2, '.', ''),
@@ -154,6 +156,61 @@ class OrderResource extends JsonResource
                 return $data;
             })->values(),
         ];
+    }
+
+    /**
+     * @return list<array{id:int, template_id:int, template_title:string, amount:string, qty:int, total:string}>
+     */
+    private function giftCertificatePurchasesForResource(): array
+    {
+        $rows = $this->relationLoaded('giftCertificatePurchases')
+            ? $this->giftCertificatePurchases
+            : $this->giftCertificatePurchases()->get();
+
+        return $rows
+            ->map(function ($row) {
+                return [
+                    'id' => (int) $row->id,
+                    'template_id' => (int) $row->template_id,
+                    'template_title' => (string) $row->template_title,
+                    'amount' => number_format((float) $row->amount, 2, '.', ''),
+                    'qty' => (int) $row->qty,
+                    'total' => number_format((float) $row->total, 2, '.', ''),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{id:int, template_id:int|null, template_title:string|null, status:string, code:string|null, initial_amount:string, balance_amount:string}>
+     */
+    private function soldGiftCertificatesForResource(): array
+    {
+        $rows = $this->relationLoaded('soldGiftCertificates')
+            ? $this->soldGiftCertificates
+            : $this->soldGiftCertificates()->get();
+        $rows->loadMissing('template');
+
+        return $rows
+            ->map(function ($row) {
+                $title = $row->template?->title;
+
+                $rawCode = $row->getAttributes()['code'] ?? null;
+                $code = ($rawCode !== null && trim((string) $rawCode) !== '') ? trim((string) $rawCode) : null;
+
+                return [
+                    'id' => (int) $row->id,
+                    'template_id' => $row->template_id !== null ? (int) $row->template_id : null,
+                    'template_title' => $title !== null && $title !== '' ? (string) $title : null,
+                    'status' => (string) $row->status,
+                    'code' => $code,
+                    'initial_amount' => number_format((float) $row->initial_amount, 2, '.', ''),
+                    'balance_amount' => number_format((float) $row->balance_amount, 2, '.', ''),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function deliveryMethodLabel(string $method): ?string

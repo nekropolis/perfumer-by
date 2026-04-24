@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { fetchOrder } from "@/lib/admin-orders-api";
+import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import { getOrderStatusLabel } from "@/constants/order-statuses";
 import AdminOrderStatusForm from "@/components/admin/admin-order-status-form";
 import AdminOrderInventorySync from "@/components/admin/admin-order-inventory-sync";
@@ -95,7 +97,7 @@ export default async function AdminOrderPage({ params }: Props) {
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Сертификат</div>
+                            <div className="text-sm text-gray-500">Оплата сертификатом</div>
                             <div>{order.gift_certificate_code || order.gift_certificate_number || "—"}</div>
                         </div>
 
@@ -103,6 +105,52 @@ export default async function AdminOrderPage({ params }: Props) {
                             <div className="text-sm text-gray-500">Списание сертификата</div>
                             <div>{order.gift_certificate_amount ?? "0.00"} руб.</div>
                         </div>
+
+                        {order.gift_certificate_purchases && order.gift_certificate_purchases.length > 0 ? (
+                            <div className="md:col-span-2">
+                                <div className="text-sm text-gray-500">Купленные сертификаты</div>
+                                <ul className="mt-1 space-y-1 text-sm">
+                                    {order.gift_certificate_purchases.map((row) => (
+                                        <li key={row.id} className="rounded-lg border border-violet-100 bg-violet-50/50 px-3 py-2">
+                                            <span className="font-medium">{row.template_title}</span>
+                                            <span className="text-gray-600">
+                                                {" "}
+                                                — {row.amount} руб. × {row.qty} = {row.total} руб.
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
+
+                        {order.sold_gift_certificates && order.sold_gift_certificates.length > 0 ? (
+                            <div className="md:col-span-2">
+                                <div className="text-sm text-gray-500">Выпущенные сертификаты (каталог)</div>
+                                <ul className="mt-1 space-y-2 text-sm">
+                                    {order.sold_gift_certificates.map((row) => (
+                                        <li
+                                            key={row.id}
+                                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2"
+                                        >
+                                            <div>
+                                                <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
+                                                <div className="font-medium">{row.template_title ?? "Сертификат"}</div>
+                                                <div className="text-gray-600">
+                                                    {row.initial_amount} руб. · {giftCertificateStatusLabel(row.status, row.code)}
+                                                    {row.code ? ` · ${row.code}` : ""}
+                                                </div>
+                                            </div>
+                                            <Link
+                                                href={`/admin/loyalty/certificates/${row.id}/edit`}
+                                                className="shrink-0 rounded-lg border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                                            >
+                                                Код
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
                     </div>
 
                     {order.comment && (
@@ -112,7 +160,10 @@ export default async function AdminOrderPage({ params }: Props) {
                         </div>
                     )}
 
-                    <AdminOrderItemsTable items={order.items} />
+                    <AdminOrderItemsTable
+                        items={order.items}
+                        certificatePurchases={order.gift_certificate_purchases}
+                    />
                 </div>
 
                 <aside className="rounded-2xl border p-5">

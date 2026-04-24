@@ -18,7 +18,7 @@ function getAdminHeaders() {
 export type GiftCertificateItem = {
     id: number;
     template_id?: number | null;
-    code: string;
+    code: string | null;
     number: string;
     initial_amount: string;
     balance_amount: string;
@@ -42,7 +42,11 @@ export type GiftCertificateTemplateItem = {
     is_active: boolean;
 };
 
-export function giftCertificateStatusLabel(status: string): string {
+export function giftCertificateStatusLabel(status: string, code?: string | null): string {
+    if (status === "new") return "Ожидает выполнения заказа";
+    if (status === "active" && (code === null || code === undefined || String(code).trim() === "")) {
+        return "Активен (код не задан)";
+    }
     if (status === "active") return "Активен";
     if (status === "used") return "Использован";
     if (status === "redeemed") return "Погашен";
@@ -139,6 +143,7 @@ export async function fetchAdminGiftCertificate(id: number): Promise<{ data: Gif
 export async function updateGiftCertificate(
     id: number,
     payload: {
+        code?: string | null;
         template_id?: number | null;
         initial_amount?: number;
         balance_amount?: number;

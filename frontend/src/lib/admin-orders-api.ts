@@ -19,6 +19,12 @@ function getAdminHeaders() {
 export async function fetchOrders(params?: {
   search?: string;
   status?: string;
+  /** today | week | month | year — фильтр по дате создания (игнорируется API, если задан from/to) */
+  period?: string;
+  /** YYYY-MM-DD — начало интервала created_at */
+  from?: string;
+  /** YYYY-MM-DD — конец интервала created_at (включительно, конец дня) */
+  to?: string;
 }): Promise<OrdersResponse> {
   const searchParams = new URLSearchParams();
 
@@ -28,6 +34,18 @@ export async function fetchOrders(params?: {
 
   if (params?.status) {
     searchParams.set("status", params.status);
+  }
+
+  if (params?.period) {
+    searchParams.set("period", params.period);
+  }
+
+  if (params?.from) {
+    searchParams.set("from", params.from);
+  }
+
+  if (params?.to) {
+    searchParams.set("to", params.to);
   }
 
   const query = searchParams.toString();
@@ -160,6 +178,29 @@ export type AdminOrderPayload = {
   payment_method?: string | null;
   items: AdminOrderPayloadItem[];
 };
+
+export type AdminOrderCustomerContext = {
+  matched_user: { id: number; name: string | null } | null;
+  orders: {
+    completed: number;
+    cancelled: number;
+    active: number;
+  };
+  delivery_cities: string[];
+  discount_cards: { number: string; discount_percent: string }[];
+};
+
+export async function fetchAdminOrderCustomerContext(phone: string): Promise<{ data: AdminOrderCustomerContext }> {
+  const q = phone.trim() ? `?phone=${encodeURIComponent(phone.trim())}` : "";
+  const res = await fetch(`${API_BASE}/admin/orders/customer-context${q}`, {
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Customer context API error: ${res.status}`);
+  }
+  return res.json();
+}
 
 async function parseOrderError(res: Response, fallback: string): Promise<Error> {
   const text = await res.text();

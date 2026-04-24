@@ -2,6 +2,8 @@
 
 namespace Modules\Checkout\Http\Controllers\Api;
 
+use App\Support\Phone;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -11,9 +13,10 @@ use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\DiscountCardTransaction;
-use Modules\Loyalty\Models\GiftCertificate;
+use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Users\Models\User;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
-use Modules\Loyalty\Services\GiftCertificateIssueService;
+use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Services\StockInventoryService;
 
@@ -60,16 +63,128 @@ class OrderController extends Controller
         ]);
     }
 
+    /**
+     * Подсказки при создании заказа в админке: статистика по телефону, города доставки из прошлых заказов, карты лояльности.
+     */
+    public function customerContext(Request $request): JsonResponse
+    {
+        $digits = Phone::normalize((string) $request->query('phone', ''));
+        if (strlen($digits) < 7) {
+            return response()->json([
+                'data' => [
+                    'matched_user' => null,
+                    'orders' => ['completed' => 0, 'cancelled' => 0, 'active' => 0],
+                    'delivery_cities' => [],
+                    'discount_cards' => [],
+                ],
+            ]);
+        }
+
+        $suffix = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+
+        $orderRows = Order::query()
+            ->where('phone', 'like', '%'.$suffix.'%')
+            ->orderByDesc('id')
+            ->limit(800)
+            ->get(['id', 'status', 'delivery_city', 'phone'])
+            ->filter(fn (Order $o) => Phone::normalize((string) $o->phone) === $digits);
+
+        $completed = $orderRows->whereIn('status', ['done', 'completed'])->count();
+        $cancelled = $orderRows->where('status', 'cancelled')->count();
+        $active = $orderRows->whereNotIn('status', ['done', 'completed', 'cancelled'])->count();
+
+        $deliveryCities = $orderRows
+            ->pluck('delivery_city')
+            ->map(fn ($c) => trim((string) ($c ?? '')))
+            ->filter(fn ($c) => $c !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $user = User::query()
+            ->where('phone', 'like', '%'.$suffix.'%')
+            ->orderBy('id')
+            ->limit(50)
+            ->get()
+            ->first(fn (User $u) => Phone::normalize((string) $u->phone) === $digits);
+
+        $cards = [];
+        if ($user) {
+            $cards = $user->discountCards()
+                ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
+                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->orderByDesc('discount_cards.discount_percent')
+                ->get(['discount_cards.id', 'discount_cards.card_number', 'discount_cards.discount_percent'])
+                ->map(static function ($c) {
+                    return [
+                        'number' => $c->card_number,
+                        'discount_percent' => (string) DiscountCard::effectiveDiscountPercent((float) $c->discount_percent),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return response()->json([
+            'data' => [
+                'matched_user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                ] : null,
+                'orders' => [
+                    'completed' => $completed,
+                    'cancelled' => $cancelled,
+                    'active' => $active,
+                ],
+                'delivery_cities' => $deliveryCities,
+                'discount_cards' => $cards,
+            ],
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $search = trim((string) $request->input('search', ''));
         $status = trim((string) $request->input('status', ''));
+        $period = trim((string) $request->input('period', ''));
+        $allowedPeriods = ['today', 'week', 'month', 'year'];
+        if ($period !== '' && ! in_array($period, $allowedPeriods, true)) {
+            $period = '';
+        }
+
+        $fromInput = trim((string) $request->input('from', ''));
+        $toInput = trim((string) $request->input('to', ''));
+
+        $fromBoundary = null;
+        $toBoundary = null;
+        if ($fromInput !== '') {
+            try {
+                $fromBoundary = Carbon::createFromFormat('Y-m-d', $fromInput)->startOfDay();
+            } catch (\Throwable) {
+                $fromBoundary = null;
+            }
+        }
+        if ($toInput !== '') {
+            try {
+                $toBoundary = Carbon::createFromFormat('Y-m-d', $toInput)->endOfDay();
+            } catch (\Throwable) {
+                $toBoundary = null;
+            }
+        }
+
+        $useCustomDateRange = $fromBoundary !== null || $toBoundary !== null;
+        if ($useCustomDateRange && $fromBoundary !== null && $toBoundary !== null && $fromBoundary->gt($toBoundary)) {
+            $tmp = $fromBoundary->copy();
+            $fromBoundary = $toBoundary->copy()->startOfDay();
+            $toBoundary = $tmp->endOfDay();
+        }
 
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
+                'soldGiftCertificates.template',
             ])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
@@ -84,6 +199,33 @@ class OrderController extends Controller
             })
             ->when($status !== '', function ($query) use ($status) {
                 $query->where('status', $status);
+            })
+            ->when($useCustomDateRange, function ($query) use ($fromBoundary, $toBoundary) {
+                if ($fromBoundary !== null && $toBoundary !== null) {
+                    $query->whereBetween('created_at', [$fromBoundary, $toBoundary]);
+                } elseif ($fromBoundary !== null) {
+                    $query->where('created_at', '>=', $fromBoundary);
+                } elseif ($toBoundary !== null) {
+                    $query->where('created_at', '<=', $toBoundary);
+                }
+            })
+            ->when(! $useCustomDateRange && $period === 'today', function ($query) {
+                $query->whereDate('created_at', now()->toDateString());
+            })
+            ->when(! $useCustomDateRange && $period === 'week', function ($query) {
+                $query->where('created_at', '>=', now()->copy()->subDays(6)->startOfDay());
+            })
+            ->when(! $useCustomDateRange && $period === 'month', function ($query) {
+                $query->whereBetween('created_at', [
+                    now()->copy()->startOfMonth()->startOfDay(),
+                    now()->copy()->endOfMonth()->endOfDay(),
+                ]);
+            })
+            ->when(! $useCustomDateRange && $period === 'year', function ($query) {
+                $query->whereBetween('created_at', [
+                    now()->copy()->startOfYear()->startOfDay(),
+                    now()->copy()->endOfYear()->endOfDay(),
+                ]);
             })
             ->latest('id')
             ->paginate(20);
@@ -106,6 +248,7 @@ class OrderController extends Controller
                 'items.variant.supplierOffers.supplier',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
+                'soldGiftCertificates.template',
             ])
             ->findOrFail($id);
 
@@ -138,7 +281,7 @@ class OrderController extends Controller
             return $order;
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases']);
+        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -152,8 +295,15 @@ class OrderController extends Controller
 
         $order = Order::query()->with('items')->findOrFail($id);
         $previousStatus = (string) $order->status;
+        $isTerminal = in_array($order->status, ['done', 'cancelled'], true);
 
-        DB::transaction(function () use ($order, $validated, $previousStatus) {
+        if ($isTerminal && ! $this->terminalOrderItemsPayloadMatchesExisting($order, $validated['items'])) {
+            return response()->json([
+                'message' => 'По заказам со статусом «Выполнен» или «Отменён» нельзя менять состав товаров, количества и цены строк.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal) {
             $order->update([
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => (string) $validated['phone'],
@@ -166,12 +316,16 @@ class OrderController extends Controller
                 'status' => (string) ($validated['status'] ?? $previousStatus),
             ]);
 
-            $this->syncOrderItemsAndTotals($order, $validated['items']);
+            if ($isTerminal) {
+                $this->recalculateOrderTotalsFromExistingItems($order);
+            } else {
+                $this->syncOrderItemsAndTotals($order, $validated['items']);
+            }
             $nextStatus = (string) $order->status;
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases']);
+        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -197,7 +351,7 @@ class OrderController extends Controller
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases']);
+        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -266,11 +420,73 @@ class OrderController extends Controller
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases']);
+        $order->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
             'message' => 'Order status updated',
+        ]);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function terminalOrderItemsPayloadMatchesExisting(Order $order, array $items): bool
+    {
+        if (count($items) !== $order->items->count()) {
+            return false;
+        }
+
+        $normalize = static function (array $row): array {
+            return [
+                'product_id' => $row['product_id'] ?? null,
+                'variant_id' => $row['variant_id'] ?? null,
+                'qty' => (int) ($row['qty'] ?? 0),
+                'price' => round((float) ($row['price'] ?? 0), 2),
+                'product_name' => isset($row['product_name']) ? (string) $row['product_name'] : '',
+                'variant_title' => isset($row['variant_title']) ? (string) $row['variant_title'] : '',
+            ];
+        };
+
+        $fromDb = $order->items->map(function (OrderItem $i) use ($normalize) {
+            return $normalize([
+                'product_id' => $i->product_id,
+                'variant_id' => $i->variant_id,
+                'qty' => $i->qty,
+                'price' => $i->price,
+                'product_name' => $i->product_name,
+                'variant_title' => $i->variant_title,
+            ]);
+        })->sortBy(fn ($row) => ($row['variant_id'] ?? 0).':'.($row['product_id'] ?? 0))->values()->all();
+
+        $fromPayload = collect($items)->map(fn ($item) => $normalize($item))
+            ->sortBy(fn ($row) => ($row['variant_id'] ?? 0).':'.($row['product_id'] ?? 0))->values()->all();
+
+        return $fromDb === $fromPayload;
+    }
+
+    private function recalculateOrderTotalsFromExistingItems(Order $order): void
+    {
+        $order->refresh();
+        $order->load('items');
+
+        $itemsQty = 0;
+        $subtotal = 0.0;
+
+        foreach ($order->items as $item) {
+            $qty = (int) $item->qty;
+            $price = round((float) $item->price, 2);
+            $itemsQty += $qty;
+            $subtotal += round($qty * $price, 2);
+        }
+
+        $subtotal = round($subtotal, 2);
+        $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
+
+        $order->update([
+            'items_qty' => $itemsQty,
+            'subtotal' => $subtotal,
+            'total' => round($subtotal + $deliveryFee, 2),
         ]);
     }
 
@@ -327,6 +543,7 @@ class OrderController extends Controller
         if ($nextStatus === 'cancelled') {
             $stockService->releaseForOrder($order);
             app(GiftCertificateLedgerService::class)->refundOrderCertificates($order);
+            app(SoldGiftCertificateFromOrderService::class)->voidSoldAwaitingCompletion($order);
         }
 
         // Фронт админки использует статус `done` («Выполнен»); `completed` оставляем для совместимости.
@@ -336,7 +553,10 @@ class OrderController extends Controller
         ) {
             $stockService->completeOrder($order);
             $this->applyLoyaltyCompletion($order, (string) ($previousStatus ?? ''));
-            $this->issuePurchasedGiftCertificates($order, (string) ($previousStatus ?? ''));
+            app(SoldGiftCertificateFromOrderService::class)->activateSoldOnOrderCompleted(
+                $order,
+                (string) ($previousStatus ?? '')
+            );
         }
     }
 
@@ -379,7 +599,8 @@ class OrderController extends Controller
         $subtotal = (float) $order->subtotal;
         $increment = $subtotal > 100 ? 1.0 : 0.5;
         $before = (float) $card->discount_percent;
-        $after = min(100, round($before + $increment, 2));
+        $after = DiscountCard::effectiveDiscountPercent($before + $increment);
+        $appliedIncrement = round($after - $before, 2);
 
         $card->update([
             'discount_percent' => $after,
@@ -394,38 +615,8 @@ class OrderController extends Controller
             'order_subtotal' => $subtotal,
             'discount_percent_before' => $before,
             'discount_percent_after' => $after,
-            'percent_increment' => $increment,
+            'percent_increment' => $appliedIncrement,
         ]);
     }
 
-    private function issuePurchasedGiftCertificates(Order $order, string $previousStatus): void
-    {
-        if (in_array($previousStatus, ['done', 'completed'], true)) {
-            return;
-        }
-
-        $order->loadMissing('giftCertificatePurchases');
-        foreach ($order->giftCertificatePurchases as $purchase) {
-            $alreadyIssued = GiftCertificate::query()
-                ->where('sold_order_id', $order->id)
-                ->where('source', GiftCertificate::SOURCE_SOLD)
-                ->where('template_id', $purchase->template_id)
-                ->count();
-            $toIssue = max(0, (int) $purchase->qty - (int) $alreadyIssued);
-
-            for ($i = 0; $i < $toIssue; $i++) {
-                app(GiftCertificateIssueService::class)->issue([
-                    'template_id' => (int) $purchase->template_id,
-                    'initial_amount' => (float) $purchase->amount,
-                    'source' => 'sold',
-                    'sold_order_id' => $order->id,
-                    'issued_to_user_id' => $order->user_id,
-                    'issued_phone' => $order->phone,
-                    'comment' => 'Автоматически создан после оплаты заказа #'.$order->id,
-                    'issued_at' => now()->toDateTimeString(),
-                    'activated_at' => now()->toDateTimeString(),
-                ]);
-            }
-        }
-    }
 }

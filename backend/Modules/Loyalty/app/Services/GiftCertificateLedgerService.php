@@ -16,10 +16,19 @@ class GiftCertificateLedgerService
         if (!$cert) {
             return false;
         }
+        if ($cert->status === GiftCertificate::STATUS_NEW) {
+            return false;
+        }
+
         if ($cert->status !== GiftCertificate::STATUS_ACTIVE) {
             return false;
         }
         if ($cert->expires_at && $cert->expires_at->isPast()) {
+            return false;
+        }
+
+        $rawCode = $cert->getAttributes()['code'] ?? null;
+        if ($rawCode === null || trim((string) $rawCode) === '') {
             return false;
         }
 

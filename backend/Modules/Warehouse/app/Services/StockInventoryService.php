@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockMovement;
@@ -53,15 +54,48 @@ class StockInventoryService
             return;
         }
 
+        $mainWarehouseId = $this->getMainWarehouseId();
         $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
-        $stockSumQuery = WarehouseVariantStock::query()->where('product_id', $productId);
-        if ($supplierWarehouseId > 0) {
-            $stockSumQuery->where('warehouse_id', '!=', $supplierWarehouseId);
+
+        $variants = ProductVariantLink::query()
+            ->where('product_id', $productId)
+            ->where(function ($q): void {
+                $q->where('is_active', true)
+                    ->orWhere('is_preorder', true);
+            })
+            ->get();
+
+        if ($variants->isEmpty()) {
+            $product->update(['is_out_of_stock' => true]);
+
+            return;
         }
-        $stockSum = (int) $stockSumQuery->sum('stock');
+
+        $variantIds = $variants->pluck('id')->all();
+        $stocks = WarehouseVariantStock::query()
+            ->whereIn('variant_id', $variantIds)
+            ->whereIn('warehouse_id', array_values(array_filter([$mainWarehouseId, $supplierWarehouseId])))
+            ->get()
+            ->groupBy('variant_id');
+
+        $hasPurchasable = false;
+        foreach ($variants as $variant) {
+            if ($variant->is_preorder) {
+                $hasPurchasable = true;
+                break;
+            }
+            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+            if (!empty($presented['is_available'])) {
+                $hasPurchasable = true;
+                break;
+            }
+        }
 
         $product->update([
-            'is_out_of_stock' => $stockSum <= 0,
+            'is_out_of_stock' => !$hasPurchasable,
         ]);
     }
 

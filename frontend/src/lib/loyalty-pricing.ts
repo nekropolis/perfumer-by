@@ -1,3 +1,5 @@
+export const MAX_LOYALTY_CARD_DISCOUNT_PERCENT = 10;
+
 export type ActiveLoyaltyCard = {
     number: string;
     discountPercent: number;
@@ -14,7 +16,10 @@ export function resolveActiveLoyaltyCard(
         .filter((card) => card.is_active)
         .map((card) => ({
             number: card.number,
-            discountPercent: Number(card.discount_percent) || 0,
+            discountPercent: Math.min(
+                MAX_LOYALTY_CARD_DISCOUNT_PERCENT,
+                Math.max(0, Number(card.discount_percent) || 0)
+            ),
         }))
         .sort((a, b) => b.discountPercent - a.discountPercent);
 

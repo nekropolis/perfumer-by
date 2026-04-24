@@ -35,6 +35,7 @@ export default function CartPage() {
     const [discountCardApplyError, setDiscountCardApplyError] = useState("");
     const [giftCertificateApplyError, setGiftCertificateApplyError] = useState("");
     const [templates, setTemplates] = useState<GiftCertificateTemplatePublic[]>([]);
+    const [giftCertQuickAddOpen, setGiftCertQuickAddOpen] = useState(false);
 
     const cardInCart = cart?.discount_card ?? null;
 
@@ -287,30 +288,44 @@ export default function CartPage() {
                         </article>
                     ))}
 
-                    <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5">
-                        <div className="mb-2 text-sm font-medium text-[var(--foreground)]">Добавить подарочный сертификат</div>
-                        <div className="flex flex-wrap gap-2">
-                            {templates.map((template) => (
-                                <button
-                                    key={template.id}
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() =>
-                                        startTransition(async () => {
-                                            const response = await addGiftCertificateTemplateToCart(template.id, 1);
-                                            setCartState(response.data);
-                                        })
-                                    }
-                                    className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs"
+                    <button
+                        type="button"
+                        onClick={() => setGiftCertQuickAddOpen((o) => !o)}
+                        aria-expanded={giftCertQuickAddOpen}
+                        className="text-left text-sm font-medium text-[var(--foreground)] underline decoration-dashed underline-offset-[3px] hover:opacity-80 active:opacity-70"
+                    >
+                        Преобрести подарочный сертификат
+                    </button>
+
+                    {giftCertQuickAddOpen ? (
+                        <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5">
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {templates.map((template) => (
+                                    <button
+                                        key={template.id}
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                            startTransition(async () => {
+                                                const response = await addGiftCertificateTemplateToCart(template.id, 1);
+                                                setCartState(response.data);
+                                            })
+                                        }
+                                        className="min-h-10 rounded-xl border border-[var(--line)] px-3 py-2 text-xs"
+                                    >
+                                        {template.amount} руб.
+                                    </button>
+                                ))}
+                                <Link
+                                    href="/gift-certificates"
+                                    className="inline-flex min-h-10 items-center rounded-xl border border-[var(--line)] px-3 py-2 text-xs"
                                 >
-                                    {template.amount} руб.
-                                </button>
-                            ))}
-                            <Link href="/gift-certificates" className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs">
-                                Все сертификаты
-                            </Link>
-                        </div>
-                    </article>
+                                    Все сертификаты
+                                </Link>
+                            </div>
+                        </article>
+                    ) : null}
                 </section>
 
                 <aside className="self-start xl:sticky xl:top-24">

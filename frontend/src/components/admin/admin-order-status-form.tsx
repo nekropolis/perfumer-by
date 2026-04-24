@@ -21,7 +21,7 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
     const [isPending, startTransition] = useTransition();
-    const [confirmDoneOpen, setConfirmDoneOpen] = useState(false);
+    const [confirmTerminal, setConfirmTerminal] = useState<"done" | "cancelled" | null>(null);
 
     useEffect(() => {
         setSavedStatus(currentStatus);
@@ -41,12 +41,12 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
                 setSavedStatus(next);
                 setStatus(next);
                 setMessage("Статус обновлён");
-                setConfirmDoneOpen(false);
+                setConfirmTerminal(null);
                 router.refresh();
             } catch (err) {
                 console.error(err);
                 setError(err instanceof Error ? err.message : "Ошибка обновления статуса");
-                setConfirmDoneOpen(false);
+                setConfirmTerminal(null);
             }
         });
     };
@@ -57,7 +57,12 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
         }
 
         if (status === "done" && savedStatus !== "done") {
-            setConfirmDoneOpen(true);
+            setConfirmTerminal("done");
+            return;
+        }
+
+        if (status === "cancelled" && savedStatus !== "cancelled") {
+            setConfirmTerminal("cancelled");
             return;
         }
 
@@ -98,14 +103,26 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
             {message && !error ? <div className="mt-3 text-sm text-gray-600">{message}</div> : null}
 
             <AdminConfirmDialog
-                open={confirmDoneOpen}
-                title="Завершить заказ?"
-                message="Статус «Выполнен» спишет товар со склада по активным резервам. Отменить эту операцию через смену статуса будет нельзя — только отдельными складскими документами при необходимости."
-                confirmText="Выполнить заказ"
-                confirmLoadingText="Выполнение..."
-                cancelText="Отмена"
+                open={confirmTerminal !== null}
+                title={
+                    confirmTerminal === "done"
+                        ? "Завершить заказ?"
+                        : confirmTerminal === "cancelled"
+                          ? "Отменить заказ?"
+                          : "Подтверждение"
+                }
+                message={
+                    confirmTerminal === "done"
+                        ? "Статус «Выполнен» спишет товар со склада по активным резервам. Состав заказа после этого изменить будет нельзя. Откат — только отдельными складскими документами при необходимости."
+                        : confirmTerminal === "cancelled"
+                          ? "Статус «Отменён» снимет резервы на складе и выполнит возврат по подарочным сертификатам заказа (если применимо). Состав заказа после этого изменить будет нельзя."
+                          : ""
+                }
+                confirmText={confirmTerminal === "done" ? "Выполнить заказ" : "Да, отменить заказ"}
+                confirmLoadingText="Сохранение..."
+                cancelText="Назад"
                 loading={isPending}
-                onCloseAction={() => setConfirmDoneOpen(false)}
+                onCloseAction={() => setConfirmTerminal(null)}
                 onConfirmAction={() => performSave()}
             />
         </div>

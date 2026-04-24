@@ -14,6 +14,16 @@ import {
     type CheckoutQuote,
     type CheckoutShopSettings,
 } from "@/lib/checkout-api";
+import {
+    applyDiscountCard,
+    applyGiftCertificate,
+    clearDiscountCard,
+    clearGiftCertificate,
+    DiscountCardApplyError,
+    GiftCertificateApplyError,
+    normalizeGiftCertificateDigits,
+    toGiftCertificateCode,
+} from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
@@ -42,7 +52,7 @@ const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
 export default function CheckoutPage() {
     const router = useRouter();
     const { cart, setCartState } = useCart();
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
@@ -64,6 +74,14 @@ export default function CheckoutPage() {
     const [quote, setQuote] = useState<CheckoutQuote | null>(null);
     const [quoteError, setQuoteError] = useState("");
 
+    const [giftCertificateDigits, setGiftCertificateDigits] = useState("");
+    const [giftCertificateHoneypot, setGiftCertificateHoneypot] = useState("");
+    const [giftCertificateLastAttemptAt, setGiftCertificateLastAttemptAt] = useState(0);
+    const [giftCertificateApplyError, setGiftCertificateApplyError] = useState("");
+    const [discountCardNumber, setDiscountCardNumber] = useState("");
+    const [discountCardConflict, setDiscountCardConflict] = useState<string | null>(null);
+    const [discountCardApplyError, setDiscountCardApplyError] = useState("");
+
     const phoneIsValid = isBelarusPhoneComplete(phone);
 
     useEffect(() => {
@@ -81,13 +99,17 @@ export default function CheckoutPage() {
 
     useEffect(() => {
         if (manualCity) {
-            setCityHits([]);
-            setCityLookupFailed(false);
+            queueMicrotask(() => {
+                setCityHits([]);
+                setCityLookupFailed(false);
+            });
             return;
         }
         if (debouncedCityQuery.trim().length < 2) {
-            setCityHits([]);
-            setCityLookupFailed(false);
+            queueMicrotask(() => {
+                setCityHits([]);
+                setCityLookupFailed(false);
+            });
             return;
         }
         let cancelled = false;
@@ -123,14 +145,17 @@ export default function CheckoutPage() {
 
     useEffect(() => {
         if (!cart || cart.items.length === 0) return;
-        void refreshQuote();
+        queueMicrotask(() => {
+            void refreshQuote();
+        });
     }, [cart, refreshQuote]);
 
-    useEffect(() => {
-        if (deliveryMethod === "belarus_courier" && paymentMethod === "card") {
-            setPaymentMethod("cash");
+    const handleDeliveryMethodChange = useCallback((value: CheckoutDeliveryMethod) => {
+        setDeliveryMethod(value);
+        if (value === "belarus_courier") {
+            setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
         }
-    }, [deliveryMethod, paymentMethod]);
+    }, []);
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
@@ -269,7 +294,7 @@ export default function CheckoutPage() {
                                         name="delivery_method"
                                         value={value}
                                         checked={deliveryMethod === value}
-                                        onChange={() => setDeliveryMethod(value)}
+                                        onChange={() => handleDeliveryMethodChange(value)}
                                         className="mt-1"
                                     />
                                     <span>{label}</span>
@@ -472,6 +497,225 @@ export default function CheckoutPage() {
                             deliveryFee={quote?.delivery_fee}
                             grandTotal={quote?.total}
                         />
+                    </div>
+
+                    <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
+                        <div>
+                            <div className="mb-1 text-xs text-[var(--text-secondary)]">Подарочный сертификат</div>
+                            {!cart.gift_certificate ? (
+                                <>
+                                    <div className="flex gap-2">
+                                        <div className="flex w-full min-w-0 items-center rounded-xl border border-[var(--line)] bg-[var(--background)]">
+                                            <span className="shrink-0 border-r border-[var(--line)] py-2 pl-3 pr-1 text-sm text-[var(--text-secondary)]">
+                                                PBY-
+                                            </span>
+                                            <input
+                                                value={giftCertificateDigits}
+                                                onChange={(e) => {
+                                                    setGiftCertificateDigits(normalizeGiftCertificateDigits(e.target.value));
+                                                    setGiftCertificateApplyError("");
+                                                }}
+                                                inputMode="numeric"
+                                                maxLength={4}
+                                                placeholder="0000"
+                                                className="min-w-0 flex-1 rounded-r-xl bg-transparent px-2 py-2 text-sm outline-none"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={isPending || giftCertificateDigits.length !== 4}
+                                            onClick={() =>
+                                                startTransition(async () => {
+                                                    setGiftCertificateApplyError("");
+
+                                                    if (giftCertificateHoneypot.trim() !== "") {
+                                                        setGiftCertificateApplyError("Не удалось применить сертификат");
+                                                        return;
+                                                    }
+
+                                                    if (Date.now() - giftCertificateLastAttemptAt < 1500) {
+                                                        setGiftCertificateApplyError(
+                                                            "Слишком частые попытки. Повторите через секунду.",
+                                                        );
+                                                        return;
+                                                    }
+
+                                                    setGiftCertificateLastAttemptAt(Date.now());
+                                                    try {
+                                                        const response = await applyGiftCertificate(
+                                                            toGiftCertificateCode(giftCertificateDigits),
+                                                        );
+                                                        setCartState(response.data);
+                                                    } catch (e) {
+                                                        if (e instanceof GiftCertificateApplyError) {
+                                                            setGiftCertificateApplyError(e.message);
+                                                            return;
+                                                        }
+                                                        setGiftCertificateApplyError("Не удалось применить сертификат");
+                                                    }
+                                                })
+                                            }
+                                            className="shrink-0 rounded-xl border border-[var(--line)] px-3 py-2 text-sm"
+                                        >
+                                            Применить
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={giftCertificateHoneypot}
+                                        onChange={(e) => setGiftCertificateHoneypot(e.target.value)}
+                                        tabIndex={-1}
+                                        autoComplete="off"
+                                        aria-hidden="true"
+                                        className="hidden"
+                                    />
+                                    {giftCertificateApplyError ? (
+                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                            {giftCertificateApplyError}
+                                        </div>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <div className="flex items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2">
+                                    <div>
+                                        <div className="text-xs text-[var(--text-secondary)]">Применён сертификат</div>
+                                        <div className="text-sm font-medium text-[var(--foreground)]">
+                                            {cart.gift_certificate.code}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                            startTransition(async () => {
+                                                setGiftCertificateApplyError("");
+                                                setGiftCertificateDigits("");
+                                                const response = await clearGiftCertificate();
+                                                setCartState(response.data);
+                                            })
+                                        }
+                                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                        aria-label="Убрать сертификат"
+                                        title="Убрать сертификат"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <div className="mb-1 text-xs text-[var(--text-secondary)]">Скидочная карта</div>
+                            {!cart.discount_card ? (
+                                <>
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={discountCardNumber}
+                                            onChange={(e) => {
+                                                setDiscountCardNumber(e.target.value);
+                                                setDiscountCardConflict(null);
+                                                setDiscountCardApplyError("");
+                                            }}
+                                            placeholder="Номер карты"
+                                            className="min-w-0 flex-1 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={isPending || !discountCardNumber.trim()}
+                                            onClick={() =>
+                                                startTransition(async () => {
+                                                    setDiscountCardApplyError("");
+                                                    try {
+                                                        const response = await applyDiscountCard(discountCardNumber.trim(), false);
+                                                        setCartState(response.data);
+                                                        setDiscountCardConflict(null);
+                                                    } catch (e) {
+                                                        if (
+                                                            e instanceof DiscountCardApplyError &&
+                                                            e.code === "DISCOUNT_CARD_OTHER_ACCOUNT" &&
+                                                            isAuthenticated
+                                                        ) {
+                                                            setDiscountCardConflict(discountCardNumber.trim());
+                                                            return;
+                                                        }
+                                                        setDiscountCardApplyError(
+                                                            e instanceof Error ? e.message : "Не удалось применить карту",
+                                                        );
+                                                    }
+                                                })
+                                            }
+                                            className="shrink-0 rounded-xl border border-[var(--line)] px-3 py-2 text-sm"
+                                        >
+                                            Применить
+                                        </button>
+                                    </div>
+                                    {discountCardApplyError ? (
+                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                            {discountCardApplyError}
+                                        </div>
+                                    ) : null}
+                                    {discountCardConflict ? (
+                                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                            <p className="mb-2">
+                                                Карта не привязана к вашему аккаунту. Применить скидку только к этому заказу (без
+                                                привязки к профилю)?
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    disabled={isPending}
+                                                    className="rounded-lg bg-black px-3 py-1.5 text-white"
+                                                    onClick={() =>
+                                                        startTransition(async () => {
+                                                            const response = await applyDiscountCard(discountCardConflict, true);
+                                                            setCartState(response.data);
+                                                            setDiscountCardConflict(null);
+                                                            setDiscountCardNumber("");
+                                                        })
+                                                    }
+                                                >
+                                                    Да, только к заказу
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="rounded-lg border border-amber-300 px-3 py-1.5"
+                                                    onClick={() => setDiscountCardConflict(null)}
+                                                >
+                                                    Отмена
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <div className="flex items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2">
+                                    <div>
+                                        <div className="text-xs text-[var(--text-secondary)]">Применена скидочная карта</div>
+                                        <div className="text-sm font-medium text-[var(--foreground)]">
+                                            {cart.discount_card.number}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                            startTransition(async () => {
+                                                const response = await clearDiscountCard();
+                                                setCartState(response.data);
+                                                setDiscountCardConflict(null);
+                                                setDiscountCardApplyError("");
+                                                setDiscountCardNumber("");
+                                            })
+                                        }
+                                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                        aria-label="Убрать карту"
+                                        title="Убрать карту"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {cardInCheckout ? (

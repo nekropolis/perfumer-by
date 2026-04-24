@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { OrderData } from "@/types/orders";
 import type { AdminOrderPayload } from "@/lib/admin-orders-api";
@@ -11,6 +12,7 @@ import {
   type ProductSmartSearchItem,
 } from "@/lib/admin-products-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 
 type OrderFormItem = {
   product_id: number | null;
@@ -75,7 +77,16 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
   const [productDetailsById, setProductDetailsById] = useState<Record<number, ProductAdminDetail>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const itemsLocked =
+    mode === "edit" && order && (order.status === "done" || order.status === "cancelled");
   const activeSearchQuery = activeSearchRow !== null ? items[activeSearchRow]?.product_name ?? "" : "";
+
+  useEffect(() => {
+    if (itemsLocked) {
+      setActiveSearchRow(null);
+      setSearchResults([]);
+    }
+  }, [itemsLocked]);
   const debouncedActiveSearchQuery = useDebouncedValue(activeSearchQuery, 250);
 
   useEffect(() => {
@@ -149,6 +160,9 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
   };
 
   const addItem = () => {
+    if (itemsLocked) {
+      return;
+    }
     setItems((prev) => [
       ...prev,
       {
@@ -166,10 +180,16 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
   };
 
   const removeItem = (idx: number) => {
+    if (itemsLocked) {
+      return;
+    }
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const selectProduct = async (rowIdx: number, product: ProductSmartSearchItem) => {
+    if (itemsLocked) {
+      return;
+    }
     setSearchResults([]);
     setActiveSearchRow(null);
 
@@ -203,6 +223,9 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
   };
 
   const handleVariantChange = async (rowIdx: number, variantId: number) => {
+    if (itemsLocked) {
+      return;
+    }
     const row = items[rowIdx];
     if (!row?.product_id) {
       return;
@@ -370,13 +393,26 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
 
       <div className="space-y-3 rounded-2xl border p-4">
         <div className="text-sm font-medium">Товары заказа *</div>
+        {itemsLocked ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Заказ в статусе «Выполнен» или «Отменён» — строки заказа нельзя менять. Можно править только контактные данные,
+            доставку и комментарий.
+          </p>
+        ) : null}
         {items.map((item, idx) => (
           <div key={`item-${idx}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1.7fr_1.3fr_110px_120px_auto]">
             <div className="relative">
               <input
                 value={item.product_name}
-                onFocus={() => setActiveSearchRow(idx)}
+                onFocus={() => {
+                  if (!itemsLocked) {
+                    setActiveSearchRow(idx);
+                  }
+                }}
                 onChange={(e) => {
+                  if (itemsLocked) {
+                    return;
+                  }
                   setItemField(idx, "product_name", e.target.value);
                   setItemField(idx, "product_id", null);
                   setItemField(idx, "product_slug", null);
@@ -387,7 +423,8 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
                   }
                 }}
                 placeholder="Поиск товара"
-                className="w-full rounded-xl border px-3 py-2 text-sm"
+                readOnly={itemsLocked}
+                className={`w-full rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-gray-50 text-gray-700" : ""}`}
               />
               {activeSearchRow === idx && (searchLoading || searchResults.length > 0) ? (
                 <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border bg-white p-1 shadow-lg">
@@ -417,8 +454,9 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
               {item.product_id && productDetailsById[item.product_id]?.variants?.length ? (
                 <select
                   value={item.variant_id ?? ""}
+                  disabled={itemsLocked}
                   onChange={(e) => void handleVariantChange(idx, Number(e.target.value))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                  className="w-full rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-700"
                 >
                   {productDetailsById[item.product_id].variants!.map((variant) => (
                     <option key={variant.id} value={variant.id}>
@@ -429,9 +467,10 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
               ) : (
                 <input
                   value={item.variant_title}
+                  readOnly={itemsLocked}
                   onChange={(e) => setItemField(idx, "variant_title", e.target.value)}
                   placeholder="Вариант"
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                  className={`w-full rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-gray-50 text-gray-700" : ""}`}
                 />
               )}
             </div>
@@ -439,33 +478,85 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
               type="number"
               min={1}
               value={item.qty}
+              readOnly={itemsLocked}
               onChange={(e) => setItemField(idx, "qty", Number(e.target.value))}
               placeholder="Кол-во"
-              className="rounded-xl border px-3 py-2 text-sm"
+              className={`rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-gray-50 text-gray-700" : ""}`}
             />
             <input
               type="number"
               min={0}
               step="0.01"
               value={item.price}
+              readOnly={itemsLocked}
               onChange={(e) => setItemField(idx, "price", Number(e.target.value))}
               placeholder="Цена"
-              className="rounded-xl border px-3 py-2 text-sm"
+              className={`rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-gray-50 text-gray-700" : ""}`}
             />
             <button
               type="button"
               onClick={() => removeItem(idx)}
-              disabled={items.length === 1}
+              disabled={itemsLocked || items.length === 1}
               className="rounded-xl border border-red-200 px-3 py-2 text-sm text-red-600 disabled:opacity-50"
             >
               Удалить
             </button>
           </div>
         ))}
-        <button type="button" onClick={addItem} className="rounded-xl border px-3 py-2 text-sm">
+        <button type="button" onClick={addItem} disabled={itemsLocked} className="rounded-xl border px-3 py-2 text-sm disabled:opacity-50">
           Добавить товар
         </button>
       </div>
+
+      {mode === "edit" && order?.gift_certificate_purchases && order.gift_certificate_purchases.length > 0 ? (
+        <div className="space-y-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
+          <div className="text-sm font-medium text-violet-950">Купленные подарочные сертификаты</div>
+          <ul className="space-y-2 text-sm">
+            {order.gift_certificate_purchases.map((row) => (
+              <li key={row.id} className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+                <div className="font-medium text-gray-900">{row.template_title}</div>
+                <div className="mt-0.5 text-xs text-gray-600">
+                  Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-600">
+            Строки из оформления заказа; редактирование через список товаров выше недоступно. Запись в каталоге
+            сертификатов создаётся сразу при оформлении (пустой код). После «Выполнен» статус меняется на «Активен»;
+            код вносит менеджер в карточке сертификата.
+          </p>
+        </div>
+      ) : null}
+
+      {mode === "edit" && order?.sold_gift_certificates && order.sold_gift_certificates.length > 0 ? (
+        <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+          <div className="text-sm font-medium text-emerald-950">Выпущенные сертификаты по заказу</div>
+          <ul className="space-y-2 text-sm">
+            {order.sold_gift_certificates.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2"
+              >
+                <div>
+                  <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
+                  <div className="font-medium text-gray-900">{row.template_title ?? "Сертификат"}</div>
+                  <div className="text-xs text-gray-600">
+                    {row.initial_amount} руб. · {giftCertificateStatusLabel(row.status, row.code)}
+                    {row.code ? ` · ${row.code}` : ""}
+                  </div>
+                </div>
+                <Link
+                  href={`/admin/loyalty/certificates/${row.id}/edit`}
+                  className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-900 transition hover:bg-emerald-100"
+                >
+                  Код и статус
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
         <div>Сумма товаров: {subtotal.toFixed(2)} руб.</div>

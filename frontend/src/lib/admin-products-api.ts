@@ -47,11 +47,21 @@ export type ProductBrandOption = {
     slug: string;
 };
 
+export type ProductSmartSearchVariantPreview = {
+    title: string;
+    availability: string;
+    available_stock: number;
+    is_available: boolean;
+    is_preorder: boolean;
+};
+
 export type ProductSmartSearchItem = {
     id: number;
     name: string;
     brand_name: string | null;
     variant_titles: string[];
+    /** До 5 вариантов: название + канал наличия (см. ProductAdminController smartSearch). */
+    variants_preview?: ProductSmartSearchVariantPreview[];
     score: number;
 };
 
@@ -95,7 +105,12 @@ export type ProductAdminDetail = {
         price?: string | null;
         old_price?: string | null;
         stock?: number;
+        available_stock?: number;
+        is_available?: boolean;
+        is_preorder?: boolean;
         is_active?: boolean;
+        /** Склад / поставщик — из ProductVariantResource (админка). */
+        fulfillment_tooltip?: string;
     }>;
 
     images?: Array<{
@@ -243,6 +258,33 @@ export async function smartSearchProducts(params: {
     }
 
     return res.json();
+}
+
+/** Умный поиск; если fuzzy не дал строк — обычный поиск по каталогу админки (название / SKU в списке). */
+export async function smartSearchProductsWithFallback(params: {
+    q: string;
+    limit?: number;
+}): Promise<ProductSmartSearchResponse> {
+    const q = params.q.trim();
+    const limit = params.limit ?? 12;
+    if (q.length < 2) {
+        return { data: [] };
+    }
+    const smart = await smartSearchProducts({ q, limit });
+    if (smart.data?.length) {
+        return smart;
+    }
+    const page = await fetchProducts({ search: q, page: 1 });
+    const rows = page.data ?? [];
+    const mapped: ProductSmartSearchItem[] = rows.slice(0, limit).map((p) => ({
+        id: p.id,
+        name: p.name,
+        brand_name: p.brand?.name ?? null,
+        variant_titles: [],
+        variants_preview: [],
+        score: 0.5,
+    }));
+    return { data: mapped };
 }
 
 export async function fetchProductById(id: number | string): Promise<ProductAdminDetailResponse> {

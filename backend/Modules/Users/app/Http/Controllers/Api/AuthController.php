@@ -145,10 +145,12 @@ class AuthController extends Controller
             ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
 
         $cardsPayload = $verifiedCards->map(static function ($card) {
+            $pct = DiscountCard::effectiveDiscountPercent((float) $card->discount_percent);
+
             return [
                 'id' => (int) $card->id,
                 'number' => (string) $card->card_number,
-                'discount_percent' => (string) $card->discount_percent,
+                'discount_percent' => (string) $pct,
                 'is_active' => $card->status === DiscountCard::STATUS_ACTIVE,
             ];
         })->values()->all();

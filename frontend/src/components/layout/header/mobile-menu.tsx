@@ -95,7 +95,7 @@ export default function HeaderMobileMenu({
                                 onChange={(e) =>
                                     onSearchChangeAction(e.target.value)
                                 }
-                                placeholder="Поиск по товарам, брендам..."
+                                placeholder="Товары, бренды, код или артикул…"
                                 className="w-full rounded-2xl border border-[var(--line)] bg-[var(--background)] py-2.5 pl-9 pr-9 text-base text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-white"
                             />
                             {searchQuery ? (

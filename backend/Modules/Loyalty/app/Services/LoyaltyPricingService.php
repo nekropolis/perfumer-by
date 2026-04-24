@@ -60,7 +60,7 @@ class LoyaltyPricingService
 
         $subtotal = $this->cartSubtotal($cart);
         $card = $applyCardDiscount ? $this->resolveDiscountCard($cart, $user) : null;
-        $cardPercent = $card ? (float) $card->discount_percent : 0.0;
+        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
         $loyaltyDiscount = $this->loyaltyDiscountAmount($cart, $user, $subtotal, $applyCardDiscount);
 
         $certificate = $this->resolveGiftCertificate($cart);
@@ -147,7 +147,7 @@ class LoyaltyPricingService
         }
 
         $card = $this->resolveDiscountCard($cart, $user);
-        $cardPercent = $card ? (float) $card->discount_percent : 0.0;
+        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
 
         return round($subtotal * ($cardPercent / 100), 2);
     }

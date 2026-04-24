@@ -79,7 +79,7 @@ export default function HeaderSearch({
                         }
                     }}
                     onChange={(e) => onChangeAction(e.target.value)}
-                    placeholder="Поиск брендов, ароматов, товаров..."
+                    placeholder="Бренды, ароматы, товары, код или артикул…"
                     className="h-11 min-w-0 w-full rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] pl-9 pr-10 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-[var(--header-control-bg)]"
                 />
 

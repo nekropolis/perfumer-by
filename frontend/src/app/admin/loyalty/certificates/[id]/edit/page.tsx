@@ -33,7 +33,7 @@ export default function AdminGiftCertificateEditPage() {
                 const item = data.data;
                 setForm({
                     id: item.id,
-                    code: item.code,
+                    code: item.code ?? "",
                     template_id: item.template_id != null ? String(item.template_id) : "",
                     initial_amount: String(item.initial_amount),
                     balance_amount: String(item.balance_amount),
@@ -60,6 +60,7 @@ export default function AdminGiftCertificateEditPage() {
         setError("");
         try {
             await updateGiftCertificate(form.id, {
+                code: form.code.trim() === "" ? null : form.code.trim(),
                 template_id: form.template_id ? Number(form.template_id) : undefined,
                 balance_amount: Number(form.balance_amount),
                 status: form.status,
@@ -92,7 +93,10 @@ export default function AdminGiftCertificateEditPage() {
 
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать сертификат {form?.code ? `— ${form.code}` : ""}</h1>
+                    <h1 className="text-2xl font-semibold">
+                        Редактировать сертификат
+                        {form?.code?.trim() ? ` — ${form.code}` : form?.id ? ` #${form.id}` : ""}
+                    </h1>
                     <p className="mt-1 text-sm text-gray-600">Редактирование сертификата</p>
                 </div>
                 <Link href="/admin/loyalty/certificates" className="rounded-xl border px-4 py-2 text-sm">

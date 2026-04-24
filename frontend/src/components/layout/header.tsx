@@ -27,7 +27,7 @@ function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     const min = item.price_range?.min ?? null;
     const max = item.price_range?.max ?? null;
     const stockTotal = item.stock_total ?? 0;
-    /** Как в каталоге: `stock_total` уже учитывает канал поставщика, флаг `is_out_of_stock` — только по основному складу. */
+    /** Как в каталоге: `stock_total` и флаг `is_out_of_stock` согласованы с каналом поставщика (см. syncProductStockFlagsByProductId). */
     const listingAvailable = stockTotal > 0 || item.is_preorder_available;
     const awaitingArrival =
         !listingAvailable &&

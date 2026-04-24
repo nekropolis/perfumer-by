@@ -29,29 +29,33 @@ export default function GiftCertificatesTable({ items, onToggleActiveAction }: P
                     {items.map((item) => (
                         <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
                             <td className="px-3 py-3 text-gray-500">{item.id}</td>
-                            <td className="px-3 py-3 font-medium text-gray-900">{item.code}</td>
+                            <td className="px-3 py-3 font-medium text-gray-900">
+                                {item.code?.trim() ? item.code : <span className="text-gray-400">не задан</span>}
+                            </td>
                             <td className="px-3 py-3 text-gray-700">{item.initial_amount}</td>
                             <td className="px-3 py-3 text-gray-700">{item.balance_amount}</td>
                             <td className="px-3 py-3 text-gray-700">{item.reserved_amount}</td>
-                            <td className="px-3 py-3">{giftCertificateStatusLabel(item.status)}</td>
+                            <td className="px-3 py-3">{giftCertificateStatusLabel(item.status, item.code)}</td>
                             <td className="px-3 py-3 text-xs text-gray-600">{item.expires_at || "—"}</td>
                             <td className="px-3 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link
                                         href={`/admin/loyalty/certificates/${item.id}/edit`}
                                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
-                                        aria-label={`Редактировать сертификат ${item.code}`}
+                                        aria-label={`Редактировать сертификат ${item.code ?? `#${item.id}`}`}
                                         title="Редактировать"
                                     >
                                         <Pencil size={16} />
                                     </Link>
-                                    <button
-                                        type="button"
-                                        onClick={() => onToggleActiveAction(item)}
-                                        className="inline-flex rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
-                                    >
-                                        {item.status === "active" ? "Аннулировать" : "Активировать"}
-                                    </button>
+                                    {(item.status === "active" || item.status === "void") ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleActiveAction(item)}
+                                            className="inline-flex rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
+                                        >
+                                            {item.status === "active" ? "Аннулировать" : "Активировать"}
+                                        </button>
+                                    ) : null}
                                 </div>
                             </td>
                         </tr>

@@ -29,6 +29,27 @@ export type OrderItemReceiptBatch = {
     received_at: string | null;
 };
 
+/** Покупка номинального сертификата по шаблону (строка в заказе, не путать со списанием оплаты). */
+export type OrderGiftCertificatePurchase = {
+    id: number;
+    template_id: number;
+    template_title: string;
+    amount: string;
+    qty: number;
+    total: string;
+};
+
+/** Запись сертификата, привязанная к заказу (продажа); после «Выполнен» может быть status new без кода. */
+export type OrderSoldGiftCertificate = {
+    id: number;
+    template_id: number | null;
+    template_title: string | null;
+    status: string;
+    code: string | null;
+    initial_amount: string;
+    balance_amount: string;
+};
+
 export type OrderItem = {
     id: number;
     product_id: number | null;
@@ -71,6 +92,10 @@ export type OrderData = {
         nominal_amount?: string | null;
         balance_amount?: string | null;
     }[];
+    /** Купленные в этом заказе подарочные сертификаты (по шаблону, до выпуска кода). */
+    gift_certificate_purchases?: OrderGiftCertificatePurchase[];
+    /** Выпущенные по заказу записи gift_certificates (ожидают код при status new). */
+    sold_gift_certificates?: OrderSoldGiftCertificate[];
     /** Снимок из заказа: какая карта и с каким % была применена. */
     discount_card_number?: string | null;
     discount_percent_snapshot?: string;

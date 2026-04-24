@@ -37,6 +37,7 @@ Route::middleware('throttle:10,1')->group(function () {
 
 Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders')->group(function () {
     Route::get('/', [OrderController::class, 'index']);
+    Route::get('/customer-context', [OrderController::class, 'customerContext']);
     Route::get('/stats', [OrderController::class, 'stats']);
     Route::post('/', [OrderController::class, 'store']);
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
