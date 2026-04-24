@@ -1,0 +1,64 @@
+<?php
+
+namespace Modules\Checkout\Services;
+
+use Modules\Cart\Models\Cart;
+
+final class CheckoutDeliveryService
+{
+    public const METHOD_MINSK = 'minsk_courier';
+
+    public const METHOD_BELARUS = 'belarus_courier';
+
+    public const METHOD_PICKUP = 'pickup';
+
+    public function __construct(
+        private readonly ShopSettingService $shopSettings,
+    ) {}
+
+    public function deliveryFee(Cart $cart, string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount): float
+    {
+        return match ($deliveryMethod) {
+            self::METHOD_PICKUP => 0.0,
+            self::METHOD_MINSK => $this->minskCourierFee($merchandiseAfterLoyaltyDiscount),
+            self::METHOD_BELARUS => $this->belarusCourierFee($cart),
+            default => 0.0,
+        };
+    }
+
+    private function minskCourierFee(float $merchandiseAfterLoyaltyDiscount): float
+    {
+        $threshold = $this->shopSettings->getDecimal('delivery_minsk_free_threshold', 50);
+        $fee = $this->shopSettings->getDecimal('delivery_minsk_fee', 3);
+        if ($merchandiseAfterLoyaltyDiscount + 0.0001 >= $threshold) {
+            return 0.0;
+        }
+
+        return $fee;
+    }
+
+    private function belarusCourierFee(Cart $cart): float
+    {
+        $minLines = max(1, $this->shopSettings->getInt('delivery_belarus_free_min_lines', 2));
+        $fee = $this->shopSettings->getDecimal('delivery_belarus_fee', 6);
+
+        $eligibleLines = 0;
+        foreach ($cart->items as $item) {
+            $variant = $item->variant;
+            if (!$variant) {
+                continue;
+            }
+            $variant->loadMissing('definition');
+            if ((bool) ($variant->definition?->excludes_from_free_delivery_threshold ?? false)) {
+                continue;
+            }
+            $eligibleLines++;
+        }
+
+        if ($eligibleLines >= $minLines) {
+            return 0.0;
+        }
+
+        return $fee;
+    }
+}

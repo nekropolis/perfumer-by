@@ -32,6 +32,8 @@ export type AdminProductVariantItem = {
     is_preorder?: boolean;
     is_active?: boolean;
     active_supplier_offers_count?: number;
+    /** Как цена уходит на витрину (null — не показываем «висячую» розницу без канала продаж). */
+    catalog_list_price?: number | null;
     sort_order?: number;
     definition?: {
         id: number;
@@ -40,6 +42,7 @@ export type AdminProductVariantItem = {
         concentration_code: string;
         concentration_label: string;
         is_tester: boolean;
+        excludes_from_free_delivery_threshold?: boolean;
     };
 };
 
@@ -69,6 +72,7 @@ export type VariantDefinitionItem = {
     concentration_code: string;
     concentration_label: string;
     is_tester: boolean;
+    excludes_from_free_delivery_threshold?: boolean;
 };
 
 export type VariantDefinitionsResponse = {
@@ -86,6 +90,7 @@ export type VariantDefinitionPayload = {
     concentration_code: string;
     concentration_label: string;
     is_tester?: boolean;
+    excludes_from_free_delivery_threshold?: boolean;
     sort_order?: number;
 };
 

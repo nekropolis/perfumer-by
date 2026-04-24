@@ -7,12 +7,14 @@ import { useTransition } from "react";
 import { addToCart } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import ProductStatusLabels from "@/components/product/product-status-labels";
+import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 
 type Props = {
     product: ProductDetailData;
@@ -68,6 +70,7 @@ export default function ProductDetailView({ product }: Props) {
     const [activeTab, setActiveTab] = useState<"attributes" | "description">("attributes");
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
+    const { user, isAuthenticated } = useAuth();
     const variants = useMemo(() => normalizeVariants(product.variants), [product.variants]);
     const images = useMemo(() => normalizeImages(product.images), [product.images]);
     const defaultImage = images.find((image) => image.is_main) || images[0] || null;
@@ -96,6 +99,8 @@ export default function ProductDetailView({ product }: Props) {
         selectedVariant.price &&
         Number(selectedVariant.old_price) > Number(selectedVariant.price)
     );
+    const loyaltyCard = resolveActiveLoyaltyCard(user?.discount_cards);
+    const loyaltyPrice = applyPercentDiscount(selectedVariant?.price ?? null, loyaltyCard?.discountPercent ?? 0);
 
     const [selectedImageId, setSelectedImageId] = useState<number | null>(defaultImage?.id ?? null);
     const mainImage = useMemo(() => {
@@ -278,7 +283,11 @@ export default function ProductDetailView({ product }: Props) {
                                                     <div className="flex items-center gap-2">
                                                         {variant.price && (
                                                             <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--foreground)]">
-                                                                {formatPrice(variant.price)}
+                                                                {formatPrice(
+                                                                    isAuthenticated && loyaltyCard
+                                                                        ? applyPercentDiscount(variant.price, loyaltyCard.discountPercent)
+                                                                        : variant.price
+                                                                )}
                                                             </span>
                                                         )}
 
@@ -317,6 +326,9 @@ export default function ProductDetailView({ product }: Props) {
                         formatPrice={formatPrice}
                         productId={product.id}
                         productName={product.name}
+                        loyaltyCardNumber={isAuthenticated ? loyaltyCard?.number ?? null : null}
+                        loyaltyPercent={isAuthenticated ? loyaltyCard?.discountPercent ?? 0 : 0}
+                        loyaltyPrice={isAuthenticated ? loyaltyPrice : null}
                     />
                 </aside>
 

@@ -515,7 +515,9 @@ export default function ProductVariantsEditor({
                                         </div>
 
                                         <div className="text-sm font-medium text-gray-900 whitespace-nowrap">
-                                            {formatMoney(item.price)}
+                                            {item.catalog_list_price != null
+                                                ? formatMoney(String(item.catalog_list_price))
+                                                : "—"}
                                         </div>
 
                                         <div className="text-sm text-gray-600 whitespace-nowrap">

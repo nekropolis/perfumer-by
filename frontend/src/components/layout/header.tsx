@@ -26,11 +26,22 @@ import {
 function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     const min = item.price_range?.min ?? null;
     const max = item.price_range?.max ?? null;
+    const stockTotal = item.stock_total ?? 0;
+    /** Как в каталоге: `stock_total` уже учитывает канал поставщика, флаг `is_out_of_stock` — только по основному складу. */
+    const listingAvailable = stockTotal > 0 || item.is_preorder_available;
+    const awaitingArrival =
+        !listingAvailable &&
+        (Boolean(item.is_out_of_stock) || Boolean(min || max));
+
+    if (item.is_preorder_available && !min && !max) {
+        return "Предзаказ";
+    }
 
     if (!min && !max) {
-        return item.is_out_of_stock && !item.is_preorder_available
-            ? "Нет в наличии"
-            : "Цена уточняется";
+        if (awaitingArrival) {
+            return "Ожидается поступление";
+        }
+        return "Цена уточняется";
     }
 
     const normalize = (value: string | null) =>
@@ -39,19 +50,29 @@ function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     const nMin = normalize(min);
     const nMax = normalize(max);
 
-    if (nMin && nMax && nMin !== nMax) {
-        return (
+    const priceBlock =
+        nMin && nMax && nMin !== nMax ? (
             <strong>
                 {nMin} - {nMax} <small>BYN</small>
             </strong>
+        ) : (
+            <strong>
+                {nMin || nMax} <small>BYN</small>
+            </strong>
+        );
+
+    if (awaitingArrival) {
+        return (
+            <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                {priceBlock}
+                <span className="font-normal text-[var(--text-secondary)]">
+                    · Ожидается поступление
+                </span>
+            </span>
         );
     }
 
-    return (
-        <strong>
-            {nMin || nMax} <small>BYN</small>
-        </strong>
-    );
+    return priceBlock;
 }
 
 export default function Header() {

@@ -1,0 +1,28 @@
+{
+    "name": "nwidart/loyalty",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Loyalty\\": "app/",
+            "Modules\\Loyalty\\Database\\Factories\\": "database/factories/",
+            "Modules\\Loyalty\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Loyalty\\Tests\\": "tests/"
+        }
+    }
+}

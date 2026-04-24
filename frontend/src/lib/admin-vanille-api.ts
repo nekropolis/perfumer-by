@@ -480,7 +480,7 @@ export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promi
 
 export async function fetchSellerOneSupplierProducts(params?: {
     search?: string;
-    status?: "confirmed" | "found_unconfirmed" | "new" | "unlinked" | "";
+    status?: "confirmed" | "found_unconfirmed" | "new" | "unlinked" | "parsing_inactive" | "";
     page?: number;
 }): Promise<SellerOneSupplierProductsResponse> {
     const searchParams = new URLSearchParams();
@@ -533,6 +533,22 @@ export async function resetSellerOneProductLink(payload: {
         ],
         {
             method: "POST",
+            body: JSON.stringify(payload),
+        }
+    );
+}
+
+export async function updateSellerOneSupplierProductParsingActive(payload: {
+    supplier_product_id: number;
+    link_parsing_active: boolean;
+}): Promise<{ message?: string; data?: { id: number; link_parsing_active: boolean } }> {
+    return adminVanilleFetchWithFallback<{ message?: string; data?: { id: number; link_parsing_active: boolean } }>(
+        [
+            "/admin/import-export/seller-one/supplier-products/parsing-active",
+            "/admin/import-export/vanille/supplier-products/parsing-active",
+        ],
+        {
+            method: "PATCH",
             body: JSON.stringify(payload),
         }
     );

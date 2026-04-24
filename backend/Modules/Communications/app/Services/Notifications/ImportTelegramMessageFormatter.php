@@ -82,7 +82,10 @@ class ImportTelegramMessageFormatter
             'Job #' . $jobId,
             'Статус: ' . ($state === 'completed' ? 'выполнено' : 'ошибка'),
             'Связанных товаров: ' . (int) ($status['total_linked'] ?? 0),
-            'Обновлено: ' . (int) ($status['updated'] ?? 0),
+            'Обработано строк: ' . (int) ($status['updated'] ?? 0),
+            'Цена изменилась: ' . (int) ($status['price_changed'] ?? 0),
+            'Стало «нет в наличии»: ' . (int) ($status['became_out_of_stock'] ?? 0),
+            'Стало «в наличии»: ' . (int) ($status['became_in_stock'] ?? 0),
             'Пропущено: ' . (int) ($status['skipped'] ?? 0),
         ];
 

@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Checkout\Models\Order;
+use Modules\Loyalty\Models\DiscountCard;
+use Modules\Loyalty\Models\UserDiscountCard;
 use Modules\Users\Models\PhoneVerification;
 use Modules\Users\Models\User;
 
@@ -136,6 +138,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        $verifiedCards = $user->discountCards()
+            ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
+            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+            ->orderByDesc('discount_percent')
+            ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
+
+        $cardsPayload = $verifiedCards->map(static function ($card) {
+            return [
+                'id' => (int) $card->id,
+                'number' => (string) $card->card_number,
+                'discount_percent' => (string) $card->discount_percent,
+                'is_active' => $card->status === DiscountCard::STATUS_ACTIVE,
+            ];
+        })->values()->all();
+
         return response()->json([
             'data' => [
                 'id' => $user->id,
@@ -144,6 +161,7 @@ class AuthController extends Controller
                 'phone' => $user->phone,
                 'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),
                 'role' => $user->role,
+                'discount_cards' => $cardsPayload,
             ],
         ]);
     }
@@ -166,7 +184,10 @@ class AuthController extends Controller
 
         $phoneLimit15m = (int) env('AUTH_OTP_PHONE_LIMIT_15M', 3);
         $phoneCount15m = (int) Cache::get("auth:otp:req:phone:15m:{$phone}", 0);
-        if ($phoneCount15m >= $phoneLimit15m) {
+        $captchaEnabled = (bool) env('AUTH_OTP_CAPTCHA_ENABLED', false);
+        // При включенной reCAPTCHA допускаем больше попыток по номеру:
+        // ограничение можно либо отключить (0), либо оставить только для режима без CAPTCHA.
+        if (!$captchaEnabled && $phoneLimit15m > 0 && $phoneCount15m >= $phoneLimit15m) {
             $this->apiError(429, 'Превышен лимит запросов кода для номера. Попробуйте позже.', 'auth.otp.request.phone_limit_15m');
         }
 

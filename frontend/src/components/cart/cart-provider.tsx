@@ -47,11 +47,14 @@ export function CartProvider({ children }: Props) {
     }, [refreshCart]);
 
     const cartQty = useMemo(() => {
-        if (!cart?.items?.length) {
+        if (!cart) {
             return 0;
         }
 
-        return cart.items.reduce((sum, item) => sum + item.qty, 0);
+        const productsQty = cart.items.reduce((sum, item) => sum + item.qty, 0);
+        const giftCertificatesQty = (cart.gift_certificate_items ?? []).reduce((sum, item) => sum + item.qty, 0);
+
+        return productsQty + giftCertificatesQty;
     }, [cart]);
 
     const value = useMemo<CartContextType>(

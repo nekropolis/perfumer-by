@@ -7,10 +7,42 @@ if (!API_BASE) {
     throw new Error("NEXT_PUBLIC_API_URL is not defined");
 }
 
+export type CheckoutDeliveryMethod = "minsk_courier" | "belarus_courier" | "pickup";
+
+export type CheckoutPaymentMethod = "cash" | "card";
+
 export type CheckoutPayload = {
     customer_name?: string;
     phone: string;
     comment?: string;
+    delivery_method: CheckoutDeliveryMethod;
+    delivery_city?: string | null;
+    delivery_address: string;
+    payment_method: CheckoutPaymentMethod;
+};
+
+export type CheckoutShopSettings = {
+    delivery_minsk_free_threshold: number;
+    delivery_minsk_fee: number;
+    delivery_belarus_fee: number;
+    delivery_belarus_free_min_lines: number;
+};
+
+export type CheckoutCityHit = {
+    id: string;
+    name: string;
+    lat: number | null;
+    lon: number | null;
+};
+
+export type CheckoutQuote = {
+    subtotal: string;
+    gift_certificates_purchase_subtotal?: string;
+    loyalty_discount_percent: string;
+    loyalty_discount_amount: string;
+    gift_certificate_amount: string;
+    delivery_fee: string;
+    total: string;
 };
 
 export type CheckoutResponse = {
@@ -22,7 +54,21 @@ export type CheckoutResponse = {
         status: string;
         items_qty: number;
         subtotal: string;
+        delivery_method?: string | null;
+        delivery_method_label?: string | null;
+        delivery_city?: string | null;
+        delivery_address?: string | null;
+        delivery_fee?: string;
+        payment_method?: string | null;
+        payment_method_label?: string | null;
         total: string;
+        gift_certificate_code: string | null;
+        gift_certificate_number: string | null;
+        gift_certificate_amount: string;
+        gift_certificates?: { code: string; amount_applied: string }[];
+        discount_card_number: string | null;
+        discount_percent_snapshot: string;
+        discount_amount: string;
         items: {
             id: number;
             product_name: string;
@@ -38,9 +84,41 @@ export type CheckoutResponse = {
     message: string;
 };
 
-export async function createOrder(
-    payload: CheckoutPayload
-): Promise<CheckoutResponse> {
+export async function fetchCheckoutShopSettings(): Promise<{ data: CheckoutShopSettings }> {
+    const res = await fetch(`${API_BASE}/checkout/shop-settings`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Checkout shop settings error: ${res.status}`);
+    return res.json();
+}
+
+export async function searchCheckoutCities(query: string): Promise<{ data: CheckoutCityHit[] }> {
+    const q = query.trim();
+    if (q.length < 2) return { data: [] };
+    const res = await fetch(`${API_BASE}/checkout/cities?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Checkout cities error: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchCheckoutQuote(payload: {
+    payment_method: CheckoutPaymentMethod;
+    delivery_method: CheckoutDeliveryMethod;
+}): Promise<{ data: CheckoutQuote }> {
+    const cartToken = typeof window !== "undefined" ? getCartToken() : "";
+    const authToken = typeof window !== "undefined" ? getAuthToken() : "";
+    const res = await fetch(`${API_BASE}/checkout/quote`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Cart-Token": cartToken,
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({ ...payload, cart_token: cartToken || undefined }),
+        cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Checkout quote error: ${res.status}`);
+    return res.json();
+}
+
+export async function createOrder(payload: CheckoutPayload): Promise<CheckoutResponse> {
     const cartToken = typeof window !== "undefined" ? getCartToken() : "";
     const authToken = typeof window !== "undefined" ? getAuthToken() : "";
 

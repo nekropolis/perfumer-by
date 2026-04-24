@@ -54,7 +54,27 @@ export type OrderData = {
     created_at?: string | null;
     items_qty: number;
     subtotal: string;
+    delivery_method?: string | null;
+    delivery_method_label?: string | null;
+    delivery_city?: string | null;
+    delivery_address?: string | null;
+    delivery_fee?: string;
+    payment_method?: string | null;
+    payment_method_label?: string | null;
     total: string;
+    gift_certificate_code?: string | null;
+    gift_certificate_number?: string | null;
+    gift_certificate_amount?: string;
+    gift_certificates?: {
+        code: string;
+        amount_applied: string;
+        nominal_amount?: string | null;
+        balance_amount?: string | null;
+    }[];
+    /** Снимок из заказа: какая карта и с каким % была применена. */
+    discount_card_number?: string | null;
+    discount_percent_snapshot?: string;
+    discount_amount?: string;
     items: OrderItem[];
     /** Заказ выполнен, но нет списания по складу — можно досоздать через API. */
     can_sync_inventory_writeoff?: boolean;

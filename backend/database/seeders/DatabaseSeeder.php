@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             VariantDefinitionsSeeder::class,
             SellerOneMatchRulesSeeder::class,
+            GiftCertificateTemplatesSeeder::class,
         ]);
 
         // Намеренно НЕ используем `User::factory()`: фабрика сначала зовёт свой

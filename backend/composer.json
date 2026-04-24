@@ -47,7 +47,10 @@
             "Modules\\Wishlist\\Database\\Seeders\\": "Modules/Wishlist/database/seeders/",
             "Modules\\Pages\\": "Modules/Pages/app/",
             "Modules\\Pages\\Database\\Factories\\": "Modules/Pages/database/factories/",
-            "Modules\\Pages\\Database\\Seeders\\": "Modules/Pages/database/seeders/"
+            "Modules\\Pages\\Database\\Seeders\\": "Modules/Pages/database/seeders/",
+            "Modules\\Loyalty\\": "Modules/Loyalty/app/",
+            "Modules\\Loyalty\\Database\\Factories\\": "Modules/Loyalty/database/factories/",
+            "Modules\\Loyalty\\Database\\Seeders\\": "Modules/Loyalty/database/seeders/"
         }
     },
     "autoload-dev": {

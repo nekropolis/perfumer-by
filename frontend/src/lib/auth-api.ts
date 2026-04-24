@@ -32,6 +32,12 @@ export type MeResponse = {
         phone: string;
         phone_verified_at?: string | null;
         role?: string;
+        discount_cards?: {
+            id: number;
+            number: string;
+            discount_percent: string;
+            is_active: boolean;
+        }[];
     } | null;
 };
 
@@ -47,7 +53,7 @@ export class ApiRequestError extends Error {
     }
 }
 
-async function throwApiError(res: Response, fallback: string): Promise<never> {
+export async function throwApiError(res: Response, fallback: string): Promise<never> {
     const text = await res.text();
     try {
         const payload = text ? JSON.parse(text) : null;
@@ -56,7 +62,10 @@ async function throwApiError(res: Response, fallback: string): Promise<never> {
             res.status,
             typeof payload?.code === "string" ? payload.code : undefined
         );
-    } catch {
+    } catch (e) {
+        if (e instanceof ApiRequestError) {
+            throw e;
+        }
         throw new ApiRequestError(text || fallback, res.status);
     }
 }

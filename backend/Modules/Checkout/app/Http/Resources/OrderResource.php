@@ -4,6 +4,7 @@ namespace Modules\Checkout\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Warehouse\Models\StockReceiptItem;
 
 class OrderResource extends JsonResource
@@ -26,6 +27,18 @@ class OrderResource extends JsonResource
                 ->get()
                 ->groupBy('variant_id');
 
+        $giftLines = $this->relationLoaded('orderGiftCertificates')
+            ? $this->orderGiftCertificates
+            : $this->orderGiftCertificates()->get();
+        $firstGift = $giftLines->first();
+        $giftFromOrder = (float) ($this->gift_certificate_amount ?? 0);
+        $giftTotalFromPivot = $giftLines->sum(fn ($row) => (float) $row->amount_applied);
+        $giftTotal = $giftFromOrder > 0.0001 ? $giftFromOrder : $giftTotalFromPivot;
+        $giftCode = $this->gift_certificate_code ?: $firstGift?->code_snapshot;
+
+        $deliveryMethod = (string) ($this->delivery_method ?? '');
+        $paymentMethod = (string) ($this->payment_method ?? '');
+
         return [
             'id' => $this->id,
             'customer_name' => $this->customer_name,
@@ -35,7 +48,35 @@ class OrderResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'items_qty' => $this->items_qty,
             'subtotal' => number_format((float) $this->subtotal, 2, '.', ''),
+            'delivery_method' => $deliveryMethod !== '' ? $deliveryMethod : null,
+            'delivery_method_label' => $this->deliveryMethodLabel($deliveryMethod),
+            'delivery_city' => $this->delivery_city,
+            'delivery_address' => $this->delivery_address,
+            'delivery_fee' => number_format((float) ($this->delivery_fee ?? 0), 2, '.', ''),
+            'payment_method' => $paymentMethod !== '' ? $paymentMethod : null,
+            'payment_method_label' => $this->paymentMethodLabel($paymentMethod),
             'total' => number_format((float) $this->total, 2, '.', ''),
+            'gift_certificate_code' => $giftCode,
+            'gift_certificate_number' => $giftCode,
+            'gift_certificate_amount' => number_format($giftTotal, 2, '.', ''),
+            'gift_certificates' => $giftLines->map(function ($row) {
+                $nominal = $row->relationLoaded('giftCertificate') && $row->giftCertificate
+                    ? (float) $row->giftCertificate->initial_amount
+                    : null;
+                $balance = $row->relationLoaded('giftCertificate') && $row->giftCertificate
+                    ? (float) $row->giftCertificate->balance_amount
+                    : null;
+
+                return [
+                    'code' => $row->code_snapshot,
+                    'amount_applied' => number_format((float) $row->amount_applied, 2, '.', ''),
+                    'nominal_amount' => $nominal !== null ? number_format($nominal, 2, '.', '') : null,
+                    'balance_amount' => $balance !== null ? number_format($balance, 2, '.', '') : null,
+                ];
+            })->values()->all(),
+            'discount_card_number' => $this->discount_card_number,
+            'discount_percent_snapshot' => number_format((float) $this->discount_percent_snapshot, 2, '.', ''),
+            'discount_amount' => number_format((float) $this->discount_amount, 2, '.', ''),
             'items' => $this->items->map(function ($item) use ($receiptItemsByVariant) {
                 $data = [
                     'id' => $item->id,
@@ -113,5 +154,26 @@ class OrderResource extends JsonResource
                 return $data;
             })->values(),
         ];
+    }
+
+    private function deliveryMethodLabel(string $method): ?string
+    {
+        return match ($method) {
+            CheckoutDeliveryService::METHOD_MINSK => 'Курьер по Минску',
+            CheckoutDeliveryService::METHOD_BELARUS => 'Курьер по РБ',
+            CheckoutDeliveryService::METHOD_PICKUP => 'Самовывоз',
+            '' => null,
+            default => $method,
+        };
+    }
+
+    private function paymentMethodLabel(string $method): ?string
+    {
+        return match ($method) {
+            'cash' => 'Наличными',
+            'card' => 'Картой (Visa / Mastercard)',
+            '' => null,
+            default => $method,
+        };
     }
 }

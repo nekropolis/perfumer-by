@@ -4,8 +4,11 @@ namespace Modules\Users\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Modules\Loyalty\Models\DiscountCard;
+use Modules\Loyalty\Models\UserDiscountCard;
 use Modules\Users\Enums\Role;
 
 class User extends Authenticatable
@@ -53,4 +56,13 @@ class User extends Authenticatable
     {
         return UserFactory::new();
     }
+
+    public function discountCards(): BelongsToMany
+    {
+        return $this->belongsToMany(DiscountCard::class, 'user_discount_cards', 'user_id', 'discount_card_id')
+            ->using(UserDiscountCard::class)
+            ->withPivot(['linked_at', 'verified_at', 'is_primary', 'source', 'link_status'])
+            ->withTimestamps();
+    }
+
 }

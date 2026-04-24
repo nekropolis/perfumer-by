@@ -28,13 +28,38 @@ export type CartItemData = {
     is_available: boolean;
 };
 
+export type CartDiscountCard = {
+    number: string;
+    discount_percent: string;
+    discount_amount: string;
+    session_only?: boolean;
+};
+
+export type CartGiftCertificateItem = {
+    id: number;
+    template_id: number;
+    title: string;
+    amount: string;
+    qty: number;
+    total: string;
+};
+
 export type CartData = {
     id: number;
     token: string;
     qty: number;
     subtotal: string;
     total: string;
+    products_subtotal?: string;
+    gift_certificates_subtotal?: string;
+    gift_certificate: {
+        code: string;
+        number: string;
+        amount: string;
+    } | null;
+    discount_card: CartDiscountCard | null;
     items: CartItemData[];
+    gift_certificate_items: CartGiftCertificateItem[];
 };
 
 export type CartResponse = {

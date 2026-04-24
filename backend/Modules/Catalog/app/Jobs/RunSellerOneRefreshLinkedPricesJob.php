@@ -106,8 +106,12 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                         'missing_codes' => (int) ($result['missing_codes'] ?? 0),
                         'deactivated_offers' => (int) ($result['deactivated_offers'] ?? 0),
                         'deactivated_variants' => (int) ($result['deactivated_variants'] ?? 0),
+                        'cleared_supplier_shelf_variants' => (int) ($result['cleared_supplier_shelf_variants'] ?? 0),
                         'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
                         'linked_products' => (int) ($result['linked_products'] ?? 0),
+                        'price_changed' => (int) ($result['price_changed'] ?? 0),
+                        'became_out_of_stock' => (int) ($result['became_out_of_stock'] ?? 0),
+                        'became_in_stock' => (int) ($result['became_in_stock'] ?? 0),
                     ]
                 );
             } catch (Throwable) {
@@ -123,9 +127,13 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                 'updated' => (int) ($result['updated'] ?? 0),
                 'skipped' => (int) ($result['skipped'] ?? 0),
                 'price_history_rows' => (int) ($result['price_history_rows'] ?? 0),
+                'price_changed' => (int) ($result['price_changed'] ?? 0),
+                'became_out_of_stock' => (int) ($result['became_out_of_stock'] ?? 0),
+                'became_in_stock' => (int) ($result['became_in_stock'] ?? 0),
                 'missing_codes' => (int) ($result['missing_codes'] ?? 0),
                 'deactivated_offers' => (int) ($result['deactivated_offers'] ?? 0),
                 'deactivated_variants' => (int) ($result['deactivated_variants'] ?? 0),
+                'cleared_supplier_shelf_variants' => (int) ($result['cleared_supplier_shelf_variants'] ?? 0),
                 'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
                 'linked_products' => $linked,
                 'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
@@ -138,6 +146,9 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                     'total_linked' => $linked,
                     'updated' => (int) ($result['updated'] ?? 0),
                     'skipped' => (int) ($result['skipped'] ?? 0),
+                    'price_changed' => (int) ($result['price_changed'] ?? 0),
+                    'became_out_of_stock' => (int) ($result['became_out_of_stock'] ?? 0),
+                    'became_in_stock' => (int) ($result['became_in_stock'] ?? 0),
                     'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
                 ]);
             } catch (Throwable) {

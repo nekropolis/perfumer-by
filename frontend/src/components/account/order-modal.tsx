@@ -7,6 +7,7 @@ import {
     getOrderStatusLabel,
     getOrderStatusStyle,
 } from "@/constants/order-statuses";
+import OrderDiscountSummary from "@/components/account/order-discount-summary";
 
 type Props = {
     orderId: number | null;
@@ -117,6 +118,8 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                             </div>
                         )}
 
+                        <OrderDiscountSummary order={order} />
+
                         <div className="space-y-4">
                             {order.items.map((item) => (
                                 <div key={item.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
@@ -135,7 +138,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                         </div>
 
                         <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">
-                            <div className="text-sm text-[var(--text-secondary)]">Итого</div>
+                            <div className="text-sm text-[var(--text-secondary)]">К оплате</div>
                             <div className="text-2xl font-semibold">{order.total} руб.</div>
                         </div>
                     </div>

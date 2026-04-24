@@ -110,6 +110,7 @@ export type SupplierPricePreviewRow = {
     code: string;
     title: string;
     supplier_price: number | null;
+    in_stock?: boolean | null;
     parsed: {
         brand: string | null;
         product_name: string | null;
@@ -134,6 +135,8 @@ export type SupplierPricePreviewResponse = {
     inserted?: number;
     updated?: number;
     skipped_linked?: number;
+    skipped_parsing_inactive?: number;
+    marked_absent_unlinked?: number;
     offset?: number;
     limit?: number;
     total_rows?: number;
@@ -163,9 +166,14 @@ export type SellerOneParseStatus = {
     skipped_linked?: number;
     skipped?: number;
     price_history_rows?: number;
+    price_changed?: number;
+    became_out_of_stock?: number;
+    became_in_stock?: number;
     missing_codes?: number;
     deactivated_offers?: number;
     deactivated_variants?: number;
+    /** Снято виртуальных строк склада «Поставщик» по вариантам без кода в файле */
+    cleared_supplier_shelf_variants?: number;
     codes_in_price?: number;
     linked_products?: number;
     message?: string;
@@ -188,9 +196,12 @@ export type SellerOneSupplierProductItem = {
     external_url: string;
     is_linked: boolean;
     is_active: boolean;
+    link_parsing_active: boolean;
     last_seen_at: string | null;
     code: string;
     supplier_price: number | null;
+    price_file_in_stock: boolean | null;
+    catalog_supplier_channel_available: boolean | null;
     parsed: {
         brand?: string | null;
         product_name?: string | null;
@@ -261,6 +272,7 @@ export type SellerOneSupplierProductsResponse = {
         found_unconfirmed: number;
         new: number;
         unlinked: number;
+        parsing_inactive: number;
     };
 };
 

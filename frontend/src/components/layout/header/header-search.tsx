@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import type { ReactNode, RefObject } from "react";
+import ProductStatusLabels from "@/components/product/product-status-labels";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 
 type HeaderSearchProps = {
     searchRef: RefObject<HTMLDivElement | null>;
@@ -174,7 +176,11 @@ export default function HeaderSearch({
                                         Товары
                                     </div>
                                 ) : null}
-                                {searchResults.map((item) => (
+                                {searchResults.map((item) => {
+                                    const imageSrc = item.image
+                                        ? normalizeProductImageUrl(item.image)
+                                        : null;
+                                    return (
                                     <button
                                         key={`desktop-${item.id}`}
                                         type="button"
@@ -183,18 +189,20 @@ export default function HeaderSearch({
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-                                                {item.image ? (
+                                                <ProductStatusLabels
+                                                    isNew={Boolean(item.is_new)}
+                                                    isHit={Boolean(item.is_hit)}
+                                                    hasDiscount={Boolean(item.has_discount)}
+                                                    className="left-1 top-1 scale-90 origin-top-left"
+                                                />
+                                                {imageSrc ? (
                                                     <Image
-                                                        src={
-                                                            item.image.startsWith("http")
-                                                                ? item.image
-                                                                : `/${item.image.replace(/^\/+/, "")}`
-                                                        }
+                                                        src={imageSrc}
+                                                        loader={productImageLoader}
                                                         alt={item.name}
                                                         fill
                                                         sizes="48px"
                                                         className="object-cover"
-                                                        unoptimized
                                                     />
                                                 ) : null}
                                             </div>
@@ -208,7 +216,8 @@ export default function HeaderSearch({
                                             </div>
                                         </div>
                                     </button>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

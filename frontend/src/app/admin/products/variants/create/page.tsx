@@ -16,6 +16,7 @@ const emptyForm: ProductVariantDefinitionFormState = {
     concentration_code: "",
     concentration_label: "",
     is_tester: false,
+    excludes_from_free_delivery_threshold: false,
 };
 
 const VARIANTS_BASE = "/admin/products/variants";
@@ -43,6 +44,7 @@ export default function AdminProductVariantCreatePage() {
                 concentration_code: form.concentration_code.trim(),
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,
+                excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 
             router.push(VARIANTS_BASE);

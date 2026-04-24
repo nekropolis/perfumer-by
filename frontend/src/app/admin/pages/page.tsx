@@ -13,6 +13,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import PagesTable from "@/components/admin/pages/pages-table";
+import ContentCatalogTabs from "@/components/admin/pages/content-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import { deleteAdminPage, fetchAdminPages, type AdminPageItem, type AdminPagesResponse } from "@/lib/admin-pages-api";
@@ -79,6 +80,10 @@ export default function AdminPagesPage() {
                     </Link>
                 }
             />
+
+            <div className="mb-4">
+                <ContentCatalogTabs />
+            </div>
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

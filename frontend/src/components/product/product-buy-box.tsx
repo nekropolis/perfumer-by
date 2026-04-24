@@ -25,6 +25,9 @@ type Props = {
     formatPrice: (price: string | null) => string;
     productId: number;
     productName: string;
+    loyaltyCardNumber?: string | null;
+    loyaltyPercent?: number;
+    loyaltyPrice?: string | null;
 };
 
 export default function ProductBuyBox({
@@ -35,6 +38,9 @@ export default function ProductBuyBox({
     formatPrice,
     productId,
     productName,
+    loyaltyCardNumber,
+    loyaltyPercent = 0,
+    loyaltyPrice,
 }: Props) {
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [callbackOpen, setCallbackOpen] = useState(false);
@@ -60,19 +66,27 @@ export default function ProductBuyBox({
 
                     <div className="mb-4 flex flex-wrap items-end gap-2">
                         <div className="text-4xl font-semibold leading-none">
-                            {selectedVariant.price
-                                ? formatPrice(selectedVariant.price)
+                            {loyaltyPrice
+                                ? formatPrice(loyaltyPrice)
+                                : selectedVariant.price
+                                    ? formatPrice(selectedVariant.price)
                                 : selectedVariant.is_preorder
                                     ? "Предзаказ"
                                     : "Цена уточняется"}
                         </div>
 
-                        {selectedVariant.old_price && (
+                        {(selectedVariant.old_price || (loyaltyPrice && selectedVariant.price)) && (
                             <div className="text-base text-[var(--text-secondary)] line-through">
-                                {formatPrice(selectedVariant.old_price)}
+                                {formatPrice(selectedVariant.old_price || selectedVariant.price)}
                             </div>
                         )}
                     </div>
+
+                    {loyaltyCardNumber && loyaltyPrice && (
+                        <div className="mb-4 text-sm text-green-700">
+                            Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
+                        </div>
+                    )}
 
                     {selectedVariant.discount_percent && (
                         <div className="mb-4 inline-flex rounded-full bg-[var(--accent-soft)] px-3 py-1 text-sm font-medium text-[var(--foreground)]">

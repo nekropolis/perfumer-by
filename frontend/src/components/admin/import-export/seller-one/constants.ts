@@ -8,6 +8,7 @@ export const STATUS_OPTIONS = [
     { value: "found_unconfirmed", label: "Есть кандидат" },
     { value: "unlinked", label: "Не связанные" },
     { value: "new", label: "Новые" },
+    { value: "parsing_inactive", label: "Парсинг выкл." },
 ] as const;
 
 export type SellerOneStatusFilter =
@@ -15,4 +16,5 @@ export type SellerOneStatusFilter =
     | "confirmed"
     | "found_unconfirmed"
     | "unlinked"
-    | "new";
+    | "new"
+    | "parsing_inactive";

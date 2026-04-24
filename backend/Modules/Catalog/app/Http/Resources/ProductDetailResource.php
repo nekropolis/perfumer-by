@@ -12,9 +12,11 @@ class ProductDetailResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $variants = $this->relationLoaded('activeVariants')
-            ? $this->activeVariants
-            : collect();
+        $variants = $this->relationLoaded('variants')
+            ? $this->variants
+            : ($this->relationLoaded('activeVariants')
+                ? $this->activeVariants
+                : collect());
 
         $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
         $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
@@ -27,16 +29,13 @@ class ProductDetailResource extends JsonResource
             ->groupBy('variant_id');
 
         $prices = $variants
-            ->map(function ($variant) use ($stocks, $mainWarehouseId) {
+            ->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
                 $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
                 $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-                $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
+                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
 
-                if ($mainAvailable > 0) {
-                    return $variant->price;
-                }
-
-                return $variant->price;
+                return CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
             })
             ->filter();
 

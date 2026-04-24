@@ -19,6 +19,12 @@ type AuthUser = {
     phone: string;
     phone_verified_at?: string | null;
     role?: string;
+    discount_cards?: {
+        id: number;
+        number: string;
+        discount_percent: string;
+        is_active: boolean;
+    }[];
 };
 
 type AuthContextType = {

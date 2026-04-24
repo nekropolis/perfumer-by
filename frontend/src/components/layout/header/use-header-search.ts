@@ -80,7 +80,7 @@ export function useHeaderSearch({
         let cancelled = false;
         const timeoutId = setTimeout(() => {
             void apiFetch<HeaderSearchResponse>(
-                `/catalog/products/smart-search?q=${encodeURIComponent(query)}&limit=8`,
+                `/catalog/products/smart-search?q=${encodeURIComponent(query)}&limit=16`,
             )
                 .then((res) => {
                     if (!cancelled) {

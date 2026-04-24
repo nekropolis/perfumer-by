@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import {
     BarChart3,
     BellRing,
+    CreditCard,
     FileBarChart,
     FolderSync,
     Inbox,
@@ -16,9 +17,11 @@ import {
     PanelsTopLeft,
     PhoneCall,
     ScrollText,
+    Settings,
     ShieldUser,
     ShoppingCart,
     Tags,
+    Ticket,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -49,6 +52,7 @@ const sections: SidebarSection[] = [
         label: "Основное",
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
+            { type: "link", href: "/admin/shop-settings", label: "Доставка (настройки)", icon: Settings },
             { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingCart, badgeKey: "ordersNew" },
             {
                 type: "link",
@@ -73,7 +77,7 @@ const sections: SidebarSection[] = [
             { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
             { type: "link", href: "/admin/products", label: "Продукты", icon: Package },
             { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },
-            { type: "link", href: "/admin/pages", label: "Страницы", icon: PanelsTopLeft },
+            { type: "link", href: "/admin/pages", label: "Контент", icon: PanelsTopLeft },
         ],
     },
     {
@@ -92,6 +96,15 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
+        ],
+    },
+    {
+        key: "loyalty",
+        label: "Лояльность",
+        items: [
+            { type: "link", href: "/admin/loyalty/cards", label: "Накопительные карты", icon: CreditCard },
+            { type: "link", href: "/admin/loyalty/certificates", label: "Сертификаты", icon: Ticket },
+            { type: "link", href: "/admin/loyalty/reports", label: "Отчеты лояльности", icon: FileBarChart },
         ],
     },
     {

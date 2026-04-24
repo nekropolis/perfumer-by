@@ -26,14 +26,25 @@ class ProductListResource extends JsonResource
             ->get()
             ->groupBy('variant_id');
 
-        $prices = $variants->map(function ($variant) use ($stocks, $mainWarehouseId) {
+        $prices = $variants->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
             $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
             $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-            $mainAvailable = $mainStock ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) : 0;
+            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
 
-            return $mainAvailable > 0 ? $variant->price : $variant->price;
+            return CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
         })->filter();
-        $oldPrices = $variants->pluck('old_price')->filter();
+        $oldPrices = $variants
+            ->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
+                $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
+                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+                $p = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
+
+                return $p !== null ? $variant->old_price : null;
+            })
+            ->filter();
 
         $minPrice = $prices->isNotEmpty() ? $prices->min() : null;
         $maxPrice = $prices->isNotEmpty() ? $prices->max() : null;

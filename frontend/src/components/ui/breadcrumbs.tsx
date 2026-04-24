@@ -16,7 +16,7 @@ export default function Breadcrumbs({ items, className = "" }: Props) {
     }
 
     return (
-        <nav className={`text-sm text-gray-500 ${className}`} aria-label="Хлебные крошки">
+        <nav className={`text-sm text-[var(--text-secondary)] ${className}`} aria-label="Хлебные крошки">
             <ol className="flex flex-wrap items-center gap-2">
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1;
@@ -24,11 +24,11 @@ export default function Breadcrumbs({ items, className = "" }: Props) {
                     return (
                         <li key={`${item.label}-${index}`} className="flex items-center gap-2">
                             {item.href && !isLast ? (
-                                <Link href={item.href} className="hover:text-black">
+                                <Link href={item.href} className="transition hover:text-[var(--foreground)]">
                                     {item.label}
                                 </Link>
                             ) : (
-                                <span className={isLast ? "text-gray-900" : ""}>{item.label}</span>
+                                <span className={isLast ? "text-[var(--foreground)]" : ""}>{item.label}</span>
                             )}
 
                             {!isLast && <span>/</span>}

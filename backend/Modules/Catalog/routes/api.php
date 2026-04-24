@@ -47,6 +47,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/sel
     Route::get('/supplier-products', [VanilleImportController::class, 'sellerOneSupplierProducts']);
     Route::post('/supplier-products/force-link', [VanilleImportController::class, 'forceLinkSellerOneProduct']);
     Route::post('/supplier-products/reset-link', [VanilleImportController::class, 'resetSellerOneProductLink']);
+    Route::patch('/supplier-products/parsing-active', [VanilleImportController::class, 'updateSellerOneSupplierProductParsingActive']);
     Route::get('/pricing-settings', [VanilleImportController::class, 'sellerOnePricingSettings']);
     Route::put('/pricing-settings', [VanilleImportController::class, 'updateSellerOnePricingSettings']);
     Route::get('/rules', [VanilleImportController::class, 'sellerOneRules']);

@@ -25,6 +25,8 @@ export type ProductAdminItem = {
     discounted_variants_count?: number;
     is_out_of_stock?: boolean;
     variants_count: number;
+    /** Варианты с остатком на «наших» полках или предзаказом (см. ProductAdminController). */
+    variants_with_stock_count?: number;
     brand: {
         id: number;
         name: string;

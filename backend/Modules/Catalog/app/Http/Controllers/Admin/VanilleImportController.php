@@ -19,6 +19,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariant;
 use Modules\Catalog\Models\SellerOneMatchRule;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Throwable;
 
 
@@ -422,6 +423,7 @@ class VanilleImportController extends Controller
                     'found_unconfirmed' => 0,
                     'new' => 0,
                     'unlinked' => 0,
+                    'parsing_inactive' => 0,
                 ],
             ]);
         }
@@ -441,9 +443,19 @@ class VanilleImportController extends Controller
             });
         }
 
-        $query = clone $baseQuery;
-
         $status = trim($request->string('status')->toString());
+
+        $query = clone $baseQuery;
+        if ($status === 'parsing_inactive') {
+            $query->where('link_parsing_active', false);
+        } else {
+            $query->where('link_parsing_active', true)
+                ->where(function ($q) {
+                    $q->where('is_linked', true)
+                        ->orWhereNull('payload->absent_from_parse_table_at');
+                });
+        }
+
         if ($status === 'confirmed') {
             $query->where('is_linked', true);
         } elseif ($status === 'found_unconfirmed') {
@@ -463,11 +475,18 @@ class VanilleImportController extends Controller
 
         $items = $query->paginate(50);
 
+        $listStatsBase = clone $baseQuery;
+        $listStatsBase->where('link_parsing_active', true)
+            ->where(function ($q) {
+                $q->where('is_linked', true)
+                    ->orWhereNull('payload->absent_from_parse_table_at');
+            });
+
         $stats = [
-            'confirmed' => (clone $baseQuery)
+            'confirmed' => (clone $listStatsBase)
                 ->where('is_linked', true)
                 ->count(),
-            'found_unconfirmed' => (clone $baseQuery)
+            'found_unconfirmed' => (clone $listStatsBase)
                 ->where('is_linked', false)
                 ->whereNotNull('payload->suggested_variant_id')
                 ->where(function ($q) {
@@ -475,15 +494,18 @@ class VanilleImportController extends Controller
                         ->orWhere('payload->match_confidence', '<', 95);
                 })
                 ->count(),
-            'new' => (clone $baseQuery)
+            'new' => (clone $listStatsBase)
                 ->where('is_linked', false)
                 ->where('payload->is_new', true)
                 ->count(),
-            'unlinked' => (clone $baseQuery)
+            'unlinked' => (clone $listStatsBase)
                 ->where('is_linked', false)
                 ->where(function ($q) {
                     $q->whereNull('payload->suggested_variant_id');
                 })
+                ->count(),
+            'parsing_inactive' => (clone $baseQuery)
+                ->where('link_parsing_active', false)
                 ->count(),
         ];
 
@@ -558,6 +580,9 @@ class VanilleImportController extends Controller
                 ? $linkedVariants->get((int) $payload['linked_variant_id'])
                 : null;
             $linkedVariant = $offer?->productVariant ?? $linkedVariantFromPayload;
+            $catalogSupplierAvailable = $linkedVariant
+                ? CatalogVariantStockPresenter::supplierListingActive($linkedVariant)
+                : null;
 
             return [
                 'id' => $item->id,
@@ -566,9 +591,14 @@ class VanilleImportController extends Controller
                 'external_url' => $item->external_url,
                 'is_linked' => (bool) $item->is_linked,
                 'is_active' => (bool) $item->is_active,
+                'link_parsing_active' => (bool) $item->link_parsing_active,
                 'last_seen_at' => optional($item->last_seen_at)?->toDateTimeString(),
                 'code' => $externalCode,
                 'supplier_price' => $payload['supplier_price'] ?? ($payload['min_price'] ?? null),
+                'price_file_in_stock' => array_key_exists('price_file_in_stock', $payload)
+                    ? $payload['price_file_in_stock']
+                    : null,
+                'catalog_supplier_channel_available' => $catalogSupplierAvailable,
                 'parsed' => $payload['parsed'] ?? null,
                 'is_new' => (bool) ($payload['is_new'] ?? false),
                 'match_confidence' => (int) ($payload['match_confidence'] ?? 0),
@@ -655,6 +685,31 @@ class VanilleImportController extends Controller
         $result = $service->resetLink((int) $validated['supplier_product_id']);
 
         return response()->json($result);
+    }
+
+    public function updateSellerOneSupplierProductParsingActive(Request $request)
+    {
+        $supplier = $this->getOrCreateSellerOneSupplier();
+        $validated = $request->validate([
+            'supplier_product_id' => ['required', 'integer', 'exists:supplier_products,id'],
+            'link_parsing_active' => ['required', 'boolean'],
+        ]);
+
+        $supplierProduct = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->findOrFail((int) $validated['supplier_product_id']);
+
+        $supplierProduct->update([
+            'link_parsing_active' => (bool) $validated['link_parsing_active'],
+        ]);
+
+        return response()->json([
+            'message' => 'Участие в парсинге обновлено',
+            'data' => [
+                'id' => $supplierProduct->id,
+                'link_parsing_active' => (bool) $supplierProduct->link_parsing_active,
+            ],
+        ]);
     }
 
     public function sellerOnePricingSettings(SupplierPriceImportService $service)

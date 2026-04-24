@@ -7,6 +7,7 @@ export type ProductVariantDefinitionFormState = {
     concentration_code: string;
     concentration_label: string;
     is_tester: boolean;
+    excludes_from_free_delivery_threshold: boolean;
 };
 
 type Props = {
@@ -61,6 +62,24 @@ export default function ProductVariantDefinitionForm({
                         onChange={(e) => onChangeAction({ ...form, is_tester: e.target.checked })}
                     />
                     <span>Тестер</span>
+                </label>
+
+                <label className="inline-flex max-w-xl items-start gap-2 text-sm text-gray-700 md:col-span-2">
+                    <input
+                        type="checkbox"
+                        checked={form.excludes_from_free_delivery_threshold}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                excludes_from_free_delivery_threshold: e.target.checked,
+                            })
+                        }
+                        className="mt-0.5"
+                    />
+                    <span>
+                        Не учитывать в «2 наименования» для бесплатной доставки по РБ (платная позиция / мелкий
+                        товар) — для всех товаров с этим вариантом справочника
+                    </span>
                 </label>
             </div>
 

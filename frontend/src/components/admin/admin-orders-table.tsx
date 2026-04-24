@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import Link from "next/link";
+import { Eye, Pencil, XCircle } from "lucide-react";
 import type { OrderData } from "@/types/orders";
-import { updateOrderStatus } from "@/lib/admin-orders-api";
+import { cancelOrder, updateOrderStatus } from "@/lib/admin-orders-api";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 import CopyText from "@/components/ui/copy-text";
@@ -25,6 +26,7 @@ export default function AdminOrdersTable({
                                          }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
+    const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
 
     useEffect(() => {
         setOrders(initialOrders);
@@ -52,6 +54,30 @@ export default function AdminOrdersTable({
             console.error(error);
             onErrorMessageAction?.("Не удалось обновить статус");
         } finally {
+        }
+    };
+
+    const handleCancel = async (order: OrderData) => {
+        if (!window.confirm(`Отменить заказ #${order.id}?`)) {
+            return;
+        }
+
+        try {
+            setCancellingOrderId(order.id);
+            onErrorMessageAction?.("");
+            onSuccessMessageAction?.("");
+            const response = await cancelOrder(order.id);
+            setOrders((prev) =>
+                prev.map((candidate) =>
+                    candidate.id === order.id ? { ...candidate, status: response.data.status } : candidate
+                )
+            );
+            onSuccessMessageAction?.("Заказ отменен");
+        } catch (error) {
+            console.error(error);
+            onErrorMessageAction?.("Не удалось отменить заказ");
+        } finally {
+            setCancellingOrderId(null);
         }
     };
 
@@ -117,15 +143,35 @@ export default function AdminOrdersTable({
                             <td className="px-4 py-4">{order.items_qty}</td>
                             <td className="px-4 py-4 whitespace-nowrap">{order.total} руб.</td>
                             <td className="px-4 py-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedOrder(order)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
-                                    aria-label={`Состав заказа #${order.id}`}
-                                    title="Состав"
-                                >
-                                    <Eye size={16} />
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedOrder(order)}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                        aria-label={`Состав заказа #${order.id}`}
+                                        title="Состав"
+                                    >
+                                        <Eye size={16} />
+                                    </button>
+                                    <Link
+                                        href={`/admin/orders/${order.id}/edit`}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                        aria-label={`Редактировать заказ #${order.id}`}
+                                        title="Редактировать"
+                                    >
+                                        <Pencil size={16} />
+                                    </Link>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleCancel(order)}
+                                        disabled={order.status === "cancelled" || cancellingOrderId === order.id}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                        aria-label={`Отменить заказ #${order.id}`}
+                                        title="Отменить заказ"
+                                    >
+                                        <XCircle size={16} />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     ))}

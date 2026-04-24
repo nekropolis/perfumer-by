@@ -16,6 +16,7 @@ class SupplierProduct extends Model
         'external_url',
         'is_linked',
         'is_active',
+        'link_parsing_active',
         'last_seen_at',
         'payload',
     ];
@@ -23,6 +24,7 @@ class SupplierProduct extends Model
     protected $casts = [
         'is_linked' => 'boolean',
         'is_active' => 'boolean',
+        'link_parsing_active' => 'boolean',
         'last_seen_at' => 'datetime',
         'payload' => 'array',
     ];

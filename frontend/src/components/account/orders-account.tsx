@@ -106,8 +106,17 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
                                     </div>
                                 </div>
 
-                                <div className="mb-4 text-sm text-gray-600">
-                                    Товаров: {order.items_qty} · Сумма: {order.total} руб.
+                                <div className="mb-4 space-y-1 text-sm text-gray-600">
+                                    <div>
+                                        Товаров: {order.items_qty} · К оплате: {order.total} руб.
+                                    </div>
+                                    {order.discount_card_number ? (
+                                        <div className="text-green-800">
+                                            Карта {order.discount_card_number}
+                                            {order.discount_percent_snapshot ? ` · ${order.discount_percent_snapshot}%` : ""}
+                                            {order.discount_amount ? ` · −${order.discount_amount} руб.` : ""}
+                                        </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="space-y-2">

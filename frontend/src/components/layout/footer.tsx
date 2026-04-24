@@ -40,7 +40,7 @@ export default function Footer() {
                             <Link href="#" className="hover:underline">
                                 Дисконтная программа
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="/gift-certificates" className="hover:underline">
                                 Подарочные сертификаты
                             </Link>
                             <Link href="#" className="hover:underline">

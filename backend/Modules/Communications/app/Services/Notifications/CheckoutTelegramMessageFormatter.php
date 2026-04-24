@@ -17,8 +17,32 @@ class CheckoutTelegramMessageFormatter
             'Телефон: ' . ($order->phone ?: '—'),
             'Статус: ' . ($order->status ?: 'new'),
             'Товаров: ' . (int) ($order->items_qty ?? 0),
-            'Сумма: ' . number_format((float) ($order->total ?? 0), 2, '.', '') . ' BYN',
         ];
+
+        if ($order->delivery_method) {
+            $lines[] = 'Доставка: ' . (string) $order->delivery_method;
+        }
+        if ($order->delivery_city) {
+            $lines[] = 'Город: ' . (string) $order->delivery_city;
+        }
+        if ($order->delivery_address) {
+            $lines[] = 'Адрес: ' . mb_substr((string) $order->delivery_address, 0, 200);
+        }
+        if ($order->payment_method) {
+            $lines[] = 'Оплата: ' . (string) $order->payment_method;
+        }
+
+        $lines[] = 'Товары: ' . number_format((float) ($order->subtotal ?? 0), 2, '.', '') . ' BYN';
+        if ((float) ($order->discount_amount ?? 0) > 0) {
+            $lines[] = 'Скидка: −' . number_format((float) $order->discount_amount, 2, '.', '') . ' BYN';
+        }
+        if ((float) ($order->gift_certificate_amount ?? 0) > 0) {
+            $lines[] = 'Сертификат: −' . number_format((float) $order->gift_certificate_amount, 2, '.', '') . ' BYN';
+        }
+        if ((float) ($order->delivery_fee ?? 0) > 0) {
+            $lines[] = 'Доставка: +' . number_format((float) $order->delivery_fee, 2, '.', '') . ' BYN';
+        }
+        $lines[] = 'Итого: ' . number_format((float) ($order->total ?? 0), 2, '.', '') . ' BYN';
 
         if ($order->comment) {
             $lines[] = 'Комментарий: ' . $order->comment;

@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockInventoryService;
@@ -27,6 +28,7 @@ class ProductVariantAdminController extends Controller
                 'concentration_code' => $definition->concentration_code,
                 'concentration_label' => $definition->concentration_label,
                 'is_tester' => (bool) $definition->is_tester,
+                'excludes_from_free_delivery_threshold' => (bool) $definition->excludes_from_free_delivery_threshold,
             ],
         ]);
     }
@@ -38,6 +40,7 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
+            'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -46,6 +49,7 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
             'concentration_label' => trim((string) $validated['concentration_label']),
             'is_tester' => (bool) ($validated['is_tester'] ?? false),
+            'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
             'title' => $this->buildDefinitionTitle(
                 (int) $validated['volume_ml'],
@@ -70,6 +74,7 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
+            'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -78,6 +83,7 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
             'concentration_label' => trim((string) $validated['concentration_label']),
             'is_tester' => (bool) ($validated['is_tester'] ?? false),
+            'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
             'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
             'title' => $this->buildDefinitionTitle(
                 (int) $validated['volume_ml'],
@@ -145,6 +151,7 @@ class ProductVariantAdminController extends Controller
                 'concentration_code' => $item->concentration_code,
                 'concentration_label' => $item->concentration_label,
                 'is_tester' => (bool) $item->is_tester,
+                'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
             ];
         };
 
@@ -176,6 +183,9 @@ class ProductVariantAdminController extends Controller
         $mainWarehouseId = (int) Warehouse::query()
             ->where('code', Warehouse::CODE_MAIN)
             ->value('id');
+        $supplierWarehouseId = (int) Warehouse::query()
+            ->where('code', Warehouse::CODE_SUPPLIER)
+            ->value('id');
 
         $variants = ProductVariantLink::query()
             ->where('product_id', $product->id)
@@ -183,31 +193,46 @@ class ProductVariantAdminController extends Controller
             ->withCount([
                 'supplierOffers as supplier_offers_count',
                 'supplierOffers as active_supplier_offers_count' => static function ($query) {
-                    $query->where('is_active', true);
+                    $query->where('is_active', true)
+                        ->where(function ($q) {
+                            $q->whereNull('payload->missing_in_latest_price')
+                                ->orWhere('payload->missing_in_latest_price', false);
+                        })
+                        ->where(function ($q) {
+                            $q->whereNull('payload->out_of_stock_in_price_file')
+                                ->orWhere('payload->out_of_stock_in_price_file', false);
+                        });
                 },
             ])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
 
-        $stocksByVariant = $mainWarehouseId > 0
+        $variantIds = $variants->pluck('id')->filter()->values()->all();
+        $warehouseStocks = $variantIds !== [] && ($mainWarehouseId > 0 || $supplierWarehouseId > 0)
             ? WarehouseVariantStock::query()
                 ->where('product_id', $product->id)
-                ->where('warehouse_id', $mainWarehouseId)
-                ->get(['variant_id', 'stock', 'reserved_stock'])
-                ->keyBy('variant_id')
+                ->whereIn('variant_id', $variantIds)
+                ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+                ->get(['variant_id', 'warehouse_id', 'stock', 'reserved_stock'])
+                ->groupBy('variant_id')
             : collect();
 
-        $items = $variants->map(function (ProductVariantLink $variant) use ($stocksByVariant): array {
-            $mainStock = $stocksByVariant->get($variant->id);
+        $items = $variants->map(function (ProductVariantLink $variant) use ($warehouseStocks, $mainWarehouseId, $supplierWarehouseId): array {
+            $byWh = $warehouseStocks->get($variant->id, collect())->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $byWh->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $byWh->get($supplierWarehouseId) : null;
             $mainAvailableStock = $mainStock
                 ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
                 : 0;
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+            $catalogListPrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
 
             return array_merge($variant->toArray(), [
                 'main_available_stock' => $mainAvailableStock,
                 'supplier_offers_count' => (int) ($variant->supplier_offers_count ?? 0),
                 'active_supplier_offers_count' => (int) ($variant->active_supplier_offers_count ?? 0),
+                'catalog_list_price' => $catalogListPrice,
             ]);
         })->values();
 

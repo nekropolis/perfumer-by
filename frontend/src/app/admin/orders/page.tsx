@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ListOrdered, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
@@ -147,6 +148,16 @@ export default function AdminOrdersPage() {
                     activeTab === "orders"
                         ? "Поиск по номеру заказа, имени клиента или телефону"
                         : "Резервы по новым заказам только для склада Поставщик"
+                }
+                action={
+                    activeTab === "orders" ? (
+                        <Link
+                            href="/admin/orders/create"
+                            className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                        >
+                            Создать заказ
+                        </Link>
+                    ) : null
                 }
             >
                 {activeTab === "orders" ? (

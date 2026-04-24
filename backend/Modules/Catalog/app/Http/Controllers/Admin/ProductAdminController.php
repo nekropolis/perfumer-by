@@ -26,11 +26,17 @@ class ProductAdminController extends Controller
             ->with(['brand'])
             ->withCount('variants')
             ->withCount([
-                'activeVariants as discounted_variants_count' => function ($variantQuery) {
+                'variants as discounted_variants_count' => function ($variantQuery) {
                     $variantQuery
                         ->whereNotNull('old_price')
                         ->whereNotNull('price')
                         ->whereColumn('old_price', '>', 'price');
+                },
+                'variants as variants_with_stock_count' => function ($variantQuery) {
+                    $variantQuery->where(function ($q) {
+                        $q->where('stock', '>', 0)
+                            ->orWhere('is_preorder', true);
+                    });
                 },
             ]);
 
@@ -83,7 +89,7 @@ class ProductAdminController extends Controller
         if ($request->filled('out_of_stock')) {
             $outOfStock = (string) $request->input('out_of_stock');
             if ($outOfStock === '1') {
-                $query->whereDoesntHave('activeVariants', function ($variantQuery) {
+                $query->whereDoesntHave('variants', function ($variantQuery) {
                     $variantQuery->where(function ($availableQuery) {
                         $availableQuery
                             ->where('stock', '>', 0)
@@ -91,7 +97,7 @@ class ProductAdminController extends Controller
                     });
                 });
             } elseif ($outOfStock === '0') {
-                $query->whereHas('activeVariants', function ($variantQuery) {
+                $query->whereHas('variants', function ($variantQuery) {
                     $variantQuery->where(function ($availableQuery) {
                         $availableQuery
                             ->where('stock', '>', 0)
@@ -109,7 +115,7 @@ class ProductAdminController extends Controller
             } elseif ($status === 'hit') {
                 $query->where('is_hit', true);
             } elseif ($status === 'discount') {
-                $query->whereHas('activeVariants', function ($variantQuery) {
+                $query->whereHas('variants', function ($variantQuery) {
                     $variantQuery
                         ->whereNotNull('old_price')
                         ->whereNotNull('price')
@@ -312,7 +318,6 @@ class ProductAdminController extends Controller
                 'variants',
                 'attributeValues.productAttribute.activeOptions',
                 'attributeValues.selectedOptions.productAttributeOption',
-                'activeVariants',
             ])
             ->withCount('variants')
             ->findOrFail($id);

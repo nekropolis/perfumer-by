@@ -135,3 +135,88 @@ export async function syncOrderInventoryWriteoff(id: number): Promise<OrderRespo
 
   return res.json();
 }
+
+export type AdminOrderPayloadItem = {
+  product_id?: number | null;
+  variant_id?: number | null;
+  product_name: string;
+  product_slug?: string | null;
+  brand_name?: string | null;
+  variant_title: string;
+  sku?: string | null;
+  qty: number;
+  price: number;
+};
+
+export type AdminOrderPayload = {
+  customer_name?: string | null;
+  phone: string;
+  comment?: string | null;
+  status?: string;
+  delivery_method?: string | null;
+  delivery_city?: string | null;
+  delivery_address?: string | null;
+  delivery_fee?: number;
+  payment_method?: string | null;
+  items: AdminOrderPayloadItem[];
+};
+
+async function parseOrderError(res: Response, fallback: string): Promise<Error> {
+  const text = await res.text();
+  let message = fallback;
+  try {
+    const parsed = JSON.parse(text) as { message?: string };
+    if (typeof parsed?.message === "string" && parsed.message.trim() !== "") {
+      message = parsed.message;
+    }
+  } catch {
+    if (text.trim() !== "") {
+      message = text;
+    }
+  }
+  return new Error(message);
+}
+
+export async function createOrder(payload: AdminOrderPayload): Promise<OrderResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Create order API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function updateOrder(id: number, payload: AdminOrderPayload): Promise<OrderResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders/${id}`, {
+    method: "PUT",
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Update order API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function cancelOrder(id: number): Promise<OrderResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders/${id}`, {
+    method: "DELETE",
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Cancel order API error: ${res.status}`);
+  }
+
+  return res.json();
+}

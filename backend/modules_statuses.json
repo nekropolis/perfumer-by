@@ -7,5 +7,6 @@
     "ImportExport": true,
     "Warehouse": true,
     "Wishlist": true,
-    "Pages": true
+    "Pages": true,
+    "Loyalty": true
 }

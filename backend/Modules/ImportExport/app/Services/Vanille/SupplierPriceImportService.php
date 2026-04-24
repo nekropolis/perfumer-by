@@ -17,10 +17,12 @@ use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePreviewSyncService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
+use Modules\Warehouse\Services\StockInventoryService;
 
 class SupplierPriceImportService
 {
@@ -31,6 +33,7 @@ class SupplierPriceImportService
         private readonly SellerOneSpreadsheetParser $spreadsheetParser,
         private readonly SellerOnePricingService $pricingService,
         private readonly SellerOnePreviewSyncService $previewSyncService,
+        private readonly StockInventoryService $stockInventory,
     ) {
     }
 
@@ -71,14 +74,32 @@ class SupplierPriceImportService
             ->orderBy('id')
             ->get();
 
+        $pausedCodes = [];
+        foreach (SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('link_parsing_active', false)
+            ->cursor() as $pausedRow) {
+            $pp = is_array($pausedRow->payload) ? $pausedRow->payload : [];
+            $c = trim((string) ($pp['external_code'] ?? str_replace('supplier-xls://', '', (string) $pausedRow->external_url)));
+            if ($c !== '') {
+                $pausedCodes[$c] = true;
+            }
+        }
+
         $matched = 0;
         $inserted = 0;
         $updated = 0;
         $skippedLinked = 0;
+        $skippedParsingInactive = 0;
         $prepared = [];
 
         foreach ($rows as $row) {
             $externalCode = (string) ($row['code'] ?? '');
+            if (isset($pausedCodes[$externalCode])) {
+                $skippedParsingInactive++;
+
+                continue;
+            }
             $externalUrl = "supplier-xls://{$externalCode}";
             /** @var SupplierProduct|null $existing */
             $existing = $existingByUrl->get($externalUrl);
@@ -111,12 +132,14 @@ class SupplierPriceImportService
         }
 
         $markedPreorder = 0;
+        $markedAbsentUnlinked = 0;
         if ($isFinalBatch) {
             $allCodes = array_map(
                 static fn (array $row): string => (string) ($row['code'] ?? ''),
                 $allRows
             );
             $markedPreorder = $this->previewSyncService->markMissingSupplierCodesAsPreorder($supplier, $allCodes);
+            $markedAbsentUnlinked = $this->previewSyncService->markAbsentUnlinkedForSellerOne($supplier, $allCodes);
         }
 
         return [
@@ -127,10 +150,12 @@ class SupplierPriceImportService
             'inserted' => $inserted,
             'updated' => $updated,
             'skipped_linked' => $skippedLinked,
+            'skipped_parsing_inactive' => $skippedParsingInactive,
+            'marked_absent_unlinked' => $markedAbsentUnlinked,
             'offset' => $offset,
             'limit' => $limit,
             'total_rows' => $totalRows,
-            'processed' => count($prepared) + $skippedLinked,
+            'processed' => count($prepared) + $skippedLinked + $skippedParsingInactive,
             'marked_preorder' => $markedPreorder,
             'done' => ($offset + $limit) >= $totalRows,
             'next_offset' => min($offset + $limit, $totalRows),
@@ -176,10 +201,23 @@ class SupplierPriceImportService
             ->orderBy('id')
             ->get();
 
+        $pausedCodes = [];
+        foreach (SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('link_parsing_active', false)
+            ->cursor() as $pausedRow) {
+            $pp = is_array($pausedRow->payload) ? $pausedRow->payload : [];
+            $c = trim((string) ($pp['external_code'] ?? str_replace('supplier-xls://', '', (string) $pausedRow->external_url)));
+            if ($c !== '') {
+                $pausedCodes[$c] = true;
+            }
+        }
+
         $totalMatched = 0;
         $totalInserted = 0;
         $totalUpdated = 0;
         $totalSkippedLinked = 0;
+        $totalSkippedParsingInactive = 0;
         $totalProcessed = 0;
 
         for ($offset = 0; $offset < max($totalRows, 1); $offset += $batchSize) {
@@ -203,6 +241,12 @@ class SupplierPriceImportService
 
             foreach ($rows as $row) {
                 $externalCode = (string) ($row['code'] ?? '');
+                if (isset($pausedCodes[$externalCode])) {
+                    $totalSkippedParsingInactive++;
+                    $totalProcessed++;
+
+                    continue;
+                }
                 $externalUrl = "supplier-xls://{$externalCode}";
                 /** @var SupplierProduct|null $existing */
                 $existing = $existingByUrl->get($externalUrl);
@@ -244,6 +288,7 @@ class SupplierPriceImportService
                     'inserted' => $totalInserted,
                     'updated' => $totalUpdated,
                     'skipped_linked' => $totalSkippedLinked,
+                    'skipped_parsing_inactive' => $totalSkippedParsingInactive,
                     'done' => $isFinalBatch,
                 ]);
             }
@@ -255,6 +300,7 @@ class SupplierPriceImportService
         }
 
         $markedPreorder = 0;
+        $markedAbsentUnlinked = 0;
         if ($totalRows > 0) {
             $allCodes = array_map(
                 static fn (array $row): string => (string) ($row['code'] ?? ''),
@@ -264,6 +310,7 @@ class SupplierPriceImportService
                 $supplier,
                 $allCodes,
             );
+            $markedAbsentUnlinked = $this->previewSyncService->markAbsentUnlinkedForSellerOne($supplier, $allCodes);
             unset($allCodes);
         }
 
@@ -277,7 +324,9 @@ class SupplierPriceImportService
             'inserted' => $totalInserted,
             'updated' => $totalUpdated,
             'skipped_linked' => $totalSkippedLinked,
+            'skipped_parsing_inactive' => $totalSkippedParsingInactive,
             'marked_preorder' => $markedPreorder,
+            'marked_absent_unlinked' => $markedAbsentUnlinked,
         ];
     }
 
@@ -292,7 +341,7 @@ class SupplierPriceImportService
     }
 
     /**
-     * Обновляет цены только у связанных строк прайса (по коду в XLS).
+     * Обновляет цены и «наличие по прайсу» только у связанных строк с активным участием в парсинге.
      *
      * @param  callable(array<string, mixed>): void|null  $onProgress
      * @return array{
@@ -300,9 +349,13 @@ class SupplierPriceImportService
      *     updated: int,
      *     skipped: int,
      *     price_history_rows: int,
+     *     price_changed: int,
+     *     became_out_of_stock: int,
+     *     became_in_stock: int,
      *     missing_codes: int,
      *     deactivated_offers: int,
      *     deactivated_variants: int,
+     *     cleared_supplier_shelf_variants: int,
      *     codes_in_price: int,
      *     linked_products: int
      * }
@@ -316,25 +369,30 @@ class SupplierPriceImportService
         $supplier = $this->getOrCreateSellerOneSupplier();
         $rows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
 
-        $supplierPriceByCode = [];
+        $rowByCode = [];
         foreach ($rows as $row) {
             $code = trim((string) ($row['code'] ?? ''));
             if ($code === '') {
                 continue;
             }
-            $supplierPriceByCode[$code] = $this->toFloat($row['supplier_price'] ?? ($row['min_price'] ?? null));
+            $rowByCode[$code] = $row;
         }
 
-        $codesInPrice = array_keys($supplierPriceByCode);
+        $codesInPrice = array_keys($rowByCode);
+
         $linkedProducts = SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
             ->where('is_linked', true)
+            ->where('link_parsing_active', true)
             ->get();
 
         $updated = 0;
         $skipped = 0;
         $missingCodes = [];
         $priceHistoryRows = 0;
+        $priceChanged = 0;
+        $becameOutOfStock = 0;
+        $becameInStock = 0;
 
         $totalLinked = $linkedProducts->count();
         if ($onProgress !== null) {
@@ -344,6 +402,9 @@ class SupplierPriceImportService
                 'updated' => 0,
                 'skipped' => 0,
                 'price_history_rows' => 0,
+                'price_changed' => 0,
+                'became_out_of_stock' => 0,
+                'became_in_stock' => 0,
                 'message' => $totalLinked > 0
                     ? "Связанных строк: {$totalLinked}, чтение прайса завершено"
                     : 'Нет связанных строк для обновления',
@@ -355,19 +416,25 @@ class SupplierPriceImportService
             $externalCode = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
             if ($externalCode === '') {
                 $skipped++;
+
                 continue;
             }
 
-            if (!array_key_exists($externalCode, $supplierPriceByCode)) {
+            if (!isset($rowByCode[$externalCode])) {
                 $missingCodes[] = $externalCode;
+
                 continue;
             }
 
-            $supplierPrice = $supplierPriceByCode[$externalCode];
+            $row = $rowByCode[$externalCode];
+            $supplierPrice = $this->toFloat($row['supplier_price'] ?? null);
             if ($supplierPrice === null) {
                 $skipped++;
+
                 continue;
             }
+
+            $fileInStock = array_key_exists('in_stock', $row) ? $row['in_stock'] : null;
 
             $variantId = (int) ($payload['linked_variant_id'] ?? 0);
             if ($variantId <= 0) {
@@ -378,16 +445,26 @@ class SupplierPriceImportService
             }
             if ($variantId <= 0) {
                 $skipped++;
+
                 continue;
             }
 
             $variant = ProductVariant::query()->with('product')->find($variantId);
             if (!$variant || !$variant->product) {
                 $skipped++;
+
                 continue;
             }
 
+            $wasListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             $resolvedPrice = $this->pricingService->calculateRetailPrice($supplierPrice);
+            $oldVariantPrice = (float) ($variant->price ?? 0);
+            $existingOffer = SupplierVariantOffer::query()
+                ->where('supplier_id', $supplier->id)
+                ->where('external_id', $externalCode)
+                ->first();
+            $oldOfferPrice = $existingOffer ? (float) $existingOffer->price : null;
+            $prevRetail = $oldOfferPrice ?? $oldVariantPrice;
 
             DB::transaction(function () use (
                 $supplier,
@@ -396,21 +473,18 @@ class SupplierPriceImportService
                 $externalCode,
                 $supplierPrice,
                 $resolvedPrice,
+                $fileInStock,
+                $existingOffer,
+                $prevRetail,
                 &$updated,
-                &$priceHistoryRows
+                &$priceHistoryRows,
+                &$priceChanged
             ): void {
                 $product = $variant->product;
                 $existingPayload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
 
                 $variant->update([
                     'price' => $resolvedPrice,
-                    'stock' => max((int) ($variant->stock ?? 0), 1),
-                    'is_preorder' => false,
-                    'is_active' => true,
-                ]);
-
-                $product->update([
-                    'is_out_of_stock' => false,
                 ]);
 
                 $supplierProduct->update([
@@ -429,8 +503,18 @@ class SupplierPriceImportService
                         'linked_variant_id' => $variant->id,
                         'link_type' => $existingPayload['link_type'] ?? 'manual',
                         'last_parsed_at' => now()?->toDateTimeString(),
+                        'price_file_in_stock' => $fileInStock,
                     ],
                 ]);
+
+                $mergedOfferPayload = array_merge(
+                    is_array($existingOffer?->payload) ? $existingOffer->payload : [],
+                    [
+                        'source' => 'seller-one-xls',
+                        'external_code' => $externalCode,
+                        'supplier_price' => $supplierPrice,
+                    ],
+                );
 
                 $offer = SupplierVariantOffer::query()->updateOrCreate(
                     [
@@ -449,25 +533,39 @@ class SupplierPriceImportService
                         'is_active' => true,
                         'last_seen_at' => now(),
                         'last_synced_at' => now(),
-                        'payload' => [
-                            'source' => 'seller-one-xls',
-                            'external_code' => $externalCode,
-                            'supplier_price' => $supplierPrice,
-                        ],
+                        'payload' => $mergedOfferPayload,
                     ]
                 );
 
-                SupplierPriceHistory::query()->create([
-                    'supplier_variant_offer_id' => $offer->id,
-                    'price' => $offer->price,
-                    'old_price' => $offer->old_price,
-                    'stock' => (int) ($offer->stock ?? 0),
-                    'captured_at' => Carbon::now(),
-                ]);
+                $this->previewSyncService->applyPriceFilePresenceToOffers(
+                    (int) $supplier->id,
+                    $externalCode,
+                    $fileInStock,
+                );
+
+                if (abs($prevRetail - $resolvedPrice) > 0.004) {
+                    SupplierPriceHistory::query()->create([
+                        'supplier_variant_offer_id' => $offer->id,
+                        'price' => $resolvedPrice,
+                        'old_price' => $prevRetail,
+                        'stock' => (int) ($offer->stock ?? 0),
+                        'captured_at' => Carbon::now(),
+                    ]);
+                    $priceHistoryRows++;
+                    $priceChanged++;
+                }
 
                 $updated++;
-                $priceHistoryRows++;
             });
+
+            $variant->refresh();
+            $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
+            if ($nowListed && !$wasListed) {
+                $becameInStock++;
+            }
+            if (!$nowListed && $wasListed) {
+                $becameOutOfStock++;
+            }
 
             if (
                 $onProgress !== null
@@ -480,6 +578,9 @@ class SupplierPriceImportService
                     'updated' => $updated,
                     'skipped' => $skipped,
                     'price_history_rows' => $priceHistoryRows,
+                    'price_changed' => $priceChanged,
+                    'became_out_of_stock' => $becameOutOfStock,
+                    'became_in_stock' => $becameInStock,
                     'message' => 'Обновление цен: ' . ($index + 1) . " / {$totalLinked}",
                 ]);
             }
@@ -487,69 +588,106 @@ class SupplierPriceImportService
 
         $missingCodes = array_values(array_unique($missingCodes));
         $deactivatedOffers = 0;
-        $deactivatedVariants = 0;
+        $clearedSupplierShelfVariants = 0;
 
-        if (!empty($missingCodes)) {
-            $deactivationStats = DB::transaction(function () use (
+        if ($missingCodes !== []) {
+            $missingStockCountedVariants = [];
+            foreach ($missingCodes as $missingCode) {
+                $variantIdMissing = (int) (SupplierVariantOffer::query()
+                    ->where('supplier_id', $supplier->id)
+                    ->where('external_id', $missingCode)
+                    ->value('product_variant_id') ?? 0);
+                if ($variantIdMissing <= 0) {
+                    $sp = SupplierProduct::query()
+                        ->where('supplier_id', $supplier->id)
+                        ->where('is_linked', true)
+                        ->where('payload->external_code', $missingCode)
+                        ->first();
+                    if ($sp) {
+                        $p = is_array($sp->payload) ? $sp->payload : [];
+                        $variantIdMissing = (int) ($p['linked_variant_id'] ?? 0);
+                    }
+                }
+                if ($variantIdMissing > 0 && !isset($missingStockCountedVariants[$variantIdMissing])) {
+                    $vMissing = ProductVariant::query()->find($variantIdMissing);
+                    if ($vMissing && CatalogVariantStockPresenter::supplierListingActive($vMissing)) {
+                        $missingStockCountedVariants[$variantIdMissing] = true;
+                        $becameOutOfStock++;
+                    }
+                }
+            }
+
+            $deactivatedOffers = (int) DB::transaction(function () use (
                 $supplier,
                 $missingCodes
-            ): array {
+            ): int {
                 $offers = SupplierVariantOffer::query()
                     ->where('supplier_id', $supplier->id)
                     ->whereIn('external_id', $missingCodes)
                     ->where('is_active', true)
                     ->get();
 
-                $localDeactivatedOffers = 0;
-                $variantIds = [];
+                $flaggedOffers = 0;
                 foreach ($offers as $offer) {
                     $offerPayload = is_array($offer->payload) ? $offer->payload : [];
+                    if (!empty($offerPayload['missing_in_latest_price'])) {
+                        continue;
+                    }
                     $offer->update([
                         'is_active' => false,
-                        'is_preorder' => true,
                         'payload' => [
                             ...$offerPayload,
                             'missing_in_latest_price' => true,
                             'missing_marked_at' => now()?->toDateTimeString(),
                         ],
                     ]);
-
-                    if ($offer->product_variant_id) {
-                        $variantIds[] = (int) $offer->product_variant_id;
-                    }
-                    $localDeactivatedOffers++;
+                    $flaggedOffers++;
                 }
 
-                $variantIds = array_values(array_unique($variantIds));
-                $localDeactivatedVariants = 0;
-                if (!empty($variantIds)) {
-                    ProductVariant::query()
-                        ->whereIn('id', $variantIds)
-                        ->update([
-                            'is_preorder' => true,
-                            'stock' => 0,
-                        ]);
-                    $localDeactivatedVariants = count($variantIds);
-                }
-
-                return [
-                    'deactivated_offers' => $localDeactivatedOffers,
-                    'deactivated_variants' => $localDeactivatedVariants,
-                ];
+                return $flaggedOffers;
             });
 
-            $deactivatedOffers = (int) ($deactivationStats['deactivated_offers'] ?? 0);
-            $deactivatedVariants = (int) ($deactivationStats['deactivated_variants'] ?? 0);
+            $shelfVariantIds = SupplierVariantOffer::query()
+                ->where('supplier_id', $supplier->id)
+                ->whereIn('external_id', $missingCodes)
+                ->whereNotNull('product_variant_id')
+                ->pluck('product_variant_id')
+                ->map(static fn ($id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+            $this->stockInventory->clearSupplierWarehouseShelfForVariantIds($shelfVariantIds);
+            $clearedSupplierShelfVariants = count($shelfVariantIds);
+
+            foreach ($shelfVariantIds as $vid) {
+                $v = ProductVariant::query()->find($vid);
+                if ($v) {
+                    $this->stockInventory->syncProductStockFlagsByProductId((int) $v->product_id);
+                }
+            }
         }
 
+        $message = sprintf(
+            'Готово: обработано %d связей, цена изменилась — %d, стало «нет в наличии» — %d, «в наличии» — %d, нет кода в файле — %d.',
+            $updated,
+            $priceChanged,
+            $becameOutOfStock,
+            $becameInStock,
+            count($missingCodes),
+        );
+
         return [
-            'message' => 'Цены связанных товаров обновлены',
+            'message' => $message,
             'updated' => $updated,
             'skipped' => $skipped,
             'price_history_rows' => $priceHistoryRows,
+            'price_changed' => $priceChanged,
+            'became_out_of_stock' => $becameOutOfStock,
+            'became_in_stock' => $becameInStock,
             'missing_codes' => count($missingCodes),
             'deactivated_offers' => $deactivatedOffers,
-            'deactivated_variants' => $deactivatedVariants,
+            'deactivated_variants' => 0,
+            'cleared_supplier_shelf_variants' => $clearedSupplierShelfVariants,
             'codes_in_price' => count($codesInPrice),
             'linked_products' => $linkedProducts->count(),
         ];
@@ -960,13 +1098,6 @@ class SupplierPriceImportService
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
             $variant->update([
                 'price' => $resolvedPrice,
-                'stock' => max((int) ($variant->stock ?? 0), 1),
-                'is_preorder' => false,
-                'is_active' => true,
-            ]);
-
-            $product->update([
-                'is_out_of_stock' => false,
             ]);
 
             $supplierProduct->update([

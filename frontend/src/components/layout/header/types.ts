@@ -14,6 +14,8 @@ export type HeaderSearchItem = {
     has_discount?: boolean;
     is_out_of_stock?: boolean;
     is_preorder_available?: boolean;
+    /** Свободный остаток по вариантам (учёт резерва) — для подписи в подсказке поиска */
+    stock_total?: number;
     score?: number;
 };
 

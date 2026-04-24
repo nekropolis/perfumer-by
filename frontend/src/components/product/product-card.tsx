@@ -3,9 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import type { ProductListItem } from "@/types/catalog";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 
 type Props = {
     product: ProductListItem;
@@ -55,6 +57,7 @@ export default function ProductCard({
                                         eager = false,
                                     }: Props) {
     const { isInWishlist, toggleWishlist } = useWishlist();
+    const { user, isAuthenticated } = useAuth();
     const rawVariants = normalizeVariantLabels(product.variant_labels);
     const compactVariants = rawVariants.map(compactVariantLabel);
 
@@ -68,6 +71,16 @@ export default function ProductCard({
     const showEmptyVolumeLabel =
         visibleVariants.length === 0 && !product.is_preorder_available;
     const inWishlist = isInWishlist(product.id);
+    const loyaltyCard = resolveActiveLoyaltyCard(user?.discount_cards);
+    const loyaltyMin = applyPercentDiscount(product.price_range?.min, loyaltyCard?.discountPercent ?? 0);
+    const loyaltyMax = applyPercentDiscount(product.price_range?.max, loyaltyCard?.discountPercent ?? 0);
+
+    const loyaltyPriceText =
+        loyaltyMin && loyaltyMax
+            ? loyaltyMin !== loyaltyMax
+                ? `${loyaltyMin} – ${loyaltyMax} BYN`
+                : `${loyaltyMin} BYN`
+            : null;
 
     return (
         <Link
@@ -174,8 +187,15 @@ export default function ProductCard({
                 )}
 
                 <div className="mt-auto flex items-end justify-between gap-3">
-                    <div className="text-lg font-semibold leading-none text-[var(--foreground)]">
-                        {formatPrice(product)}
+                    <div>
+                        <div className="text-lg font-semibold leading-none text-[var(--foreground)]">
+                            {formatPrice(product)}
+                        </div>
+                        {isAuthenticated && loyaltyCard && loyaltyPriceText && (
+                            <div className="mt-1 text-xs text-green-700">
+                                По карте {loyaltyCard.number}: {loyaltyPriceText}
+                            </div>
+                        )}
                     </div>
 
                     <span className="text-sm font-medium text-[var(--foreground)] transition group-hover:translate-x-[2px]">

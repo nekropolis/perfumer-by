@@ -1,0 +1,11 @@
+{
+    "name": "Loyalty",
+    "alias": "loyalty",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Loyalty\\Providers\\LoyaltyServiceProvider"
+    ],
+    "files": []
+}

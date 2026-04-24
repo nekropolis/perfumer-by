@@ -80,6 +80,7 @@ class SellerOneVariantMatcher
             'code' => (string) $row['code'],
             'title' => $title,
             'supplier_price' => $row['supplier_price'] ?? null,
+            'in_stock' => array_key_exists('in_stock', $row) ? $row['in_stock'] : null,
             'parsed' => [
                 'brand' => $matchedBrand['name'] ?? null,
                 'product_name' => $productName,

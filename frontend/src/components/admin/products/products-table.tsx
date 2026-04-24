@@ -91,7 +91,10 @@ export default function ProductsTable({ items, onDeleteAction, onVariantsAction 
                             <button
                                 type="button"
                                 onClick={() => onVariantsAction(item)}
-                                disabled={item.variants_count <= 0}
+                                disabled={
+                                    item.variants_count <= 0
+                                    || (item.variants_with_stock_count ?? 0) <= 0
+                                }
                                 className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-gray-200 px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label={`Открыть варианты товара ${item.name}`}
                                 title="Открыть варианты"

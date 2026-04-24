@@ -1,13 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
-import { removeCartItem, updateCartItem } from "@/lib/cart-api";
+import { useEffect, useState, useTransition } from "react";
+import {
+    addGiftCertificateTemplateToCart,
+    applyDiscountCard,
+    applyGiftCertificate,
+    clearDiscountCard,
+    clearGiftCertificate,
+    DiscountCardApplyError,
+    fetchGiftCertificateTemplates,
+    GiftCertificateApplyError,
+    normalizeGiftCertificateDigits,
+    removeGiftCertificateTemplateCartItem,
+    removeCartItem,
+    toGiftCertificateCode,
+    type GiftCertificateTemplatePublic,
+    updateGiftCertificateTemplateCartItem,
+    updateCartItem,
+} from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
+import { useAuth } from "@/components/auth/auth-provider";
+import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 
 export default function CartPage() {
     const { cart, loading, setCartState } = useCart();
+    const { isAuthenticated } = useAuth();
     const [isPending, startTransition] = useTransition();
+    const [giftCertificateDigits, setGiftCertificateDigits] = useState("");
+    const [giftCertificateHoneypot, setGiftCertificateHoneypot] = useState("");
+    const [giftCertificateLastAttemptAt, setGiftCertificateLastAttemptAt] = useState(0);
+    const [discountCardNumber, setDiscountCardNumber] = useState("");
+    const [discountCardConflict, setDiscountCardConflict] = useState<string | null>(null);
+    const [discountCardApplyError, setDiscountCardApplyError] = useState("");
+    const [giftCertificateApplyError, setGiftCertificateApplyError] = useState("");
+    const [templates, setTemplates] = useState<GiftCertificateTemplatePublic[]>([]);
+
+    const cardInCart = cart?.discount_card ?? null;
 
     const changeQty = (itemId: number, qty: number) => {
         if (qty < 1) return;
@@ -25,6 +54,27 @@ export default function CartPage() {
         });
     };
 
+    const changeGiftTemplateQty = (itemId: number, qty: number) => {
+        if (qty < 1) return;
+        startTransition(async () => {
+            const response = await updateGiftCertificateTemplateCartItem(itemId, qty);
+            setCartState(response.data);
+        });
+    };
+
+    const deleteGiftTemplateItem = (itemId: number) => {
+        startTransition(async () => {
+            const response = await removeGiftCertificateTemplateCartItem(itemId);
+            setCartState(response.data);
+        });
+    };
+
+    useEffect(() => {
+        void fetchGiftCertificateTemplates()
+            .then((res) => setTemplates(res.data))
+            .catch(() => setTemplates([]));
+    }, []);
+
     if (loading) {
         return (
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -33,7 +83,7 @@ export default function CartPage() {
         );
     }
 
-    if (!cart || cart.items.length === 0) {
+    if (!cart || (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)) {
         return (
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6">
@@ -94,6 +144,53 @@ export default function CartPage() {
 
             <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <section className="space-y-4">
+                    {cart.gift_certificate_items?.map((item) => (
+                        <article
+                            key={`gift-template-${item.id}`}
+                            className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5"
+                        >
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">Сертификат</div>
+                                    <div className="block text-lg font-medium leading-6 text-[var(--foreground)]">{item.title}</div>
+                                    <div className="mt-3 text-sm font-medium text-[var(--foreground)]">{item.amount} руб.</div>
+                                </div>
+                                <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
+                                    <div className="flex items-center rounded-2xl border border-[var(--line)] bg-[var(--background)]">
+                                        <button
+                                            type="button"
+                                            onClick={() => changeGiftTemplateQty(item.id, item.qty - 1)}
+                                            disabled={isPending || item.qty <= 1}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-l-2xl text-base disabled:opacity-40"
+                                        >
+                                            −
+                                        </button>
+                                        <span className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium">{item.qty}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => changeGiftTemplateQty(item.id, item.qty + 1)}
+                                            disabled={isPending}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-r-2xl text-base disabled:opacity-40"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-base font-semibold text-[var(--foreground)]">{item.total} руб.</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteGiftTemplateItem(item.id)}
+                                            disabled={isPending}
+                                            className="mt-2 text-sm text-[var(--text-secondary)] disabled:opacity-40"
+                                        >
+                                            Удалить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+
                     {cart.items.map((item) => (
                         <article
                             key={item.id}
@@ -137,7 +234,7 @@ export default function CartPage() {
                                                 <div className="text-amber-700">Под заказ</div>
                                             ) : (
                                                 <div className="text-green-700">
-                                                    В наличии: {item.stock}
+                                                    Товар в наличии
                                                 </div>
                                             )
                                         ) : (
@@ -189,26 +286,252 @@ export default function CartPage() {
                             </div>
                         </article>
                     ))}
+
+                    <article className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5">
+                        <div className="mb-2 text-sm font-medium text-[var(--foreground)]">Добавить подарочный сертификат</div>
+                        <div className="flex flex-wrap gap-2">
+                            {templates.map((template) => (
+                                <button
+                                    key={template.id}
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() =>
+                                        startTransition(async () => {
+                                            const response = await addGiftCertificateTemplateToCart(template.id, 1);
+                                            setCartState(response.data);
+                                        })
+                                    }
+                                    className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs"
+                                >
+                                    {template.amount} руб.
+                                </button>
+                            ))}
+                            <Link href="/gift-certificates" className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs">
+                                Все сертификаты
+                            </Link>
+                        </div>
+                    </article>
                 </section>
 
                 <aside className="self-start xl:sticky xl:top-24">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
                         <div className="mb-5 text-xl font-semibold">Ваш заказ</div>
 
-                        <div className="space-y-3 text-sm text-[var(--text-secondary)]">
-                            <div className="flex items-center justify-between">
-                                <span>Товаров</span>
-                                <span>{cart.qty}</span>
+                        <CartPricingBreakdown
+                            itemsQty={cart.qty}
+                            subtotal={cart.subtotal}
+                            total={cart.total ?? cart.subtotal}
+                            discountCard={cart.discount_card}
+                            giftCertificate={cart.gift_certificate}
+                        />
+
+                        <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
+                            <div>
+                                <div className="mb-1 text-xs text-[var(--text-secondary)]">Подарочный сертификат</div>
+                                {!cart.gift_certificate ? (
+                                    <>
+                                        <div className="flex gap-2">
+                                            <div className="flex w-full items-center rounded-xl border border-[var(--line)] bg-[var(--background)]">
+                                                <span className="border-r border-[var(--line)] pl-3 pr-1 py-2 text-sm text-[var(--text-secondary)]">PBY-</span>
+                                                <input
+                                                    value={giftCertificateDigits}
+                                                    onChange={(e) => {
+                                                        setGiftCertificateDigits(normalizeGiftCertificateDigits(e.target.value));
+                                                        setGiftCertificateApplyError("");
+                                                    }}
+                                                    inputMode="numeric"
+                                                    maxLength={4}
+                                                    placeholder="0000"
+                                                    className="w-full rounded-r-xl bg-transparent px-2 py-2 text-sm outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                disabled={isPending || giftCertificateDigits.length !== 4}
+                                                onClick={() =>
+                                                    startTransition(async () => {
+                                                        setGiftCertificateApplyError("");
+
+                                                        if (giftCertificateHoneypot.trim() !== "") {
+                                                            setGiftCertificateApplyError("Не удалось применить сертификат");
+                                                            return;
+                                                        }
+
+                                                        if (Date.now() - giftCertificateLastAttemptAt < 1500) {
+                                                            setGiftCertificateApplyError("Слишком частые попытки. Повторите через секунду.");
+                                                            return;
+                                                        }
+
+                                                        setGiftCertificateLastAttemptAt(Date.now());
+                                                        try {
+                                                            const response = await applyGiftCertificate(toGiftCertificateCode(giftCertificateDigits));
+                                                            setCartState(response.data);
+                                                        } catch (e) {
+                                                            if (e instanceof GiftCertificateApplyError) {
+                                                                setGiftCertificateApplyError(e.message);
+                                                                return;
+                                                            }
+                                                            setGiftCertificateApplyError("Не удалось применить сертификат");
+                                                        }
+                                                    })
+                                                }
+                                                className="rounded-xl border border-[var(--line)] px-3 py-2 text-sm"
+                                            >
+                                                Применить
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={giftCertificateHoneypot}
+                                            onChange={(e) => setGiftCertificateHoneypot(e.target.value)}
+                                            tabIndex={-1}
+                                            autoComplete="off"
+                                            aria-hidden="true"
+                                            className="hidden"
+                                        />
+                                        {giftCertificateApplyError ? (
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                                {giftCertificateApplyError}
+                                            </div>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <div className="flex items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2">
+                                        <div>
+                                            <div className="text-xs text-[var(--text-secondary)]">Применён сертификат</div>
+                                            <div className="text-sm font-medium text-[var(--foreground)]">
+                                                {cart.gift_certificate.code}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={isPending}
+                                            onClick={() =>
+                                                startTransition(async () => {
+                                                    setGiftCertificateApplyError("");
+                                                    setGiftCertificateDigits("");
+                                                    const response = await clearGiftCertificate();
+                                                    setCartState(response.data);
+                                                })
+                                            }
+                                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                            aria-label="Убрать сертификат"
+                                            title="Убрать сертификат"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="flex items-center justify-between">
-                                <span>Сумма товаров</span>
-                                <span>{cart.subtotal} руб.</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <span>Доставка</span>
-                                <span>По тарифам</span>
+                            <div>
+                                <div className="mb-1 text-xs text-[var(--text-secondary)]">Скидочная карта</div>
+                                {!cardInCart ? (
+                                    <>
+                                        <div className="flex gap-2">
+                                            <input
+                                                value={discountCardNumber}
+                                                onChange={(e) => {
+                                                    setDiscountCardNumber(e.target.value);
+                                                    setDiscountCardConflict(null);
+                                                    setDiscountCardApplyError("");
+                                                }}
+                                                placeholder="Номер карты"
+                                                className="w-full rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm"
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={isPending || !discountCardNumber.trim()}
+                                                onClick={() =>
+                                                    startTransition(async () => {
+                                                        setDiscountCardApplyError("");
+                                                        try {
+                                                            const response = await applyDiscountCard(discountCardNumber.trim(), false);
+                                                            setCartState(response.data);
+                                                            setDiscountCardConflict(null);
+                                                        } catch (e) {
+                                                            if (
+                                                                e instanceof DiscountCardApplyError &&
+                                                                e.code === "DISCOUNT_CARD_OTHER_ACCOUNT" &&
+                                                                isAuthenticated
+                                                            ) {
+                                                                setDiscountCardConflict(discountCardNumber.trim());
+                                                                return;
+                                                            }
+                                                            setDiscountCardApplyError(
+                                                                e instanceof Error ? e.message : "Не удалось применить карту"
+                                                            );
+                                                        }
+                                                    })
+                                                }
+                                                className="rounded-xl border border-[var(--line)] px-3 py-2 text-sm"
+                                            >
+                                                Применить
+                                            </button>
+                                        </div>
+                                        {discountCardApplyError ? (
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                                {discountCardApplyError}
+                                            </div>
+                                        ) : null}
+                                        {discountCardConflict ? (
+                                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                                <p className="mb-2">Карта не привязана к вашему аккаунту. Применить скидку только к этому заказу (без привязки к профилю)?</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        disabled={isPending}
+                                                        className="rounded-lg bg-black px-3 py-1.5 text-white"
+                                                        onClick={() =>
+                                                            startTransition(async () => {
+                                                                const response = await applyDiscountCard(discountCardConflict, true);
+                                                                setCartState(response.data);
+                                                                setDiscountCardConflict(null);
+                                                                setDiscountCardNumber("");
+                                                            })
+                                                        }
+                                                    >
+                                                        Да, только к заказу
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-lg border border-amber-300 px-3 py-1.5"
+                                                        onClick={() => setDiscountCardConflict(null)}
+                                                    >
+                                                        Отмена
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <div className="flex items-start justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2">
+                                        <div>
+                                            <div className="text-xs text-[var(--text-secondary)]">Применена скидочная карта</div>
+                                            <div className="text-sm font-medium text-[var(--foreground)]">
+                                                {cardInCart.number}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={isPending}
+                                            onClick={() =>
+                                                startTransition(async () => {
+                                                    const response = await clearDiscountCard();
+                                                    setCartState(response.data);
+                                                    setDiscountCardConflict(null);
+                                                    setDiscountCardApplyError("");
+                                                    setDiscountCardNumber("");
+                                                })
+                                            }
+                                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                            aria-label="Убрать карту"
+                                            title="Убрать карту"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

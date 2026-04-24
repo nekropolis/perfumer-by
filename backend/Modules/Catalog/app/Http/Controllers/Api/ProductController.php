@@ -12,11 +12,17 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductController extends Controller
 {
     private const SMART_SEARCH_POOL_LIMIT = 900;
+    /** Товары с прямым вхождением полной строки запроса — не вытесняются «новыми» ID из общего пула. */
+    private const SMART_SEARCH_DIRECT_MATCH_LIMIT = 600;
     private const SMART_SEARCH_RESULT_LIMIT = 10;
+    private const SMART_SEARCH_MAX_LIMIT = 30;
     private const VOLUME_BUCKETS = [
         ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
         ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
@@ -334,7 +340,7 @@ class ProductController extends Controller
     public function smartSearch(Request $request): JsonResponse
     {
         $query = trim($request->string('q')->toString());
-        $limit = max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_RESULT_LIMIT));
+        $limit = max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_MAX_LIMIT));
         $debug = $request->boolean('debug') && (bool) config('app.debug');
 
         if (mb_strlen($query, 'UTF-8') < 2) {
@@ -367,6 +373,12 @@ class ProductController extends Controller
             ->values()
             ->all();
 
+        $queryLike = '%'.$this->escapeLikeValue($query).'%';
+        $patternLikes = array_map(
+            fn (string $pattern): string => '%'.$this->escapeLikeValue($pattern).'%',
+            $searchPatterns
+        );
+
         $baseProductQuery = Product::query()
             ->where('is_active', true)
             ->with(['brand:id,name', 'images' => static function ($q): void {
@@ -374,64 +386,140 @@ class ProductController extends Controller
                     ->orderByDesc('is_main')
                     ->orderBy('sort_order')
                     ->limit(1);
+            }, 'variants' => static function ($q): void {
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
+                    ->with(['definition:id,title']);
             }, 'activeVariants' => static function ($q): void {
-                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'is_preorder', 'is_active')
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
                     ->with(['definition:id,title']);
             }]);
 
-        $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($query, $searchPatterns) {
-            $q->where('name', 'like', "%{$query}%")
-                ->orWhere('slug', 'like', "%{$query}%")
-                ->orWhereHas('brand', function ($bq) use ($query) {
-                    $bq->where('name', 'like', "%{$query}%")
-                        ->orWhere('slug', 'like', "%{$query}%");
+        $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes): void {
+            $q->where('name', 'like', $queryLike)
+                ->orWhere('slug', 'like', $queryLike)
+                ->orWhereHas('brand', function ($bq) use ($queryLike): void {
+                    $bq->where('name', 'like', $queryLike)
+                        ->orWhere('slug', 'like', $queryLike);
                 })
-                ->orWhereHas('activeVariants.definition', function ($vq) use ($query) {
-                    $vq->where('title', 'like', "%{$query}%");
+                ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
+                    $vq->where('title', 'like', $queryLike);
                 });
+            $this->orWhereBrandPlusProductNameLike($q, $queryLike);
 
-            foreach ($searchPatterns as $pattern) {
-                $q->orWhere('name', 'like', "%{$pattern}%")
-                    ->orWhere('slug', 'like', "%{$pattern}%")
-                    ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$pattern}%"))
-                    ->orWhereHas('activeVariants.definition', fn ($vq) => $vq->where('title', 'like', "%{$pattern}%"));
+            foreach ($patternLikes as $like) {
+                $q->orWhere('name', 'like', $like)
+                    ->orWhere('slug', 'like', $like)
+                    ->orWhereHas('brand', function ($bq) use ($like): void {
+                        $bq->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like);
+                    })
+                    ->orWhereHas('variants.definition', function ($vq) use ($like): void {
+                        $vq->where('title', 'like', $like);
+                    });
+                $this->orWhereBrandPlusProductNameLike($q, $like);
             }
         });
 
-        $pool = $poolQuery
+        $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike): void {
+            $q->where('name', 'like', $queryLike)
+                ->orWhere('slug', 'like', $queryLike)
+                ->orWhereHas('brand', function ($bq) use ($queryLike): void {
+                    $bq->where('name', 'like', $queryLike)
+                        ->orWhere('slug', 'like', $queryLike);
+                })
+                ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
+                    $vq->where('title', 'like', $queryLike);
+                });
+            $this->orWhereBrandPlusProductNameLike($q, $queryLike);
+        });
+        $directPool = $directMatchQuery
+            ->orderByDesc('id')
+            ->limit(self::SMART_SEARCH_DIRECT_MATCH_LIMIT)
+            ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
+
+        $directIds = $directPool->pluck('id')->all();
+        $broadQuery = (clone $poolQuery);
+        if ($directIds !== []) {
+            $broadQuery->whereKeyNot($directIds);
+        }
+        $broadPool = $broadQuery
             ->orderByDesc('id')
             ->limit(self::SMART_SEARCH_POOL_LIMIT)
-            ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit']);
+            ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
 
-        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery) {
+        $pool = $directPool->concat($broadPool)->unique('id');
+
+        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+        $activeVariantIds = $pool->flatMap(static function (Product $p): array {
+            return $p->activeVariants->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        })->unique()->values()->all();
+
+        $stocksByVariantId = collect();
+        if ($activeVariantIds !== []) {
+            $stocksByVariantId = WarehouseVariantStock::query()
+                ->whereIn('variant_id', $activeVariantIds)
+                ->whereIn('warehouse_id', array_values(array_filter([$mainWarehouseId, $supplierWarehouseId])))
+                ->get()
+                ->groupBy('variant_id');
+        }
+
+        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
             $normalizedName = $this->normalizeSearchText($name);
             $normalizedSlug = $this->normalizeSearchText($slug);
             $normalizedBrand = $this->normalizeSearchText($brandName);
-            $variantTitles = $product->activeVariants
+            $variantTitles = $product->variants
                 ?->map(static fn ($variant) => (string) ($variant->definition?->title ?? ''))
                 ->filter()
                 ->unique()
                 ->values() ?? collect();
-            $prices = $product->activeVariants
+            $prices = $product->variants
                 ?->pluck('price')
                 ->filter(static fn ($value) => $value !== null)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
-            $oldPrices = $product->activeVariants
+            $oldPrices = $product->variants
                 ?->pluck('old_price')
                 ->filter(static fn ($value) => $value !== null)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
-            $stockTotal = (int) ($product->activeVariants?->sum('stock') ?? 0);
+            $listingStockTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
+                $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+                return (int) $row['stock'];
+            }) ?? 0);
+            $listingAvailableTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
+                $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+                return (int) $row['available_stock'];
+            }) ?? 0);
             $isPreorderAvailable = (bool) ($product->activeVariants?->contains(fn ($variant) => (bool) $variant->is_preorder) ?? false);
             $mainImagePath = $product->images?->first()?->path;
             $minPrice = $prices->isEmpty() ? null : number_format((float) $prices->min(), 2, '.', '');
             $maxPrice = $prices->isEmpty() ? null : number_format((float) $prices->max(), 2, '.', '');
             $minOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->min(), 2, '.', '');
             $maxOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->max(), 2, '.', '');
+
+            $normalizedDisplay = $this->normalizeSearchText(trim($brandName.' '.$name));
+            $scoreDisplay = $normalizedDisplay !== ''
+                ? $this->similarityScore($normalizedQuery, $normalizedDisplay)
+                : 0.0;
+            if (
+                $normalizedDisplay !== ''
+                && $normalizedQuery !== ''
+                && str_contains($normalizedDisplay, $normalizedQuery)
+            ) {
+                $scoreDisplay = max($scoreDisplay, 0.98);
+            }
 
             $scoreName = $this->similarityScore($normalizedQuery, $normalizedName);
             $scoreSlug = $this->similarityScore($normalizedQuery, $normalizedSlug);
@@ -445,7 +533,8 @@ class ProductController extends Controller
                 $scoreName,
                 $scoreSlug * 0.95,
                 $scoreBrand * 1.05, // запрос по бренду должен тянуть брендовые товары выше
-                $scoreVariant * 0.9
+                $scoreVariant * 0.9,
+                $scoreDisplay * 1.08
             );
             if ($bestScore < 0.3) {
                 return null;
@@ -478,19 +567,19 @@ class ProductController extends Controller
                 ],
                 'has_discount' => !$prices->isEmpty() && !$oldPrices->isEmpty() && (float) $oldPrices->min() > (float) $prices->min(),
                 'discount_percent' => null,
-                'stock_total' => $stockTotal,
+                'stock_total' => $listingStockTotal,
                 'is_preorder_available' => $isPreorderAvailable,
-                'variants_count' => (int) ($product->activeVariants?->count() ?? 0),
+                'variants_count' => (int) ($product->variants?->count() ?? 0),
                 'variant_labels' => $variantTitles->values()->all(),
-                '_availability_rank' => $stockTotal > 0 ? 1 : 0,
+                '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
                 'score' => round($bestScore, 6),
             ];
             return $payload;
         })
             ->filter()
             ->sortBy([
-                ['_availability_rank', 'desc'],
                 ['score', 'desc'],
+                ['_availability_rank', 'desc'],
             ])
             ->take($limit)
             ->values()
@@ -498,13 +587,13 @@ class ProductController extends Controller
 
         $rankedBrands = Brand::query()
             ->where('is_active', true)
-            ->where(function ($q) use ($query, $searchPatterns) {
-                $q->where('name', 'like', "%{$query}%")
-                    ->orWhere('slug', 'like', "%{$query}%");
+            ->where(function ($q) use ($queryLike, $patternLikes): void {
+                $q->where('name', 'like', $queryLike)
+                    ->orWhere('slug', 'like', $queryLike);
 
-                foreach ($searchPatterns as $pattern) {
-                    $q->orWhere('name', 'like', "%{$pattern}%")
-                        ->orWhere('slug', 'like', "%{$pattern}%");
+                foreach ($patternLikes as $like) {
+                    $q->orWhere('name', 'like', $like)
+                        ->orWhere('slug', 'like', $like);
                 }
             })
             ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
@@ -592,6 +681,37 @@ class ProductController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Экранирование спецсимволов LIKE (%, _, \).
+     */
+    private function escapeLikeValue(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+    }
+
+    /**
+     * SQL-выражение «бренд + пробел + название товара» для сопоставления с полной строкой запроса (как на витрине).
+     */
+    private function brandProductDisplayTitleSql(string $productsTable): string
+    {
+        $driver = Product::query()->getConnection()->getDriverName();
+
+        return $driver === 'sqlite'
+            ? "trim(COALESCE(brands.name, '') || ' ' || COALESCE({$productsTable}.name, ''))"
+            : "TRIM(CONCAT(COALESCE(brands.name, ''), ' ', COALESCE({$productsTable}.name, '')))";
+    }
+
+    private function orWhereBrandPlusProductNameLike(Builder $query, string $likePattern): void
+    {
+        $productsTable = (new Product())->getTable();
+        $expr = $this->brandProductDisplayTitleSql($productsTable);
+        $query->orWhereExists(function ($sub) use ($likePattern, $expr, $productsTable): void {
+            $sub->from('brands')
+                ->whereColumn('brands.id', "{$productsTable}.brand_id")
+                ->whereRaw("{$expr} LIKE ?", [$likePattern]);
+        });
     }
 
     private function normalizeSearchText(string $value): string

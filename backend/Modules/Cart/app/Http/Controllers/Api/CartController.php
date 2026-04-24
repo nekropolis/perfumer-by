@@ -6,6 +6,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Str;
+use Modules\Loyalty\Models\DiscountCard;
+use Modules\Loyalty\Models\GiftCertificate;
+use Modules\Loyalty\Models\GiftCertificateTemplate;
+use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Cart\Http\Resources\CartResource;
 use Modules\Cart\Models\Cart;
 use Modules\Cart\Models\CartItem;
@@ -21,10 +26,16 @@ class CartController extends Controller
             $token = Str::uuid()->toString();
         }
 
-        return Cart::query()->firstOrCreate(
+        $cart = Cart::query()->firstOrCreate(
             ['token' => $token],
             ['user_id' => null]
         );
+
+        if ($request->user() && !$cart->user_id) {
+            $cart->update(['user_id' => $request->user()->id]);
+        }
+
+        return $cart;
     }
 
     public function show(Request $request): JsonResponse
@@ -34,6 +45,7 @@ class CartController extends Controller
         $cart->load([
             'items.product.brand',
             'items.variant',
+            'giftCertificateItems.template',
         ]);
 
         return response()->json([
@@ -76,6 +88,7 @@ class CartController extends Controller
         $cart->refresh()->load([
             'items.product.brand',
             'items.variant',
+            'giftCertificateItems.template',
         ]);
 
         return response()->json([
@@ -103,6 +116,7 @@ class CartController extends Controller
         $cart->refresh()->load([
             'items.product.brand',
             'items.variant',
+            'giftCertificateItems.template',
         ]);
 
         return response()->json([
@@ -124,10 +138,174 @@ class CartController extends Controller
         $cart->refresh()->load([
             'items.product.brand',
             'items.variant',
+            'giftCertificateItems.template',
         ]);
 
         return response()->json([
             'data' => new CartResource($cart),
         ]);
+    }
+
+    public function applyGiftCertificate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'code' => ['nullable', 'string', 'max:64'],
+            'number' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $cart = $this->resolveCart($request);
+        $rawCode = trim((string) ($validated['code'] ?? $validated['number'] ?? ''));
+        abort_if($rawCode === '', 422, 'Код сертификата обязателен');
+
+        $code = strtoupper($rawCode);
+        abort_if(preg_match('/^PBY-\d{4}$/', $code) !== 1, 422, 'Код сертификата должен быть в формате PBY-1234');
+
+        $certificate = GiftCertificate::query()->where('code', $code)->first();
+        abort_if(!$certificate, 422, 'Сертификат с таким кодом не найден');
+        abort_if(!app(GiftCertificateLedgerService::class)->certificateIsUsable($certificate), 422, 'Сертификат недоступен');
+
+        app(GiftCertificateLedgerService::class)->releaseAllReservesForCartToken($cart->token);
+        $cart->update(['gift_certificate_code' => $certificate->code]);
+        $cart->refresh()->load(['items.product.brand', 'items.variant']);
+        $cart->load('giftCertificateItems.template');
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function clearGiftCertificate(Request $request): JsonResponse
+    {
+        $cart = $this->resolveCart($request);
+        app(GiftCertificateLedgerService::class)->releaseAllReservesForCartToken($cart->token);
+        $cart->update(['gift_certificate_code' => null]);
+        $cart->refresh()->load(['items.product.brand', 'items.variant']);
+        $cart->load('giftCertificateItems.template');
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function applyDiscountCard(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'number' => ['required', 'string', 'max:64'],
+            'session_only' => ['sometimes', 'boolean'],
+        ]);
+
+        $cart = $this->resolveCart($request);
+        $number = trim($validated['number']);
+        $user = $request->user();
+        $sessionOnly = (bool) ($validated['session_only'] ?? false);
+
+        $card = DiscountCard::query()
+            ->where('card_number', $number)
+            ->where('status', DiscountCard::STATUS_ACTIVE)
+            ->first();
+        abort_if(!$card, 422, 'Скидочная карта не найдена или неактивна');
+
+        if ($user && !$sessionOnly) {
+            $linkedToSelf = $user->discountCards()
+                ->where('discount_cards.id', $card->id)
+                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->exists();
+
+            $linkedToOthers = $card->users()
+                ->where('users.id', '<>', $user->id)
+                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->exists();
+
+            if ($linkedToOthers && !$linkedToSelf) {
+                return response()->json([
+                    'message' => 'Эта карта не привязана к вашему аккаунту. Можно применить только к этому заказу (без привязки к профилю) или привязать карту в личном кабинете после уточнения в поддержке.',
+                    'code' => 'DISCOUNT_CARD_OTHER_ACCOUNT',
+                ], 422);
+            }
+        }
+
+        $guestSessionOnly = !$user;
+        $cart->update([
+            'discount_card_number' => $number,
+            'discount_card_session_only' => $guestSessionOnly || $sessionOnly,
+        ]);
+        $cart->refresh()->load(['items.product.brand', 'items.variant']);
+        $cart->load('giftCertificateItems.template');
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function clearDiscountCard(Request $request): JsonResponse
+    {
+        $cart = $this->resolveCart($request);
+        $cart->update([
+            'discount_card_number' => null,
+            'discount_card_session_only' => false,
+        ]);
+        $cart->refresh()->load(['items.product.brand', 'items.variant']);
+        $cart->load('giftCertificateItems.template');
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function templates(): JsonResponse
+    {
+        $items = GiftCertificateTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('amount')
+            ->get();
+
+        return response()->json(['data' => $items]);
+    }
+
+    public function addGiftCertificateItem(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'template_id' => ['required', 'integer', 'exists:gift_certificate_templates,id'],
+            'qty' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $qty = (int) ($validated['qty'] ?? 1);
+        $cart = $this->resolveCart($request);
+        $template = GiftCertificateTemplate::query()
+            ->where('id', $validated['template_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $existing = $cart->giftCertificateItems()->where('template_id', $template->id)->first();
+        if ($existing) {
+            $existing->increment('qty', $qty);
+        } else {
+            $cart->giftCertificateItems()->create([
+                'template_id' => $template->id,
+                'qty' => $qty,
+            ]);
+        }
+
+        $cart->refresh()->load(['items.product.brand', 'items.variant', 'giftCertificateItems.template']);
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function updateGiftCertificateItem(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'qty' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $cart = $this->resolveCart($request);
+        $item = $cart->giftCertificateItems()->whereKey($id)->firstOrFail();
+        $item->update(['qty' => (int) $validated['qty']]);
+
+        $cart->refresh()->load(['items.product.brand', 'items.variant', 'giftCertificateItems.template']);
+
+        return response()->json(['data' => new CartResource($cart)]);
+    }
+
+    public function deleteGiftCertificateItem(Request $request, int $id): JsonResponse
+    {
+        $cart = $this->resolveCart($request);
+        $item = $cart->giftCertificateItems()->whereKey($id)->firstOrFail();
+        $item->delete();
+
+        $cart->refresh()->load(['items.product.brand', 'items.variant', 'giftCertificateItems.template']);
+
+        return response()->json(['data' => new CartResource($cart)]);
     }
 }

@@ -26,7 +26,8 @@ class ProductVariantResource extends JsonResource
 
         $presented = CatalogVariantStockPresenter::forListing($this->resource, $mainStock, $supplierStock);
 
-        $effectivePrice = $this->price;
+        $effectivePrice = CatalogVariantStockPresenter::storefrontVariantPrice($this->resource, $presented);
+        $effectiveOldPrice = $effectivePrice !== null ? $this->old_price : null;
         $effectivePreorder = $presented['is_preorder'];
         $availableStock = $presented['available_stock'];
 
@@ -60,8 +61,8 @@ class ProductVariantResource extends JsonResource
             'display_name' => $displayName,
 
             'price' => $effectivePrice,
-            'old_price' => $this->old_price,
-            'discount_percent' => $this->discount_percent,
+            'old_price' => $effectiveOldPrice,
+            'discount_percent' => $effectivePrice !== null ? $this->discount_percent : null,
 
             'stock' => $presented['stock'],
             'available_stock' => $availableStock,

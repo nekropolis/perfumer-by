@@ -22,6 +22,7 @@ import {
     startSellerOneRefreshLinkedPricesJob,
     resetSellerOneProductLink,
     startSellerOneParseJob,
+    updateSellerOneSupplierProductParsingActive,
     updateSellerOnePricingSettings,
     updateSellerOneRule,
 } from "@/lib/admin-vanille-api";
@@ -376,9 +377,16 @@ export default function SellerOneImportPage() {
                 if (data.status === "completed") {
                     setSupplierRefreshPricesLoading(false);
                     setBatchProgress("");
+                    const shelf = Number(data.cleared_supplier_shelf_variants ?? 0);
+                    const priceChanged = Number(data.price_changed ?? 0);
+                    const outStock = Number(data.became_out_of_stock ?? 0);
+                    const inStock = Number(data.became_in_stock ?? 0);
                     const msg =
-                        data.message
-                        || `Цены обновлены: ${data.updated ?? 0}, нет в прайсе (кодов): ${data.missing_codes ?? 0}`;
+                        (typeof data.message === "string" && data.message.trim() !== "")
+                            ? data.message
+                            : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, стало «нет в наличии» — ${outStock}, «в наличии» — ${inStock}, нет кода в файле — ${data.missing_codes ?? 0}${
+                                shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
+                            }`;
                     setSupplierSuccess(msg);
                     window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
                     setRefreshLinkedJobId(null);
@@ -475,6 +483,27 @@ export default function SellerOneImportPage() {
             }
         } catch (e: unknown) {
             setSupplierError(e instanceof Error ? e.message : "Ошибка связывания");
+        } finally {
+            setLinkingRowId(null);
+        }
+    };
+
+    const handleToggleParsingActive = async (row: SellerOneSupplierProductItem, checked: boolean) => {
+        setLinkingRowId(row.id);
+        setSupplierError("");
+        try {
+            await updateSellerOneSupplierProductParsingActive({
+                supplier_product_id: row.id,
+                link_parsing_active: checked,
+            });
+            await loadRows(page);
+            setSupplierSuccess(
+                checked
+                    ? `Парсинг включён для строки #${row.id}`
+                    : `Парсинг выключен для строки #${row.id}`,
+            );
+        } catch (e: unknown) {
+            setSupplierError(e instanceof Error ? e.message : "Ошибка обновления участия в парсинге");
         } finally {
             setLinkingRowId(null);
         }
@@ -842,24 +871,33 @@ export default function SellerOneImportPage() {
                                 <span>
                                     Есть кандидат: {meta?.stats?.found_unconfirmed ?? 0}
                                 </span>
+                                <span>
+                                    Парсинг выкл.: {meta?.stats?.parsing_inactive ?? 0}
+                                </span>
                             </div>
                         </div>
                         <div className="rounded-xl border">
                             <table className="w-full table-fixed text-sm">
                                 <colgroup>
                                     <col style={{ width: "44px" }} />
+                                    <col style={{ width: "52px" }} />
                                     <col style={{ width: "84px" }} />
-                                    <col style={{ width: "34%" }} />
+                                    <col style={{ width: "30%" }} />
                                     {/* 180px чтобы поместился самый длинный бэйдж «Найдена связь (100%)» без overflow в колонку «Продукт каталога». */}
-                                    <col style={{ width: "180px" }} />
-                                    <col style={{ width: "46%" }} />
+                                    <col style={{ width: "160px" }} />
+                                    <col style={{ width: "120px" }} />
+                                    <col style={{ width: "38%" }} />
                                 </colgroup>
                                 <thead className="bg-gray-50">
                                     <tr className="text-left">
                                         <th className="px-2 py-2 text-center">Связь</th>
+                                        <th className="px-1 py-2 text-center text-[11px] leading-tight" title="Участие в парсинге прайса">
+                                            Парсинг
+                                        </th>
                                         <th className="px-2 py-2">Код</th>
                                         <th className="px-3 py-2">Товар поставщика</th>
                                         <th className="px-2 py-2 whitespace-nowrap">Статус</th>
+                                        <th className="px-2 py-2 whitespace-nowrap">Наличие</th>
                                         <th className="px-3 py-2">Продукт каталога</th>
                                     </tr>
                                 </thead>
@@ -872,6 +910,16 @@ export default function SellerOneImportPage() {
                                                     checked={Boolean(row.is_linked)}
                                                     disabled={linkingRowId === row.id || (!row.is_linked && !row.suggested_variant)}
                                                     onChange={(e) => void handleToggleLink(row, e.target.checked)}
+                                                    className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
+                                                />
+                                            </td>
+                                            <td className="px-1 py-3 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={row.link_parsing_active !== false}
+                                                    disabled={linkingRowId === row.id}
+                                                    title="Активное участие в парсинге (код из файла обрабатывается)"
+                                                    onChange={(e) => void handleToggleParsingActive(row, e.target.checked)}
                                                     className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
                                                 />
                                             </td>
@@ -900,6 +948,25 @@ export default function SellerOneImportPage() {
                                                 ) : (
                                                     <ConfidenceBadge label="Не связан" confidence={row.match_confidence} />
                                                 )}
+                                            </td>
+                                            <td className="px-2 py-3 text-xs text-gray-700">
+                                                {row.price_file_in_stock === true ? (
+                                                    <span className="text-green-700">В файле: да</span>
+                                                ) : row.price_file_in_stock === false ? (
+                                                    <span className="text-amber-800">В файле: нет</span>
+                                                ) : (
+                                                    <span className="text-gray-400">В файле: —</span>
+                                                )}
+                                                {row.is_linked && row.catalog_supplier_channel_available != null ? (
+                                                    <div className="mt-1 text-gray-600">
+                                                        Витрина:{" "}
+                                                        {row.catalog_supplier_channel_available ? (
+                                                            <span className="text-green-700">да</span>
+                                                        ) : (
+                                                            <span className="text-amber-800">нет</span>
+                                                        )}
+                                                    </div>
+                                                ) : null}
                                             </td>
                                             <td
                                                 className="cursor-pointer px-3 py-3 text-xs whitespace-normal break-words"

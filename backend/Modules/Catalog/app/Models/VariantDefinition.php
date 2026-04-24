@@ -12,12 +12,14 @@ class VariantDefinition extends Model
         'concentration_code',
         'concentration_label',
         'is_tester',
+        'excludes_from_free_delivery_threshold',
         'title',
         'sort_order',
     ];
 
     protected $casts = [
         'is_tester' => 'boolean',
+        'excludes_from_free_delivery_threshold' => 'boolean',
     ];
 
     public function productLinks(): HasMany
