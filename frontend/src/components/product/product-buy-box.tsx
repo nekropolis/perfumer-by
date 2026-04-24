@@ -70,9 +70,9 @@ export default function ProductBuyBox({
                                 ? formatPrice(loyaltyPrice)
                                 : selectedVariant.price
                                     ? formatPrice(selectedVariant.price)
-                                : selectedVariant.is_preorder
-                                    ? "Предзаказ"
-                                    : "Цена уточняется"}
+                                    : selectedVariant.is_preorder
+                                        ? "Предзаказ"
+                                        : "Цена уточняется"}
                         </div>
 
                         {(selectedVariant.old_price || (loyaltyPrice && selectedVariant.price)) && (
