@@ -27,6 +27,9 @@
 #   ./scripts/deploy-dev.sh --only-backend  # только backend
 #   ./scripts/deploy-dev.sh --only-frontend # только frontend
 #   ./scripts/deploy-dev.sh --logs          # после деплоя tail -F логов (Ctrl+C)
+#   ./scripts/deploy-dev.sh --npm-ci        # frontend: полный npm ci (тяжело по RAM;
+#                                             по умолчанию — npm install по lockfile)
+#   FRONTEND_NPM_SUBCMD=ci ./scripts/deploy-dev.sh  # то же, что --npm-ci
 #   ./scripts/deploy-dev.sh --help
 #
 # Переопределение путей (если ставишь проект не в /var/www/perfumer-by):
@@ -67,6 +70,9 @@ DO_FRONTEND_DEPS=1
 DO_FRONTEND_BUILD=1
 DO_FRONTEND_RELOAD=1
 TAIL_LOGS=0
+# frontend: «install» не сносит node_modules целиком — меньше пик памяти на слабом dev;
+# «ci» — чистая переустановка (как prod), нужна если node_modules повреждён/рассинхрон).
+FRONTEND_NPM_SUBCMD="${FRONTEND_NPM_SUBCMD:-install}"
 
 print_help() {
     sed -n '1,/^set -Eeuo/ p' "$0" | sed 's/^# \{0,1\}//'
@@ -90,6 +96,7 @@ while [[ $# -gt 0 ]]; do
             DO_QUEUE_RESTART=0
             ;;
         --logs)               TAIL_LOGS=1 ;;
+        --npm-ci)             FRONTEND_NPM_SUBCMD=ci ;;
         -h|--help)            print_help ;;
         *)
             printf 'Unknown flag: %s\n' "$1" >&2
@@ -217,8 +224,8 @@ fi
 # ---------------------------------------------------------------------------
 
 if [[ $DO_FRONTEND_DEPS -eq 1 ]]; then
-    log "npm ci (frontend)"
-    (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund --prefer-offline)
+    log "npm $FRONTEND_NPM_SUBCMD (frontend)"
+    (cd "$FRONTEND" && "$NPM_BIN" "$FRONTEND_NPM_SUBCMD" --no-audit --no-fund --prefer-offline --progress=false)
     ok "frontend deps установлены"
 fi
 
