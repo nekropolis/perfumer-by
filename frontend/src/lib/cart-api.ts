@@ -30,12 +30,9 @@ export class GiftCertificateApplyError extends Error {
     }
 }
 
-export function normalizeGiftCertificateDigits(input: string): string {
-    return input.replace(/\D/g, "").slice(0, 4);
-}
-
-export function toGiftCertificateCode(digits: string): string {
-    return `PBY-${normalizeGiftCertificateDigits(digits)}`;
+/** Нормализация ввода кода при применении сертификата в корзине (без префикса PBY-). */
+export function normalizeGiftCertificateCodeInput(input: string): string {
+    return input.trim().slice(0, 64);
 }
 
 function extractApiMessage(text: string, fallback: string): string {
@@ -155,7 +152,7 @@ export async function applyDiscountCard(number: string, sessionOnly = false): Pr
     if (!res.ok) {
         const text = await res.text();
         let code: string | undefined;
-        let message = extractApiMessage(text, "Не удалось применить скидочную карту");
+        const message = extractApiMessage(text, "Не удалось применить скидочную карту");
         try {
             const payload = text ? JSON.parse(text) : null;
             if (payload?.code) {

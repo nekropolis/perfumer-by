@@ -17,6 +17,10 @@ import ProductsTable from "@/components/admin/products/products-table";
 import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
+import {
+    fetchProductVariants,
+    updateProductVariant,
+} from "@/lib/admin-product-variants-api";
 import { PRODUCT_STATUS_FILTER_OPTIONS } from "@/lib/product-statuses";
 import {
     deleteProduct,
@@ -26,13 +30,6 @@ import {
     type ProductVariantSupplierItem,
     type ProductsAdminResponse,
 } from "@/lib/admin-products-api";
-
-function formatSitePrice(value: number | string | null | undefined): string {
-    if (value === null || value === undefined || value === "") {
-        return "—";
-    }
-    return `${value} BYN`;
-}
 
 export default function AdminProductsPage() {
     const STOCK_FILTER_OPTIONS = [
@@ -57,6 +54,8 @@ export default function AdminProductsPage() {
     const [variantsTarget, setVariantsTarget] = useState<ProductAdminItem | null>(null);
     const [variantSuppliers, setVariantSuppliers] = useState<ProductVariantSupplierItem[]>([]);
     const [variantsLoading, setVariantsLoading] = useState(false);
+    const [variantPriceDrafts, setVariantPriceDrafts] = useState<Record<number, string>>({});
+    const [variantPriceSavingId, setVariantPriceSavingId] = useState<number | null>(null);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -101,6 +100,8 @@ export default function AdminProductsPage() {
     const openVariantsModal = async (item: ProductAdminItem) => {
         setVariantsTarget(item);
         setVariantSuppliers([]);
+        setVariantPriceDrafts({});
+        setVariantPriceSavingId(null);
         setVariantsLoading(true);
         setError("");
         try {
@@ -112,6 +113,102 @@ export default function AdminProductsPage() {
                     ? e.message : "Ошибка загрузки вариантов и поставщиков");
         } finally {
             setVariantsLoading(false);
+        }
+    };
+
+    const getVariantPriceInputValue = (variant: ProductVariantSupplierItem): string => {
+        const draft = variantPriceDrafts[variant.id];
+        if (draft !== undefined) {
+            return draft;
+        }
+
+        if (variant.site_price === null || variant.site_price === undefined || variant.site_price === "") {
+            return "";
+        }
+
+        return String(variant.site_price);
+    };
+
+    const saveVariantSitePriceOnBlur = async (variant: ProductVariantSupplierItem) => {
+        if (!variantsTarget) {
+            return;
+        }
+
+        const currentValue = getVariantPriceInputValue(variant).trim();
+        const normalizedCurrent = currentValue.replace(",", ".");
+        const originalValue = variant.site_price === null || variant.site_price === undefined || variant.site_price === ""
+            ? ""
+            : String(variant.site_price).trim();
+        const normalizedOriginal = originalValue.replace(",", ".");
+
+        if (normalizedCurrent === normalizedOriginal) {
+            setVariantPriceDrafts((prev) => {
+                if (!(variant.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[variant.id];
+                return next;
+            });
+            return;
+        }
+
+        if (normalizedCurrent !== "") {
+            const numeric = Number(normalizedCurrent);
+            if (!Number.isFinite(numeric) || numeric < 0) {
+                setError("Цена должна быть числом больше или равным 0");
+                setVariantPriceDrafts((prev) => ({
+                    ...prev,
+                    [variant.id]: originalValue,
+                }));
+                return;
+            }
+        }
+
+        setVariantPriceSavingId(variant.id);
+        setError("");
+        setSuccess("");
+        try {
+            const variantsResponse = await fetchProductVariants(variantsTarget.id);
+            const actualVariant = variantsResponse.data.find((row) => row.id === variant.id);
+            if (!actualVariant) {
+                throw new Error("Вариант не найден для обновления");
+            }
+
+            await updateProductVariant(variantsTarget.id, variant.id, {
+                variant_definition_id: actualVariant.variant_definition_id ?? undefined,
+                price: normalizedCurrent === "" ? null : normalizedCurrent,
+                old_price: actualVariant.old_price ?? null,
+                stock: actualVariant.stock ?? 0,
+                is_preorder: actualVariant.is_preorder ?? false,
+                is_active: actualVariant.is_active ?? true,
+                sort_order: actualVariant.sort_order ?? 0,
+            });
+
+            setVariantSuppliers((prev) =>
+                prev.map((row) =>
+                    row.id === variant.id
+                        ? { ...row, site_price: normalizedCurrent === "" ? null : normalizedCurrent }
+                        : row
+                )
+            );
+            setVariantPriceDrafts((prev) => {
+                if (!(variant.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[variant.id];
+                return next;
+            });
+            setSuccess("Цена варианта обновлена");
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка обновления цены варианта");
+            setVariantPriceDrafts((prev) => ({
+                ...prev,
+                [variant.id]: originalValue,
+            }));
+        } finally {
+            setVariantPriceSavingId((prev) => (prev === variant.id ? null : prev));
         }
     };
 
@@ -274,9 +371,24 @@ export default function AdminProductsPage() {
                                                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
                                                         Остаток: {variant.stock}
                                                     </span>
-                                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                                        {formatSitePrice(variant.site_price)}
-                                                    </span>
+                                                    <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={getVariantPriceInputValue(variant)}
+                                                            onChange={(e) =>
+                                                                setVariantPriceDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [variant.id]: e.target.value,
+                                                                }))
+                                                            }
+                                                            onBlur={() => void saveVariantSitePriceOnBlur(variant)}
+                                                            disabled={variantPriceSavingId === variant.id}
+                                                            placeholder="—"
+                                                            className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs text-emerald-700 outline-none focus:border-emerald-300"
+                                                        />
+                                                        <span>{variantPriceSavingId === variant.id ? "Сохранение..." : "BYN"}</span>
+                                                    </div>
                                                 </div>
 
                                                 <div className="mt-2 overflow-x-auto">

@@ -47,8 +47,7 @@ export default function AdminOrderEditPage() {
 
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Редактировать заказ</h1>
-          <p className="mt-1 text-sm text-gray-600">Изменение заказа #{params.id}</p>
+          <h1 className="text-2xl font-semibold">Редактировать заказ #{params.id}</h1>
         </div>
         <Link href="/admin/orders" className="rounded-xl border px-4 py-2 text-sm">
           Назад

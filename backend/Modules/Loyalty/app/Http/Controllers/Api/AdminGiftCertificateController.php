@@ -50,6 +50,7 @@ class AdminGiftCertificateController extends Controller
     ): JsonResponse
     {
         $validated = $request->validate([
+            'code' => ['required', 'string', 'max:64', Rule::unique('gift_certificates', 'code')],
             'template_id' => ['nullable', 'integer', 'exists:gift_certificate_templates,id'],
             'initial_amount' => ['nullable', 'numeric', 'min:0.01'],
             'source' => ['nullable', 'string', 'max:32'],
@@ -64,6 +65,7 @@ class AdminGiftCertificateController extends Controller
         ]);
 
         $item = $issueService->issue([
+            'code' => trim((string) $validated['code']),
             'template_id' => $validated['template_id'] ?? null,
             'initial_amount' => isset($validated['initial_amount']) ? (float) $validated['initial_amount'] : null,
             'source' => $validated['source'] ?? GiftCertificate::SOURCE_MANUAL,

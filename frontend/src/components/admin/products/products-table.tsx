@@ -26,10 +26,10 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 function ProductStatusChips({
-    isNew,
-    isHit,
-    hasDiscount,
-}: {
+                                isNew,
+                                isHit,
+                                hasDiscount,
+                            }: {
     isNew: boolean;
     isHit: boolean;
     hasDiscount: boolean;
@@ -41,11 +41,11 @@ function ProductStatusChips({
     }
 
     return (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {chips.map((chip) => (
                 <span
                     key={chip.code}
-                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${chip.adminClassName}`}
+                    className={`text-[9px] font-semibold leading-none ${chip.adminClassName}`}
                 >
                     {chip.shortLabel}
                 </span>
@@ -72,7 +72,7 @@ export default function ProductsTable({ items, onDeleteAction, onVariantsAction 
                 </thead>
                 <tbody>
                 {items.map((item) => (
-                    <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
+                    <tr key={item.id} className="border-t border-gray-100 align-center transition hover:bg-gray-50/70">
                         <td className="px-3 py-3 text-gray-500">{item.id}</td>
                         <td className="px-3 py-3 font-medium text-gray-900">{item.name}</td>
                         <td className="px-3 py-3 text-gray-700">{item.brand?.name ?? "—"}</td>

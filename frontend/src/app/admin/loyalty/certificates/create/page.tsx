@@ -45,8 +45,15 @@ export default function AdminGiftCertificateCreatePage() {
             return;
         }
 
+        if (!form.code.trim()) {
+            setError("Укажите код сертификата");
+            setSubmitting(false);
+            return;
+        }
+
         try {
             await createGiftCertificate({
+                code: form.code.trim(),
                 template_id: form.template_id ? Number(form.template_id) : undefined,
                 initial_amount: form.initial_amount.trim() ? Number(form.initial_amount) : undefined,
                 source: form.source?.trim() || "manual",

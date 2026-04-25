@@ -11,10 +11,9 @@ import {
     DiscountCardApplyError,
     fetchGiftCertificateTemplates,
     GiftCertificateApplyError,
-    normalizeGiftCertificateDigits,
+    normalizeGiftCertificateCodeInput,
     removeGiftCertificateTemplateCartItem,
     removeCartItem,
-    toGiftCertificateCode,
     type GiftCertificateTemplatePublic,
     updateGiftCertificateTemplateCartItem,
     updateCartItem,
@@ -27,7 +26,7 @@ export default function CartPage() {
     const { cart, loading, setCartState } = useCart();
     const { isAuthenticated } = useAuth();
     const [isPending, startTransition] = useTransition();
-    const [giftCertificateDigits, setGiftCertificateDigits] = useState("");
+    const [giftCertificateCode, setGiftCertificateCode] = useState("");
     const [giftCertificateHoneypot, setGiftCertificateHoneypot] = useState("");
     const [giftCertificateLastAttemptAt, setGiftCertificateLastAttemptAt] = useState(0);
     const [discountCardNumber, setDiscountCardNumber] = useState("");
@@ -346,23 +345,20 @@ export default function CartPage() {
                                 {!cart.gift_certificate ? (
                                     <>
                                         <div className="flex gap-2">
-                                            <div className="flex w-full items-center rounded-xl border border-[var(--line)] bg-[var(--background)]">
-                                                <span className="border-r border-[var(--line)] pl-3 pr-1 py-2 text-sm text-[var(--text-secondary)]">PBY-</span>
-                                                <input
-                                                    value={giftCertificateDigits}
-                                                    onChange={(e) => {
-                                                        setGiftCertificateDigits(normalizeGiftCertificateDigits(e.target.value));
-                                                        setGiftCertificateApplyError("");
-                                                    }}
-                                                    inputMode="numeric"
-                                                    maxLength={4}
-                                                    placeholder="0000"
-                                                    className="w-full rounded-r-xl bg-transparent px-2 py-2 text-sm outline-none"
-                                                />
-                                            </div>
+                                            <input
+                                                value={giftCertificateCode}
+                                                onChange={(e) => {
+                                                    setGiftCertificateCode(normalizeGiftCertificateCodeInput(e.target.value));
+                                                    setGiftCertificateApplyError("");
+                                                }}
+                                                maxLength={64}
+                                                placeholder="Код сертификата"
+                                                autoComplete="off"
+                                                className="min-w-0 flex-1 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm outline-none"
+                                            />
                                             <button
                                                 type="button"
-                                                disabled={isPending || giftCertificateDigits.length !== 4}
+                                                disabled={isPending || normalizeGiftCertificateCodeInput(giftCertificateCode) === ""}
                                                 onClick={() =>
                                                     startTransition(async () => {
                                                         setGiftCertificateApplyError("");
@@ -379,7 +375,7 @@ export default function CartPage() {
 
                                                         setGiftCertificateLastAttemptAt(Date.now());
                                                         try {
-                                                            const response = await applyGiftCertificate(toGiftCertificateCode(giftCertificateDigits));
+                                                            const response = await applyGiftCertificate(giftCertificateCode);
                                                             setCartState(response.data);
                                                         } catch (e) {
                                                             if (e instanceof GiftCertificateApplyError) {
@@ -424,7 +420,7 @@ export default function CartPage() {
                                             onClick={() =>
                                                 startTransition(async () => {
                                                     setGiftCertificateApplyError("");
-                                                    setGiftCertificateDigits("");
+                                                    setGiftCertificateCode("");
                                                     const response = await clearGiftCertificate();
                                                     setCartState(response.data);
                                                 })

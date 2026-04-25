@@ -19,8 +19,6 @@ type Props = {
     total: string;
     discountCard: DiscountCardLine | null;
     giftCertificate: GiftLine | null;
-    /** «Доставка» и т.п. */
-    showDeliveryNote?: boolean;
     /** Стоимость доставки (строка с руб.); если «0.00» — покажем «Бесплатно» */
     deliveryFee?: string | null;
     /** Итог к оплате с учётом доставки; если не задан — используется `total` */
@@ -39,7 +37,6 @@ export default function CartPricingBreakdown({
     total,
     discountCard,
     giftCertificate,
-    showDeliveryNote = true,
     deliveryFee,
     grandTotal,
     className = "",
@@ -66,7 +63,7 @@ export default function CartPricingBreakdown({
                 <span className="text-[var(--foreground)]">{subtotal} руб.</span>
             </div>
 
-            {deliveryFee != null && deliveryFee !== undefined ? (
+            {deliveryFee != null ? (
                 <div className="flex items-center justify-between">
                     <span>Доставка</span>
                     <span>
@@ -76,11 +73,6 @@ export default function CartPricingBreakdown({
                             <span>{deliveryFee} руб.</span>
                         )}
                     </span>
-                </div>
-            ) : showDeliveryNote ? (
-                <div className="flex items-center justify-between">
-                    <span>Доставка</span>
-                    <span>По тарифам</span>
                 </div>
             ) : null}
 

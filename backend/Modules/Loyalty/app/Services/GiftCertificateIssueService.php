@@ -9,10 +9,6 @@ use Modules\Loyalty\Models\GiftCertificateTransaction;
 
 class GiftCertificateIssueService
 {
-    public function __construct(
-        private readonly GiftCertificateCodeService $codeService,
-    ) {}
-
     /**
      * @param array{
      *   template_id?: int|null,
@@ -55,7 +51,7 @@ class GiftCertificateIssueService
         } elseif ($source === GiftCertificate::SOURCE_SOLD || ($soldOrderId !== null && (int) $soldOrderId > 0)) {
             $code = null;
         } else {
-            $code = $this->codeService->generateCode();
+            throw new \InvalidArgumentException('Код сертификата обязателен');
         }
 
         $awaitingManagerCode = $code === null

@@ -40,10 +40,10 @@ export default function GiftCertificateForm({
                     <input
                         type="text"
                         value={form.code}
-                        readOnly={isCreate}
+                        maxLength={64}
                         onChange={(e) => onChangeAction({ ...form, code: e.target.value })}
                         placeholder="Введите код сертификата"
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200 read-only:bg-gray-50"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 

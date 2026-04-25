@@ -154,11 +154,8 @@ class CartController extends Controller
         ]);
 
         $cart = $this->resolveCart($request);
-        $rawCode = trim((string) ($validated['code'] ?? $validated['number'] ?? ''));
-        abort_if($rawCode === '', 422, 'Код сертификата обязателен');
-
-        $code = strtoupper($rawCode);
-        abort_if(preg_match('/^PBY-\d{4}$/', $code) !== 1, 422, 'Код сертификата должен быть в формате PBY-1234');
+        $code = trim((string) ($validated['code'] ?? $validated['number'] ?? ''));
+        abort_if($code === '', 422, 'Код сертификата обязателен');
 
         $certificate = GiftCertificate::query()->where('code', $code)->first();
         abort_if(!$certificate, 422, 'Сертификат с таким кодом не найден');

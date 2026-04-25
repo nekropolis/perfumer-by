@@ -109,6 +109,7 @@ export async function fetchGiftCertificateTemplates(): Promise<{ data: GiftCerti
 }
 
 export async function createGiftCertificate(payload: {
+    code: string;
     template_id?: number | null;
     initial_amount?: number;
     source?: string;

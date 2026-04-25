@@ -19,12 +19,12 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductController extends Controller
 {
-    private const SMART_SEARCH_POOL_LIMIT = 900;
+    private const int SMART_SEARCH_POOL_LIMIT = 900;
     /** Товары с прямым вхождением полной строки запроса — не вытесняются «новыми» ID из общего пула. */
-    private const SMART_SEARCH_DIRECT_MATCH_LIMIT = 600;
-    private const SMART_SEARCH_RESULT_LIMIT = 10;
-    private const SMART_SEARCH_MAX_LIMIT = 30;
-    private const VOLUME_BUCKETS = [
+    private const int SMART_SEARCH_DIRECT_MATCH_LIMIT = 600;
+    private const int SMART_SEARCH_RESULT_LIMIT = 10;
+    private const int SMART_SEARCH_MAX_LIMIT = 30;
+    private const array VOLUME_BUCKETS = [
         ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
         ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
         ['key' => '10-25', 'label' => '10-25', 'min' => 10, 'max' => 25],
@@ -38,7 +38,7 @@ class ProductController extends Controller
      *
      * @var list<string>
      */
-    private const VARIANT_LINK_COLUMNS = [
+    private const array VARIANT_LINK_COLUMNS = [
         'id',
         'product_id',
         'variant_definition_id',
@@ -56,7 +56,7 @@ class ProductController extends Controller
      *
      * @var list<string>
      */
-    private const VARIANT_DEFINITION_COLUMNS = [
+    private const array VARIANT_DEFINITION_COLUMNS = [
         'id',
         'volume_ml',
         'concentration_code',
