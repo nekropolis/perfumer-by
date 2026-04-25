@@ -2,10 +2,12 @@
 
 namespace Modules\Cart\Http\Controllers\Api;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\GiftCertificateTemplate;
@@ -18,6 +20,11 @@ use Modules\Catalog\Models\ProductVariantLink;
 
 class CartController extends Controller
 {
+    private function resolveAuthenticatedUser(Request $request): ?Authenticatable
+    {
+        return $request->user() ?? Auth::guard('sanctum')->user();
+    }
+
     protected function resolveCart(Request $request): Cart
     {
         $token = $request->header('X-Cart-Token') ?: $request->input('cart_token');
@@ -31,8 +38,9 @@ class CartController extends Controller
             ['user_id' => null]
         );
 
-        if ($request->user() && !$cart->user_id) {
-            $cart->update(['user_id' => $request->user()->id]);
+        $user = $this->resolveAuthenticatedUser($request);
+        if ($user && !$cart->user_id) {
+            $cart->update(['user_id' => $user->id]);
         }
 
         return $cart;
@@ -189,7 +197,7 @@ class CartController extends Controller
 
         $cart = $this->resolveCart($request);
         $number = trim($validated['number']);
-        $user = $request->user();
+        $user = $this->resolveAuthenticatedUser($request);
         $sessionOnly = (bool) ($validated['session_only'] ?? false);
 
         $card = DiscountCard::query()
@@ -216,28 +224,8 @@ class CartController extends Controller
                 ], 422);
             }
 
-            // Auto-link while applying in cart if card is safe to attach.
-            if (!$linkedToSelf) {
-                $existingLink = $user->discountCards()
-                    ->where('discount_cards.id', $card->id)
-                    ->first();
-
-                if ($existingLink) {
-                    $user->discountCards()->updateExistingPivot($card->id, [
-                        'verified_at' => now(),
-                        'source' => UserDiscountCard::SOURCE_ORDER,
-                        'link_status' => UserDiscountCard::LINK_VERIFIED,
-                    ]);
-                } else {
-                    $user->discountCards()->attach($card->id, [
-                        'linked_at' => now(),
-                        'verified_at' => now(),
-                        'is_primary' => false,
-                        'source' => UserDiscountCard::SOURCE_ORDER,
-                        'link_status' => UserDiscountCard::LINK_VERIFIED,
-                    ]);
-                }
-            }
+            // В корзине/checkout карту не привязываем к профилю.
+            // Привязка разрешена только в ЛК или через админку.
         }
 
         $guestSessionOnly = !$user;

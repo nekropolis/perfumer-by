@@ -5,6 +5,7 @@ namespace Modules\Checkout\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
 use Modules\Checkout\Services\CheckoutDeliveryService;
@@ -34,7 +35,7 @@ class CheckoutQuoteController extends Controller
 
         abort_if(!$cart, 422, 'Cart not found');
 
-        $user = $request->user();
+        $user = $request->user() ?? Auth::guard('sanctum')->user();
         $quote = $quoteService->quote($cart, $user, $validated['payment_method'], $validated['delivery_method']);
 
         return response()->json([

@@ -4,6 +4,7 @@ namespace Modules\Cart\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Auth;
 use Modules\Loyalty\Services\LoyaltyPricingService;
 
 class CartResource extends JsonResource
@@ -12,8 +13,9 @@ class CartResource extends JsonResource
     {
         $items = $this->items;
         $giftCertificateItems = $this->giftCertificateItems;
+        $user = $request->user() ?? Auth::guard('sanctum')->user();
 
-        $pricing = app(LoyaltyPricingService::class)->calculateForCart($this->resource, $request->user());
+        $pricing = app(LoyaltyPricingService::class)->calculateForCart($this->resource, $user);
 
         $qty = (int) $items->sum('qty') + (int) $giftCertificateItems->sum('qty');
         $giftCertificatesSubtotal = (float) $giftCertificateItems->sum(function ($row) {

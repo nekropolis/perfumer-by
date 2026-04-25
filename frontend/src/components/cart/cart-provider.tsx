@@ -11,6 +11,7 @@ import {
 } from "react";
 import { fetchCart } from "@/lib/cart-api";
 import type { CartData } from "@/types/cart";
+import { useAuth } from "@/components/auth/auth-provider";
 
 type CartContextType = {
     cart: CartData | null;
@@ -27,6 +28,7 @@ type Props = {
 };
 
 export function CartProvider({ children }: Props) {
+    const { isAuthenticated, user } = useAuth();
     const [cart, setCart] = useState<CartData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,12 @@ export function CartProvider({ children }: Props) {
     useEffect(() => {
         void refreshCart();
     }, [refreshCart]);
+
+    useEffect(() => {
+        // After login/logout or user switch, refetch cart with current auth context
+        // so linked loyalty card and pricing are reflected immediately.
+        void refreshCart();
+    }, [isAuthenticated, user?.id, refreshCart]);
 
     const cartQty = useMemo(() => {
         if (!cart) {

@@ -79,11 +79,11 @@ export function AuthProvider({ children }: Props) {
     const login = useCallback(
         async (token: string, authUser?: AuthUser | null) => {
             setAuthToken(token);
+            setLoading(true);
 
             if (authUser) {
+                // Optimistic user to unlock guarded routes quickly.
                 setUser(authUser);
-                setLoading(false);
-                return;
             }
 
             await refreshUser();

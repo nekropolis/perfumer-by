@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, startTransition } from "react";
 import { fetchMyOrder } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
@@ -8,6 +9,7 @@ import {
     getOrderStatusStyle,
 } from "@/constants/order-statuses";
 import OrderDiscountSummary from "@/components/account/order-discount-summary";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 
 type Props = {
     orderId: number | null;
@@ -70,14 +72,9 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                 className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="mb-5 flex items-start justify-between gap-4">
-                    <div>
-                        <div className="text-sm uppercase tracking-[0.22em] text-[var(--text-secondary)]">
-                            Order details
-                        </div>
-                        <h3 className="mt-2 text-2xl font-semibold font-display">
-                            Заказ #{orderId}
-                        </h3>
+                <div className="mb-3 flex items-center justify-between gap-4">
+                    <div className="text-[var(--text-secondary)]">
+                        Заказ #{orderId}
                     </div>
 
                     <button
@@ -101,14 +98,11 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                     {!loading && order && (
                         <div>
                             <div className="mb-6 flex flex-wrap items-center gap-3">
+                                <span> Статус заказа: </span>
                                 <div
                                     className={`rounded-full px-3 py-1 text-sm ${getOrderStatusStyle(order.status)}`}
                                 >
-                                    {getOrderStatusLabel(order.status)}
-                                </div>
-
-                                <div className="text-sm text-[var(--text-secondary)]">
-                                    Телефон: {order.phone}
+                                   {getOrderStatusLabel(order.status)}
                                 </div>
                             </div>
 
@@ -124,17 +118,50 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                             <div className="space-y-4">
                                 {order.items.map((item) => (
-                                    <div key={item.id}
-                                         className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
-                                        <div className="text-sm text-[var(--text-secondary)]">{item.brand_name}</div>
-                                        <div className="text-lg font-medium">{item.product_name}</div>
-                                        <div className="text-sm text-[var(--text-secondary)]">{item.variant_title}</div>
+                                    <div
+                                        key={item.id}
+                                        className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 sm:p-4"
+                                    >
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                {item.image ? (
+                                                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-[var(--background)] sm:h-14 sm:w-14">
+                                                        <Image
+                                                            src={normalizeProductImageUrl(item.image)}
+                                                            loader={productImageLoader}
+                                                            alt={item.product_name}
+                                                            fill
+                                                            sizes="56px"
+                                                            className="object-cover"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--background)] text-[10px] font-semibold text-[var(--text-secondary)] sm:h-14 sm:w-14 sm:text-xs">
+                                                        Товар
+                                                    </div>
+                                                )}
 
-                                        <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--foreground)]">
-                                            <div>SKU: {item.sku || "—"}</div>
-                                            <div>Количество: {item.qty}</div>
-                                            <div>Цена: {item.price} руб.</div>
-                                            <div>Сумма: {item.total} руб.</div>
+                                                <div className="min-w-0 flex-1 text-left">
+                                                    <div className="break-words text-sm font-medium leading-snug text-[var(--foreground)] sm:text-base">
+                                                        {item.product_name}
+                                                        {item.variant_title && (
+                                                            <span className="text-[var(--text-secondary)]">
+                                                                {" "}— {item.variant_title}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="mt-1 flex flex-col gap-0.5 text-xs leading-relaxed text-[var(--text-secondary)] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:text-sm">
+                                                        <span>Код товара: {item.sku || item.id}</span>
+                                                        <span>Цена: {item.price} руб.</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between rounded-xl bg-[var(--background)] px-3 py-2 text-sm font-medium text-[var(--foreground)] sm:block sm:bg-transparent sm:p-0 sm:text-right">
+                                                <div>Кол-во: {item.qty}</div>
+                                                <div className="sm:mt-1">Сумма: {item.total} руб.</div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -143,34 +170,15 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                         key={row.id}
                                         className="rounded-2xl border border-violet-200/80 bg-violet-50/40 p-4"
                                     >
-                                        <div className="text-xs font-semibold uppercase tracking-wide text-violet-900">
-                                            Подарочный сертификат
+                                        <div className="mt-1 text-lg font-medium">
+                                            Подарочный сертификат: {row.template_title}
                                         </div>
-                                        <div className="mt-1 text-lg font-medium">{row.template_title}</div>
                                         <div className="mt-2 text-sm text-[var(--text-secondary)]">
                                             Номинал {row.amount} руб. × {row.qty} шт. — {row.total} руб.
                                         </div>
-                                    </div>
-                                ))}
-                                {order.sold_gift_certificates?.map((row) => (
-                                    <div
-                                        key={row.id}
-                                        className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-4"
-                                    >
-                                        <div className="text-xs font-semibold uppercase tracking-wide text-emerald-900">
-                                            Подарочный сертификат
+                                        <div className="mt-2 text-xs text-[var(--text-secondary)]">
+                                            Остаток по сертификату уточняйте у менеджера.
                                         </div>
-                                        <div className="mt-1 text-lg font-medium">
-                                            {row.template_title ?? "Сертификат"} · {row.initial_amount} руб.
-                                        </div>
-                                        {row.code ? (
-                                            <div className="mt-2 font-mono text-sm">Код: {row.code}</div>
-                                        ) : (
-                                            <div className="mt-2 text-sm text-[var(--text-secondary)]">
-                                                Код сообщат после выполнения заказа (номер наносится на сертификат в
-                                                магазине).
-                                            </div>
-                                        )}
                                     </div>
                                 ))}
                             </div>

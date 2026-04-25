@@ -37,6 +37,7 @@ export default function CartPage() {
     const [giftCertQuickAddOpen, setGiftCertQuickAddOpen] = useState(false);
 
     const cardInCart = cart?.discount_card ?? null;
+    const canRemoveDiscountCard = Boolean(cardInCart) && (!isAuthenticated || Boolean(cardInCart?.session_only));
 
     const changeQty = (itemId: number, qty: number) => {
         if (qty < 1) return;
@@ -523,24 +524,26 @@ export default function CartPage() {
                                                 {cardInCart.number}
                                             </div>
                                         </div>
-                                        <button
-                                            type="button"
-                                            disabled={isPending}
-                                            onClick={() =>
-                                                startTransition(async () => {
-                                                    const response = await clearDiscountCard();
-                                                    setCartState(response.data);
-                                                    setDiscountCardConflict(null);
-                                                    setDiscountCardApplyError("");
-                                                    setDiscountCardNumber("");
-                                                })
-                                            }
-                                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
-                                            aria-label="Убрать карту"
-                                            title="Убрать карту"
-                                        >
-                                            ×
-                                        </button>
+                                        {canRemoveDiscountCard ? (
+                                            <button
+                                                type="button"
+                                                disabled={isPending}
+                                                onClick={() =>
+                                                    startTransition(async () => {
+                                                        const response = await clearDiscountCard();
+                                                        setCartState(response.data);
+                                                        setDiscountCardConflict(null);
+                                                        setDiscountCardApplyError("");
+                                                        setDiscountCardNumber("");
+                                                    })
+                                                }
+                                                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                                aria-label="Убрать карту"
+                                                title="Убрать карту"
+                                            >
+                                                ×
+                                            </button>
+                                        ) : null}
                                     </div>
                                 )}
                             </div>

@@ -157,96 +157,90 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
 
                     {!ordersLoading && orders.length > 0 && (
                         <div className="space-y-3">
-                            {orders.map((order) => (
-                                <article
-                                    key={order.id}
-                                    className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(31,23,34,0.07)]"
-                                >
-                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                        <div>
-                                            <div className="flex flex-wrap items-center gap-3">
-                                                <h3 className="text-lg font-semibold">
-                                                    Заказ #{order.id}
-                                                </h3>
+                            {orders.map((order) => {
+                                const previewRows = [
+                                    ...order.items.map((item) => ({
+                                        key: `item-${item.id}`,
+                                        title: item.product_name,
+                                        subtitle: item.variant_title,
+                                        right: `${item.qty} × ${item.price} BYN`,
+                                    })),
+                                    ...(order.gift_certificate_purchases ?? []).map((row) => ({
+                                        key: `gift-${row.id}`,
+                                        title: `Подарочный сертификат: ${row.template_title}`,
+                                        subtitle: `${row.qty} шт.`,
+                                        right: `${row.total} BYN`,
+                                    })),
+                                ].slice(0, 2);
 
-                                                <div
-                                                    className={`rounded-full px-3 py-1 text-xs ${getOrderStatusStyle(order.status)}`}
-                                                >
-                                                    {getOrderStatusLabel(order.status)}
+                                return (
+                                    <article
+                                        key={order.id}
+                                        className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(31,23,34,0.07)]"
+                                    >
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <h3 className="text-lg font-semibold">
+                                                        Заказ #{order.id}
+                                                    </h3>
+
+                                                    <div
+                                                        className={`rounded-full px-3 py-1 text-xs ${getOrderStatusStyle(order.status)}`}
+                                                    >
+                                                        {getOrderStatusLabel(order.status)}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="mt-2 text-sm text-[var(--text-secondary)]">
-                                                {order.items_qty} товаров ·{" "}
-                                                {Number(order.total).toLocaleString("ru-RU")} BYN
-                                            </div>
-                                            {(() => {
-                                                const cardDiscount = parseMoney(order.discount_amount);
-                                                const certificateDiscount = parseMoney(order.gift_certificate_amount);
-                                                const totalDiscount = cardDiscount + certificateDiscount;
-                                                if (totalDiscount <= 0.004) {
-                                                    return null;
-                                                }
+                                                <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                                                    {order.items_qty} товаров ·{" "}
+                                                    {Number(order.total).toLocaleString("ru-RU")} BYN
+                                                </div>
+                                                {(() => {
+                                                    const cardDiscount = parseMoney(order.discount_amount);
+                                                    const certificateDiscount = parseMoney(order.gift_certificate_amount);
+                                                    const totalDiscount = cardDiscount + certificateDiscount;
+                                                    if (totalDiscount <= 0.004) {
+                                                        return null;
+                                                    }
 
-                                                const cardNo = order.discount_card_number?.trim();
-                                                const reasonParts: string[] = [];
-                                                if (cardDiscount > 0.004) {
-                                                    reasonParts.push(
-                                                        cardNo
-                                                            ? `карта ${cardNo}`
-                                                            : "карта лояльности (карта удалена)"
+                                                    const cardNo = order.discount_card_number?.trim();
+                                                    const reasonParts: string[] = [];
+                                                    if (cardDiscount > 0.004) {
+                                                        reasonParts.push(
+                                                            cardNo
+                                                                ? `карта ${cardNo}`
+                                                                : "карта лояльности (карта удалена)"
+                                                        );
+                                                    }
+                                                    if (certificateDiscount > 0.004) {
+                                                        reasonParts.push("подарочный сертификат");
+                                                    }
+
+                                                    return (
+                                                        <div className="mt-1 text-xs font-medium text-green-700">
+                                                            Скидка: −{totalDiscount.toLocaleString("ru-RU", {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2,
+                                                            })}{" "}
+                                                            BYN
+                                                            {reasonParts.length > 0 ? ` · ${reasonParts.join(", ")}` : ""}
+                                                        </div>
                                                     );
-                                                }
-                                                if (certificateDiscount > 0.004) {
-                                                    reasonParts.push("подарочный сертификат");
-                                                }
-
-                                                return (
-                                                    <div className="mt-1 text-xs font-medium text-green-700">
-                                                        Скидка: −{totalDiscount.toLocaleString("ru-RU", {
-                                                            minimumFractionDigits: 2,
-                                                            maximumFractionDigits: 2,
-                                                        })}{" "}
-                                                        BYN
-                                                        {reasonParts.length > 0 ? ` · ${reasonParts.join(", ")}` : ""}
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedOrderId(order.id)}
-                                            className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-                                        >
-                                            Подробнее
-                                        </button>
-                                    </div>
-
-                                    <div className="mt-5 space-y-2">
-                                        {order.items.slice(0, 2).map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="flex items-center justify-between gap-4 rounded-2xl bg-[var(--background)] px-4 py-3 text-sm"
-                                            >
-                                                <div>
-                                                    <div className="font-medium">
-                                                        {item.product_name}
-                                                    </div>
-
-                                                    <div className="text-[var(--text-secondary)]">
-                                                        {item.variant_title}
-                                                    </div>
-                                                </div>
-
-                                                <div className="text-[var(--text-secondary)]">
-                                                    {item.qty} × {item.price} BYN
-                                                </div>
+                                                })()}
                                             </div>
-                                        ))}
-                                    </div>
-                                </article>
-                            ))}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedOrderId(order.id)}
+                                                className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                                            >
+                                                Подробнее
+                                            </button>
+                                        </div>
+                                    </article>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

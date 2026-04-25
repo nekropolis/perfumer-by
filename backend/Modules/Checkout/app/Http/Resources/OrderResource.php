@@ -93,6 +93,9 @@ class OrderResource extends JsonResource
                     'qty' => $item->qty,
                     'price' => number_format((float) $item->price, 2, '.', ''),
                     'total' => number_format((float) $item->total, 2, '.', ''),
+                    'image' => $item->relationLoaded('product')
+                        ? ($item->product?->mainImage?->path ?? null)
+                        : null,
                 ];
 
                 // Supplier offers отдаём только когда явно подгружены (admin API).

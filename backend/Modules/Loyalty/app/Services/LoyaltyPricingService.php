@@ -104,7 +104,7 @@ class LoyaltyPricingService
                 ->where('status', DiscountCard::STATUS_ACTIVE)
                 ->first();
             if (!$card) {
-                return null;
+                return $this->resolveUserVerifiedCard($user);
             }
 
             if (!$user || $cart->discount_card_session_only) {
@@ -118,6 +118,15 @@ class LoyaltyPricingService
             return $card;
         }
 
+        if (!$user) {
+            return null;
+        }
+
+        return $this->resolveUserVerifiedCard($user);
+    }
+
+    private function resolveUserVerifiedCard(?CustomerUser $user): ?DiscountCard
+    {
         if (!$user) {
             return null;
         }

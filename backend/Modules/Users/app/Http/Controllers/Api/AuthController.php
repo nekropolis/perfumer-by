@@ -340,9 +340,41 @@ class AuthController extends Controller
 
     protected function attachOrdersToUser(User $user, string $phone): void
     {
+        if ($phone === '') {
+            return;
+        }
+
+        // Fast path for normalized phones.
         Order::query()
             ->whereNull('user_id')
             ->where('phone', $phone)
+            ->update([
+                'user_id' => $user->id,
+            ]);
+
+        // Fallback for legacy formatted phones.
+        $suffix = strlen($phone) >= 9 ? substr($phone, -9) : $phone;
+        if ($suffix === '') {
+            return;
+        }
+
+        $candidateIds = Order::query()
+            ->whereNull('user_id')
+            ->where('phone', 'like', '%'.$suffix.'%')
+            ->latest('id')
+            ->limit(1000)
+            ->get(['id', 'phone'])
+            ->filter(fn (Order $order) => $this->normalizePhone((string) $order->phone) === $phone)
+            ->pluck('id')
+            ->all();
+
+        if ($candidateIds === []) {
+            return;
+        }
+
+        Order::query()
+            ->whereNull('user_id')
+            ->whereIn('id', $candidateIds)
             ->update([
                 'user_id' => $user->id,
             ]);

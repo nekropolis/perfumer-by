@@ -63,19 +63,6 @@ export default function CartPricingBreakdown({
                 <span className="text-[var(--foreground)]">{subtotal} руб.</span>
             </div>
 
-            {deliveryFee != null ? (
-                <div className="flex items-center justify-between">
-                    <span>Доставка</span>
-                    <span>
-                        {parseMoney(deliveryFee) < 0.005 ? (
-                            <span className="text-green-700">Бесплатно</span>
-                        ) : (
-                            <span>{deliveryFee} руб.</span>
-                        )}
-                    </span>
-                </div>
-            ) : null}
-
             {hasCard ? (
                 <div className="flex flex-col gap-0.5 rounded-xl border border-green-200/60 bg-green-50/40 px-3 py-2 text-green-900">
                     <div className="flex items-center justify-between gap-2">
@@ -102,6 +89,19 @@ export default function CartPricingBreakdown({
                 <div className="flex items-center justify-between rounded-lg bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--foreground)]">
                     <span>Выгода по скидкам</span>
                     <span className="font-semibold text-green-700">{savings.toFixed(2)} руб.</span>
+                </div>
+            ) : null}
+
+            {deliveryFee != null ? (
+                <div className="flex items-center justify-between">
+                    <span>Доставка</span>
+                    <span>
+                        {parseMoney(deliveryFee) < 0.005 ? (
+                            <span className="text-green-700">Бесплатно</span>
+                        ) : (
+                            <span>{deliveryFee} руб.</span>
+                        )}
+                    </span>
                 </div>
             ) : null}
 

@@ -221,6 +221,7 @@ export default function CheckoutPage() {
     }
 
     const cardInCheckout = cart.discount_card ?? null;
+    const canRemoveDiscountCard = Boolean(cardInCheckout) && (!isAuthenticated || Boolean(cardInCheckout?.session_only));
 
     const discountCardForBreakdown =
         quote == null
@@ -686,24 +687,26 @@ export default function CheckoutPage() {
                                             {cart.discount_card.number}
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        disabled={isPending}
-                                        onClick={() =>
-                                            startTransition(async () => {
-                                                const response = await clearDiscountCard();
-                                                setCartState(response.data);
-                                                setDiscountCardConflict(null);
-                                                setDiscountCardApplyError("");
-                                                setDiscountCardNumber("");
-                                            })
-                                        }
-                                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
-                                        aria-label="Убрать карту"
-                                        title="Убрать карту"
-                                    >
-                                        ×
-                                    </button>
+                                    {canRemoveDiscountCard ? (
+                                        <button
+                                            type="button"
+                                            disabled={isPending}
+                                            onClick={() =>
+                                                startTransition(async () => {
+                                                    const response = await clearDiscountCard();
+                                                    setCartState(response.data);
+                                                    setDiscountCardConflict(null);
+                                                    setDiscountCardApplyError("");
+                                                    setDiscountCardNumber("");
+                                                })
+                                            }
+                                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-40"
+                                            aria-label="Убрать карту"
+                                            title="Убрать карту"
+                                        >
+                                            ×
+                                        </button>
+                                    ) : null}
                                 </div>
                             )}
                         </div>
@@ -714,7 +717,9 @@ export default function CheckoutPage() {
                             Карта <span className="font-mono text-[var(--foreground)]">{cardInCheckout.number}</span> в корзине.
                             {paymentMethod === "card"
                                 ? " При оплате картой процент скидки к заказу не применяется."
-                                : " Процент и сумма скидки — см. блок выше (пересчёт при оформлении)."}
+                                : parseMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
+                                  ? ` Скидка: ${quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−${quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount} руб.).`
+                                  : " Скидка по карте для текущих условий не применяется."}
                         </p>
                     ) : null}
                 </aside>

@@ -62,6 +62,7 @@ export type OrderItem = {
     qty: number;
     price: string;
     total: string;
+    image?: string | null;
     supplier_offers?: OrderItemSupplierOffer[];
     receipt_batches?: OrderItemReceiptBatch[];
 };
