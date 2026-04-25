@@ -1,5 +1,3 @@
-export const HEADER_PROMO_TEXT = "Бесплатная доставка по Минску от 150 BYN";
-
 export const HEADER_PHONE_SHORT_LABEL = "640-88-33";
 
 export const HEADER_PHONE_DROPDOWN_LINKS = [

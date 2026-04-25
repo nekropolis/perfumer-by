@@ -1,5 +1,6 @@
 import { getAuthToken } from "@/lib/auth-token";
 import { getCartToken } from "@/lib/cart-token";
+import { fetchSiteContent } from "@/lib/site-content-api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -85,9 +86,15 @@ export type CheckoutResponse = {
 };
 
 export async function fetchCheckoutShopSettings(): Promise<{ data: CheckoutShopSettings }> {
-    const res = await fetch(`${API_BASE}/checkout/shop-settings`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Checkout shop settings error: ${res.status}`);
-    return res.json();
+    const res = await fetchSiteContent();
+    return {
+        data: {
+            delivery_minsk_free_threshold: res.data.delivery_minsk_free_threshold,
+            delivery_minsk_fee: res.data.delivery_minsk_fee,
+            delivery_belarus_fee: res.data.delivery_belarus_fee,
+            delivery_belarus_free_min_lines: res.data.delivery_belarus_free_min_lines,
+        },
+    };
 }
 
 export async function searchCheckoutCities(query: string): Promise<{ data: CheckoutCityHit[] }> {

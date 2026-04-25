@@ -20,8 +20,8 @@ import {
     HEADER_PHONE_SHORT_LABEL,
     HEADER_POPULAR_SEARCHES,
     HEADER_SECONDARY_LINKS,
-    HEADER_PROMO_TEXT,
 } from "@/components/layout/header/config";
+import { fetchSiteContent } from "@/lib/site-content-api";
 
 function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     const min = item.price_range?.min ?? null;
@@ -75,7 +75,13 @@ function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     return priceBlock;
 }
 
+function formatMinskFreeDeliveryPromo(threshold: number): string {
+    const n = Number.isFinite(threshold) ? threshold : 50;
+    return `Бесплатная доставка по Минску от ${n} BYN`;
+}
+
 export default function Header() {
+    const [promoText, setPromoText] = useState(() => formatMinskFreeDeliveryPromo(50));
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
     const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -108,6 +114,24 @@ export default function Header() {
     } = useHeaderSearch({
         onAfterNavigateAction: () => setIsMobileOpen(false),
     });
+
+    useEffect(() => {
+        let cancelled = false;
+        void fetchSiteContent()
+            .then((res) => {
+                if (!cancelled) {
+                    setPromoText(
+                        formatMinskFreeDeliveryPromo(res.data.delivery_minsk_free_threshold),
+                    );
+                }
+            })
+            .catch(() => {
+                /* оставляем строку по умолчанию */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -261,7 +285,7 @@ export default function Header() {
         <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--header-bg)]/95 shadow-sm backdrop-blur">
             <HeaderServiceBar
                 isCompact={isCompact}
-                promoText={HEADER_PROMO_TEXT}
+                promoText={promoText}
                 phoneShortLabel={HEADER_PHONE_SHORT_LABEL}
                 phoneDropdownLinks={HEADER_PHONE_DROPDOWN_LINKS}
                 messengerLinks={HEADER_MESSENGER_LINKS}

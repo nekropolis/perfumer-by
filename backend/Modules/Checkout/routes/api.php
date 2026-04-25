@@ -6,6 +6,7 @@ use Modules\Checkout\Http\Controllers\Api\CheckoutCitiesController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutQuoteController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutShopSettingsPublicController;
+use Modules\Checkout\Http\Controllers\Api\PublicSiteContentController;
 use Modules\Checkout\Http\Controllers\Api\OrderController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
@@ -13,6 +14,8 @@ use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
 use Modules\Checkout\Http\Controllers\Api\CallbackRequestController;
 use Modules\Checkout\Http\Controllers\Api\AdminDashboardController;
 use Modules\Communications\Http\Controllers\Admin\TelegramTestController;
+
+Route::middleware('throttle:60,1')->get('/site/content', [PublicSiteContentController::class, 'show']);
 
 Route::prefix('checkout')->group(function () {
     Route::middleware('throttle:60,1')->get('/shop-settings', [CheckoutShopSettingsPublicController::class, 'show']);
