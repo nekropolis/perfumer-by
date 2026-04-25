@@ -71,6 +71,8 @@ export default function AdminBlocksPage() {
 
     return (
         <AdminPageCard>
+            <ContentCatalogTabs />
+
             <AdminTableToolbar
                 title="Блоки на странице"
                 description="Переиспользуемые CMS-блоки без отдельного URL"
@@ -80,10 +82,6 @@ export default function AdminBlocksPage() {
                     </Link>
                 }
             />
-
-            <div className="mb-4">
-                <ContentCatalogTabs />
-            </div>
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

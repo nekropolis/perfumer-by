@@ -22,7 +22,7 @@ export default function AdminRichTabs<T extends string>({
     items,
     activeTab,
     onChangeAction,
-    className = "mb-5 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm",
+    className = "mb-2 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm",
     columnsClassName = "grid gap-2 md:grid-cols-3",
     showDescription = true,
 }: Props<T>) {

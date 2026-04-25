@@ -115,10 +115,6 @@ class LoyaltyPricingService
                 return $card;
             }
 
-            if ($this->cardHasOtherVerifiedOwners($card, $user)) {
-                return null;
-            }
-
             return $card;
         }
 
@@ -160,11 +156,4 @@ class LoyaltyPricingService
             ->exists();
     }
 
-    private function cardHasOtherVerifiedOwners(DiscountCard $card, CustomerUser $user): bool
-    {
-        return $card->users()
-            ->where('users.id', '<>', $user->id)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
-            ->exists();
-    }
 }

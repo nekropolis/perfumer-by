@@ -32,46 +32,96 @@ export default function UserAccount({ user, logoutAction }: UserAccountProps) {
     const [attachModalOpen, setAttachModalOpen] = useState(false);
 
     const activeCard = resolveActiveLoyaltyCard(user?.discount_cards);
+    const userInitial = user?.name?.trim()?.[0]?.toUpperCase() || "U";
 
     return (
-        <aside className="h-fit rounded-2xl border p-5">
-            <div className="mb-5">
-                <div className="mb-1 text-sm text-gray-500">Имя</div>
-                <div className="font-medium">{user?.name || "—"}</div>
-            </div>
-
-            <div className="mb-6">
-                <div className="mb-1 text-sm text-gray-500">Телефон</div>
-                <div className="font-medium">{user?.phone || "—"}</div>
-            </div>
-
-            <div className="mb-6 border-t border-gray-100 pt-6">
-                <div className="mb-1 text-sm text-gray-500">Накопительная карта</div>
-                {activeCard ? (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
-                        <div className="font-mono text-base font-semibold text-gray-900">{activeCard.number}</div>
-                        <div className="mt-1 text-gray-700">Скидка {formatDiscountPercent(String(activeCard.discountPercent))}%</div>
+        <aside className="space-y-5">
+            <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
+                <div className="flex items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-xl font-semibold text-white shadow-lg">
+                        {userInitial}
                     </div>
-                ) : (
+
+                    <div className="min-w-0">
+                        <div className="truncate text-lg font-semibold text-[var(--foreground)]">
+                            {user?.name || "Гость"}
+                        </div>
+
+                        <div className="mt-1 text-sm text-[var(--text-secondary)]">
+                            {user?.phone || "Телефон не указан"}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-[var(--background)] px-4 py-3">
+                    <div className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                        Статус
+                    </div>
+
+                    <div className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                        {activeCard ? "Постоянный клиент" : "Новый клиент"}
+                    </div>
+                </div>
+            </section>
+
+            <section className="overflow-hidden rounded-[2rem] bg-[var(--accent)] p-5 text-white shadow-[0_24px_70px_rgba(111,74,126,0.22)]">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <div className="text-xs font-medium uppercase tracking-[0.24em] text-white/60">
+                            Карта лояльности
+                        </div>
+
+                        {activeCard ? (
+                            <>
+                                <div className="mt-7 font-mono text-xl font-semibold tracking-wide">
+                                    {activeCard.number}
+                                </div>
+
+                                <div className="mt-2 text-sm text-white/75">
+                                    Накопительная скидка
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="mt-7 text-xl font-semibold">
+                                    Карта не привязана
+                                </div>
+
+                                <div className="mt-2 text-sm text-white/75">
+                                    Добавьте карту и получайте скидки.
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {activeCard ? (
+                        <div className="rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-[var(--accent)]">
+                            {formatDiscountPercent(String(activeCard.discountPercent))}%
+                        </div>
+                    ) : null}
+                </div>
+
+                {!activeCard ? (
                     <button
                         type="button"
                         onClick={() => setAttachModalOpen(true)}
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50"
+                        className="mt-6 w-full rounded-2xl bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                     >
                         Добавить карту
                     </button>
-                )}
-            </div>
+                ) : null}
+            </section>
 
-            <div className="space-y-2">
+            <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_24px_70px_rgba(31,23,34,0.05)]">
                 <button
                     type="button"
-                    className="w-full rounded-xl bg-black px-4 py-3 text-left text-sm text-white"
                     onClick={logoutAction}
+                    className="mt-2 flex w-full items-center justify-between rounded-2xl bg-[var(--accent)] px-4 py-3 text-left text-sm font-semibold text-white transition hover:opacity-90"
                 >
                     Выйти
+                    <span className="text-white/60">→</span>
                 </button>
-            </div>
+            </section>
 
             {attachModalOpen ? (
                 <AttachLoyaltyCardModal

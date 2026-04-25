@@ -272,7 +272,7 @@ export default function AdminOrdersPage() {
                     onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                     onErrorMessageAction={(message) => setToast({ type: "error", message })}
                     dateFilterSummary={dateFilterSummary}
-                    onDateFilterHeaderClick={() => dateFilterRef.current?.open()}
+                    onDateFilterHeaderClickAction={() => dateFilterRef.current?.open()}
                 />
             )}
 

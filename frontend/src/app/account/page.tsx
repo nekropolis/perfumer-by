@@ -9,7 +9,7 @@ import {useEffect} from "react";
 import {isPrivilegedRole} from "@/constants/admin-roles";
 
 export default function AccountPage() {
-    const { user, isAuthenticated, loading, logout } = useAuth();
+    const { user, isAuthenticated, loading, logout, refreshUser } = useAuth();
 
     const router = useRouter();
 
@@ -18,6 +18,31 @@ export default function AccountPage() {
             router.replace("/admin");
         }
     }, [loading, isAuthenticated, user?.role, router]);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            return;
+        }
+
+        const refreshSafely = () => {
+            if (document.visibilityState === "visible") {
+                void refreshUser();
+            }
+        };
+
+        const intervalId = window.setInterval(() => {
+            void refreshUser();
+        }, 20000);
+
+        window.addEventListener("focus", refreshSafely);
+        document.addEventListener("visibilitychange", refreshSafely);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener("focus", refreshSafely);
+            document.removeEventListener("visibilitychange", refreshSafely);
+        };
+    }, [isAuthenticated, refreshUser]);
 
     if (loading) {
         return (
@@ -40,12 +65,18 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-            <h1 className="mb-8 text-3xl font-semibold">Личный кабинет</h1>
+        <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+                <div className="mb-8">
+                    <div className="text-sm font-medium uppercase tracking-[0.24em] text-[var(--text-secondary)]">
+                        Личный кабинет
+                    </div>
+                </div>
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_1fr]">
-                <UserAccount user={user} logoutAction={logout} />
-                <OrdersAccount isAuthenticated={isAuthenticated} />
+                <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+                    <UserAccount user={user} logoutAction={logout} />
+                    <OrdersAccount isAuthenticated={isAuthenticated} />
+                </div>
             </div>
         </main>
     );

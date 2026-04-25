@@ -14,7 +14,7 @@ export default function AdminTableToolbar({
                                               children,
                                           }: Props) {
     return (
-        <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50/70 p-4 sm:p-5">
+        <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50/70 p-3 sm:p-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                     <h2 className="text-2xl font-semibold tracking-tight text-gray-950">

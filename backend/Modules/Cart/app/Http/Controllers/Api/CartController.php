@@ -204,16 +204,39 @@ class CartController extends Controller
                 ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
                 ->exists();
 
-            $linkedToOthers = $card->users()
-                ->where('users.id', '<>', $user->id)
+            $linkedToOtherCard = $user->discountCards()
+                ->where('discount_cards.id', '<>', $card->id)
                 ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
                 ->exists();
 
-            if ($linkedToOthers && !$linkedToSelf) {
+            if ($linkedToOtherCard && !$linkedToSelf) {
                 return response()->json([
-                    'message' => 'Эта карта не привязана к вашему аккаунту. Можно применить только к этому заказу (без привязки к профилю) или привязать карту в личном кабинете после уточнения в поддержке.',
-                    'code' => 'DISCOUNT_CARD_OTHER_ACCOUNT',
+                    'message' => 'К вашему аккаунту уже привязана другая карта. У клиента может быть только одна карта.',
+                    'code' => 'USER_ALREADY_HAS_DISCOUNT_CARD',
                 ], 422);
+            }
+
+            // Auto-link while applying in cart if card is safe to attach.
+            if (!$linkedToSelf) {
+                $existingLink = $user->discountCards()
+                    ->where('discount_cards.id', $card->id)
+                    ->first();
+
+                if ($existingLink) {
+                    $user->discountCards()->updateExistingPivot($card->id, [
+                        'verified_at' => now(),
+                        'source' => UserDiscountCard::SOURCE_ORDER,
+                        'link_status' => UserDiscountCard::LINK_VERIFIED,
+                    ]);
+                } else {
+                    $user->discountCards()->attach($card->id, [
+                        'linked_at' => now(),
+                        'verified_at' => now(),
+                        'is_primary' => false,
+                        'source' => UserDiscountCard::SOURCE_ORDER,
+                        'link_status' => UserDiscountCard::LINK_VERIFIED,
+                    ]);
+                }
             }
         }
 

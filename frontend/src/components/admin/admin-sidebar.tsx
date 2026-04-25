@@ -81,6 +81,15 @@ const sections: SidebarSection[] = [
         ],
     },
     {
+        key: "loyalty",
+        label: "Лояльность",
+        items: [
+            { type: "link", href: "/admin/loyalty/cards", label: "Накопительные карты", icon: CreditCard },
+            { type: "link", href: "/admin/loyalty/certificates", label: "Сертификаты", icon: Ticket },
+            { type: "link", href: "/admin/loyalty/reports", label: "Отчеты лояльности", icon: FileBarChart },
+        ],
+    },
+    {
         key: "warehouse",
         label: "Склад",
         items: [
@@ -96,15 +105,6 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
-        ],
-    },
-    {
-        key: "loyalty",
-        label: "Лояльность",
-        items: [
-            { type: "link", href: "/admin/loyalty/cards", label: "Накопительные карты", icon: CreditCard },
-            { type: "link", href: "/admin/loyalty/certificates", label: "Сертификаты", icon: Ticket },
-            { type: "link", href: "/admin/loyalty/reports", label: "Отчеты лояльности", icon: FileBarChart },
         ],
     },
     {

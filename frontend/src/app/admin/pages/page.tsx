@@ -71,6 +71,8 @@ export default function AdminPagesPage() {
 
     return (
         <AdminPageCard>
+            <ContentCatalogTabs />
+
             <AdminTableToolbar
                 title="Страницы"
                 description="CMS-страницы сайта"
@@ -80,10 +82,6 @@ export default function AdminPagesPage() {
                     </Link>
                 }
             />
-
-            <div className="mb-4">
-                <ContentCatalogTabs />
-            </div>
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

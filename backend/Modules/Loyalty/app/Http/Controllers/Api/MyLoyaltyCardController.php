@@ -57,25 +57,17 @@ class MyLoyaltyCardController extends Controller
             ]);
         }
 
-        $otherVerified = $card->users()
-            ->where('users.id', '<>', $user->id)
+        $hasOtherVerifiedCard = $user->discountCards()
+            ->where('discount_cards.id', '<>', $card->id)
             ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
             ->exists();
 
-        if ($otherVerified) {
-            $user->discountCards()->attach($card->id, [
-                'linked_at' => now(),
-                'verified_at' => null,
-                'is_primary' => false,
-                'source' => UserDiscountCard::SOURCE_REGISTRATION,
-                'link_status' => UserDiscountCard::LINK_PENDING_CONFLICT,
-            ]);
-
+        if ($hasOtherVerifiedCard) {
             return response()->json([
-                'data' => $card->fresh(),
-                'link_status' => UserDiscountCard::LINK_PENDING_CONFLICT,
-                'message' => 'Карта уже используется другим аккаунтом. Обратитесь в поддержку для уточнения.',
-            ], 201);
+                'message' => 'К вашему аккаунту уже привязана другая карта. У клиента может быть только одна карта.',
+                'link_status' => UserDiscountCard::LINK_REJECTED,
+                'code' => 'USER_ALREADY_HAS_DISCOUNT_CARD',
+            ], 422);
         }
 
         $user->discountCards()->attach($card->id, [

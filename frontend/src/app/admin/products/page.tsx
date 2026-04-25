@@ -237,6 +237,8 @@ export default function AdminProductsPage() {
 
     return (
         <AdminPageCard>
+            <ProductCatalogTabs />
+
             <AdminTableToolbar
                 title="Продукты"
                 description="Просмотр, создание, редактирование и удаление продуктов"
@@ -250,7 +252,6 @@ export default function AdminProductsPage() {
                 }
             >
             </AdminTableToolbar>
-            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage

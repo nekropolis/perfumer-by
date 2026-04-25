@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
 use Modules\Loyalty\Models\DiscountCard;
@@ -122,15 +123,23 @@ class AdminLoyaltyCardController extends Controller
         ]);
 
         $user = User::query()->findOrFail((int) $validated['user_id']);
-        $card->users()->syncWithoutDetaching([
-            $user->id => [
-                'linked_at' => now(),
-                'verified_at' => now(),
-                'is_primary' => false,
-                'source' => UserDiscountCard::SOURCE_MANAGER,
-                'link_status' => UserDiscountCard::LINK_VERIFIED,
-            ],
-        ]);
+        DB::transaction(function () use ($card, $user) {
+            // One card per user: remove other verified links before attaching target card.
+            $user->discountCards()
+                ->where('discount_cards.id', '<>', $card->id)
+                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->detach();
+
+            $card->users()->syncWithoutDetaching([
+                $user->id => [
+                    'linked_at' => now(),
+                    'verified_at' => now(),
+                    'is_primary' => false,
+                    'source' => UserDiscountCard::SOURCE_MANAGER,
+                    'link_status' => UserDiscountCard::LINK_VERIFIED,
+                ],
+            ]);
+        });
 
         app(AuditLogService::class)->record('discount_card', (int) $card->id, AuditLogService::ACTION_UPDATED, 'Карта привязана к пользователю');
 

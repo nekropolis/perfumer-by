@@ -17,7 +17,7 @@ type Props = {
     /** Подпись фильтра по дате создания (как у кнопки в тулбаре). */
     dateFilterSummary?: string;
     /** Открыть тот же попап фильтра по датам (вызывается с родителя). */
-    onDateFilterHeaderClick?: () => void;
+    onDateFilterHeaderClickAction?: () => void;
 };
 
 const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
@@ -29,7 +29,7 @@ export default function AdminOrdersTable({
     onSuccessMessageAction,
     onErrorMessageAction,
     dateFilterSummary,
-    onDateFilterHeaderClick,
+    onDateFilterHeaderClickAction,
 }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
@@ -108,15 +108,15 @@ export default function AdminOrdersTable({
                             <th className="px-4 py-4">Кол-во</th>
                             <th className="px-4 py-4">Сумма</th>
                             <th className="px-4 py-4 align-top">
-                                {onDateFilterHeaderClick !== undefined && dateFilterSummary !== undefined ? (
+                                {onDateFilterHeaderClickAction !== undefined && dateFilterSummary !== undefined ? (
                                     <button
                                         type="button"
-                                        onClick={onDateFilterHeaderClick}
+                                        onClick={onDateFilterHeaderClickAction}
                                         className="flex max-w-[11rem] flex-col items-start gap-0.5 rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-gray-200 hover:bg-gray-50 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
                                         title="Фильтр по дате создания заказа"
                                     >
-                                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Дата</span>
-                                        <span className="line-clamp-2 text-[13px] font-medium leading-snug text-gray-900">
+                                        <span className="tracking-wide text-gray-500">Дата</span>
+                                        <span className="text-[10px] font-medium leading-snug text-gray-900">
                                             {dateFilterSummary}
                                         </span>
                                     </button>

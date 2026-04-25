@@ -38,7 +38,7 @@ function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string
         return "Заказ";
     }
     const src =
-        payload && typeof payload === "object" && payload !== null && "stock_source" in payload
+        payload && typeof payload === "object" && "stock_source" in payload
             ? String((payload as { stock_source?: string }).stock_source)
             : "";
     if (src === "reserved") {
@@ -459,15 +459,15 @@ export default function WarehouseReportsPage() {
 
     return (
         <AdminPageCard>
-            <AdminTableToolbar
-                title="Склад: отчеты"
-                description="Единая страница для аналитики по приходам, списаниям и продажам."
-            />
-
             <AdminRichTabs
                 items={REPORT_TABS}
                 activeTab={activeTab}
                 onChangeAction={setActiveTab}
+            />
+
+            <AdminTableToolbar
+                title="Склад: отчеты"
+                description="Единая страница для аналитики по приходам, списаниям и продажам."
             />
 
             <div className="mb-4 flex flex-wrap gap-3">

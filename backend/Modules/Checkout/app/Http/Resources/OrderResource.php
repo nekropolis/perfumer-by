@@ -35,6 +35,7 @@ class OrderResource extends JsonResource
         $giftTotalFromPivot = $giftLines->sum(fn ($row) => (float) $row->amount_applied);
         $giftTotal = $giftFromOrder > 0.0001 ? $giftFromOrder : $giftTotalFromPivot;
         $giftCode = $this->gift_certificate_code ?: $firstGift?->code_snapshot;
+        $discountAmount = $this->resolveDiscountAmount($giftTotal);
 
         $deliveryMethod = (string) ($this->delivery_method ?? '');
         $paymentMethod = (string) ($this->payment_method ?? '');
@@ -78,7 +79,7 @@ class OrderResource extends JsonResource
             'sold_gift_certificates' => $this->soldGiftCertificatesForResource(),
             'discount_card_number' => $this->discount_card_number,
             'discount_percent_snapshot' => number_format((float) $this->discount_percent_snapshot, 2, '.', ''),
-            'discount_amount' => number_format((float) $this->discount_amount, 2, '.', ''),
+            'discount_amount' => number_format($discountAmount, 2, '.', ''),
             'items' => $this->items->map(function ($item) use ($receiptItemsByVariant) {
                 $data = [
                     'id' => $item->id,
@@ -232,5 +233,21 @@ class OrderResource extends JsonResource
             '' => null,
             default => $method,
         };
+    }
+
+    private function resolveDiscountAmount(float $giftAmount): float
+    {
+        $storedDiscount = round((float) $this->discount_amount, 2);
+        if ($storedDiscount > 0.0001) {
+            return $storedDiscount;
+        }
+
+        // Fallback for legacy data: derive discount from monetary snapshots.
+        $subtotal = round((float) $this->subtotal, 2);
+        $deliveryFee = round((float) ($this->delivery_fee ?? 0), 2);
+        $total = round((float) $this->total, 2);
+        $inferredDiscount = round($subtotal + $deliveryFee - $giftAmount - $total, 2);
+
+        return $inferredDiscount > 0.0001 ? $inferredDiscount : 0.0;
     }
 }

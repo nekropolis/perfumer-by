@@ -69,6 +69,7 @@ export default function HeaderSearch({
                 </svg>
 
                 <input
+                    suppressHydrationWarning
                     ref={desktopSearchInputRef}
                     value={searchQuery}
                     onFocus={onFocusAction}

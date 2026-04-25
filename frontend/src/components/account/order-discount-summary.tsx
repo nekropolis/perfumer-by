@@ -15,7 +15,7 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
     const certAmt = parseMoney(order.gift_certificate_amount);
     const cardNo = order.discount_card_number?.trim();
     const pct = order.discount_percent_snapshot?.trim();
-    const hasCard = Boolean(cardNo) && cardAmt > 0;
+    const hasCard = cardAmt > 0;
     const certLabel = order.gift_certificate_code || order.gift_certificate_number;
     const hasCert = Boolean(certLabel) && certAmt > 0;
     const savings = Math.max(0, sub - tot);
@@ -34,7 +34,10 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
             {hasCard ? (
                 <div className="flex justify-between text-green-800">
                     <span>
-                        Карта <span className="font-mono font-medium">{cardNo}</span>
+                        Карта{" "}
+                        <span className="font-mono font-medium">
+                            {cardNo && cardNo !== "" ? cardNo : "удалена"}
+                        </span>
                         {pct ? <span> ({pct}%)</span> : null}
                     </span>
                     <span>−{order.discount_amount} руб.</span>

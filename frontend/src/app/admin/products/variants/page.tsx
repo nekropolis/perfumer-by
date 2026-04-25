@@ -120,6 +120,8 @@ export default function AdminProductVariantsPage() {
 
     return (
         <AdminPageCard>
+            <ProductCatalogTabs />
+            
             <AdminTableToolbar
                 title="Варианты продукта"
                 description="Справочник вариантов товара: объем, концентрация, тестер"
@@ -132,7 +134,6 @@ export default function AdminProductVariantsPage() {
                     </Link>
                 }
             />
-            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />
