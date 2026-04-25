@@ -1,0 +1,54 @@
+---
+description: Tailwind CSS and UI rules
+alwaysApply: true
+---
+
+## Styling Rules
+
+- Tailwind CSS only.
+- Reuse existing utility classes.
+- Mobile first.
+- Responsive layouts required.
+- Keep spacing consistent.
+- Prefer clean modern UI.
+- Avoid oversized paddings/margins.
+- Avoid decorative clutter.
+- Preserve existing visual style.
+
+## Admin Panel UI
+
+Priority:
+1. information density
+2. readability
+3. speed of use
+4. responsive support
+
+Rules:
+- Prefer compact layouts in admin panel.
+- Tables may scroll horizontally.
+- Controls should be compact.
+- Forms should be efficient.
+- Desktop-first, mobile supported.
+- Actions should be obvious.
+- Avoid large empty spaces.
+- Avoid oversized cards, paddings, buttons, and inputs unless current project style requires them.
+
+## Modal Rules
+
+- Use portal when existing project pattern uses portal.
+- Close on overlay click if current UX allows.
+- Prevent body scroll while opened.
+- Respect viewport height.
+- Internal content should scroll, not the whole page.
+- Mobile modal may use bottom-sheet style.
+- Desktop modal should be centered.
+- Modals must fit viewport height.
+
+## Table Rules
+
+- Tables must be responsive.
+- Horizontal scroll is allowed.
+- Use compact row height.
+- Numeric columns should be aligned right if useful.
+- Actions should be aligned consistently.
+- Preserve readability on mobile.

@@ -1,0 +1,24 @@
+---
+description: Minimal edit workflow
+alwaysApply: false
+---
+
+When editing code:
+
+- Change only the files explicitly needed.
+- Do not reformat whole files.
+- Do not rename variables/classes unless necessary.
+- Do not rewrite components/services/controllers from scratch.
+- Do not introduce new abstractions unless explicitly requested.
+- Preserve existing architecture.
+- Preserve existing business logic.
+- Prefer small diffs.
+- If multiple solutions exist, choose the smallest safe fix.
+- Do not change both `backend/` and `frontend/` unless the bug requires both.
+- Do not change API contracts unless explicitly requested.
+- Do not move files unless requested.
+- Do not add new dependencies unless explicitly approved.
+- After editing, explain only:
+  1. what changed
+  2. why
+  3. how to verify

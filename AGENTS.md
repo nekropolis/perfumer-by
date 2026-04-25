@@ -1,5 +1,29 @@
 # AGENTS.md
 
+## Project Structure
+
+This is a monorepo.
+
+Root:
+- `perfumer-by/`
+
+Backend:
+- `backend/`
+- Laravel API
+- JSON responses
+- auth/session may use cookies or Sanctum
+
+Frontend:
+- `frontend/`
+- Next.js App Router
+- React
+- TypeScript
+- Tailwind CSS
+
+Agents should always consider both `frontend/` and `backend/` when debugging API, auth, checkout, account, admin, product, cart, order, or ecommerce logic.
+
+---
+
 ## Project Context
 
 Frontend for ecommerce project.

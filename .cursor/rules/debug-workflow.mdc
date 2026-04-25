@@ -1,0 +1,67 @@
+---
+description: Debug workflow for frontend and backend issues
+alwaysApply: false
+---
+
+When the user asks to debug a bug:
+
+First response must be investigation-only unless the user explicitly says to edit code now.
+
+Do not edit files immediately.
+
+## Frontend Bug Flow
+
+For frontend bugs, trace:
+
+1. Next.js page/component in `frontend/`
+2. related component/hook
+3. form/event/state logic
+4. API helper/fetch hook
+5. request payload
+6. Laravel route in `backend/`
+7. middleware/auth/session/Sanctum if relevant
+8. controller
+9. request validation
+10. service/action if used
+11. resource/transformer
+12. model/query/relations
+13. JSON response
+14. frontend usage of response
+
+## Backend Bug Flow
+
+For backend bugs, trace:
+
+1. route
+2. middleware
+3. auth/session/Sanctum behavior
+4. request validation
+5. controller
+6. service/action if used
+7. model/query/relations
+8. resource/transformer
+9. JSON response
+10. frontend consumer if relevant
+
+## Required Output Before Edits
+
+Use this format:
+
+### Investigation
+
+- Entry point:
+- Related frontend files:
+- Related backend files:
+- Data flow:
+- Suspected root cause:
+
+### Minimal Fix Plan
+
+- File 1:
+- File 2:
+
+### Files Not To Touch
+
+- ...
+
+Do not edit files until the user approves the plan.

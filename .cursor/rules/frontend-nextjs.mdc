@@ -1,0 +1,55 @@
+---
+description: Frontend Next.js React TypeScript rules
+alwaysApply: true
+---
+
+Frontend lives in:
+
+- `frontend/`
+
+Stack:
+- Next.js App Router
+- React
+- TypeScript
+- Tailwind CSS
+
+## React / Next.js Rules
+
+- Use App Router conventions.
+- Use `"use client"` only when necessary.
+- Prefer server components when possible.
+- Use client components only for:
+  - state
+  - browser APIs
+  - events
+  - modals
+  - forms
+- Avoid unnecessary `useEffect`.
+- Avoid derived state when not needed.
+- Prefer memoization only when justified.
+- Avoid hydration issues.
+- Write SSR-safe code only.
+- Keep components small and reusable.
+- Prefer explicit TypeScript types.
+- Preserve existing component structure unless there is a clear reason to change it.
+
+## File Organization
+
+- Prefer existing structure.
+- Do not move files unless requested.
+- If creating new files:
+  - place near related feature
+  - use clear naming
+  - avoid unnecessary nesting
+
+## Frontend API Usage
+
+- Reuse existing fetch helpers/hooks if present.
+- Do not invent a new API layer if the project already has one.
+- Do not change API contracts unless explicitly requested.
+- Preserve existing field names.
+- Preserve existing types.
+- Treat `null` values as valid unless existing code proves otherwise.
+- Money values may come as strings.
+- Do not use float math for prices.
+- Preserve price precision.

@@ -1,0 +1,39 @@
+---
+description: Ecommerce business rules
+alwaysApply: true
+---
+
+Always preserve ecommerce business logic.
+
+## Products
+
+- Variants are purchasable entities.
+- Product may have multiple variants.
+- Stock may be `null`.
+- Preorder may exist.
+- Do not treat product itself as purchasable if existing code uses variants as purchasable entities.
+- Preserve existing variant/product relationships.
+
+## Orders
+
+- Totals come from backend.
+- Discounts may exist.
+- Gift certificates may exist.
+- Delivery fee is separate unless backend combines it.
+- Do not recalculate final order totals on frontend unless existing code already does it.
+- Backend is the source of truth for totals, discounts, delivery fees, and final prices.
+
+## Cart / Checkout
+
+- Preserve existing checkout flow.
+- Preserve existing cart item identity logic.
+- Preserve variant-based cart logic.
+- Do not change price calculation logic unless explicitly requested.
+- Do not change API contracts unless explicitly requested.
+
+## Money
+
+- Money values may come as strings.
+- Do not use float math for prices.
+- Preserve precision.
+- Avoid converting price strings to floats for calculations.

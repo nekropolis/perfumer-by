@@ -1,0 +1,53 @@
+---
+description: Laravel API backend rules
+alwaysApply: true
+---
+
+Backend lives in:
+
+- `backend/`
+
+Stack:
+- Laravel
+- PHP
+- JSON API
+- auth/session may use cookies or Sanctum
+
+## Backend Rules
+
+- Backend is the source of truth.
+- Do not change API contracts unless explicitly requested.
+- Preserve existing field names.
+- Preserve existing response structure.
+- Preserve existing validation behavior unless the task requires changing it.
+- Prefer existing Laravel conventions used in the project.
+- Keep controllers focused.
+- Reuse existing services/actions/resources if present.
+- Do not move business logic to frontend if it belongs to backend.
+- Do not change database schema unless explicitly requested.
+- Do not run migrations unless explicitly approved.
+
+## API / Data Rules
+
+- JSON responses should remain compatible with existing frontend usage.
+- Preserve existing types.
+- `null` values are valid unless known otherwise.
+- Money values may come as strings.
+- Do not use float math for prices.
+- Preserve precision.
+- Reuse existing API response patterns.
+- Reuse existing auth/session/Sanctum patterns.
+
+## Debugging Backend Issues
+
+When debugging backend behavior, check:
+
+1. route
+2. middleware
+3. auth/session/Sanctum behavior
+4. request validation
+5. controller
+6. service/action if used
+7. model/query/relations
+8. resource/transformer
+9. JSON response consumed by frontend

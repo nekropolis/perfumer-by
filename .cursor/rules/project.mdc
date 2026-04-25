@@ -5,9 +5,15 @@ Project context:
 - Frontend: React + TypeScript
 - Build tool: Vite
 - SSR is used
-- Domain: perfume catalog and admin panel
-- Products have variants, prices, stock, attributes, categories, images, suppliers, and supplier offers, parsing price.
-- Admin users edit many products quickly, so UI must be compact, clear, and efficient
+- Domain: perfume catalog, ecommerce storefront, and admin panel
+- Products have variants, prices, stock, attributes, categories, images, suppliers, supplier offers, and parsed supplier prices
+- Admin users edit many products quickly, so UI must be compact, clear, predictable, and efficient
+
+Project structure:
+- Backend code may be located in `backend/`
+- Frontend code may be located in `frontend/`
+- When debugging frontend/backend issues, consider the full flow:
+  React component → hook/API helper → request payload → Laravel route → controller → validation → service/action → resource/response → model/query
 
 General rules:
 - Preserve existing architecture and project conventions
@@ -17,35 +23,85 @@ General rules:
 - Do not break API contracts
 - Do not rename backend fields, route names, props, payload keys, database columns, or public interfaces unless explicitly requested
 - Keep code readable and production-friendly
-- Reuse existing utilities, hooks, and components when possible
-- Avoid introducing new dependencies unless clearly necessary
+- Reuse existing utilities, hooks, services, actions, resources, and components when possible
+- Avoid introducing new dependencies unless clearly necessary and approved
 - Keep imports clean and remove unused code
 - Preserve SSR compatibility
 - Prefer consistency with surrounding code over personal style preferences
+- Do not move files unless explicitly requested
+- Do not reformat whole files unless needed for the actual change
+- Do not introduce broad architectural patterns for a local fix
+- Avoid speculative improvements outside the requested task
+
+Token and context discipline:
+- Prefer search/grep before opening many files
+- Read only files that are relevant to the task
+- Do not inspect generated, dependency, cache, or build folders unless explicitly required
+- Avoid reading or modifying:
+  - `vendor/`
+  - `node_modules/`
+  - `storage/`
+  - `bootstrap/cache/`
+  - `public/build/`
+  - `.git/`
+  - `.idea/`
+  - `dist/`
+  - `build/`
+  - `.next/`
+- If the user provides a starting file, component, route, controller, or feature, begin there
+- Do not scan the whole project unless the local investigation is insufficient
+- Do not reopen the same files repeatedly unless new evidence requires it
 
 For React and TypeScript:
 - Use functional components
 - Keep TypeScript types strict and safe
-- Do not use any unless there is no reasonable alternative
+- Do not use `any` unless there is no reasonable alternative
 - Prefer explicit prop types and clear interfaces
+- Preserve existing component boundaries
 - Do not move logic to new abstractions unless it improves clarity and is justified
-- Preserve handlers, state flow, and existing component behavior unless asked to change it
+- Preserve handlers, state flow, side effects, and existing component behavior unless asked to change them
 - When editing UI, focus on JSX structure, class names, spacing, alignment, and responsiveness
 - Avoid unnecessary rerenders and unstable patterns
-- Follow the existing project approach for forms, tables, and admin screens
+- Avoid unnecessary `useEffect`
+- Avoid derived state when a direct calculation is enough
+- Use memoization only when justified
+- Follow the existing project approach for forms, tables, filters, modals, and admin screens
+- Keep client-only code SSR-safe
+- Do not access `window`, `document`, `localStorage`, or browser-only APIs during SSR without guards
 
 For UI tasks:
 - Prioritize compact, clean, professional admin UI
 - Admin screens should be efficient for frequent data entry and editing
 - Prefer balanced spacing over overly large gaps
-- Align labels, controls, and action buttons consistently
-- Prefer grid or table-like layouts for dense editable data
+- Align labels, controls, inputs, table columns, and action buttons consistently
+- Prefer grid, flex, or table-like layouts for dense editable data
 - Make layouts responsive without sacrificing desktop efficiency
-- Preserve accessibility basics: labels, button clarity, disabled states, focus behavior
+- Preserve accessibility basics: labels, button clarity, disabled states, focus behavior, keyboard usability
 - Do not change text/content meaning unless requested
 - Do not invent new design systems; follow the existing project style
 - If Tailwind is used in the file, continue using Tailwind
 - Reuse existing UI primitives when available
+- Avoid oversized cards, paddings, margins, inputs, and buttons in admin screens
+- Prefer compact rows for editable lists and variant tables
+- Keep destructive actions visually clear and not easy to trigger accidentally
+
+For modals:
+- Preserve the existing modal implementation pattern
+- Use portals only if the project already uses them for similar modals
+- Keep modals within viewport height
+- Internal modal content should scroll when content is long
+- Avoid making the entire page scroll because of modal content
+- Preserve close behavior, submit behavior, validation wiring, and loading states
+- Desktop modals should be compact and centered unless existing UX differs
+- Mobile modals should remain usable and responsive
+
+For tables and dense admin data:
+- Tables may scroll horizontally when needed
+- Keep row height compact but readable
+- Align numeric values consistently
+- Keep action columns consistent
+- Preserve sorting, filtering, pagination, selection, and bulk action behavior
+- Do not hide important product, variant, price, stock, or supplier data for the sake of visual simplicity
 
 For Laravel and backend-related edits:
 - Keep controllers thin
@@ -53,29 +109,103 @@ For Laravel and backend-related edits:
 - Preserve validation behavior unless explicitly asked to change it
 - Do not change serialization format or JSON response structure unless requested
 - Respect existing Eloquent relations and naming
+- Do not change migrations, database schema, seeders, or factories unless explicitly requested
+- Do not change authentication/session/Sanctum behavior unless the task is specifically about auth
+- Do not move business logic to the frontend if it belongs to backend
+- Preserve resource/transformer behavior if frontend depends on it
+- Prefer small backend changes that preserve existing API behavior
+
+API and data rules:
+- Backend is the source of truth for business logic
+- Preserve existing field names and response shapes
+- Treat `null` as valid unless existing validation or types prove otherwise
+- Money values may be strings; preserve precision
+- Do not use floating-point math for prices if precision matters
+- Do not recalculate backend-owned totals on the frontend unless existing code already does this
+- Preserve request payload keys unless explicitly asked to change them
+- Check both request and response sides before changing API-related code
 
 Catalog/domain specifics:
 - Products may contain multiple variants
-- Variants can include title, volume, volume_unit, type, concentration, edition, price, old_price, stock, is_preorder, is_active, sort_order
-- Products can have brand, main category, additional categories, images, attributes, and active variants
+- Variants are the purchasable entities unless existing code says otherwise
+- Variants can include:
+  - `title`
+  - `volume`
+  - `volume_unit`
+  - `type`
+  - `concentration`
+  - `edition`
+  - `price`
+  - `old_price`
+  - `stock`
+  - `is_preorder`
+  - `is_active`
+  - `sort_order`
+- Products can have:
+  - brand
+  - main category
+  - additional categories
+  - images
+  - main image
+  - attributes
+  - variants
+  - active variants
+  - supplier offers
 - Supplier data and offers are important; do not break supplier-related mappings
+- Supplier prices, stocks, external IDs, SKUs, payloads, and parsed price history may be important
 - In admin product editing screens, prioritize fast editing, data clarity, and predictable layout
 - Variant editors should feel compact and structured, not oversized
+- Preserve product/variant relationships and sorting behavior
+- Preserve image ordering and main image behavior unless explicitly asked to change it
 
 When fixing bugs:
 - First identify the most likely root cause
+- Investigate the smallest relevant path before changing code
+- For frontend bugs that may involve backend data, trace:
+  component → state/form logic → API helper → request payload → route → controller → validation → resource/response → model/query
 - Then apply the smallest reliable fix
 - Do not refactor unrelated areas
 - Mention risky assumptions if they matter
+- If multiple fixes are possible, choose the one with the smallest safe diff
+- Do not change both frontend and backend unless the bug requires it
 
 When improving layout:
 - Keep logic untouched unless asked
 - Refactor only markup/classes when possible
-- Preserve form behavior, validation wiring, and handlers
+- Preserve form behavior, validation wiring, API calls, handlers, loading states, and error states
 - Prefer clean alignment, compact rows, and stable responsive behavior
+- Avoid changing component state structure for visual-only tasks
+- Avoid changing data mapping logic unless layout cannot be fixed otherwise
+
+When creating new code:
+- Place new files near the related feature
+- Use clear names
+- Avoid unnecessary nesting
+- Match existing naming conventions
+- Match existing import style
+- Match existing error/loading/empty-state patterns
+- Add only the minimum code needed for the task
+
+Before editing code:
+- State the files that are relevant
+- State which files will be changed
+- State what will not be touched
+- If the task is unclear, make the safest reasonable assumption and mention it briefly
 
 Before finalizing code changes:
 - Check for obvious TypeScript errors
 - Check imports
 - Check that JSX structure is valid
+- Check SSR compatibility
+- Check that API contracts are preserved
+- Check that product/variant/supplier business logic is not accidentally changed
 - Make sure no unrelated files are modified unless needed
+
+Response style:
+- Be concise
+- Prefer direct, practical answers
+- Avoid long theoretical explanations
+- When code is changed, summarize:
+  1. what changed
+  2. why
+  3. how to verify

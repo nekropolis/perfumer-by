@@ -1,0 +1,47 @@
+# Backend dependencies
+backend/vendor/
+
+# Frontend dependencies
+frontend/node_modules/
+
+# Build / cache
+backend/storage/
+backend/bootstrap/cache/
+backend/public/build/
+backend/public/hot
+
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.vite/
+frontend/coverage/
+
+# Logs / dumps / archives
+*.log
+*.sql
+*.dump
+*.sqlite
+*.zip
+*.tar
+*.gz
+
+# Env / secrets
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# IDE / VCS
+.git/
+.idea/
+.vscode/
+.DS_Store
+
+# Lock files - можно оставить, но для экономии лучше не давать агенту читать без нужды
+backend/composer.lock
+frontend/package-lock.json
+frontend/yarn.lock
+frontend/pnpm-lock.yaml

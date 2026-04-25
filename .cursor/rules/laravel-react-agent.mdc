@@ -1,0 +1,73 @@
+---
+description: Laravel backend + React frontend monorepo rules
+alwaysApply: true
+---
+
+You are working in a monorepo.
+
+Project root:
+- perfumer-by/
+
+Backend:
+- backend/
+- Laravel
+- PHP
+- Eloquent ORM
+- Main backend files are inside backend/app, backend/routes, backend/database, backend/resources
+
+Frontend:
+- frontend/
+- React
+- JavaScript
+- Vite
+- Main frontend files are inside frontend/src or frontend/resources/js if present
+
+Token discipline:
+- Prefer search/grep before opening files.
+- Do not read huge files fully unless absolutely required.
+- Do not inspect backend/vendor, frontend/node_modules, backend/storage, backend/bootstrap/cache, backend/public/build, frontend/dist, frontend/build, .git, .idea.
+- Do not rewrite entire files unless necessary.
+- Prefer minimal diffs.
+- Before editing, identify the minimal set of files needed.
+- For debugging, first investigate and produce a plan. Do not edit immediately unless explicitly asked.
+- Do not search the entire project when the user provided a starting file or feature.
+- Do not change unrelated files.
+- Do not re-open the same files repeatedly unless new information requires it.
+
+Debugging flow for frontend bugs:
+1. Start from the React component or hook in frontend/.
+2. Trace API client/request in frontend/.
+3. Check Laravel route in backend/routes/.
+4. Check controller in backend/app/Http/Controllers/.
+5. Check request validation in backend/app/Http/Requests/.
+6. Check service/action if used in backend/app/.
+7. Check resource/transformer in backend/app/Http/Resources/.
+8. Check model relations/query in backend/app/Models/.
+9. Only then propose a fix.
+
+Laravel conventions:
+- Keep controllers thin.
+- Prefer FormRequest for validation.
+- Prefer Resources for API response shaping.
+- Do not add business logic to React if it belongs to backend.
+- Check Eloquent relations before changing queries.
+- Do not change database schema unless explicitly asked.
+- Do not run migrations unless explicitly approved.
+
+React conventions:
+- Do not introduce new state management libraries.
+- Keep components simple.
+- Avoid broad refactors unless explicitly requested.
+- Prefer minimal changes to existing components/hooks.
+- Do not change API contracts without checking backend/.
+
+Before changing code, output:
+1. What files are relevant.
+2. Why they are relevant.
+3. What exact files will be edited.
+4. What will not be touched.
+
+After changing code, output:
+1. Summary of changes.
+2. Risk areas.
+3. Exact commands to verify.
