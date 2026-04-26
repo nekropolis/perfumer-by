@@ -3,6 +3,7 @@
 namespace Modules\Checkout\Services;
 
 use Modules\Cart\Models\Cart;
+use Modules\Settings\Services\ShopSettingService;
 
 final class CheckoutDeliveryService
 {

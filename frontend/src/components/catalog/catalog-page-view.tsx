@@ -66,6 +66,9 @@ export default function CatalogPageView({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                        <h2 className="mb-4 text-lg font-semibold leading-tight text-[var(--foreground)]">
+                            Фильтры
+                        </h2>
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}
@@ -78,28 +81,26 @@ export default function CatalogPageView({
                 </aside>
 
                 <section className="min-w-0">
-                    <div className="sticky top-16 z-30 bg-[var(--background)] pb-2 lg:static lg:bg-transparent lg:pb-0">
-                        <CatalogGridToolbar
-                            basePath={basePath}
-                            brands={brands}
-                            attributes={filters.attributes}
-                            mobileRightAction={
-                                <CatalogMobileFiltersDrawer
-                                    compact
-                                    brands={brands}
-                                    basePath={basePath}
-                                    showBrandFilter={!basePath.includes("/brands/")}
-                                    attributes={filters.attributes}
-                                    priceRange={filters.price}
-                                    volumeOptions={filters.volume}
-                                />
-                            }
-                        />
-                    </div>
+                    <CatalogGridToolbar
+                        basePath={basePath}
+                        brands={brands}
+                        attributes={filters.attributes}
+                        mobileRightAction={
+                            <CatalogMobileFiltersDrawer
+                                compact
+                                brands={brands}
+                                basePath={basePath}
+                                showBrandFilter={!basePath.includes("/brands/")}
+                                attributes={filters.attributes}
+                                priceRange={filters.price}
+                                volumeOptions={filters.volume}
+                            />
+                        }
+                    />
 
                     {products.data.length > 0 ? (
                         <>
-                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                            <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                                 {products.data.map((product, index) => (
                                     <ProductCard
                                         key={product.id}

@@ -1,11 +1,11 @@
 <?php
 
-namespace Modules\Checkout\Http\Controllers\Admin;
+namespace Modules\Settings\Http\Controllers\Admin;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Modules\Checkout\Services\ShopSettingService;
+use Modules\Settings\Services\ShopSettingService;
 
 class ShopSettingAdminController extends Controller
 {
@@ -17,6 +17,11 @@ class ShopSettingAdminController extends Controller
                 'delivery_minsk_fee' => $settings->getDecimal('delivery_minsk_fee', 3),
                 'delivery_belarus_fee' => $settings->getDecimal('delivery_belarus_fee', 6),
                 'delivery_belarus_free_min_lines' => $settings->getInt('delivery_belarus_free_min_lines', 2),
+                'contact_phone_mts' => (string) $settings->get('contact_phone_mts', '+375336408833'),
+                'contact_phone_a1' => (string) $settings->get('contact_phone_a1', '+375296408833'),
+                'contact_phone_life' => (string) $settings->get('contact_phone_life', '+375256408833'),
+                'contact_telegram_url' => (string) $settings->get('contact_telegram_url', 'https://t.me/perfumer_support'),
+                'contact_viber_url' => (string) $settings->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
             ],
         ]);
     }
@@ -28,6 +33,11 @@ class ShopSettingAdminController extends Controller
             'delivery_minsk_fee' => ['nullable', 'numeric', 'min:0'],
             'delivery_belarus_fee' => ['nullable', 'numeric', 'min:0'],
             'delivery_belarus_free_min_lines' => ['nullable', 'integer', 'min:1'],
+            'contact_phone_mts' => ['nullable', 'string', 'max:64'],
+            'contact_phone_a1' => ['nullable', 'string', 'max:64'],
+            'contact_phone_life' => ['nullable', 'string', 'max:64'],
+            'contact_telegram_url' => ['nullable', 'string', 'max:512'],
+            'contact_viber_url' => ['nullable', 'string', 'max:512'],
         ]);
 
         $map = [];
@@ -36,10 +46,19 @@ class ShopSettingAdminController extends Controller
             'delivery_minsk_fee',
             'delivery_belarus_fee',
             'delivery_belarus_free_min_lines',
+            'contact_phone_mts',
+            'contact_phone_a1',
+            'contact_phone_life',
+            'contact_telegram_url',
+            'contact_viber_url',
         ] as $key) {
-            if (array_key_exists($key, $validated) && $validated[$key] !== null) {
-                $map[$key] = $validated[$key];
+            if (! array_key_exists($key, $validated) || $validated[$key] === null) {
+                continue;
             }
+            if (is_string($validated[$key]) && $validated[$key] === '') {
+                continue;
+            }
+            $map[$key] = $validated[$key];
         }
 
         if ($map !== []) {

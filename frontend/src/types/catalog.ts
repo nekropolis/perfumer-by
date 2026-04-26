@@ -157,6 +157,9 @@ export type ProductDetailData = {
     stock_total: number;
     variants: ProductVariantData[];
     default_variant_id: number | null;
+
+    /** Подбор по скорингу на бэкенде (бренд, категория, атрибуты, объём, цена, наличие). */
+    similar_products?: ProductListItem[];
 };
 
 export type ProductDetailResponse = {

@@ -1,13 +1,14 @@
 <?php
 
-namespace Modules\Checkout\Services;
+namespace Modules\Settings\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Modules\Checkout\Models\ShopSetting;
+use Modules\Settings\Models\ShopSetting;
 
 class ShopSettingService
 {
-    private const PUBLIC_SETTINGS_CACHE_KEY = 'checkout:shop-settings:all-map';
+    private const PUBLIC_SETTINGS_CACHE_KEY = 'settings:shop-settings:all-map';
+
     private const PUBLIC_SETTINGS_CACHE_TTL_SECONDS = 300;
 
     /** @var array<string, string|null>|null */
@@ -63,6 +64,22 @@ class ShopSettingService
     }
 
     /**
+     * Доставка + контакты для витрины (шапка, /site/content).
+     *
+     * @return array<string, float|int|string>
+     */
+    public function publicSiteContent(): array
+    {
+        return array_merge($this->publicCheckoutSettings(), [
+            'contact_phone_mts' => (string) $this->get('contact_phone_mts', '+375336408833'),
+            'contact_phone_a1' => (string) $this->get('contact_phone_a1', '+375296408833'),
+            'contact_phone_life' => (string) $this->get('contact_phone_life', '+375256408833'),
+            'contact_telegram_url' => (string) $this->get('contact_telegram_url', 'https://t.me/perfumer_support'),
+            'contact_viber_url' => (string) $this->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
+        ]);
+    }
+
+    /**
      * @return array<string, string|null>
      */
     public function allMap(): array
@@ -86,6 +103,7 @@ class ShopSettingService
     {
         $this->cache = null;
         Cache::forget(self::PUBLIC_SETTINGS_CACHE_KEY);
+        Cache::forget('checkout:shop-settings:all-map');
     }
 
     /**

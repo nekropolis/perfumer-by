@@ -13,6 +13,7 @@ use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
+use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
@@ -59,6 +60,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
     protected array $commands = [
         ImportVanilleSampleCommand::class,
         ParseVanilleProductsCommand::class,
+        PruneBrandsWithoutProductsCommand::class,
         VanilleImportQueueCommand::class,
     ];
 

@@ -1,11 +1,12 @@
 <?php
 
-namespace Modules\Checkout\Http\Controllers\Api;
+namespace Modules\Settings\Http\Controllers\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
-use Modules\Checkout\Services\ShopSettingService;
+use Modules\Settings\Services\ShopSettingService;
 
+/** Публичные настройки доставки для шага checkout (без контактов). */
 class CheckoutShopSettingsPublicController extends Controller
 {
     public function show(ShopSettingService $settings): JsonResponse

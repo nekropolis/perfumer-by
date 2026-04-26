@@ -10,6 +10,11 @@ export type SiteContent = {
     delivery_minsk_fee: number;
     delivery_belarus_fee: number;
     delivery_belarus_free_min_lines: number;
+    contact_phone_mts: string;
+    contact_phone_a1: string;
+    contact_phone_life: string;
+    contact_telegram_url: string;
+    contact_viber_url: string;
 };
 
 export type SiteContentResponse = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
@@ -10,7 +10,6 @@ import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav from "@/components/layout/header/header-nav";
 import HeaderServiceBar from "@/components/layout/header/header-service-bar";
 import { useHeaderSearch } from "@/components/layout/header/use-header-search";
-import type { HeaderSearchItem } from "@/components/layout/header/types";
 import {
     HEADER_CATALOG_DRAWER_SECTIONS,
     HEADER_CATALOG_TRIGGER,
@@ -23,58 +22,6 @@ import {
     HEADER_SECONDARY_LINKS,
 } from "@/components/layout/header/config";
 import { fetchSiteContent } from "@/lib/site-content-api";
-
-function formatSearchPrice(item: HeaderSearchItem): ReactNode {
-    const min = item.price_range?.min ?? null;
-    const max = item.price_range?.max ?? null;
-    const stockTotal = item.stock_total ?? 0;
-    /** Как в каталоге: `stock_total` и флаг `is_out_of_stock` согласованы с каналом поставщика (см. syncProductStockFlagsByProductId). */
-    const listingAvailable = stockTotal > 0 || item.is_preorder_available;
-    const awaitingArrival =
-        !listingAvailable &&
-        (Boolean(item.is_out_of_stock) || Boolean(min || max));
-
-    if (item.is_preorder_available && !min && !max) {
-        return "Предзаказ";
-    }
-
-    if (!min && !max) {
-        if (awaitingArrival) {
-            return "Ожидается поступление";
-        }
-        return "Цена уточняется";
-    }
-
-    const normalize = (value: string | null) =>
-        value ? value.replace(".", ",") : null;
-
-    const nMin = normalize(min);
-    const nMax = normalize(max);
-
-    const priceBlock =
-        nMin && nMax && nMin !== nMax ? (
-            <strong>
-                {nMin} - {nMax} <small>BYN</small>
-            </strong>
-        ) : (
-            <strong>
-                {nMin || nMax} <small>BYN</small>
-            </strong>
-        );
-
-    if (awaitingArrival) {
-        return (
-            <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                {priceBlock}
-                <span className="font-normal text-[var(--text-secondary)]">
-                    · Ожидается поступление
-                </span>
-            </span>
-        );
-    }
-
-    return priceBlock;
-}
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;
@@ -91,6 +38,7 @@ export default function Header() {
     const [menuTopOffset, setMenuTopOffset] = useState(64);
 
     const headerRef = useRef<HTMLElement | null>(null);
+    const mobileMenuRootRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
     const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
@@ -154,7 +102,8 @@ export default function Header() {
 
             if (
                 searchRef.current &&
-                !searchRef.current.contains(event.target as Node)
+                !searchRef.current.contains(event.target as Node) &&
+                !mobileMenuRootRef.current?.contains(event.target as Node)
             ) {
                 setSearchOpen(false);
             }
@@ -171,11 +120,24 @@ export default function Header() {
         const measure = () => {
             const next = headerRef.current?.offsetHeight ?? 64;
             setMenuTopOffset(next);
+            document.documentElement.style.setProperty(
+                "--catalog-toolbar-sticky-top",
+                `${next}px`,
+            );
         };
 
         measure();
         window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
+        const el = headerRef.current;
+        const ro = el ? new ResizeObserver(() => measure()) : null;
+        if (el && ro) {
+            ro.observe(el);
+        }
+        return () => {
+            window.removeEventListener("resize", measure);
+            ro?.disconnect();
+            document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
+        };
     }, [isCompact, isPhoneDropdownOpen, isMobileOpen]);
 
     useEffect(() => {
@@ -360,7 +322,7 @@ export default function Header() {
     return (
         <header
             ref={headerRef}
-            className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--header-bg)]/95 shadow-sm backdrop-blur"
+            className="sticky top-0 z-40 isolate border-b border-[var(--line)] bg-[var(--header-bg)] shadow-sm md:bg-[var(--header-bg)]/95 md:backdrop-blur"
         >
             <HeaderServiceBar
                 isCompact={isCompact}
@@ -391,7 +353,6 @@ export default function Header() {
                 searchBrandResults={searchBrandResults}
                 recentSearches={recentSearches}
                 popularSearches={HEADER_POPULAR_SEARCHES}
-                formatSearchPrice={formatSearchPrice}
                 wishlistQty={wishlistQty}
                 cartQty={cartQty}
                 isAuthenticated={isAuthenticated}
@@ -422,6 +383,7 @@ export default function Header() {
 
             <HeaderMobileMenu
                 isOpen={isMobileOpen}
+                menuRootRef={mobileMenuRootRef}
                 topOffset={menuTopOffset}
                 searchOpen={searchOpen}
                 searchLoading={searchLoading}
@@ -435,7 +397,6 @@ export default function Header() {
                 isAuthenticated={isAuthenticated}
                 userName={user?.name || "Пользователь"}
                 userPhone={user?.phone || ""}
-                formatSearchPriceAction={formatSearchPrice}
                 onCloseAction={() => {
                     resetSearch();
                     setIsMobileOpen(false);

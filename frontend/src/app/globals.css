@@ -16,6 +16,9 @@
   --header-bg: #F7F3EE;
   --header-control-bg: #FBF7F3;
 
+  /* Catalog toolbar: fallback until Header measures real offsetHeight */
+  --catalog-toolbar-sticky-top: 79px;
+
   /* Typography */
   --font-sans: Arial, Helvetica, sans-serif;
   --font-display: Georgia, "Times New Roman", serif;

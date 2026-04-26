@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import ScrollToTopButton from "@/components/layout/scroll-to-top-button";
 
 type Props = {
     children: ReactNode;
@@ -23,6 +24,7 @@ export default function AppShell({ children }: Props) {
             {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
             <div className="min-w-0">{children}</div>
             <Footer />
+            <ScrollToTopButton />
         </>
     );
 }

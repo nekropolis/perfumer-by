@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Checkout\Models;
+namespace Modules\Settings\Models;
 
 use Illuminate\Database\Eloquent\Model;
 

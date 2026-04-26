@@ -52,7 +52,6 @@ const sections: SidebarSection[] = [
         label: "Основное",
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
-            { type: "link", href: "/admin/shop-settings", label: "Доставка (настройки)", icon: Settings },
             { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingCart, badgeKey: "ordersNew" },
             {
                 type: "link",
@@ -68,6 +67,7 @@ const sections: SidebarSection[] = [
                 icon: PhoneCall,
                 badgeKey: "stockCallbackNew",
             },
+            { type: "link", href: "/admin/shop-settings", label: "Настройки магазина", icon: Settings },
         ],
     },
     {
@@ -266,7 +266,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const { refresh: refreshSidebarBadgeStats } = useSmartPolling({
         activeIntervalMs: ORDERS_STATS_ACTIVE_MS,
         idleIntervalMs: ORDERS_STATS_IDLE_MS,
-        fetcher: loadSidebarBadgeStats,
+        fetcherAction: loadSidebarBadgeStats,
     });
 
     // Переход между страницами админки — освежить бейджи (заказы, заявки).

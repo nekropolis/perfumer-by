@@ -14,6 +14,7 @@ use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Services\SimilarProductsService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -260,6 +261,7 @@ class ProductController extends Controller
                 ->select([
                     'id',
                     'brand_id',
+                    'main_category_id',
                     'is_active',
                     'is_new',
                     'is_hit',
@@ -274,6 +276,7 @@ class ProductController extends Controller
                 ])
                 ->with([
                     'brand:id,name,slug',
+                    'mainCategory:id,name,slug',
                     'images' => static function ($q): void {
                         $q->select('id', 'product_id', 'path', 'is_main', 'sort_order')
                             ->orderByDesc('is_main')
@@ -284,7 +287,7 @@ class ProductController extends Controller
                         $q->select('id', 'product_id', 'product_attribute_id', 'custom_value', 'sort_order')
                             ->orderBy('sort_order');
                     },
-                    'attributeValues.productAttribute:id,name,type',
+                    'attributeValues.productAttribute:id,name,type,is_filterable',
                     'attributeValues.selectedOptions' => static function ($q): void {
                         $q->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
                     },
@@ -300,8 +303,13 @@ class ProductController extends Controller
                 ])
                 ->firstOrFail();
 
+            $similar = app(SimilarProductsService::class)->forProduct($product, 8);
+
+            $detail = (new ProductDetailResource($product))->resolve();
+            $detail['similar_products'] = ProductListResource::collection($similar)->resolve();
+
             return [
-                'data' => (new ProductDetailResource($product))->resolve(),
+                'data' => $detail,
             ];
         });
 

@@ -10,22 +10,22 @@ export function formatAdminUserPrimary(u: AdminUser) {
 type LoyaltyCardUserSearchPanelProps = {
     title?: string;
     userSearch: string;
-    onUserSearchChange: (value: string) => void;
-    onSearch: () => void;
+    onUserSearchChangeAction: (value: string) => void;
+    onSearchAction: () => void;
     foundUsers: AdminUser[];
     selectedUserIds: number[];
-    onToggleUser: (user: AdminUser, nextChecked: boolean) => void;
+    onToggleUserAction: (user: AdminUser, nextChecked: boolean) => void;
     alreadyLinkedIds: number[];
 };
 
 export default function LoyaltyCardUserSearchPanel({
     title = "Добавить пользователей",
     userSearch,
-    onUserSearchChange,
-    onSearch,
+    onUserSearchChangeAction,
+    onSearchAction,
     foundUsers,
     selectedUserIds,
-    onToggleUser,
+    onToggleUserAction,
     alreadyLinkedIds,
 }: LoyaltyCardUserSearchPanelProps) {
     return (
@@ -34,11 +34,11 @@ export default function LoyaltyCardUserSearchPanel({
             <div className="flex flex-wrap items-center gap-2">
                 <AdminSearchInput
                     value={userSearch}
-                    onChangeAction={onUserSearchChange}
+                    onChangeAction={onUserSearchChangeAction}
                     placeholder="Поиск по имени/телефону/email"
                     syncWithUrl={false}
                 />
-                <button type="button" onClick={() => onSearch()} className="rounded-xl border px-4 py-2.5 text-sm">
+                <button type="button" onClick={() => onSearchAction()} className="rounded-xl border px-4 py-2.5 text-sm">
                     Найти
                 </button>
             </div>
@@ -55,7 +55,7 @@ export default function LoyaltyCardUserSearchPanel({
                                     className="mt-0.5 shrink-0"
                                     disabled={linked}
                                     checked={linked || selected}
-                                    onChange={(e) => onToggleUser(user, e.target.checked)}
+                                    onChange={(e) => onToggleUserAction(user, e.target.checked)}
                                 />
                                 <div className="min-w-0 flex-1">
                                     <div className="font-medium text-gray-900">{formatAdminUserPrimary(user)}</div>
@@ -76,10 +76,10 @@ export default function LoyaltyCardUserSearchPanel({
 
 export function LoyaltyUserSelectionChips({
     users,
-    onRemove,
+    onRemoveAction,
 }: {
     users: AdminUser[];
-    onRemove: (userId: number) => void;
+    onRemoveAction: (userId: number) => void;
 }) {
     if (users.length === 0) return null;
     return (
@@ -95,7 +95,7 @@ export function LoyaltyUserSelectionChips({
                         type="button"
                         className="ml-0.5 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
                         aria-label="Убрать из списка"
-                        onClick={() => onRemove(u.id)}
+                        onClick={() => onRemoveAction(u.id)}
                     >
                         ×
                     </button>

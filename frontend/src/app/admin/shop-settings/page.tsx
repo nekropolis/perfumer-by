@@ -8,18 +8,33 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import {
     fetchAdminShopDeliverySettings,
     updateAdminShopDeliverySettings,
-    type ShopDeliverySettings,
+    type ShopSettings,
 } from "@/lib/admin-shop-settings-api";
 
-const empty: ShopDeliverySettings = {
+type ShopTab = "delivery" | "contacts";
+
+const empty: ShopSettings = {
     delivery_minsk_free_threshold: 50,
     delivery_minsk_fee: 3,
     delivery_belarus_fee: 6,
     delivery_belarus_free_min_lines: 2,
+    contact_phone_mts: "+375336408833",
+    contact_phone_a1: "+375296408833",
+    contact_phone_life: "+375256408833",
+    contact_telegram_url: "https://t.me/perfumer_support",
+    contact_viber_url: "viber://chat?number=%2B375296408833",
 };
 
+const tabButtonClass = (active: boolean) =>
+    `-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition ${
+        active
+            ? "border-slate-900 text-slate-900"
+            : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
+    }`;
+
 export default function AdminShopSettingsPage() {
-    const [form, setForm] = useState<ShopDeliverySettings>(empty);
+    const [tab, setTab] = useState<ShopTab>("delivery");
+    const [form, setForm] = useState<ShopSettings>(empty);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -67,79 +82,151 @@ export default function AdminShopSettingsPage() {
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Основное", href: "/admin" },
-                    { label: "Доставка" },
+                    { label: "Настройки магазина" },
                 ]}
             />
 
-            <h1 className="mb-2 text-2xl font-semibold">Настройки доставки</h1>
-            <p className="mb-6 text-sm text-gray-600">
-                Пороги и тарифы используются на витрине при оформлении заказа (Минск / РБ).
+            <h1 className="mb-2 text-2xl font-semibold">Настройки магазина</h1>
+            <p className="mb-4 text-sm text-gray-600">
+                {tab === "delivery"
+                    ? "Пороги и тарифы доставки для витрины (Минск / РБ)."
+                    : "Телефоны и мессенджеры для шапки и контактов на витрине."}
             </p>
+
+            <div className="mb-6 flex flex-wrap gap-1 border-b border-gray-200">
+                <button type="button" className={tabButtonClass(tab === "delivery")} onClick={() => setTab("delivery")}>
+                    Доставка
+                </button>
+                <button type="button" className={tabButtonClass(tab === "contacts")} onClick={() => setTab("contacts")}>
+                    Контакты
+                </button>
+            </div>
 
             {message ? <AdminFeedbackMessage type={message.type} message={message.text} onCloseAction={() => setMessage(null)} /> : null}
 
             {loading ? (
                 <AdminLoadingState text="Загрузка..." />
             ) : (
-                <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Минск: бесплатно от (BYN)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={form.delivery_minsk_free_threshold}
-                            onChange={(e) =>
-                                setForm((f) => ({ ...f, delivery_minsk_free_threshold: Number(e.target.value) }))
-                            }
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                        />
+                <>
+                    {tab === "delivery" ? (
+                        <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Минск: бесплатно от (BYN)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={form.delivery_minsk_free_threshold}
+                                    onChange={(e) =>
+                                        setForm((f) => ({ ...f, delivery_minsk_free_threshold: Number(e.target.value) }))
+                                    }
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Минск: платная доставка (BYN)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={form.delivery_minsk_fee}
+                                    onChange={(e) => setForm((f) => ({ ...f, delivery_minsk_fee: Number(e.target.value) }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">РБ: платная доставка (BYN)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={form.delivery_belarus_fee}
+                                    onChange={(e) => setForm((f) => ({ ...f, delivery_belarus_fee: Number(e.target.value) }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    РБ: бесплатно от числа позиций (наименований)
+                                </label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={form.delivery_belarus_free_min_lines}
+                                    onChange={(e) =>
+                                        setForm((f) => ({ ...f, delivery_belarus_free_min_lines: Number(e.target.value) }))
+                                    }
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон МТС (E.164, для tel:)</label>
+                                <input
+                                    type="text"
+                                    value={form.contact_phone_mts}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_phone_mts: e.target.value }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    placeholder="+375336408833"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон A1</label>
+                                <input
+                                    type="text"
+                                    value={form.contact_phone_a1}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_phone_a1: e.target.value }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    placeholder="+375296408833"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон life</label>
+                                <input
+                                    type="text"
+                                    value={form.contact_phone_life}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_phone_life: e.target.value }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    placeholder="+375256408833"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Telegram (ссылка)</label>
+                                <input
+                                    type="url"
+                                    value={form.contact_telegram_url}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_telegram_url: e.target.value }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    placeholder="https://t.me/…"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Viber (ссылка)</label>
+                                <input
+                                    type="text"
+                                    value={form.contact_viber_url}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_viber_url: e.target.value }))}
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    placeholder="viber://chat?number=…"
+                                />
+                                <p className="mt-1 text-xs text-gray-500">Допустимы ссылки вида viber://…</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mt-6">
+                        <button
+                            type="button"
+                            onClick={() => void save()}
+                            disabled={saving}
+                            className="rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                        >
+                            {saving ? "Сохранение..." : "Сохранить"}
+                        </button>
                     </div>
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Минск: платная доставка (BYN)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={form.delivery_minsk_fee}
-                            onChange={(e) => setForm((f) => ({ ...f, delivery_minsk_fee: Number(e.target.value) }))}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">РБ: платная доставка (BYN)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={form.delivery_belarus_fee}
-                            onChange={(e) => setForm((f) => ({ ...f, delivery_belarus_fee: Number(e.target.value) }))}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                            РБ: бесплатно от числа позиций (наименований)
-                        </label>
-                        <input
-                            type="number"
-                            min={1}
-                            value={form.delivery_belarus_free_min_lines}
-                            onChange={(e) =>
-                                setForm((f) => ({ ...f, delivery_belarus_free_min_lines: Number(e.target.value) }))
-                            }
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                        />
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => void save()}
-                        disabled={saving}
-                        className="rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-                    >
-                        {saving ? "Сохранение..." : "Сохранить"}
-                    </button>
-                </div>
+                </>
             )}
         </AdminPageCard>
     );

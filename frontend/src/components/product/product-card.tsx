@@ -87,7 +87,7 @@ export default function ProductCard({
             href={`/product/${product.slug}`}
             className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] shadow-sm transition-all duration-200 hover:-translate-y-[2px] hover:shadow-md"
         >
-            <div className="relative aspect-[4/3.2] w-full overflow-hidden bg-[var(--background)]">
+            <div className="relative aspect-video w-full overflow-hidden bg-[var(--background)] sm:aspect-[4/3.2]">
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
@@ -119,7 +119,7 @@ export default function ProductCard({
                         alt={product.name}
                         fill
                         loading={eager ? "eager" : "lazy"}
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 280px"
+                        sizes="(max-width: 640px) min(100vw, 28rem), (max-width: 1024px) 50vw, 280px"
                         className="object-cover transition duration-300 group-hover:scale-[1.02]"
                     />
                 ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
 import HeaderActions from "@/components/layout/header/header-actions";
 import HeaderCatalogButton from "@/components/layout/header/header-catalog-button";
 import HeaderLogo from "@/components/layout/header/header-logo";
@@ -19,7 +19,6 @@ type HeaderMainRowProps = {
     searchBrandResults: HeaderSearchBrandItem[];
     recentSearches: string[];
     popularSearches: readonly string[];
-    formatSearchPrice: (item: HeaderSearchItem) => ReactNode;
     wishlistQty: number;
     cartQty: number;
     isAuthenticated: boolean;
@@ -55,7 +54,6 @@ export default function HeaderMainRow({
     searchBrandResults,
     recentSearches,
     popularSearches,
-    formatSearchPrice,
     wishlistQty,
     cartQty,
     isAuthenticated,
@@ -79,9 +77,9 @@ export default function HeaderMainRow({
     onToggleMobileMenuAction,
 }: HeaderMainRowProps) {
     return (
-        <div className="bg-[var(--background)]">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div className="flex h-[78px] items-center gap-3 md:gap-4">
+        <div className="overflow-x-clip bg-[var(--background)]">
+            <div className="mx-auto max-w-7xl min-w-0 px-4 sm:px-6 lg:px-8">
+                <div className="flex h-[78px] min-h-0 min-w-0 items-center gap-3 md:gap-4">
                     <div className="flex shrink-0 items-center gap-3">
                         <HeaderLogo />
                         <HeaderCatalogButton
@@ -100,7 +98,6 @@ export default function HeaderMainRow({
                         searchBrandResults={searchBrandResults}
                         recentSearches={recentSearches}
                         popularSearches={popularSearches}
-                        formatSearchPrice={formatSearchPrice}
                         onFocusAction={onSearchFocusAction}
                         onChangeAction={onSearchChangeAction}
                         onSubmitAction={onSearchSubmitAction}

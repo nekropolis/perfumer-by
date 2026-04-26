@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
+import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -153,19 +154,8 @@ export default function CatalogFilters({
         return brands.filter((brand) => brand.name.toLowerCase().includes(q));
     }, [brands, brandQuery]);
     const previewBrands = useMemo(() => brands.slice(0, 5), [brands]);
-    const brandGroups = useMemo(() => {
-        const sorted = [...filteredBrands].sort((a, b) => a.name.localeCompare(b.name, "ru"));
-        const groups = new Map<string, CatalogBrandItem[]>();
-        for (const brand of sorted) {
-            const first = brand.name.trim().charAt(0).toUpperCase() || "#";
-            const letter = /[A-ZА-ЯЁ]/.test(first) ? first : "#";
-            const bucket = groups.get(letter) ?? [];
-            bucket.push(brand);
-            groups.set(letter, bucket);
-        }
-        return groups;
-    }, [filteredBrands]);
-    const brandLetters = useMemo(() => Array.from(brandGroups.keys()), [brandGroups]);
+    const brandGroups = useMemo(() => groupBrandsByFirstLetter(filteredBrands), [filteredBrands]);
+    const brandSectionLetters = useMemo(() => orderedLettersWithBrands(brandGroups), [brandGroups]);
 
     const isBrandSelected = (brandId: number) => selectedBrandIds.includes(brandId);
 
@@ -409,7 +399,7 @@ export default function CatalogFilters({
                         />
 
                         <div className="mb-3 flex flex-wrap gap-1 border-b border-[var(--line)] pb-3">
-                            {brandLetters.map((letter) => (
+                            {brandSectionLetters.map((letter) => (
                                 <button
                                     key={`anchor-${letter}`}
                                     type="button"
@@ -423,7 +413,7 @@ export default function CatalogFilters({
 
                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {brandLetters.map((letter) => (
+                                {brandSectionLetters.map((letter) => (
                                     <div key={`group-${letter}`} id={`brand-letter-${letter}`} className="space-y-1">
                                         <div className="sticky top-0 z-10 bg-[var(--surface)] py-1 text-xs font-semibold text-[var(--text-secondary)]">
                                             {letter}

@@ -1,15 +1,18 @@
-import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { groupBrandsByFirstLetter } from "@/lib/brand-letter-groups";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import { CatalogBrandsResponse } from "@/types/catalog";
+import BrandsDirectory from "@/components/brands/brands-directory";
+import type { CatalogBrandItem, CatalogBrandsResponse } from "@/types/catalog";
 
 export const dynamic = "force-dynamic";
 
 export default async function BrandsPage() {
     const brands = await apiFetch<CatalogBrandsResponse>("/catalog/brands");
+    const brandGroups = groupBrandsByFirstLetter(brands.data);
+    const brandsByLetter = Object.fromEntries(brandGroups) as Record<string, CatalogBrandItem[]>;
 
     return (
-        <main className="max-w-6xl mx-auto px-6 py-10">
+        <main className="mx-auto max-w-6xl px-6 py-10">
             <Breadcrumbs
                 className="mb-4"
                 items={[
@@ -20,17 +23,7 @@ export default async function BrandsPage() {
 
             <h1 className="mb-8 text-3xl font-semibold">Бренды</h1>
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                {brands.data.map((brand) => (
-                    <Link
-                        key={brand.id}
-                        href={`/brands/${brand.slug}`}
-                        className="rounded-2xl border bg-white px-4 py-3 text-sm hover:shadow-sm transition"
-                    >
-                        {brand.name}
-                    </Link>
-                ))}
-            </div>
+            <BrandsDirectory brandsByLetter={brandsByLetter} />
         </main>
     );
 }

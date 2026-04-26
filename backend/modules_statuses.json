@@ -8,5 +8,6 @@
     "Warehouse": true,
     "Wishlist": true,
     "Pages": true,
-    "Loyalty": true
+    "Loyalty": true,
+    "Settings": true
 }

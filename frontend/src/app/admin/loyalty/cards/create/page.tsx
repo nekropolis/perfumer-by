@@ -112,15 +112,15 @@ export default function AdminLoyaltyCardCreatePage() {
                 <p className="mb-3 text-sm text-gray-600">
                     Выберите пользователей до сохранения карты — они будут привязаны сразу после создания.
                 </p>
-                <LoyaltyUserSelectionChips users={usersToAttach} onRemove={(id) => setUsersToAttach((p) => p.filter((u) => u.id !== id))} />
+                <LoyaltyUserSelectionChips users={usersToAttach} onRemoveAction={(id) => setUsersToAttach((p) => p.filter((u) => u.id !== id))} />
                 <LoyaltyCardUserSearchPanel
                     title="Поиск и выбор"
                     userSearch={userSearch}
-                    onUserSearchChange={setUserSearch}
-                    onSearch={() => void searchUsers()}
+                    onUserSearchChangeAction={setUserSearch}
+                    onSearchAction={() => void searchUsers()}
                     foundUsers={foundUsers}
                     selectedUserIds={usersToAttach.map((u) => u.id)}
-                    onToggleUser={toggleUserSelection}
+                    onToggleUserAction={toggleUserSelection}
                     alreadyLinkedIds={[]}
                 />
             </div>

@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
+import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 
 type HeaderSearchProps = {
@@ -17,7 +18,6 @@ type HeaderSearchProps = {
     searchBrandResults: HeaderSearchBrandItem[];
     recentSearches: string[];
     popularSearches: readonly string[];
-    formatSearchPrice: (item: HeaderSearchItem) => ReactNode;
     onFocusAction: () => void;
     onChangeAction: (value: string) => void;
     onSubmitAction: () => void;
@@ -39,7 +39,6 @@ export default function HeaderSearch({
     searchBrandResults,
     recentSearches,
     popularSearches,
-    formatSearchPrice,
     onFocusAction,
     onChangeAction,
     onSubmitAction,

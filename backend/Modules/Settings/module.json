@@ -1,0 +1,11 @@
+{
+    "name": "Settings",
+    "alias": "settings",
+    "description": "Настройки магазина (доставка, контакты, публичный контент)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Settings\\Providers\\SettingsServiceProvider"
+    ],
+    "files": []
+}

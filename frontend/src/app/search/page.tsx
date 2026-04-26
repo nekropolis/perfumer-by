@@ -105,7 +105,7 @@ export default async function SearchPage({
                         {products.length === 0 ? (
                             <div className="text-sm text-gray-500">Ничего не найдено</div>
                         ) : (
-                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                                 {products.map((product) => (
                                     <ProductCard key={product.id} product={product} showBrand />
                                 ))}

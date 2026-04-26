@@ -142,7 +142,7 @@ export default function AdminActiveTasksWidget() {
     useSmartPolling({
         activeIntervalMs: ACTIVE_INTERVAL_MS,
         idleIntervalMs: IDLE_INTERVAL_MS,
-        fetcher: load,
+        fetcherAction: load,
     });
 
     if (tasks.length === 0) {

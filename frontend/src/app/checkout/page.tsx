@@ -66,7 +66,6 @@ export default function CheckoutPage() {
     const debouncedCityQuery = useDebouncedValue(cityQuery, 350);
     const [cityHits, setCityHits] = useState<CheckoutCityHit[]>([]);
     const [cityOpen, setCityOpen] = useState(false);
-    const [manualCity, setManualCity] = useState(false);
     const [cityLookupFailed, setCityLookupFailed] = useState(false);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cash");
@@ -97,13 +96,6 @@ export default function CheckoutPage() {
     }, []);
 
     useEffect(() => {
-        if (manualCity) {
-            queueMicrotask(() => {
-                setCityHits([]);
-                setCityLookupFailed(false);
-            });
-            return;
-        }
         if (deliveryCity.trim()) {
             queueMicrotask(() => {
                 setCityHits([]);
@@ -135,7 +127,7 @@ export default function CheckoutPage() {
         return () => {
             cancelled = true;
         };
-    }, [debouncedCityQuery, deliveryCity, manualCity]);
+    }, [debouncedCityQuery, deliveryCity]);
 
     const refreshQuote = useCallback(async () => {
         if (!cart?.token) return;
@@ -188,7 +180,7 @@ export default function CheckoutPage() {
                     phone,
                     comment,
                     delivery_method: deliveryMethod,
-                    delivery_city: deliveryCity.trim() || null,
+                    delivery_city: deliveryCity.trim() || cityQuery.trim() || null,
                     delivery_address: orderDeliveryAddress,
                     payment_method: paymentMethod,
                 });
@@ -328,101 +320,59 @@ export default function CheckoutPage() {
                             <div className="mb-2 flex items-center justify-between gap-2">
                                 <label className="text-sm font-medium">Населённый пункт</label>
                             </div>
-                            {manualCity ? (
-                                <div className="space-y-2">
-                                    <input
-                                        value={deliveryCity}
-                                        onChange={(e) => setDeliveryCity(e.target.value)}
-                                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm"
-                                        placeholder="Город / посёлок"
-                                    />
-                                    <button
-                                        type="button"
-                                        className="text-xs text-[var(--text-secondary)] underline"
-                                        onClick={() => {
-                                            setManualCity(false);
-                                            const t = deliveryCity.trim();
+                            <div className="relative">
+                                <input
+                                    value={deliveryCity.trim() || cityQuery}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        setCityQuery(v);
+                                        if (deliveryCity.trim()) {
                                             setDeliveryCity("");
-                                            setCityQuery(
-                                                t.includes(",") ? t.slice(0, t.indexOf(",")).trim() : t,
-                                            );
-                                            setCityOpen(true);
-                                        }}
-                                    >
-                                        Вернуться к поиску
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="relative">
-                                    <input
-                                        value={deliveryCity.trim() || cityQuery}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            setCityQuery(v);
-                                            if (deliveryCity.trim()) {
-                                                setDeliveryCity("");
-                                            }
-                                            setCityOpen(true);
-                                            setCityLookupFailed(false);
-                                        }}
-                                        onFocus={() => setCityOpen(true)}
-                                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm"
-                                        placeholder="Поиск по Беларуси"
-                                    />
-                                    {cityOpen && cityHits.length > 0 ? (
-                                        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm shadow-lg">
-                                            {cityHits.map((h) => (
-                                                <li key={h.id}>
-                                                    <button
-                                                        type="button"
-                                                        className="w-full px-3 py-2 text-left hover:bg-[var(--background)]"
-                                                        onClick={() => {
-                                                            setDeliveryCity(h.full_name.trim());
-                                                            setCityQuery("");
-                                                            setCityOpen(false);
-                                                        }}
-                                                    >
-                                                        <div className="font-medium text-[var(--foreground)]">
-                                                            {h.full_name}
+                                        }
+                                        setCityOpen(true);
+                                        setCityLookupFailed(false);
+                                    }}
+                                    onFocus={() => setCityOpen(true)}
+                                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm"
+                                    placeholder="Поиск по Беларуси"
+                                />
+                                {cityOpen && cityHits.length > 0 ? (
+                                    <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm shadow-lg">
+                                        {cityHits.map((h) => (
+                                            <li key={h.id}>
+                                                <button
+                                                    type="button"
+                                                    className="w-full px-3 py-2 text-left hover:bg-[var(--background)]"
+                                                    onClick={() => {
+                                                        setDeliveryCity(h.full_name.trim());
+                                                        setCityQuery("");
+                                                        setCityOpen(false);
+                                                    }}
+                                                >
+                                                    <div className="font-medium text-[var(--foreground)]">
+                                                        {h.full_name}
+                                                    </div>
+                                                    {h.type ? (
+                                                        <div className="text-xs text-[var(--text-secondary)]">
+                                                            {h.type}
+                                                            {h.region_name ? ` · ${h.region_name}` : ""}
                                                         </div>
-                                                        {h.type ? (
-                                                            <div className="text-xs text-[var(--text-secondary)]">
-                                                                {h.type}
-                                                                {h.region_name ? ` · ${h.region_name}` : ""}
-                                                            </div>
-                                                        ) : null}
-                                                    </button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : null}
-                                    {!deliveryCity.trim() &&
-                                    cityQuery.trim().length >= 2 &&
-                                    cityHits.length === 0 ? (
-                                        <div className="mt-2">
-                                            <p className="mb-1 text-xs text-[var(--text-secondary)]">
-                                                {cityLookupFailed
-                                                    ? "Поиск временно недоступен."
-                                                    : "Населённый пункт не найден в списке."}
-                                            </p>
-                                            <button
-                                                type="button"
-                                                className="text-xs text-[var(--text-secondary)] underline"
-                                                onClick={() => {
-                                                    setManualCity(true);
-                                                    setDeliveryCity(
-                                                        (deliveryCity.trim() || cityQuery.trim()).trim(),
-                                                    );
-                                                    setCityQuery("");
-                                                    setCityOpen(false);
-                                                }}
-                                            >
-                                                Ввести вручную
-                                            </button>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            )}
+                                                    ) : null}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : null}
+                                {!deliveryCity.trim() &&
+                                cityQuery.trim().length >= 2 &&
+                                cityHits.length === 0 ? (
+                                    <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                                        {cityLookupFailed
+                                            ? "Поиск временно недоступен."
+                                            : "Населённый пункт не найден в списке — в заказ уйдёт введённое название."}
+                                    </p>
+                                ) : null}
+                            </div>
                         </div>
                     ) : null}
 

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
-import { type ReactNode } from "react";
+import { type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type {
     HeaderSearchBrandItem,
@@ -13,6 +13,7 @@ import ProductStatusLabels from "@/components/product/product-status-labels";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 
 type Props = {
     isOpen: boolean;
@@ -29,7 +30,6 @@ type Props = {
     isAuthenticated: boolean;
     userName: string;
     userPhone: string;
-    formatSearchPriceAction: (item: HeaderSearchItem) => ReactNode;
     onCloseAction: () => void;
     onSearchFocusAction: () => void;
     onSearchChangeAction: (value: string) => void;
@@ -41,6 +41,8 @@ type Props = {
     onBrandSelectAction: (slug: string) => void;
     onProductSelectAction: (slug: string) => void;
     onLogoutAction: () => void;
+    /** Root of portaled menu — parent uses this to ignore “click outside” for desktop search ref. */
+    menuRootRef?: RefObject<HTMLDivElement | null>;
 };
 
 export default function HeaderMobileMenu({
@@ -58,7 +60,6 @@ export default function HeaderMobileMenu({
     isAuthenticated,
     userName,
     userPhone,
-    formatSearchPriceAction,
     onCloseAction,
     onSearchFocusAction,
     onSearchChangeAction,
@@ -70,6 +71,7 @@ export default function HeaderMobileMenu({
     onBrandSelectAction,
     onProductSelectAction,
     onLogoutAction,
+    menuRootRef,
 }: Props) {
     if (!isOpen || typeof window === "undefined") {
         return null;
@@ -88,6 +90,7 @@ export default function HeaderMobileMenu({
 
     return createPortal(
         <div
+            ref={menuRootRef}
             className="fixed inset-x-0 bottom-0 z-50 overflow-x-clip border-t border-[var(--line)] bg-[var(--surface)] md:hidden"
             style={{ top: `${topOffset}px` }}
         >
@@ -285,7 +288,7 @@ export default function HeaderMobileMenu({
                                                             )}
                                                         </div>
                                                         <div className="truncate text-xs text-[var(--text-secondary)]">
-                                                            {formatSearchPriceAction(
+                                                            {formatSearchPrice(
                                                                 item,
                                                             )}
                                                         </div>

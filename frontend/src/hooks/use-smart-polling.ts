@@ -24,7 +24,7 @@ export type SmartPollingOptions = {
      * AbortSignal передаётся в fetch: при размонтировании/скрытии
      * вкладки запрос отменяется.
      */
-    fetcher: (signal: AbortSignal) => Promise<FetcherResult>;
+    fetcherAction: (signal: AbortSignal) => Promise<FetcherResult>;
 
     /**
      * Пауза на скрытой вкладке (`document.hidden`). По умолчанию true.
@@ -63,13 +63,13 @@ export type SmartPollingOptions = {
 export function useSmartPolling({
     activeIntervalMs,
     idleIntervalMs,
-    fetcher,
+    fetcherAction,
     pauseWhenHidden = true,
     refetchOnFocus = true,
     enabled = true,
 }: SmartPollingOptions) {
-    const fetcherRef = useRef(fetcher);
-    fetcherRef.current = fetcher;
+    const fetcherRef = useRef(fetcherAction);
+    fetcherRef.current = fetcherAction;
 
     const isActiveRef = useRef(false);
     const timerRef = useRef<number | null>(null);

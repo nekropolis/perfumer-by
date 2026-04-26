@@ -197,84 +197,87 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
     );
 
     const currentSortLabel = SORT_OPTIONS.find((item) => item.value === currentSort)?.label ?? SORT_OPTIONS[0].label;
+    const hasChips = activeChips.length > 0;
 
     return (
-        <div className="mb-4 space-y-3">
-            <div className="-mx-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-2 py-2 shadow-sm lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-                <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:justify-between">
-                    <div className="relative min-w-0 md:w-fit" ref={sortMenuRef}>
-                        <button
-                            type="button"
-                            onClick={() => setIsSortOpen((prev) => !prev)}
-                            className="flex h-11 w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-left text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] md:w-auto md:min-w-[220px]"
-                            aria-haspopup="listbox"
-                            aria-expanded={isSortOpen}
-                            aria-label="Сортировка"
-                        >
-                            <span className="truncate">{currentSortLabel}</span>
-                            <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition ${isSortOpen ? "rotate-180" : ""}`} />
-                        </button>
+        <>
+            <div className="mb-4 max-lg:sticky max-lg:top-[var(--catalog-toolbar-sticky-top)] max-lg:z-30 max-lg:bg-[var(--background)] max-lg:pb-2 lg:static lg:z-auto lg:bg-transparent lg:pb-0">
+                <div className="-mx-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-2 py-2 shadow-sm lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+                    <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:justify-between">
+                        <div className="relative min-w-0 md:w-fit" ref={sortMenuRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsSortOpen((prev) => !prev)}
+                                className="flex h-11 w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-left text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] md:w-auto md:min-w-[220px]"
+                                aria-haspopup="listbox"
+                                aria-expanded={isSortOpen}
+                                aria-label="Сортировка"
+                            >
+                                <span className="truncate">{currentSortLabel}</span>
+                                <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition ${isSortOpen ? "rotate-180" : ""}`} />
+                            </button>
 
-                        {isSortOpen ? (
-                            <div className="absolute left-0 top-[calc(100%+0.4rem)] z-40 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-xl md:min-w-[280px] md:w-max">
-                                {SORT_OPTIONS.map((item) => {
-                                    const isActive = item.value === currentSort;
-                                    return (
-                                        <button
-                                            key={item.value}
-                                            type="button"
-                                            role="option"
-                                            aria-selected={isActive}
-                                            onClick={() => {
-                                                setIsSortOpen(false);
-                                                pushParams((params) => {
-                                                    params.set("sort", item.value);
-                                                });
-                                            }}
-                                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                                                isActive ? "bg-[var(--accent-soft)] text-[var(--foreground)]" : "text-[var(--foreground)] hover:bg-[var(--background)]"
-                                            }`}
-                                        >
-                                            <span>{item.label}</span>
-                                            {isActive ? <Check className="h-4 w-4 text-[var(--accent)]" /> : null}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        ) : null}
+                            {isSortOpen ? (
+                                <div className="absolute left-0 top-[calc(100%+0.4rem)] z-40 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-xl md:min-w-[280px] md:w-max">
+                                    {SORT_OPTIONS.map((item) => {
+                                        const isActive = item.value === currentSort;
+                                        return (
+                                            <button
+                                                key={item.value}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={isActive}
+                                                onClick={() => {
+                                                    setIsSortOpen(false);
+                                                    pushParams((params) => {
+                                                        params.set("sort", item.value);
+                                                    });
+                                                }}
+                                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                                                    isActive ? "bg-[var(--accent-soft)] text-[var(--foreground)]" : "text-[var(--foreground)] hover:bg-[var(--background)]"
+                                                }`}
+                                            >
+                                                <span>{item.label}</span>
+                                                {isActive ? <Check className="h-4 w-4 text-[var(--accent)]" /> : null}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : null}
+                        </div>
+
+                        <div className="min-w-0 lg:hidden">{mobileRightAction}</div>
                     </div>
 
-                    <div className="min-w-0 md:hidden">{mobileRightAction}</div>
+                    <div className="mt-2 flex items-center justify-end gap-2">
+                        {hasActiveFilters ? (
+                            <button
+                                type="button"
+                                onClick={() => router.push(basePath)}
+                                className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
+                            >
+                                Сбросить фильтры
+                            </button>
+                        ) : null}
+                    </div>
                 </div>
 
-                <div className="mt-2 flex items-center justify-end gap-2">
-                    {hasActiveFilters ? (
-                        <button
-                            type="button"
-                            onClick={() => router.push(basePath)}
-                            className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
-                        >
-                            Сбросить фильтры
-                        </button>
-                    ) : null}
-                </div>
+                {hasChips ? (
+                    <div className="mt-3 flex flex-wrap gap-2 max-lg:px-2">
+                        {activeChips.map((chip) => (
+                            <button
+                                key={chip.id}
+                                type="button"
+                                onClick={chip.removeAction}
+                                className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)]"
+                                title="Убрать фильтр"
+                            >
+                                {chip.label} ×
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
             </div>
-
-            {activeChips.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                    {activeChips.map((chip) => (
-                        <button
-                            key={chip.id}
-                            type="button"
-                            onClick={chip.removeAction}
-                            className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)]"
-                            title="Убрать фильтр"
-                        >
-                            {chip.label} ×
-                        </button>
-                    ))}
-                </div>
-            ) : null}
-        </div>
+        </>
     );
 }

@@ -13,6 +13,16 @@ export type ShopDeliverySettings = {
     delivery_belarus_free_min_lines: number;
 };
 
+export type ShopContactSettings = {
+    contact_phone_mts: string;
+    contact_phone_a1: string;
+    contact_phone_life: string;
+    contact_telegram_url: string;
+    contact_viber_url: string;
+};
+
+export type ShopSettings = ShopDeliverySettings & ShopContactSettings;
+
 function getAdminHeaders() {
     const token = typeof window !== "undefined" ? getAuthToken() : "";
     return {
@@ -21,7 +31,7 @@ function getAdminHeaders() {
     };
 }
 
-export async function fetchAdminShopDeliverySettings(): Promise<{ data: ShopDeliverySettings }> {
+export async function fetchAdminShopDeliverySettings(): Promise<{ data: ShopSettings }> {
     const res = await fetch(`${API_BASE}/admin/shop-settings`, {
         headers: getAdminHeaders(),
         cache: "no-store",
@@ -30,7 +40,7 @@ export async function fetchAdminShopDeliverySettings(): Promise<{ data: ShopDeli
     return res.json();
 }
 
-export async function updateAdminShopDeliverySettings(payload: Partial<ShopDeliverySettings>): Promise<{ data: ShopDeliverySettings }> {
+export async function updateAdminShopDeliverySettings(payload: Partial<ShopSettings>): Promise<{ data: ShopSettings }> {
     const res = await fetch(`${API_BASE}/admin/shop-settings`, {
         method: "PATCH",
         headers: getAdminHeaders(),

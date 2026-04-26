@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
-import type { ProductDetailData, ProductImageData, ProductVariantData } from "@/types/catalog";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ProductDetailData, ProductImageData, ProductListItem, ProductVariantData } from "@/types/catalog";
 import { useTransition } from "react";
 import { addToCart } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
@@ -14,7 +15,11 @@ import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import ProductStatusLabels from "@/components/product/product-status-labels";
+import ProductCard from "@/components/product/product-card";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+
+/** Минимум карточек в блоке «Похожие товары»; иначе блок скрыт. */
+const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
 
 type Props = {
     product: ProductDetailData;
@@ -63,6 +68,156 @@ function normalizeVariants(value: unknown): ProductVariantData[] {
     }
 
     return [];
+}
+
+const SIMILAR_GAP_PX = 12;
+
+function similarVisibleColumns(): 2 | 3 | 4 {
+    if (typeof window === "undefined") {
+        return 2;
+    }
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+        return 4;
+    }
+    if (window.matchMedia("(min-width: 768px)").matches) {
+        return 3;
+    }
+    return 2;
+}
+
+function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) {
+    const scrollerId = useId();
+    const scrollerRef = useRef<HTMLDivElement>(null);
+    const [overflow, setOverflow] = useState(false);
+    const [edge, setEdge] = useState({ left: false, right: false });
+    /** До первого измерения; useLayoutEffect сразу подставит ширину под число колонок. */
+    const [slideWidthPx, setSlideWidthPx] = useState(200);
+
+    const syncScrollState = useCallback(() => {
+        const el = scrollerRef.current;
+        if (!el) {
+            return;
+        }
+        const { scrollLeft, scrollWidth, clientWidth } = el;
+        const maxScroll = Math.max(0, scrollWidth - clientWidth);
+        setOverflow(maxScroll > 2);
+        setEdge({
+            left: scrollLeft > 2,
+            right: scrollLeft < maxScroll - 2,
+        });
+    }, []);
+
+    const measureSlides = useCallback(() => {
+        const el = scrollerRef.current;
+        if (!el) {
+            return;
+        }
+        const cols = similarVisibleColumns();
+        const w = el.clientWidth;
+        const slide = Math.floor((w - SIMILAR_GAP_PX * (cols - 1)) / cols);
+        setSlideWidthPx(Math.max(132, slide));
+        syncScrollState();
+    }, [syncScrollState]);
+
+    useLayoutEffect(() => {
+        measureSlides();
+    }, [products, measureSlides]);
+
+    useEffect(() => {
+        const el = scrollerRef.current;
+        if (!el) {
+            return;
+        }
+        syncScrollState();
+        el.addEventListener("scroll", syncScrollState, { passive: true });
+        const ro = new ResizeObserver(() => measureSlides());
+        ro.observe(el);
+        const onMq = () => measureSlides();
+        const mql1024 = window.matchMedia("(min-width: 1024px)");
+        const mql768 = window.matchMedia("(min-width: 768px)");
+        mql1024.addEventListener("change", onMq);
+        mql768.addEventListener("change", onMq);
+        return () => {
+            el.removeEventListener("scroll", syncScrollState);
+            ro.disconnect();
+            mql1024.removeEventListener("change", onMq);
+            mql768.removeEventListener("change", onMq);
+        };
+    }, [products, syncScrollState, measureSlides]);
+
+    const scrollByViewport = (dir: -1 | 1) => {
+        const el = scrollerRef.current;
+        if (!el) {
+            return;
+        }
+        el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.9), behavior: "smooth" });
+    };
+
+    return (
+        <section
+            className="col-span-1 min-w-0 border-t border-[var(--line)] pt-10 md:col-span-2 xl:col-span-3"
+            aria-labelledby={scrollerId}
+        >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 id={scrollerId} className="text-lg font-semibold text-[var(--foreground)]">
+                    Похожие товары
+                </h2>
+                {overflow ? (
+                    <div className="flex shrink-0 gap-1">
+                        <button
+                            type="button"
+                            aria-controls={`${scrollerId}-track`}
+                            aria-label="Прокрутить похожие товары назад"
+                            disabled={!edge.left}
+                            onClick={() => scrollByViewport(-1)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                        >
+                            <ChevronLeft className="h-5 w-5" aria-hidden />
+                        </button>
+                        <button
+                            type="button"
+                            aria-controls={`${scrollerId}-track`}
+                            aria-label="Прокрутить похожие товары вперёд"
+                            disabled={!edge.right}
+                            onClick={() => scrollByViewport(1)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                        >
+                            <ChevronRight className="h-5 w-5" aria-hidden />
+                        </button>
+                    </div>
+                ) : null}
+            </div>
+            <nav aria-label="Похожие товары" className="min-w-0 w-full">
+                <div
+                    ref={scrollerRef}
+                    id={`${scrollerId}-track`}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "ArrowLeft") {
+                            e.preventDefault();
+                            scrollByViewport(-1);
+                        } else if (e.key === "ArrowRight") {
+                            e.preventDefault();
+                            scrollByViewport(1);
+                        }
+                    }}
+                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
+                >
+                    <div className="mt-2 flex w-max snap-x snap-mandatory gap-3">
+                        {products.map((item, index) => (
+                            <div
+                                key={item.id}
+                                className="min-w-0 shrink-0 snap-start"
+                                style={{ width: slideWidthPx, flex: "0 0 auto" }}
+                            >
+                                <ProductCard product={item} showBrand eager={index < 4} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </nav>
+        </section>
+    );
 }
 
 export default function ProductDetailView({ product }: Props) {
@@ -411,6 +566,9 @@ export default function ProductDetailView({ product }: Props) {
                     </div>
                 </section>
             </div>
+            {product.similar_products && product.similar_products.length >= SIMILAR_PRODUCTS_MIN_TO_SHOW ? (
+                <SimilarProductsCarousel products={product.similar_products} />
+            ) : null}
         </main>
     );
 }

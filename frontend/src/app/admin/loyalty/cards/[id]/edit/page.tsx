@@ -190,15 +190,15 @@ export default function AdminLoyaltyCardEditPage() {
 
                         <LoyaltyUserSelectionChips
                             users={usersToAttach}
-                            onRemove={(id) => setUsersToAttach((p) => p.filter((u) => u.id !== id))}
+                            onRemoveAction={(id) => setUsersToAttach((p) => p.filter((u) => u.id !== id))}
                         />
                         <LoyaltyCardUserSearchPanel
                             userSearch={userSearch}
-                            onUserSearchChange={setUserSearch}
-                            onSearch={() => void searchUsers()}
+                            onUserSearchChangeAction={setUserSearch}
+                            onSearchAction={() => void searchUsers()}
                             foundUsers={foundUsers}
                             selectedUserIds={usersToAttach.map((u) => u.id)}
-                            onToggleUser={toggleUserSelection}
+                            onToggleUserAction={toggleUserSelection}
                             alreadyLinkedIds={attachedUsers.map((u) => u.id)}
                         />
 
