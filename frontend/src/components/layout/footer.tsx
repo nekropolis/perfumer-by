@@ -43,6 +43,9 @@ export default function Footer() {
                             <Link href="/gift-certificates" className="hover:underline">
                                 Подарочные сертификаты
                             </Link>
+                            <Link href="/reviews" className="hover:underline">
+                                Отзывы о магазине
+                            </Link>
                             <Link href="#" className="hover:underline">
                                 О нас
                             </Link>

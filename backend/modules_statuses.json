@@ -9,5 +9,6 @@
     "Wishlist": true,
     "Pages": true,
     "Loyalty": true,
-    "Settings": true
+    "Settings": true,
+    "Reviews": true
 }

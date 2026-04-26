@@ -30,6 +30,7 @@ class PageAdminController extends Controller
         'search',
         'account',
         'home',
+        'reviews',
     ];
 
     public function __construct(

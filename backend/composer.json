@@ -53,7 +53,10 @@
             "Modules\\Loyalty\\Database\\Seeders\\": "Modules/Loyalty/database/seeders/",
             "Modules\\Settings\\": "Modules/Settings/app/",
             "Modules\\Settings\\Database\\Factories\\": "Modules/Settings/database/factories/",
-            "Modules\\Settings\\Database\\Seeders\\": "Modules/Settings/database/seeders/"
+            "Modules\\Settings\\Database\\Seeders\\": "Modules/Settings/database/seeders/",
+            "Modules\\Reviews\\": "Modules/Reviews/app/",
+            "Modules\\Reviews\\Database\\Factories\\": "Modules/Reviews/database/factories/",
+            "Modules\\Reviews\\Database\\Seeders\\": "Modules/Reviews/database/seeders/"
         }
     },
     "autoload-dev": {

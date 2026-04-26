@@ -1,0 +1,384 @@
+"use client";
+
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminSearchInput from "@/components/admin/ui/admin-search-input";
+import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
+import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
+import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminPagination from "@/components/admin/ui/admin-pagination";
+import AdminTableShell from "@/components/admin/ui/admin-table-shell";
+import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import useDebouncedValue from "@/hooks/use-debounced-value";
+import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
+import {
+    fetchAdminReviews,
+    patchAdminReviewReply,
+    patchAdminReviewStatus,
+    type AdminReviewItem,
+    type AdminReviewsListResponse,
+} from "@/lib/admin-reviews-api";
+
+const DAYS_OPTIONS = [
+    { value: "1", label: "За сутки" },
+    { value: "7", label: "За 7 дней" },
+    { value: "30", label: "За 30 дней" },
+    { value: "90", label: "За 90 дней" },
+];
+
+const STATUS_OPTIONS = [
+    { value: "pending", label: "На модерации" },
+    { value: "published", label: "Опубликован" },
+    { value: "rejected", label: "Отклонён" },
+];
+
+const TYPE_OPTIONS = [
+    { value: "product", label: "О товаре" },
+    { value: "store", label: "О магазине" },
+];
+
+const STATUS_LABEL: Record<string, string> = {
+    pending: "На модерации",
+    published: "Опубликован",
+    rejected: "Отклонён",
+};
+
+function formatDt(iso: string | null): string {
+    if (!iso) return "—";
+    try {
+        return new Date(iso).toLocaleString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    } catch {
+        return iso;
+    }
+}
+
+export default function AdminReviewsPage() {
+    const searchParamsFromUrl = useSearchParams();
+    const [items, setItems] = useState<AdminReviewItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+
+    const [searchInput, setSearchInput] = useState(() => searchParamsFromUrl.get("search") ?? "");
+    const [days, setDays] = useState(() => searchParamsFromUrl.get("days") ?? "");
+    const [statusFilter, setStatusFilter] = useState(() => searchParamsFromUrl.get("status") ?? "");
+    const [typeFilter, setTypeFilter] = useState(() => searchParamsFromUrl.get("type") ?? "");
+
+    const [page, setPage] = useUrlPage();
+    const [meta, setMeta] = useState<AdminReviewsListResponse | null>(null);
+    const [savingId, setSavingId] = useState<number | null>(null);
+
+    const [replyModal, setReplyModal] = useState<AdminReviewItem | null>(null);
+    const [replyDraft, setReplyDraft] = useState("");
+    const [replySaving, setReplySaving] = useState(false);
+
+    const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+    const loadItems = useCallback(async () => {
+        setLoading(true);
+        setError("");
+        try {
+            const data = await fetchAdminReviews({
+                page,
+                search: debouncedSearch.trim() || undefined,
+                status: statusFilter || undefined,
+                type: typeFilter || undefined,
+                days: days || undefined,
+            });
+            setItems(data.data || []);
+            setMeta(data);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка загрузки отзывов");
+        } finally {
+            setLoading(false);
+        }
+    }, [page, debouncedSearch, statusFilter, typeFilter, days]);
+
+    useResetPageOnChange(setPage, [debouncedSearch, statusFilter, typeFilter, days]);
+
+    useEffect(() => {
+        void loadItems();
+    }, [loadItems]);
+
+    const handleStatus = async (row: AdminReviewItem, status: AdminReviewItem["status"]) => {
+        setSavingId(row.id);
+        setError("");
+        setSuccess("");
+        try {
+            const res = await patchAdminReviewStatus(row.id, status);
+            setSuccess(res.message);
+            setItems((prev) => prev.map((x) => (x.id === row.id ? res.data : x)));
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось обновить статус");
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    const openReply = (row: AdminReviewItem) => {
+        setReplyDraft(row.reply_text ?? "");
+        setReplyModal(row);
+    };
+
+    const saveReply = async () => {
+        if (!replyModal) return;
+        setReplySaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const trimmed = replyDraft.trim();
+            const res = await patchAdminReviewReply(replyModal.id, trimmed === "" ? null : trimmed);
+            setSuccess(res.message);
+            setItems((prev) => prev.map((x) => (x.id === replyModal.id ? res.data : x)));
+            setReplyModal(null);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось сохранить ответ");
+        } finally {
+            setReplySaving(false);
+        }
+    };
+
+    return (
+        <AdminPageCard>
+            <AdminTableToolbar
+                title="Отзывы"
+                description="Модерация отзывов о товарах и о магазине. Опубликованные отзывы видны на витрине; можно ответить от имени магазина."
+            />
+
+            {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
+            {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}
+
+            <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+                <AdminFilterSelect
+                    value={days}
+                    onChangeAction={setDays}
+                    label="Период"
+                    options={DAYS_OPTIONS}
+                    placeholder="За всё время"
+                />
+                <AdminFilterSelect
+                    value={statusFilter}
+                    onChangeAction={setStatusFilter}
+                    label="Статус"
+                    options={STATUS_OPTIONS}
+                    placeholder="Все статусы"
+                />
+                <AdminFilterSelect
+                    value={typeFilter}
+                    onChangeAction={setTypeFilter}
+                    label="Тип"
+                    options={TYPE_OPTIONS}
+                    placeholder="Все типы"
+                />
+            </div>
+
+            <AdminTableShell
+                total={meta?.total ?? items.length}
+                search={
+                    <AdminSearchInput
+                        value={searchInput}
+                        onChangeAction={setSearchInput}
+                        placeholder="Поиск по имени автора"
+                    />
+                }
+                footer={
+                    <AdminPagination
+                        currentPage={meta?.current_page ?? 1}
+                        lastPage={meta?.last_page ?? 1}
+                        onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                        onNextAction={() => setPage((p) => (meta && meta.current_page < meta.last_page ? p + 1 : p))}
+                    />
+                }
+            >
+                {loading && items.length === 0 ? (
+                    <AdminLoadingState text="Загрузка отзывов..." />
+                ) : items.length === 0 ? (
+                    <AdminEmptyState title="Отзывов нет" description="Измените фильтры или дождитесь новых отзывов от покупателей." />
+                ) : (
+                    <div className="min-w-[920px]">
+                        <table className="w-full border-collapse text-left text-sm">
+                            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
+                                <tr>
+                                    <th className="px-3 py-2">ID</th>
+                                    <th className="px-3 py-2">Дата</th>
+                                    <th className="px-3 py-2">Тип</th>
+                                    <th className="px-3 py-2">Имя</th>
+                                    <th className="px-3 py-2">★</th>
+                                    <th className="px-3 py-2">Товар</th>
+                                    <th className="px-3 py-2">Статус</th>
+                                    <th className="px-3 py-2 text-right">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map((row) => (
+                                    <tr key={row.id} className="border-b border-gray-100 align-top last:border-0">
+                                        <td className="px-3 py-2 whitespace-nowrap text-gray-600">{row.id}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-gray-600">{formatDt(row.created_at)}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap">
+                                            {row.type === "store" ? (
+                                                <span className="rounded-md bg-violet-50 px-2 py-0.5 text-xs text-violet-800">Магазин</span>
+                                            ) : (
+                                                <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs text-sky-800">Товар</span>
+                                            )}
+                                        </td>
+                                        <td className="max-w-[140px] px-3 py-2">
+                                            <div className="truncate font-medium text-gray-900" title={row.name}>
+                                                {row.name}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap">{row.stars}</td>
+                                        <td className="max-w-[180px] px-3 py-2 text-gray-700">
+                                            {row.product ? (
+                                                <Link
+                                                    href={`/product/${row.product.slug}`}
+                                                    className="line-clamp-2 text-[var(--accent)] underline-offset-2 hover:underline"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    {row.product.name}
+                                                </Link>
+                                            ) : (
+                                                "—"
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-gray-700">{STATUS_LABEL[row.status] ?? row.status}</td>
+                                        <td className="px-3 py-2 text-right">
+                                            <div className="flex flex-wrap justify-end gap-1">
+                                                {row.status !== "published" ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={savingId === row.id}
+                                                        onClick={() => handleStatus(row, "published")}
+                                                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-50"
+                                                    >
+                                                        Опубликовать
+                                                    </button>
+                                                ) : null}
+                                                {row.status !== "pending" ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={savingId === row.id}
+                                                        onClick={() => handleStatus(row, "pending")}
+                                                        className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+                                                    >
+                                                        На модерацию
+                                                    </button>
+                                                ) : null}
+                                                {row.status !== "rejected" ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={savingId === row.id}
+                                                        onClick={() => handleStatus(row, "rejected")}
+                                                        className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-900 transition hover:bg-rose-100 disabled:opacity-50"
+                                                    >
+                                                        Отклонить
+                                                    </button>
+                                                ) : null}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openReply(row)}
+                                                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-800 transition hover:bg-gray-50"
+                                                >
+                                                    Ответ
+                                                </button>
+                                            </div>
+                                            <div className="mt-2 max-w-[280px] text-left text-xs leading-snug text-gray-600">
+                                                {row.text.length > 160 ? `${row.text.slice(0, 160)}…` : row.text}
+                                            </div>
+                                            {row.reply_text ? (
+                                                <div className="mt-1 text-xs text-emerald-800">
+                                                    Ответ:{" "}
+                                                    {row.reply_text.length > 100
+                                                        ? `${row.reply_text.slice(0, 100)}…`
+                                                        : row.reply_text}
+                                                </div>
+                                            ) : null}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </AdminTableShell>
+
+            {replyModal ? (
+                <div
+                    className="fixed inset-0 z-[220] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+                    onClick={() => setReplyModal(null)}
+                >
+                    <div
+                        role="dialog"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-modal="true"
+                        aria-labelledby="reply-modal-title"
+                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
+                    >
+                        <h2 id="reply-modal-title" className="mb-1 text-lg font-semibold text-gray-900">
+                            Ответ на отзыв #{replyModal.id}
+                        </h2>
+                        <p className="mb-3 text-xs text-gray-500">
+                            {replyModal.name} · {STATUS_LABEL[replyModal.status]}
+                        </p>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Текст ответа</label>
+                        <textarea
+                            value={replyDraft}
+                            onChange={(e) => setReplyDraft(e.target.value)}
+                            rows={6}
+                            maxLength={4000}
+                            className="mb-4 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => saveReply()}
+                                disabled={replySaving}
+                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50"
+                            >
+                                {replySaving ? "Сохранение…" : "Сохранить"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={replySaving}
+                                onClick={async () => {
+                                    setReplyDraft("");
+                                    const id = replyModal.id;
+                                    setReplySaving(true);
+                                    try {
+                                        const res = await patchAdminReviewReply(id, null);
+                                        setSuccess(res.message);
+                                        setItems((prev) => prev.map((x) => (x.id === id ? res.data : x)));
+                                        setReplyModal(null);
+                                    } catch (e: unknown) {
+                                        setError(e instanceof Error ? e.message : "Ошибка");
+                                    } finally {
+                                        setReplySaving(false);
+                                    }
+                                }}
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-800 transition hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Удалить ответ
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setReplyModal(null)}
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-800 transition hover:bg-gray-50"
+                            >
+                                Закрыть
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+        </AdminPageCard>
+    );
+}

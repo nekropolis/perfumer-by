@@ -1,0 +1,22 @@
+{
+    "name": "nwidart/reviews",
+    "description": "Reviews module",
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Reviews\\": "app/",
+            "Modules\\Reviews\\Database\\Factories\\": "database/factories/",
+            "Modules\\Reviews\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Reviews\\Tests\\": "tests/"
+        }
+    }
+}

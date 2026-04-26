@@ -335,6 +335,14 @@ export default function HeaderMobileMenu({
                         >
                             Акции
                         </Link>
+
+                        <Link
+                            href="/reviews"
+                            className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            onClick={onCloseAction}
+                        >
+                            Отзывы о магазине
+                        </Link>
                     </div>
 
                     {isAuthenticated ? (

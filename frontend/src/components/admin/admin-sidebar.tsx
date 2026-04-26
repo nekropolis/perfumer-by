@@ -12,6 +12,7 @@ import {
     Inbox,
     LayoutDashboard,
     ListFilter,
+    MessageSquare,
     Package,
     PackageMinus,
     PanelsTopLeft,
@@ -26,10 +27,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { fetchOrdersStats } from "@/lib/admin-orders-api";
+import { fetchAdminReviewsStats } from "@/lib/admin-reviews-api";
 import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
-type BadgeKey = "ordersNew" | "stockBackInStockNew" | "stockCallbackNew";
+type BadgeKey = "ordersNew" | "stockBackInStockNew" | "stockCallbackNew" | "reviewsPending";
 
 type LinkItem = {
     type: "link";
@@ -67,6 +69,7 @@ const sections: SidebarSection[] = [
                 icon: PhoneCall,
                 badgeKey: "stockCallbackNew",
             },
+            { type: "link", href: "/admin/reviews", label: "Отзывы", icon: MessageSquare, badgeKey: "reviewsPending" },
             { type: "link", href: "/admin/shop-settings", label: "Настройки магазина", icon: Settings },
         ],
     },
@@ -129,7 +132,7 @@ type TooltipState = {
     y: number;
 } | null;
 
-// Когда есть новые заказы или необработанные заявки (поступление / звонок) —
+// Когда есть новые заказы, отзывы на модерации или необработанные заявки (поступление / звонок) —
 // поллим чаще; в «тишине» — реже.
 const ORDERS_STATS_ACTIVE_MS = 15_000;
 const ORDERS_STATS_IDLE_MS = 60_000;
@@ -230,6 +233,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const [newOrdersCount, setNewOrdersCount] = useState(0);
     const [stockBackInStockNew, setStockBackInStockNew] = useState(0);
     const [stockCallbackNew, setStockCallbackNew] = useState(0);
+    const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
     const _hasItems = flatItems.length > 0;
@@ -237,9 +241,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
     const loadSidebarBadgeStats = useCallback(
         async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            const [ordersResult, stockResult] = await Promise.allSettled([
+            const [ordersResult, stockResult, reviewsResult] = await Promise.allSettled([
                 fetchOrdersStats(signal),
                 fetchAdminStockNotificationStats(signal),
+                fetchAdminReviewsStats(signal),
             ]);
 
             let ordersNew = 0;
@@ -257,7 +262,13 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                 setStockCallbackNew(callback);
             }
 
-            const active = ordersNew > 0 || backInStock > 0 || callback > 0;
+            let reviewsPending = 0;
+            if (reviewsResult.status === "fulfilled") {
+                reviewsPending = reviewsResult.value.data.pending_count ?? 0;
+                setReviewsPendingCount(reviewsPending);
+            }
+
+            const active = ordersNew > 0 || backInStock > 0 || callback > 0 || reviewsPending > 0;
             return { active };
         },
         [],
@@ -269,7 +280,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
         fetcherAction: loadSidebarBadgeStats,
     });
 
-    // Переход между страницами админки — освежить бейджи (заказы, заявки).
+    // Переход между страницами админки — освежить бейджи (заказы, заявки, отзывы).
     // На первом рендере ничего не делаем: useSmartPolling сам уже запросил данные.
     const prevPathRef = useRef<string | null>(null);
     useEffect(() => {
@@ -283,6 +294,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
         ordersNew: newOrdersCount,
         stockBackInStockNew: stockBackInStockNew,
         stockCallbackNew: stockCallbackNew,
+        reviewsPending: reviewsPendingCount,
     };
 
     return (

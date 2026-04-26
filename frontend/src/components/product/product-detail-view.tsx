@@ -13,6 +13,7 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
+import ProductReviewsTab from "@/components/product/product-reviews-tab";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import ProductCard from "@/components/product/product-card";
@@ -145,13 +146,18 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
         };
     }, [products, syncScrollState, measureSlides]);
 
-    const scrollByViewport = (dir: -1 | 1) => {
-        const el = scrollerRef.current;
-        if (!el) {
-            return;
-        }
-        el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.9), behavior: "smooth" });
-    };
+    const scrollByViewport = useCallback(
+        (dir: -1 | 1) => {
+            const el = scrollerRef.current;
+            if (!el) {
+                return;
+            }
+            const cols = similarVisibleColumns();
+            const step = cols * slideWidthPx + (cols - 1) * SIMILAR_GAP_PX;
+            el.scrollBy({ left: dir * step, behavior: "smooth" });
+        },
+        [slideWidthPx],
+    );
 
     return (
         <section
@@ -222,7 +228,7 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
 
 export default function ProductDetailView({ product }: Props) {
     const [isPending, startTransition] = useTransition();
-    const [activeTab, setActiveTab] = useState<"attributes" | "description">("attributes");
+    const [activeTab, setActiveTab] = useState<"attributes" | "description" | "reviews">("attributes");
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
@@ -513,6 +519,17 @@ export default function ProductDetailView({ product }: Props) {
                             >
                                 Описание
                             </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab("reviews")}
+                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "reviews"
+                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
+                                    : "text-[var(--text-secondary)]"
+                                    }`}
+                            >
+                                Отзывы
+                            </button>
                         </div>
 
                         <div className="p-5 sm:p-6">
@@ -552,6 +569,10 @@ export default function ProductDetailView({ product }: Props) {
                                 ) : (
                                     <div className="text-sm text-[var(--text-secondary)]">Описание отсутствует</div>
                                 )}
+                            </div>
+
+                            <div className={activeTab === "reviews" ? "block" : "hidden"}>
+                                <ProductReviewsTab productId={product.id} isActive={activeTab === "reviews"} />
                             </div>
 
                             {/* Keep description in initial HTML output for SEO crawlers even when Attributes tab is active. */}
