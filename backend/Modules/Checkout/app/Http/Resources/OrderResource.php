@@ -37,6 +37,21 @@ class OrderResource extends JsonResource
         $giftCode = $this->gift_certificate_code ?: $firstGift?->code_snapshot;
         $discountAmount = $this->resolveDiscountAmount($giftTotal);
 
+        $numberFromSnapshot = trim((string) ($this->discount_card_number ?? ''));
+        $numberFromRelation = '';
+        if ($this->relationLoaded('discountCard') && $this->discountCard) {
+            $numberFromRelation = trim((string) ($this->discountCard->card_number ?? ''));
+        }
+        $displayDiscountCardNumber = $numberFromSnapshot !== '' ? $numberFromSnapshot : ($numberFromRelation !== '' ? $numberFromRelation : null);
+
+        $pctSnapshot = (float) ($this->discount_percent_snapshot ?? 0);
+        $subtotalF = (float) $this->subtotal;
+        $displayDiscountPercent = $pctSnapshot > 0.0001
+            ? $pctSnapshot
+            : ($subtotalF > 0.0001 && $discountAmount > 0.0001
+                ? round($discountAmount / $subtotalF * 100, 2)
+                : 0.0);
+
         $deliveryMethod = (string) ($this->delivery_method ?? '');
         $paymentMethod = (string) ($this->payment_method ?? '');
 
@@ -77,8 +92,9 @@ class OrderResource extends JsonResource
             })->values()->all(),
             'gift_certificate_purchases' => $this->giftCertificatePurchasesForResource(),
             'sold_gift_certificates' => $this->soldGiftCertificatesForResource(),
-            'discount_card_number' => $this->discount_card_number,
-            'discount_percent_snapshot' => number_format((float) $this->discount_percent_snapshot, 2, '.', ''),
+            'discount_card_id' => $this->discount_card_id !== null ? (int) $this->discount_card_id : null,
+            'discount_card_number' => $displayDiscountCardNumber,
+            'discount_percent_snapshot' => number_format((float) $displayDiscountPercent, 2, '.', ''),
             'discount_amount' => number_format($discountAmount, 2, '.', ''),
             'items' => $this->items->map(function ($item) use ($receiptItemsByVariant) {
                 $data = [

@@ -114,7 +114,35 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                 </div>
                             )}
 
-                            <OrderDiscountSummary order={order}/>
+                            <div className="mb-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left">
+                                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                                    <div>
+                                        <dt className="text-[var(--text-secondary)]">Тип</dt>
+                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                            {order.delivery_method_label?.trim() ||
+                                                order.delivery_method?.trim() ||
+                                                "—"}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-[var(--text-secondary)]">Стоимость доставки</dt>
+                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                            {order.delivery_fee ?? "0.00"} руб.
+                                        </dd>
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <dt className="text-[var(--text-secondary)]">Адрес</dt>
+                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                            {[
+                                                order.delivery_city?.trim(),
+                                                order.delivery_address?.trim(),
+                                            ]
+                                                .filter(Boolean)
+                                                .join(", ") || "—"}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
 
                             <div className="space-y-4">
                                 {order.items.map((item) => (
@@ -182,6 +210,8 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                     </div>
                                 ))}
                             </div>
+
+                            <OrderDiscountSummary order={order}/>
 
                             <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">
                                 <div className="text-sm text-[var(--text-secondary)]">К оплате</div>

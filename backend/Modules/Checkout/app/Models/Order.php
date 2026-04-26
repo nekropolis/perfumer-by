@@ -3,7 +3,9 @@
 namespace Modules\Checkout\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\OrderGiftCertificate;
 
@@ -39,6 +41,11 @@ class Order extends Model
         'delivery_fee' => 'decimal:2',
         'gift_certificate_amount' => 'decimal:2',
     ];
+
+    public function discountCard(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCard::class, 'discount_card_id');
+    }
 
     public function items(): HasMany
     {

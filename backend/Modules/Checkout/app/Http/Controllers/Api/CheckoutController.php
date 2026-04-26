@@ -6,6 +6,7 @@ use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
@@ -40,7 +41,7 @@ class CheckoutController extends Controller
         ]);
 
         $phone = $this->normalizePhone($validated['phone']);
-        $user = $request->user();
+        $user = $request->user() ?? Auth::guard('sanctum')->user();
         $orderUserId = $this->resolveOrderUserId($user, $phone);
 
         $cartToken = $request->header('X-Cart-Token') ?: $request->input('cart_token');
@@ -188,14 +189,26 @@ class CheckoutController extends Controller
             return $order;
         });
 
-        $order->load(['items', 'orderGiftCertificates', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         DB::transaction(function () use ($order) {
             $order->load('items');
             app(StockInventoryService::class)->reserveForOrder($order);
         });
 
-        $order->load(['items', 'orderGiftCertificates', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         app(CheckoutTelegramNotificationService::class)->notifyNewOrder($order);
 

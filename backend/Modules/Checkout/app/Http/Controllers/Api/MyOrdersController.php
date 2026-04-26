@@ -15,7 +15,13 @@ class MyOrdersController extends Controller
         $user = $request->user();
 
         $orders = Order::query()
-            ->with(['items.product.mainImage', 'giftCertificatePurchases', 'orderGiftCertificates.giftCertificate', 'soldGiftCertificates.template'])
+            ->with([
+                'items.product.mainImage',
+                'discountCard:id,card_number',
+                'giftCertificatePurchases',
+                'orderGiftCertificates.giftCertificate',
+                'soldGiftCertificates.template',
+            ])
             ->where('user_id', $user->id)
             ->latest('id')
             ->paginate(20);
@@ -36,7 +42,13 @@ class MyOrdersController extends Controller
         $user = $request->user();
 
         $order = Order::query()
-            ->with(['items.product.mainImage', 'giftCertificatePurchases', 'orderGiftCertificates.giftCertificate', 'soldGiftCertificates.template'])
+            ->with([
+                'items.product.mainImage',
+                'discountCard:id,card_number',
+                'giftCertificatePurchases',
+                'orderGiftCertificates.giftCertificate',
+                'soldGiftCertificates.template',
+            ])
             ->where('user_id', $user->id)
             ->findOrFail($id);
 

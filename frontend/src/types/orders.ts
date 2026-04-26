@@ -98,6 +98,7 @@ export type OrderData = {
     /** Выпущенные по заказу записи gift_certificates (ожидают код при status new). */
     sold_gift_certificates?: OrderSoldGiftCertificate[];
     /** Снимок из заказа: какая карта и с каким % была применена. */
+    discount_card_id?: number | null;
     discount_card_number?: string | null;
     discount_percent_snapshot?: string;
     discount_amount?: string;

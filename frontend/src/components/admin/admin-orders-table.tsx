@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import type { OrderData } from "@/types/orders";
-import { updateOrderStatus } from "@/lib/admin-orders-api";
+import { fetchOrder, updateOrderStatus } from "@/lib/admin-orders-api";
 import { getOrderStatusTableTextClass, ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
@@ -33,6 +33,7 @@ export default function AdminOrdersTable({
 }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
+    const [orderDetailLoading, setOrderDetailLoading] = useState(false);
     const [terminalConfirm, setTerminalConfirm] = useState<{ orderId: number; nextStatus: "done" | "cancelled" } | null>(
         null,
     );
@@ -52,12 +53,12 @@ export default function AdminOrdersTable({
 
                 setOrders((prev) =>
                     prev.map((order) =>
-                        order.id === orderId ? { ...order, status: response.data.status } : order
+                        order.id === orderId ? { ...order, ...response.data } : order
                     )
                 );
 
                 setSelectedOrder((prev) =>
-                    prev && prev.id === orderId ? { ...prev, status: response.data.status } : prev
+                    prev && prev.id === orderId ? { ...prev, ...response.data } : prev
                 );
 
                 onSuccessMessageAction?.("Статус заказа обновлён");
@@ -82,6 +83,22 @@ export default function AdminOrdersTable({
             return;
         }
         handleStatusChange(orderId, nextStatus);
+    };
+
+    const openOrderDetail = (orderId: number) => {
+        setOrderDetailLoading(true);
+        setSelectedOrder(null);
+        void fetchOrder(orderId)
+            .then((res) => {
+                setSelectedOrder(res.data);
+            })
+            .catch((error) => {
+                console.error(error);
+                onErrorMessageAction?.("Не удалось загрузить заказ");
+            })
+            .finally(() => {
+                setOrderDetailLoading(false);
+            });
     };
 
     const formatDateOnly = (value?: string | null): string => {
@@ -136,7 +153,7 @@ export default function AdminOrdersTable({
                                         type="button"
                                         title="Посмотреть заказ"
                                         className="text-left font-medium text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
-                                        onClick={() => setSelectedOrder(order)}
+                                        onClick={() => openOrderDetail(order.id)}
                                     >
                                         #{order.id}
                                     </button>
@@ -181,7 +198,11 @@ export default function AdminOrdersTable({
 
             <AdminOrderItemsModal
                 order={selectedOrder}
-                onCloseAction={() => setSelectedOrder(null)}
+                orderDetailLoading={orderDetailLoading}
+                onCloseAction={() => {
+                    setSelectedOrder(null);
+                    setOrderDetailLoading(false);
+                }}
             />
 
             <AdminConfirmDialog

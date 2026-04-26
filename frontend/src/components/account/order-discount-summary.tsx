@@ -25,10 +25,9 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
     }
 
     return (
-        <div className="mb-6 space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm">
-            <div className="font-medium text-[var(--foreground)]">Скидки в заказе</div>
+        <div className="mt-6 space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm">
             <div className="flex justify-between text-[var(--text-secondary)]">
-                <span>Сумма товаров</span>
+                <span>Сумма товаров со скидкой</span>
                 <span>{order.subtotal} руб.</span>
             </div>
             {hasCard ? (

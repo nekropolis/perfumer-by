@@ -182,6 +182,7 @@ class OrderController extends Controller
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
+                'discountCard:id,card_number',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
                 'soldGiftCertificates.template',
@@ -246,6 +247,7 @@ class OrderController extends Controller
         $order = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
+                'discountCard:id,card_number',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
                 'soldGiftCertificates.template',
@@ -281,7 +283,13 @@ class OrderController extends Controller
             return $order;
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->refresh()->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates.giftCertificate',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -325,7 +333,13 @@ class OrderController extends Controller
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->refresh()->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates.giftCertificate',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -351,7 +365,13 @@ class OrderController extends Controller
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->refresh()->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->refresh()->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates.giftCertificate',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -394,6 +414,7 @@ class OrderController extends Controller
 
         $order->refresh()->load([
             'items.variant.supplierOffers.supplier',
+            'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
         ]);
 
@@ -420,7 +441,13 @@ class OrderController extends Controller
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
-        $order->load(['items', 'orderGiftCertificates.giftCertificate', 'giftCertificatePurchases', 'soldGiftCertificates.template']);
+        $order->load([
+            'items',
+            'discountCard:id,card_number',
+            'orderGiftCertificates.giftCertificate',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
 
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
@@ -587,11 +614,23 @@ class OrderController extends Controller
 
     private function applyLoyaltyCompletion(Order $order, string $previousStatus): void
     {
-        if (in_array($previousStatus, ['done', 'completed'], true) || !$order->discount_card_id) {
+        if (in_array($previousStatus, ['done', 'completed'], true)) {
             return;
         }
 
-        $card = DiscountCard::query()->find($order->discount_card_id);
+        $card = null;
+        if ($order->discount_card_id) {
+            $card = DiscountCard::query()->find($order->discount_card_id);
+        }
+        if (!$card) {
+            $number = trim((string) $order->discount_card_number);
+            if ($number !== '') {
+                $card = DiscountCard::query()
+                    ->where('card_number', $number)
+                    ->where('status', DiscountCard::STATUS_ACTIVE)
+                    ->first();
+            }
+        }
         if (!$card) {
             return;
         }

@@ -9,8 +9,67 @@ import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 
 type Props = {
     order: OrderData | null;
+    /** Полная загрузка заказа GET /admin/orders/:id (надёжнее, чем строка из списка). */
+    orderDetailLoading?: boolean;
     onCloseAction: () => void;
 };
+
+function parseMoney(value: unknown): number {
+    if (value == null || value === "") {
+        return 0;
+    }
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
+    let s = String(value).trim();
+    s = s.replace(/\u00a0/g, "").replace(/\s/g, "");
+    s = s.replace(",", ".");
+    const n = Number.parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function snakeToCamel(key: string): string {
+    return key.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
+}
+
+function orderPick(order: OrderData, snakeKey: string): unknown {
+    const r = order as unknown as Record<string, unknown>;
+    return r[snakeKey] ?? r[snakeToCamel(snakeKey)];
+}
+
+function orderMoney(order: OrderData, snakeKey: string): number {
+    return parseMoney(orderPick(order, snakeKey));
+}
+
+/** Как в OrderResource::resolveDiscountAmount: субтотал + доставка − списание сертификатом − итого. */
+function impliedLoyaltyDiscountFromTotals(order: OrderData): number {
+    const sub = orderMoney(order, "subtotal");
+    const del = orderMoney(order, "delivery_fee");
+    const gift = orderMoney(order, "gift_certificate_amount");
+    const tot = orderMoney(order, "total");
+    return Math.max(0, Math.round((sub + del - gift - tot) * 100) / 100);
+}
+
+function formatRub(n: number): string {
+    return n.toFixed(2);
+}
+
+function parseDiscountCardId(order: OrderData): number | null {
+    const v = orderPick(order, "discount_card_id");
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+        return v;
+    }
+    if (typeof v === "string" && /^\d+$/.test(v.trim())) {
+        return Number.parseInt(v, 10);
+    }
+    return null;
+}
+
+function discountCardNumberFromOrder(order: OrderData): string {
+    const v = orderPick(order, "discount_card_number");
+    const s = typeof v === "string" ? v.trim() : v != null ? String(v).trim() : "";
+    return s;
+}
 
 function InfoItem({
     label,
@@ -31,9 +90,9 @@ function InfoItem({
     );
 }
 
-export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
+export default function AdminOrderItemsModal({ order, orderDetailLoading, onCloseAction }: Props) {
     useEffect(() => {
-        if (!order) return;
+        if (!order && !orderDetailLoading) return;
 
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
@@ -41,20 +100,64 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
         return () => {
             document.body.style.overflow = previousOverflow;
         };
-    }, [order]);
+    }, [order, orderDetailLoading]);
 
-    if (!order || typeof document === "undefined") {
+    if (typeof document === "undefined") {
         return null;
     }
 
+    if (orderDetailLoading && !order) {
+        return createPortal(
+            <div
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4"
+                onClick={onCloseAction}
+                role="presentation"
+            >
+                <div
+                    className="rounded-2xl bg-white px-6 py-5 text-sm text-gray-700 shadow-xl"
+                    onClick={(e) => e.stopPropagation()}
+                    role="status"
+                >
+                    Загрузка заказа…
+                </div>
+            </div>,
+            document.body,
+        );
+    }
+
+    if (!order) {
+        return null;
+    }
+
+    const giftCertificateAmt = orderMoney(order, "gift_certificate_amount");
+
     const hasGiftPayment =
         (order.gift_certificates?.length ?? 0) > 0 ||
-        Boolean(order.gift_certificate_code || order.gift_certificate_number);
+        Boolean(orderPick(order, "gift_certificate_code") || orderPick(order, "gift_certificate_number")) ||
+        giftCertificateAmt > 0.004;
+
+    const cardDiscountAmt = orderMoney(order, "discount_amount");
+    const impliedLoyalty = impliedLoyaltyDiscountFromTotals(order);
+    const cardDiscountEffective = Math.max(cardDiscountAmt, impliedLoyalty);
+    const cardPercentVal = orderMoney(order, "discount_percent_snapshot");
+    const cardId = parseDiscountCardId(order);
+    const cardNumber = discountCardNumberFromOrder(order);
+    const subtotalN = orderMoney(order, "subtotal");
+
+    const derivedPercentFromTotals =
+        subtotalN > 0.004 && cardDiscountEffective > 0.004
+            ? Math.round((cardDiscountEffective / subtotalN) * 10000) / 100
+            : 0;
+
+    const displayPercent =
+        cardPercentVal > 0.004 ? cardPercentVal : cardDiscountEffective > 0.004 ? derivedPercentFromTotals : 0;
 
     const hasDiscountCard =
-        Boolean(order.discount_card_number) ||
-        Number(order.discount_amount ?? "0") > 0 ||
-        Number(order.discount_percent_snapshot ?? "0") > 0;
+        cardId != null ||
+        cardNumber !== "" ||
+        cardPercentVal > 0.004 ||
+        cardDiscountAmt > 0.004 ||
+        impliedLoyalty > 0.004;
 
     const hasGiftPurchases = (order.gift_certificate_purchases?.length ?? 0) > 0;
     const hasSoldGiftCerts = (order.sold_gift_certificates?.length ?? 0) > 0;
@@ -63,12 +166,16 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
 
     const giftCode =
         giftLine?.code ||
-        order.gift_certificate_code ||
-        order.gift_certificate_number ||
+        (orderPick(order, "gift_certificate_code") as string | undefined) ||
+        (orderPick(order, "gift_certificate_number") as string | undefined) ||
         "—";
 
     const giftNominal = giftLine?.nominal_amount ?? null;
-    const giftApplied = giftLine?.amount_applied ?? order.gift_certificate_amount ?? "0.00";
+    const giftApplied =
+        giftLine?.amount_applied ??
+        (orderPick(order, "gift_certificate_amount") != null
+            ? String(orderPick(order, "gift_certificate_amount"))
+            : "0.00");
     const giftBalance = giftLine?.balance_amount ?? null;
 
     const deliveryAddress = order.delivery_address || order.delivery_city || "—";
@@ -123,15 +230,6 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                             >
                                 Заказ #{order.id} - {formatDate(order.created_at)}
                             </h3>
-
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-600">
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5">
-                                    Товаров: {order.items_qty}
-                                </span>
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5">
-                                    Сумма: {order.subtotal} руб.
-                                </span>
-                            </div>
                         </div>
 
                         <button
@@ -228,15 +326,18 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     <InfoItem
                                         label="Номер карты"
-                                        value={order.discount_card_number || "—"}
+                                        value={
+                                            cardNumber ||
+                                            (cardId != null ? `карта #${cardId}` : "—")
+                                        }
                                     />
                                     <InfoItem
                                         label="% скидки"
-                                        value={`${order.discount_percent_snapshot ?? "0.00"}%`}
+                                        value={`${formatRub(displayPercent)}%`}
                                     />
                                     <InfoItem
                                         label="Сумма скидки"
-                                        value={`${order.discount_amount ?? "0.00"} руб.`}
+                                        value={`${formatRub(cardDiscountEffective)} руб.`}
                                     />
                                 </div>
                             ) : (
@@ -312,7 +413,7 @@ export default function AdminOrderItemsModal({ order, onCloseAction }: Props) {
                     </div>
                 </div>
             </div>
-        </div >,
+        </div>,
         document.body
     );
 }

@@ -48,7 +48,8 @@ class LoyaltyPricingService
 
     /**
      * @param  array{payment_method?: string}  $options
-     *                         payment_method: cash|card — при card скидка по карте не начисляется.
+     *                         payment_method: cash|card — при card скидка по карте не начисляется,
+     *                         но карта из корзины/аккаунта всё равно возвращается в discount_card для снимка заказа и лояльности при completed.
      */
     public function calculateForCart(Cart $cart, ?CustomerUser $user = null, array $options = []): array
     {
@@ -59,9 +60,14 @@ class LoyaltyPricingService
         $cart->refresh();
 
         $subtotal = $this->cartSubtotal($cart);
-        $card = $applyCardDiscount ? $this->resolveDiscountCard($cart, $user) : null;
-        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
-        $loyaltyDiscount = $this->loyaltyDiscountAmount($cart, $user, $subtotal, $applyCardDiscount);
+        $resolvedCard = $this->resolveDiscountCard($cart, $user);
+        $cardForDiscount = $applyCardDiscount ? $resolvedCard : null;
+        $cardPercent = $cardForDiscount
+            ? DiscountCard::effectiveDiscountPercent((float) $cardForDiscount->discount_percent)
+            : 0.0;
+        $loyaltyDiscount = $cardForDiscount
+            ? round($subtotal * ($cardPercent / 100), 2)
+            : 0.0;
 
         $certificate = $this->resolveGiftCertificate($cart);
         $certificateAmount = 0.0;
@@ -71,7 +77,7 @@ class LoyaltyPricingService
 
         return [
             'subtotal' => round($subtotal, 2),
-            'discount_card' => $card,
+            'discount_card' => $resolvedCard,
             'loyalty_discount_percent' => $cardPercent,
             'loyalty_discount_amount' => $loyaltyDiscount,
             'gift_certificate' => $certificate,
