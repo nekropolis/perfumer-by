@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CheckCircle2, MessageSquareReply, RotateCcw, XCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
@@ -49,12 +50,10 @@ const STATUS_LABEL: Record<string, string> = {
 function formatDt(iso: string | null): string {
     if (!iso) return "—";
     try {
-        return new Date(iso).toLocaleString("ru-RU", {
+        return new Date(iso).toLocaleDateString("ru-RU", {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
         });
     } catch {
         return iso;
@@ -204,7 +203,7 @@ export default function AdminReviewsPage() {
                 ) : items.length === 0 ? (
                     <AdminEmptyState title="Отзывов нет" description="Измените фильтры или дождитесь новых отзывов от покупателей." />
                 ) : (
-                    <div className="min-w-[920px]">
+                    <div className="min-w-[860px]">
                         <table className="w-full border-collapse text-left text-sm">
                             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
                                 <tr>
@@ -247,7 +246,7 @@ export default function AdminReviewsPage() {
                                                     {row.product.name}
                                                 </Link>
                                             ) : (
-                                                "—"
+                                                "Магазин"
                                             )}
                                         </td>
                                         <td className="px-3 py-2 whitespace-nowrap text-gray-700">{STATUS_LABEL[row.status] ?? row.status}</td>
@@ -258,9 +257,11 @@ export default function AdminReviewsPage() {
                                                         type="button"
                                                         disabled={savingId === row.id}
                                                         onClick={() => handleStatus(row, "published")}
-                                                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-50"
+                                                        title="Опубликовать"
+                                                        aria-label="Опубликовать"
+                                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-50"
                                                     >
-                                                        Опубликовать
+                                                        <CheckCircle2 className="h-4 w-4" aria-hidden />
                                                     </button>
                                                 ) : null}
                                                 {row.status !== "pending" ? (
@@ -268,9 +269,11 @@ export default function AdminReviewsPage() {
                                                         type="button"
                                                         disabled={savingId === row.id}
                                                         onClick={() => handleStatus(row, "pending")}
-                                                        className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+                                                        title="Вернуть на модерацию"
+                                                        aria-label="Вернуть на модерацию"
+                                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
                                                     >
-                                                        На модерацию
+                                                        <RotateCcw className="h-4 w-4" aria-hidden />
                                                     </button>
                                                 ) : null}
                                                 {row.status !== "rejected" ? (
@@ -278,30 +281,23 @@ export default function AdminReviewsPage() {
                                                         type="button"
                                                         disabled={savingId === row.id}
                                                         onClick={() => handleStatus(row, "rejected")}
-                                                        className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-900 transition hover:bg-rose-100 disabled:opacity-50"
+                                                        title="Отклонить"
+                                                        aria-label="Отклонить"
+                                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-900 transition hover:bg-rose-100 disabled:opacity-50"
                                                     >
-                                                        Отклонить
+                                                        <XCircle className="h-4 w-4" aria-hidden />
                                                     </button>
                                                 ) : null}
                                                 <button
                                                     type="button"
                                                     onClick={() => openReply(row)}
-                                                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-800 transition hover:bg-gray-50"
+                                                    title="Отзыв и ответ магазина"
+                                                    aria-label="Открыть отзыв и ответ магазина"
+                                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-800 transition hover:bg-gray-50"
                                                 >
-                                                    Ответ
+                                                    <MessageSquareReply className="h-4 w-4" aria-hidden />
                                                 </button>
                                             </div>
-                                            <div className="mt-2 max-w-[280px] text-left text-xs leading-snug text-gray-600">
-                                                {row.text.length > 160 ? `${row.text.slice(0, 160)}…` : row.text}
-                                            </div>
-                                            {row.reply_text ? (
-                                                <div className="mt-1 text-xs text-emerald-800">
-                                                    Ответ:{" "}
-                                                    {row.reply_text.length > 100
-                                                        ? `${row.reply_text.slice(0, 100)}…`
-                                                        : row.reply_text}
-                                                </div>
-                                            ) : null}
                                         </td>
                                     </tr>
                                 ))}
@@ -321,16 +317,31 @@ export default function AdminReviewsPage() {
                         onClick={(e) => e.stopPropagation()}
                         aria-modal="true"
                         aria-labelledby="reply-modal-title"
-                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
+                        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
                     >
                         <h2 id="reply-modal-title" className="mb-1 text-lg font-semibold text-gray-900">
-                            Ответ на отзыв #{replyModal.id}
+                            Отзыв и ответ #{replyModal.id}
                         </h2>
-                        <p className="mb-3 text-xs text-gray-500">
-                            {replyModal.name} · {STATUS_LABEL[replyModal.status]}
+                        <p className="mb-4 text-xs text-gray-500">
+                            {replyModal.name} · {formatDt(replyModal.created_at)} · {STATUS_LABEL[replyModal.status] ?? replyModal.status}
+                            {replyModal.type === "store"
+                                ? " · Магазин"
+                                : replyModal.product
+                                  ? ` · ${replyModal.product.name}`
+                                  : " · Товар"}
+                            {` · ${replyModal.stars}★`}
                         </p>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Текст ответа</label>
+                        <div className="mb-4">
+                            <div className="mb-1.5 text-sm font-medium text-gray-700">Текст отзыва</div>
+                            <div className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm leading-relaxed text-gray-900">
+                                {replyModal.text}
+                            </div>
+                        </div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="reply-modal-textarea">
+                            Ответ магазина
+                        </label>
                         <textarea
+                            id="reply-modal-textarea"
                             value={replyDraft}
                             onChange={(e) => setReplyDraft(e.target.value)}
                             rows={6}
