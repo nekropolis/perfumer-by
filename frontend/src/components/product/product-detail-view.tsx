@@ -87,12 +87,10 @@ export default function ProductDetailView({ product }: Props) {
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
     }, [variants, selectedVariantId]);
-    const isSelectedVariantInCart = useMemo(() => {
-        if (!selectedVariant?.id || !cart?.items?.length) {
-            return false;
-        }
-        return cart.items.some((item) => item.product_variant_id === selectedVariant.id);
-    }, [cart?.items, selectedVariant?.id]);
+    const isSelectedVariantInCart = Boolean(
+        selectedVariant?.id &&
+            cart?.items?.some((item) => item.product_variant_id === selectedVariant.id)
+    );
     const selectedVariantHasDiscount = Boolean(
         selectedVariant &&
         selectedVariant.old_price &&
@@ -142,7 +140,7 @@ export default function ProductDetailView({ product }: Props) {
                 ]}
             />
 
-            <div className="grid grid-cols-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-start">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
                     <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] shadow-sm">
                         <ProductStatusLabels
@@ -317,13 +315,13 @@ export default function ProductDetailView({ product }: Props) {
 
                 </section>
 
-                <aside className="self-start xl:sticky xl:top-24">
+                <aside className="self-start md:col-span-2 xl:col-span-1 xl:sticky xl:top-24">
                     <ProductBuyBox
                         selectedVariant={selectedVariant}
                         isSelectedVariantInCart={isSelectedVariantInCart}
                         isPending={isPending}
-                        onAddToCart={handleAddToCart}
-                        formatPrice={formatPrice}
+                        onAddToCartAction={handleAddToCart}
+                        formatPriceAction={formatPrice}
                         productId={product.id}
                         productName={product.name}
                         loyaltyCardNumber={isAuthenticated ? loyaltyCard?.number ?? null : null}
@@ -332,11 +330,11 @@ export default function ProductDetailView({ product }: Props) {
                     />
                 </aside>
 
-                <section className="xl:col-span-2">
+                <section className="md:col-span-2 xl:col-span-2">
                     <ProductServiceInfo />
                 </section>
 
-                <section className="min-w-0 xl:col-span-2">
+                <section className="min-w-0 md:col-span-2 xl:col-span-2">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)]">
                         <div className="flex overflow-x-auto border-b border-[var(--line)]">
                             <button

@@ -3,17 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type {
     HeaderSearchBrandItem,
     HeaderSearchItem,
 } from "@/components/layout/header/types";
 import ProductStatusLabels from "@/components/product/product-status-labels";
+import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 
 type Props = {
     isOpen: boolean;
+    topOffset: number;
     searchOpen: boolean;
     searchLoading: boolean;
     searchQuery: string;
@@ -22,12 +25,11 @@ type Props = {
     recentSearches: string[];
     popularSearches: readonly string[];
     contactLinks?: ReadonlyArray<{ label: string; href: string }>;
-    cartQty: number;
-    wishlistQty?: number;
+    phoneLinks?: ReadonlyArray<{ label: string; number: string }>;
     isAuthenticated: boolean;
     userName: string;
     userPhone: string;
-    formatSearchPrice: (item: HeaderSearchItem) => ReactNode;
+    formatSearchPriceAction: (item: HeaderSearchItem) => ReactNode;
     onCloseAction: () => void;
     onSearchFocusAction: () => void;
     onSearchChangeAction: (value: string) => void;
@@ -43,6 +45,7 @@ type Props = {
 
 export default function HeaderMobileMenu({
     isOpen,
+    topOffset,
     searchOpen,
     searchLoading,
     searchQuery,
@@ -50,13 +53,12 @@ export default function HeaderMobileMenu({
     searchBrandResults,
     recentSearches,
     popularSearches,
+    phoneLinks = [],
     contactLinks = [],
-    cartQty,
-    wishlistQty = 0,
     isAuthenticated,
     userName,
     userPhone,
-    formatSearchPrice,
+    formatSearchPriceAction,
     onCloseAction,
     onSearchFocusAction,
     onSearchChangeAction,
@@ -69,14 +71,29 @@ export default function HeaderMobileMenu({
     onProductSelectAction,
     onLogoutAction,
 }: Props) {
-    if (!isOpen) {
+    if (!isOpen || typeof window === "undefined") {
         return null;
     }
 
-    return (
-        <div className="border-t border-[var(--line)] bg-[var(--surface)] md:hidden">
-            <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-                <div className="flex flex-col gap-3">
+    const getOperatorBadgeClass = (label: string) => {
+        const normalized = label.toLowerCase();
+        if (normalized.includes("мтс")) {
+            return "bg-red-50 text-red-700 border-red-100";
+        }
+        if (normalized.includes("life")) {
+            return "bg-amber-50 text-amber-700 border-amber-100";
+        }
+        return "bg-violet-50 text-violet-700 border-violet-100";
+    };
+
+    return createPortal(
+        <div
+            className="fixed inset-x-0 bottom-0 z-50 overflow-x-clip border-t border-[var(--line)] bg-[var(--surface)] md:hidden"
+            style={{ top: `${topOffset}px` }}
+        >
+            <div className="h-full overflow-y-auto overscroll-contain">
+                <div className="mx-auto max-w-7xl px-4 py-4 pb-6 sm:px-6">
+                    <div className="flex flex-col gap-3">
                     <div className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-3">
                         <div className="relative">
                             <Search
@@ -268,7 +285,7 @@ export default function HeaderMobileMenu({
                                                             )}
                                                         </div>
                                                         <div className="truncate text-xs text-[var(--text-secondary)]">
-                                                            {formatSearchPrice(
+                                                            {formatSearchPriceAction(
                                                                 item,
                                                             )}
                                                         </div>
@@ -314,30 +331,6 @@ export default function HeaderMobileMenu({
                             onClick={onCloseAction}
                         >
                             Акции
-                        </Link>
-                    </div>
-
-                    <div className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-2">
-                        <Link
-                            href="/wishlist"
-                            className="flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
-                            onClick={onCloseAction}
-                        >
-                            <span>Избранное</span>
-                            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs text-[var(--accent)]">
-                                {wishlistQty}
-                            </span>
-                        </Link>
-
-                        <Link
-                            href="/cart"
-                            className="mt-1 flex items-center justify-between rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[#5C3E69]"
-                            onClick={onCloseAction}
-                        >
-                            <span>Корзина</span>
-                            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-white px-2 py-0.5 text-xs text-[var(--accent)]">
-                                {cartQty}
-                            </span>
                         </Link>
                     </div>
 
@@ -387,6 +380,21 @@ export default function HeaderMobileMenu({
                             </div>
 
                             <div className="flex flex-col gap-1">
+                                {phoneLinks.map((phone) => (
+                                    <a
+                                        key={phone.number}
+                                        href={`tel:${phone.number}`}
+                                        className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white"
+                                    >
+                                        <span
+                                            className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
+                                        >
+                                            {phone.label}
+                                        </span>
+                                        <span className="font-medium">{phone.number}</span>
+                                    </a>
+                                ))}
+
                                 {contactLinks.map((item) => (
                                     <a
                                         key={item.href}
@@ -396,11 +404,17 @@ export default function HeaderMobileMenu({
                                         {item.label}
                                     </a>
                                 ))}
+
+                                <div className="pt-1">
+                                    <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm text-emerald-700 transition hover:bg-[var(--background)]" />
+                                </div>
                             </div>
                         </div>
                     ) : null}
+                    </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }

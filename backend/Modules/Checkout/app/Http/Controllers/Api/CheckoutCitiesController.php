@@ -2,70 +2,68 @@
 
 namespace Modules\Checkout\Http\Controllers\Api;
 
+use App\Models\Settlement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Http;
 
-/**
- * Поиск населённых пунктов РБ через Nominatim (OSM). Укажите контакт в User-Agent в продакшене.
- */
 class CheckoutCitiesController extends Controller
 {
     public function search(Request $request): JsonResponse
     {
-        $q = trim((string) $request->query('q', ''));
-        if (mb_strlen($q) < 2) {
+        $query = trim((string) $request->get('q'));
+
+        if (mb_strlen($query) < 2) {
             return response()->json(['data' => []]);
         }
 
-        try {
-            $response = Http::timeout(8)
-                ->withHeaders([
-                    'User-Agent' => config('app.name', 'perfumer-by') . '/1.0 (checkout cities; +https://openstreetmap.org/copyright)',
-                    'Accept-Language' => 'ru,be,en',
-                ])
-                ->get('https://nominatim.openstreetmap.org/search', [
-                    'format' => 'json',
-                    'addressdetails' => 1,
-                    'countrycodes' => 'by',
-                    'limit' => 10,
-                    'q' => $q,
-                ]);
-        } catch (\Throwable) {
-            return response()->json(['data' => [], 'message' => 'Сервис поиска городов временно недоступен'], 503);
-        }
+        $items = Settlement::query()
+            ->active()
+            ->belarus()
+            ->search($query)
+            ->whereRaw('LOWER(TRIM(COALESCE(name, ""))) NOT IN (?, ?, ?)', [
+                'minsk',
+                'минск',
+                'мінск',
+            ])
+            ->orderByRaw("
+            CASE place
+                WHEN 'city' THEN 1
+                WHEN 'town' THEN 2
+                WHEN 'village' THEN 3
+                WHEN 'hamlet' THEN 4
+                WHEN 'isolated_dwelling' THEN 5
+                WHEN 'suburb' THEN 6
+                ELSE 99
+            END
+        ")
+            ->orderBy('name')
+            ->limit(15)
+            ->get()
+            ->map(fn (Settlement $settlement) => [
+                'id' => $settlement->id,
 
-        if (!$response->successful()) {
-            return response()->json(['data' => [], 'message' => 'Ошибка поиска'], 502);
-        }
+                'name' => $settlement->name,
+                'name_ru' => $settlement->name_ru,
+                'name_be' => $settlement->name_be,
+                'name_en' => $settlement->name_en,
 
-        /** @var list<array<string, mixed>> $rows */
-        $rows = $response->json() ?: [];
-        $out = [];
+                'full_name' => $settlement->full_name,
 
-        foreach ($rows as $row) {
-            $lat = isset($row['lat']) ? (string) $row['lat'] : '';
-            $lon = isset($row['lon']) ? (string) $row['lon'] : '';
-            $display = (string) ($row['display_name'] ?? '');
-            if ($display === '') {
-                continue;
-            }
+                'type' => $settlement->type_label,
+                'place' => $settlement->place,
+                'name_prefix' => $settlement->name_prefix,
 
-            $normalized = mb_strtolower($display);
-            if (str_contains($normalized, 'минск') || str_contains($normalized, 'minsk') || str_contains($normalized, 'мінск')) {
-                continue;
-            }
+                'region_name' => $settlement->region_name,
+                'district_name' => $settlement->district_name,
+                'subdistrict_name' => $settlement->subdistrict_name,
 
-            $id = md5($lat . '|' . $lon . '|' . $display);
-            $out[] = [
-                'id' => $id,
-                'name' => $display,
-                'lat' => $lat !== '' ? (float) $lat : null,
-                'lon' => $lon !== '' ? (float) $lon : null,
-            ];
-        }
+                'postcode' => $settlement->postcode,
 
-        return response()->json(['data' => $out]);
+                'latitude' => $settlement->latitude,
+                'longitude' => $settlement->longitude,
+            ]);
+
+        return response()->json(['data' => $items]);
     }
 }

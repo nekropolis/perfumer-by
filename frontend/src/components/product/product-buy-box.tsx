@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BellRing, PhoneCall } from "lucide-react";
+import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
-import CallbackRequestModal from "@/components/product/callback-request-modal";
+import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 
 type Variant = {
     id: number;
@@ -21,8 +21,8 @@ type Props = {
     selectedVariant: Variant | null;
     isSelectedVariantInCart: boolean;
     isPending: boolean;
-    onAddToCart: () => void;
-    formatPrice: (price: string | null) => string;
+    onAddToCartAction: () => void;
+    formatPriceAction: (price: string | null) => string;
     productId: number;
     productName: string;
     loyaltyCardNumber?: string | null;
@@ -34,8 +34,8 @@ export default function ProductBuyBox({
     selectedVariant,
     isSelectedVariantInCart,
     isPending,
-    onAddToCart,
-    formatPrice,
+    onAddToCartAction,
+    formatPriceAction,
     productId,
     productName,
     loyaltyCardNumber,
@@ -43,10 +43,29 @@ export default function ProductBuyBox({
     loyaltyPrice,
 }: Props) {
     const [notifyOpen, setNotifyOpen] = useState(false);
-    const [callbackOpen, setCallbackOpen] = useState(false);
 
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
+    const selectedVariantId = selectedVariant?.id ?? null;
+    const selectedVariantTitle = selectedVariant?.display_name ?? null;
+    const callbackButtonClass = hasVariant
+        ? undefined
+        : "inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-5 py-3.5 text-sm font-medium text-[var(--foreground)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[var(--accent-soft)] hover:bg-[var(--surface)] active:translate-y-0 active:scale-[0.99]";
+    const callbackTriggerNode = (
+        <CallbackRequestTrigger
+            productId={productId}
+            productName={productName}
+            variantId={selectedVariantId}
+            variantTitle={selectedVariantTitle}
+            className={callbackButtonClass}
+        />
+    );
+    const renderNotifyButton = (className: string, iconClassName: string) => (
+        <button type="button" onClick={() => setNotifyOpen(true)} className={className}>
+            <BellRing className={iconClassName} />
+            Сообщить о появлении
+        </button>
+    );
 
     return (
         <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
@@ -67,9 +86,9 @@ export default function ProductBuyBox({
                     <div className="mb-4 flex flex-wrap items-end gap-2">
                         <div className="text-4xl font-semibold leading-none">
                             {loyaltyPrice
-                                ? formatPrice(loyaltyPrice)
+                                ? formatPriceAction(loyaltyPrice)
                                 : selectedVariant.price
-                                    ? formatPrice(selectedVariant.price)
+                                    ? formatPriceAction(selectedVariant.price)
                                     : selectedVariant.is_preorder
                                         ? "Предзаказ"
                                         : "Цена уточняется"}
@@ -77,7 +96,7 @@ export default function ProductBuyBox({
 
                         {(selectedVariant.old_price || (loyaltyPrice && selectedVariant.price)) && (
                             <div className="text-base text-[var(--text-secondary)] line-through">
-                                {formatPrice(selectedVariant.old_price || selectedVariant.price)}
+                                {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                             </div>
                         )}
                     </div>
@@ -126,7 +145,7 @@ export default function ProductBuyBox({
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={onAddToCart}
+                                    onClick={onAddToCartAction}
                                     disabled={!canAddToCart || isPending}
                                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                                 >
@@ -152,46 +171,15 @@ export default function ProductBuyBox({
                     </div>
 
                     <div className="mt-4 flex justify-center">
-                        <button
-                            type="button"
-                            onClick={() => setCallbackOpen(true)}
-                            title="Заказать звонок"
-                            aria-label="Заказать звонок"
-                            style={{ transition: "transform 200ms ease-out" }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "scale(1.1)";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "scale(1)";
-                            }}
-                            className="inline-flex items-center gap-1.5 text-sm text-emerald-700"
-                        >
-                            <PhoneCall className="h-4 w-4" />
-                            <span className="underline underline-offset-4 decoration-emerald-300">
-                                Заказать звонок
-                            </span>
-                        </button>
+                        {callbackTriggerNode}
                     </div>
 
                     {!canAddToCart && (
                         <div className="mt-3 flex justify-center">
-                            <button
-                                type="button"
-                                onClick={() => setNotifyOpen(true)}
-                                style={{ transition: "transform 200ms ease-out" }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = "scale(1.1)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = "scale(1)";
-                                }}
-                                className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)]"
-                            >
-                                <BellRing className="h-4 w-4" />
-                                <span className="underline underline-offset-4 decoration-[var(--line)]">
-                                    Сообщить о появлении
-                                </span>
-                            </button>
+                            {renderNotifyButton(
+                                "inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] transition-transform duration-200 ease-out hover:scale-110",
+                                "h-4 w-4",
+                            )}
                         </div>
                     )}
                 </>
@@ -205,23 +193,14 @@ export default function ProductBuyBox({
                         и сразу сориентируем по цене.
                     </p>
 
-                    <button
-                        type="button"
-                        onClick={() => setNotifyOpen(true)}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-black to-neutral-800 px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:scale-[0.99]"
-                    >
-                        <BellRing className="h-5 w-5" />
-                        Сообщить о появлении
-                    </button>
+                    {renderNotifyButton(
+                        "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-black to-neutral-800 px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:scale-[0.99]",
+                        "h-5 w-5",
+                    )}
 
-                    <button
-                        type="button"
-                        onClick={() => setCallbackOpen(true)}
-                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-5 py-3.5 text-sm font-medium text-[var(--foreground)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[var(--accent-soft)] hover:bg-[var(--surface)] active:translate-y-0 active:scale-[0.99]"
-                    >
-                        <PhoneCall className="h-4 w-4" />
-                        Заказать звонок
-                    </button>
+                    <div className="mt-3">
+                        {callbackTriggerNode}
+                    </div>
                 </>
             )}
 
@@ -230,18 +209,10 @@ export default function ProductBuyBox({
                 onCloseAction={() => setNotifyOpen(false)}
                 productId={productId}
                 productName={productName}
-                variantId={selectedVariant?.id ?? null}
-                variantTitle={selectedVariant?.display_name ?? null}
+                variantId={selectedVariantId}
+                variantTitle={selectedVariantTitle}
             />
 
-            <CallbackRequestModal
-                open={callbackOpen}
-                onCloseAction={() => setCallbackOpen(false)}
-                productId={productId}
-                productName={productName}
-                variantId={selectedVariant?.id ?? null}
-                variantTitle={selectedVariant?.display_name ?? null}
-            />
         </div>
     );
 }

@@ -14,6 +14,7 @@ import type { HeaderSearchItem } from "@/components/layout/header/types";
 import {
     HEADER_CATALOG_DRAWER_SECTIONS,
     HEADER_CATALOG_TRIGGER,
+    PHONE_NUMBERS,
     HEADER_CONTACT_LINKS,
     HEADER_MESSENGER_LINKS,
     HEADER_PHONE_DROPDOWN_LINKS,
@@ -87,7 +88,9 @@ export default function Header() {
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
     const [isCompact, setIsCompact] = useState(false);
+    const [menuTopOffset, setMenuTopOffset] = useState(64);
 
+    const headerRef = useRef<HTMLElement | null>(null);
     const { cartQty } = useCart();
     const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
@@ -163,6 +166,79 @@ export default function Header() {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [setSearchOpen]);
+
+    useEffect(() => {
+        const measure = () => {
+            const next = headerRef.current?.offsetHeight ?? 64;
+            setMenuTopOffset(next);
+        };
+
+        measure();
+        window.addEventListener("resize", measure);
+        return () => window.removeEventListener("resize", measure);
+    }, [isCompact, isPhoneDropdownOpen, isMobileOpen]);
+
+    useEffect(() => {
+        if (!isMobileOpen) {
+            return;
+        }
+
+        const body = document.body;
+        const html = document.documentElement;
+        const scrollY = window.scrollY;
+        const bodyStyle = body.style;
+        const htmlStyle = html.style;
+        const previous = {
+            bodyOverflow: bodyStyle.overflow,
+            bodyPosition: bodyStyle.position,
+            bodyTop: bodyStyle.top,
+            bodyLeft: bodyStyle.left,
+            bodyRight: bodyStyle.right,
+            bodyWidth: bodyStyle.width,
+            bodyOverscrollBehavior: bodyStyle.overscrollBehavior,
+            htmlOverflowX: htmlStyle.overflowX,
+            bodyOverflowX: bodyStyle.overflowX,
+        };
+
+        bodyStyle.overflow = "hidden";
+        bodyStyle.position = "fixed";
+        bodyStyle.top = `-${scrollY}px`;
+        bodyStyle.left = "0";
+        bodyStyle.right = "0";
+        bodyStyle.width = "100%";
+        bodyStyle.overscrollBehavior = "none";
+        htmlStyle.overflowX = "clip";
+        bodyStyle.overflowX = "clip";
+
+        return () => {
+            bodyStyle.overflow = previous.bodyOverflow;
+            bodyStyle.position = previous.bodyPosition;
+            bodyStyle.top = previous.bodyTop;
+            bodyStyle.left = previous.bodyLeft;
+            bodyStyle.right = previous.bodyRight;
+            bodyStyle.width = previous.bodyWidth;
+            bodyStyle.overscrollBehavior = previous.bodyOverscrollBehavior;
+            htmlStyle.overflowX = previous.htmlOverflowX;
+            bodyStyle.overflowX = previous.bodyOverflowX;
+            window.scrollTo({ top: scrollY, behavior: "auto" });
+        };
+    }, [isMobileOpen]);
+
+    useEffect(() => {
+        if (!isMobileOpen) {
+            return;
+        }
+
+        const handleResize = () => {
+            if (window.innerWidth >= 768) {
+                setIsMobileOpen(false);
+                resetSearch();
+            }
+        };
+
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, [isMobileOpen, resetSearch]);
 
     useEffect(() => {
         const COMPACT_ON_SCROLL_Y = 24;
@@ -282,7 +358,10 @@ export default function Header() {
     };
 
     return (
-        <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--header-bg)]/95 shadow-sm backdrop-blur">
+        <header
+            ref={headerRef}
+            className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--header-bg)]/95 shadow-sm backdrop-blur"
+        >
             <HeaderServiceBar
                 isCompact={isCompact}
                 promoText={promoText}
@@ -343,6 +422,7 @@ export default function Header() {
 
             <HeaderMobileMenu
                 isOpen={isMobileOpen}
+                topOffset={menuTopOffset}
                 searchOpen={searchOpen}
                 searchLoading={searchLoading}
                 searchQuery={searchQuery}
@@ -350,13 +430,12 @@ export default function Header() {
                 searchBrandResults={searchBrandResults}
                 recentSearches={recentSearches}
                 popularSearches={HEADER_POPULAR_SEARCHES}
+                phoneLinks={PHONE_NUMBERS}
                 contactLinks={HEADER_CONTACT_LINKS}
-                cartQty={cartQty}
-                wishlistQty={wishlistQty}
                 isAuthenticated={isAuthenticated}
                 userName={user?.name || "Пользователь"}
                 userPhone={user?.phone || ""}
-                formatSearchPrice={formatSearchPrice}
+                formatSearchPriceAction={formatSearchPrice}
                 onCloseAction={() => {
                     resetSearch();
                     setIsMobileOpen(false);

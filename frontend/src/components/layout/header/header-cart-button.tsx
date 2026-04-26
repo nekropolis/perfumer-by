@@ -27,7 +27,7 @@ export default function HeaderCartButton({ qty }: HeaderCartButtonProps) {
                 />
             </svg>
 
-            <span className="hidden sm:inline">Корзина</span>
+            <span className="hidden md:inline">Корзина</span>
 
             {qty > 0 && (
                 <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-medium text-[var(--accent)] md:static">

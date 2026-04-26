@@ -29,11 +29,23 @@ export type CheckoutShopSettings = {
     delivery_belarus_free_min_lines: number;
 };
 
+/** Ответ `GET /checkout/cities` (справочник `Settlement` на бэкенде). */
 export type CheckoutCityHit = {
-    id: string;
+    id: number;
     name: string;
-    lat: number | null;
-    lon: number | null;
+    name_ru: string | null;
+    name_be: string | null;
+    name_en: string | null;
+    full_name: string;
+    type: string;
+    place: string | null;
+    name_prefix: string | null;
+    region_name: string | null;
+    district_name: string | null;
+    subdistrict_name: string | null;
+    postcode: string | null;
+    latitude: number | null;
+    longitude: number | null;
 };
 
 export type CheckoutQuote = {
@@ -102,7 +114,8 @@ export async function searchCheckoutCities(query: string): Promise<{ data: Check
     if (q.length < 2) return { data: [] };
     const res = await fetch(`${API_BASE}/checkout/cities?q=${encodeURIComponent(q)}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Checkout cities error: ${res.status}`);
-    return res.json();
+    const body = (await res.json()) as { data?: CheckoutCityHit[] };
+    return { data: Array.isArray(body.data) ? body.data : [] };
 }
 
 export async function fetchCheckoutQuote(payload: {

@@ -22,6 +22,7 @@ import {
 } from "@/lib/admin-products-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Курьер по Минску" },
@@ -103,16 +104,16 @@ function nationalFromStoredPhone(phone: string): string {
 
 function linesFromOrderItems(order: OrderData): OrderLine[] {
   if (!order.items?.length) return [emptyLine()];
-  return order.items.map((it) => ({
-    product_id: it.product_id ?? null,
-    variant_id: it.variant_id ?? null,
-    product_name: it.product_name ?? "",
-    product_slug: it.product_slug ?? null,
-    brand_name: it.brand_name ?? null,
-    variant_title: it.variant_title ?? "",
-    sku: it.sku ?? null,
-    qty: Math.max(1, Number(it.qty) || 1),
-    price: Number(it.price) || 0,
+  return order.items.map((item) => ({
+    product_id: item.product_id ?? null,
+    variant_id: item.variant_id ?? null,
+    product_name: item.product_name ?? "",
+    product_slug: item.product_slug ?? null,
+    brand_name: item.brand_name ?? null,
+    variant_title: item.variant_title ?? "",
+    sku: item.sku ?? null,
+    qty: Math.max(1, Number(item.qty) || 1),
+    price: Number(item.price) || 0,
   }));
 }
 
@@ -131,8 +132,8 @@ function normalizePayment(v: string | null | undefined): PaymentValue {
 }
 
 function variantsInStock(detail: ProductAdminDetail | undefined) {
-  const list = detail?.variants ?? [];
-  return list.filter((v) => v.is_available || v.is_preorder);
+  const variants = detail?.variants ?? [];
+  return variants.filter((variant) => variant.is_available || variant.is_preorder);
 }
 
 /** Подсветка вхождения запроса (без regex по юникоду). */
@@ -166,6 +167,39 @@ export type AdminOrderCreateFormProps = {
   mode?: "create" | "edit";
   initialOrder?: OrderData;
 };
+
+type CertificatesPanelProps<T> = {
+  title: string;
+  wrapperClassName: string;
+  items: readonly T[];
+  renderItem: (item: T) => ReactNode;
+  footer?: ReactNode;
+};
+
+type SectionCardProps = {
+  children: ReactNode;
+};
+
+function SectionCard({ children }: SectionCardProps) {
+  return <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">{children}</section>;
+}
+
+function CertificatesPanel<T>({
+  title,
+  wrapperClassName,
+  items,
+  renderItem,
+  footer,
+}: CertificatesPanelProps<T>) {
+  if (items.length === 0) return null;
+  return (
+    <div className={wrapperClassName}>
+      <div className="text-sm font-medium">{title}</div>
+      <ul className="space-y-2 text-sm">{items.map((item) => renderItem(item))}</ul>
+      {footer ? <p className="text-xs text-gray-600">{footer}</p> : null}
+    </div>
+  );
+}
 
 export default function AdminOrderCreateForm({ mode = "create", initialOrder }: AdminOrderCreateFormProps) {
   const router = useRouter();
@@ -215,6 +249,13 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
   } | null>(null);
   const [detailsByProductId, setDetailsByProductId] = useState<Record<number, ProductAdminDetail>>({});
   const [pickerProductId, setPickerProductId] = useState<number | null>(null);
+
+  const [belarusCityQuery, setBelarusCityQuery] = useState("");
+  const debouncedBelarusCityQuery = useDebouncedValue(belarusCityQuery, 350);
+  const [belarusCityHits, setBelarusCityHits] = useState<CheckoutCityHit[]>([]);
+  const [belarusCityOpen, setBelarusCityOpen] = useState(false);
+  const [belarusManualCity, setBelarusManualCity] = useState(false);
+  const [belarusCityLookupFailed, setBelarusCityLookupFailed] = useState(false);
 
   useEffect(() => {
     if (!variantTooltip) return;
@@ -283,13 +324,13 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
     let cancelled = false;
     setPhoneHitsLoading(true);
     void fetchAdminUsers(full)
-      .then((r) => {
+      .then((response) => {
         if (!cancelled) {
           const want = digitsOnly(full);
-          const rows = (r.data ?? []).filter((u) => {
-            if (!u.phone) return false;
-            const up = digitsOnly(u.phone);
-            return up === want || up.endsWith(nat);
+          const rows = (response.data ?? []).filter((user) => {
+            if (!user.phone) return false;
+            const userPhoneDigits = digitsOnly(user.phone);
+            return userPhoneDigits === want || userPhoneDigits.endsWith(nat);
           });
           setPhoneHits(rows.slice(0, 8));
         }
@@ -314,8 +355,8 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
     let cancelled = false;
     setContextLoading(true);
     void fetchAdminOrderCustomerContext(fullDigits)
-      .then((r) => {
-        if (!cancelled) setContext(r.data);
+      .then((response) => {
+        if (!cancelled) setContext(response.data);
       })
       .catch(() => {
         if (!cancelled) setContext(null);
@@ -343,6 +384,60 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
       setCitySelect("");
     }
   }, [context?.delivery_cities, citySelect]);
+
+  useEffect(() => {
+    if (deliveryMethod !== "belarus_courier") {
+      queueMicrotask(() => {
+        setBelarusCityQuery("");
+        setBelarusCityHits([]);
+        setBelarusCityOpen(false);
+        setBelarusManualCity(false);
+        setBelarusCityLookupFailed(false);
+      });
+    }
+  }, [deliveryMethod]);
+
+  useEffect(() => {
+    if (deliveryMethod !== "belarus_courier") return;
+    if (belarusManualCity) {
+      queueMicrotask(() => {
+        setBelarusCityHits([]);
+        setBelarusCityLookupFailed(false);
+      });
+      return;
+    }
+    if (deliveryCity.trim()) {
+      queueMicrotask(() => {
+        setBelarusCityHits([]);
+        setBelarusCityLookupFailed(false);
+      });
+      return;
+    }
+    if (debouncedBelarusCityQuery.trim().length < 2) {
+      queueMicrotask(() => {
+        setBelarusCityHits([]);
+        setBelarusCityLookupFailed(false);
+      });
+      return;
+    }
+    let cancelled = false;
+    void searchCheckoutCities(debouncedBelarusCityQuery)
+      .then((r) => {
+        if (!cancelled) {
+          setBelarusCityHits(r.data || []);
+          setBelarusCityLookupFailed(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBelarusCityHits([]);
+          setBelarusCityLookupFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [belarusManualCity, debouncedBelarusCityQuery, deliveryCity, deliveryMethod]);
 
   useEffect(() => {
     if (activeLine === null || debouncedProductQ.trim().length < 2) {
@@ -383,9 +478,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
   const loadProductDetail = async (productId: number): Promise<ProductAdminDetail> => {
     const cached = detailsByProductId[productId];
     if (cached) return cached;
-    const r = await fetchProductById(productId);
-    setDetailsByProductId((p) => ({ ...p, [productId]: r.data }));
-    return r.data;
+    const response = await fetchProductById(productId);
+    setDetailsByProductId((prev) => ({ ...prev, [productId]: response.data }));
+    return response.data;
   };
 
   const openProductPicker = (lineIdx: number) => {
@@ -542,9 +637,105 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
   const showPhoneClientPanel =
     phoneHitsOpen && nationalLive.length >= PHONE_CLIENT_HINT_MIN_NATIONAL;
 
+  const belarusCitySearch = (
+    <div className="relative">
+      {belarusManualCity ? (
+        <div className="space-y-2">
+          <input
+            value={deliveryCity}
+            onChange={(e) => setDeliveryCity(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+            placeholder="Город / посёлок"
+          />
+          <button
+            type="button"
+            className="text-xs text-gray-500 underline"
+            onClick={() => {
+              setBelarusManualCity(false);
+              const t = deliveryCity.trim();
+              setDeliveryCity("");
+              setBelarusCityQuery(t.includes(",") ? t.slice(0, t.indexOf(",")).trim() : t);
+              setBelarusCityOpen(true);
+            }}
+          >
+            Вернуться к поиску
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            value={deliveryCity.trim() || belarusCityQuery}
+            onChange={(e) => {
+              const v = e.target.value;
+              setBelarusCityQuery(v);
+              if (deliveryCity.trim()) {
+                setDeliveryCity("");
+              }
+              setBelarusCityOpen(true);
+              setBelarusCityLookupFailed(false);
+            }}
+            onFocus={() => setBelarusCityOpen(true)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+            placeholder="Поиск по Беларуси"
+          />
+          {belarusCityOpen && belarusCityHits.length > 0 ? (
+            <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white text-sm shadow-lg">
+              {belarusCityHits.map((h) => (
+                <li key={h.id}>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                    onClick={() => {
+                      setDeliveryCity(h.full_name.trim());
+                      setBelarusCityQuery("");
+                      setBelarusCityOpen(false);
+                    }}
+                  >
+                    <div className="font-medium text-gray-900">{h.full_name}</div>
+                    {h.type ? (
+                      <div className="text-xs text-gray-500">
+                        {h.type}
+                        {h.region_name ? ` · ${h.region_name}` : ""}
+                      </div>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {!deliveryCity.trim() &&
+          belarusCityQuery.trim().length >= 2 &&
+          belarusCityHits.length === 0 ? (
+            <div className="mt-2">
+              <p className="mb-1 text-xs text-gray-500">
+                {belarusCityLookupFailed
+                  ? "Поиск временно недоступен."
+                  : "Населённый пункт не найден в списке."}
+              </p>
+              <button
+                type="button"
+                className="text-xs text-gray-500 underline"
+                onClick={() => {
+                  setBelarusManualCity(true);
+                  setDeliveryCity(
+                    (belarusCityQuery.trim() || deliveryCity.trim()).trim(),
+                  );
+                  setBelarusCityQuery("");
+                  setBelarusCityOpen(false);
+                }}
+              >
+                Ввести вручную
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <SectionCard>
         <h2 className="text-sm font-semibold text-gray-900">Клиент</h2>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -642,9 +833,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
             <span className="text-gray-500">Информация о заказах и скидочной карте по клиенту.</span>
           )}
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <SectionCard>
         <h2 className="text-sm font-semibold text-gray-900">Доставка и оплата</h2>
         <fieldset>
           <legend className="mb-2 text-sm text-gray-600">Способ доставки *</legend>
@@ -681,14 +872,22 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
                   ))}
                   <option value="__new__">Другой (ввести вручную)</option>
                 </select>
-                {(citySelect === "__new__" || !citySelect) && (
-                  <input
-                    value={deliveryCity}
-                    onChange={(e) => setDeliveryCity(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                    placeholder="Город (если не из списка)"
-                  />
-                )}
+                {(citySelect === "__new__" || !citySelect) &&
+                  (deliveryMethod === "belarus_courier" ? (
+                    belarusCitySearch
+                  ) : (
+                    <input
+                      value={deliveryCity}
+                      onChange={(e) => setDeliveryCity(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                      placeholder="Город (если не из списка)"
+                    />
+                  ))}
+              </div>
+            ) : deliveryMethod === "belarus_courier" ? (
+              <div>
+                <div className="text-sm text-gray-600">Населённый пункт</div>
+                <div className="mt-1">{belarusCitySearch}</div>
               </div>
             ) : (
               <label className="block text-sm text-gray-600">
@@ -760,9 +959,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
             className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
           />
         </label>
-      </section>
+      </SectionCard>
 
-      <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <SectionCard>
         <h2 className="text-sm font-semibold text-gray-900">Товары *</h2>
         {itemsLocked ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -978,54 +1177,52 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
         >
           Добавить позицию
         </button>
-      </section>
+      </SectionCard>
 
-      {isEdit && initialOrder?.gift_certificate_purchases && initialOrder.gift_certificate_purchases.length > 0 ? (
-        <div className="space-y-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
-          <div className="text-sm font-medium text-violet-950">Купленные подарочные сертификаты</div>
-          <ul className="space-y-2 text-sm">
-            {initialOrder.gift_certificate_purchases.map((row) => (
-              <li key={row.id} className="rounded-xl border border-violet-100 bg-white px-3 py-2">
-                <div className="font-medium text-gray-900">{row.template_title}</div>
-                <div className="mt-0.5 text-xs text-gray-600">
-                  Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-gray-600">
-            Строки из оформления заказа; после «Выполнен» код вносит менеджер в карточке сертификата.
-          </p>
-        </div>
+      {isEdit && initialOrder?.gift_certificate_purchases ? (
+        <CertificatesPanel
+          title="Купленные подарочные сертификаты"
+          wrapperClassName="space-y-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-4"
+          items={initialOrder.gift_certificate_purchases}
+          renderItem={(row) => (
+            <li key={row.id} className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+              <div className="font-medium text-gray-900">{row.template_title}</div>
+              <div className="mt-0.5 text-xs text-gray-600">
+                Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
+              </div>
+            </li>
+          )}
+          footer="Строки из оформления заказа; после «Выполнен» код вносит менеджер в карточке сертификата."
+        />
       ) : null}
 
-      {isEdit && initialOrder?.sold_gift_certificates && initialOrder.sold_gift_certificates.length > 0 ? (
-        <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
-          <div className="text-sm font-medium text-emerald-950">Выпущенные сертификаты по заказу</div>
-          <ul className="space-y-2 text-sm">
-            {initialOrder.sold_gift_certificates.map((row) => (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2"
-              >
-                <div>
-                  <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
-                  <div className="font-medium text-gray-900">{row.template_title ?? "Сертификат"}</div>
-                  <div className="text-xs text-gray-600">
-                    {row.initial_amount} руб. · {giftCertificateStatusLabel(row.status, row.code)}
-                    {row.code ? ` · ${row.code}` : ""}
-                  </div>
+      {isEdit && initialOrder?.sold_gift_certificates ? (
+        <CertificatesPanel
+          title="Выпущенные сертификаты по заказу"
+          wrapperClassName="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4"
+          items={initialOrder.sold_gift_certificates}
+          renderItem={(row) => (
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2"
+            >
+              <div>
+                <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
+                <div className="font-medium text-gray-900">{row.template_title ?? "Сертификат"}</div>
+                <div className="text-xs text-gray-600">
+                  {row.initial_amount} руб. · {giftCertificateStatusLabel(row.status, row.code)}
+                  {row.code ? ` · ${row.code}` : ""}
                 </div>
-                <Link
-                  href={`/admin/loyalty/certificates/${row.id}/edit`}
-                  className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-900 transition hover:bg-emerald-100"
-                >
-                  Код и статус
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+              </div>
+              <Link
+                href={`/admin/loyalty/certificates/${row.id}/edit`}
+                className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-900 transition hover:bg-emerald-100"
+              >
+                Код и статус
+              </Link>
+            </li>
+          )}
+        />
       ) : null}
 
       <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">

@@ -21,8 +21,13 @@ export const HEADER_MESSENGER_LINKS = [
     },
 ] as const;
 
+export const PHONE_NUMBERS = [
+    { label: "МТС", number: "+375336408833" },
+    { label: "A1", number: "+375296408833" },
+    { label: "life", number: "+375256408833" },
+] as const;
+
 export const HEADER_CONTACT_LINKS = [
-    { label: "640-88-33 (МТС / A1 / life)", href: "tel:+375296408833" },
     { label: "Telegram", href: "https://t.me/perfumer_support" },
     { label: "Viber", href: "viber://chat?number=%2B375296408833" },
 ] as const;
