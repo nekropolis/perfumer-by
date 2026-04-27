@@ -163,33 +163,33 @@ export default function AdminShopSettingsPage() {
                     ) : (
                         <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон МТС (E.164, для tel:)</label>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">МТС</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_mts}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_mts: e.target.value }))}
                                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                                    placeholder="+375336408833"
+                                    placeholder="Номер"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон A1</label>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">A1</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_a1}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_a1: e.target.value }))}
                                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                                    placeholder="+375296408833"
+                                    placeholder="Номер"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Телефон life</label>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">Life</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_life}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_life: e.target.value }))}
                                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                                    placeholder="+375256408833"
+                                    placeholder="Номер"
                                 />
                             </div>
                             <div>

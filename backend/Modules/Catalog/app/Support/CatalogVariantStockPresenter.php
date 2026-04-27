@@ -28,6 +28,11 @@ final class CatalogVariantStockPresenter
             return true;
         }
 
+        // Связка из парсинга Seller One: витрина по прайсу только после «Обновить цены».
+        if (!empty($payload['seller_one_listing_deferred'])) {
+            return true;
+        }
+
         return !empty($payload['out_of_stock_in_price_file']);
     }
 

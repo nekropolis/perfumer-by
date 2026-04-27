@@ -14,6 +14,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
+import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
 import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
@@ -405,64 +406,10 @@ export default function AdminProductsPage() {
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {(() => {
-                                                                if (variant.suppliers.length > 0) {
-                                                                    return variant.suppliers.map((supplier) => (
-                                                                        <tr key={supplier.offer_id} className="border-t">
-                                                                            <td className="px-2.5 py-2">{supplier.supplier_name || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{supplier.supplier_code || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{supplier.supplier_product_name || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{supplier.supplier_price ?? "—"}</td>
-                                                                            <td className="px-2.5 py-2">
-                                                                                {variant.warehouses.length > 0
-                                                                                    ? variant.warehouses.map((warehouse) => warehouse.warehouse_name || "—").join(", ")
-                                                                                    : "—"}
-                                                                            </td>
-                                                                            <td className="px-2.5 py-2">
-                                                                                {variant.warehouses.length > 0
-                                                                                    ? variant.warehouses.map((warehouse) => `${warehouse.stock} шт.`).join(", ")
-                                                                                    : "—"}
-                                                                            </td>
-                                                                        </tr>
-                                                                    ));
-                                                                }
-
-                                                                if (variant.receipt_batches.length > 0) {
-                                                                    return variant.receipt_batches.map((batch) => (
-                                                                        <tr key={`receipt-batch-${batch.receipt_item_id}`} className="border-t">
-                                                                            <td className="px-2.5 py-2">{batch.supplier_name || "Магазин"}</td>
-                                                                            <td className="px-2.5 py-2">
-                                                                                {batch.supplier_code || (batch.receipt_document_no ? `#${batch.receipt_document_no}` : `#${batch.receipt_id}`)}
-                                                                            </td>
-                                                                            <td className="px-2.5 py-2">{batch.supplier_product_name || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{batch.supplier_price ?? "—"}</td>
-                                                                            <td className="px-2.5 py-2">{batch.warehouse_name || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{batch.qty} шт.</td>
-                                                                        </tr>
-                                                                    ));
-                                                                }
-
-                                                                if (variant.warehouses.length > 0) {
-                                                                    return variant.warehouses.map((warehouse, idx) => (
-                                                                        <tr key={`warehouse-only-${variant.id}-${idx}`} className="border-t">
-                                                                            <td className="px-2.5 py-2 text-gray-500">Магазин</td>
-                                                                            <td className="px-2.5 py-2 text-gray-500">—</td>
-                                                                            <td className="px-2.5 py-2 text-gray-500">Складской остаток</td>
-                                                                            <td className="px-2.5 py-2 text-gray-500">—</td>
-                                                                            <td className="px-2.5 py-2">{warehouse.warehouse_name || "—"}</td>
-                                                                            <td className="px-2.5 py-2">{warehouse.stock} шт.</td>
-                                                                        </tr>
-                                                                    ));
-                                                                }
-
-                                                                return (
-                                                                    <tr className="border-t">
-                                                                        <td colSpan={6} className="px-2.5 py-3 text-gray-500">
-                                                                            Для этого варианта нет активных привязок.
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })()}
+                                                            <VariantSuppliersTableRows
+                                                                variant={variant}
+                                                                cellClassName="px-2.5 py-2"
+                                                            />
                                                         </tbody>
                                                     </table>
                                                 </div>

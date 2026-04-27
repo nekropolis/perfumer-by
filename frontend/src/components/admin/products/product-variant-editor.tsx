@@ -16,6 +16,7 @@ import {
     fetchProductVariantSuppliers,
     type ProductVariantSupplierItem,
 } from "@/lib/admin-products-api";
+import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
 
 type Props = {
     productId: number;
@@ -122,56 +123,75 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
     const hasStock = Number(item.main_available_stock ?? 0) > 0;
     const hasSupplier = Number(item.active_supplier_offers_count ?? 0) > 0;
     const hasPreorder = Boolean(item.is_preorder);
-    const manuallyEnabled = Boolean(item.is_active);
-    const isEffectiveActive =
-        manuallyEnabled || hasPreorder || hasStock || hasSupplier;
-    const reasonLabel = hasStock
-        ? "Остаток"
-        : hasSupplier
-            ? "Поставщик"
-            : hasPreorder
-                ? "Предзаказ"
-                : manuallyEnabled
-                    ? "Включен"
-                    : null;
-    const reasonDetails = [
-        hasStock ? "Остаток" : null,
-        hasSupplier ? "Поставщик" : null,
-        hasPreorder ? "Предзаказ" : null,
-        manuallyEnabled ? "Включен" : null,
-    ].filter(Boolean) as string[];
-    const statusTooltip = isEffectiveActive
-        ? `Причины активности: ${reasonDetails.join(", ")}`
-        : "Вариант выключен и не имеет доступности по остатку/поставщику/предзаказу";
+    const onListingSwitch = Boolean(item.is_active);
+
+    /**
+     * Совпадает с бэком `Product::activeVariants()`: на сайт без предзаказа попадают
+     * только связки с `is_active`, при предзаказе — независимо от флага.
+     * Бейдж «Активен» по остатку/поставщику без `is_active` вводил в заблуждение.
+     */
+    const primary = hasPreorder
+        ? {
+            label: "Предзаказ",
+            className: "bg-amber-50 text-amber-800",
+            title:
+                "Витрина: предзаказ (может отображаться в каталоге даже при выключенном «Активен»). Каналы отгрузки — см. чипы справа.",
+        }
+        : onListingSwitch
+            ? {
+                label: "На витрине",
+                className: "bg-green-50 text-green-700",
+                title:
+                    "Витрина: включён «Активен». На сайте показывается, если есть канал отгрузки (склад main/supplier или активный оффер поставщика).",
+            }
+            : {
+                label: "Выкл",
+                className: "bg-gray-100 text-gray-600",
+                title:
+                    "Витрина: «Активен» выключен — вариант не отдаётся в публичный API каталога. Остаток/поставщик ниже — только подготовка канала.",
+            };
+
+    const supplierTitle =
+        !onListingSwitch && !hasPreorder && hasSupplier
+            ? "Есть активные офферы, но на сайте вариант скрыт: включите «Активен»."
+            : "Активные офферы поставщика (по прайсу, без блокирующих флагов в payload).";
+
+    const channelTags: Array<{ key: string; label: string; className: string; title: string }> = [];
+    if (hasStock) {
+        channelTags.push({
+            key: "stock",
+            label: "Остаток",
+            className: "bg-emerald-50 text-emerald-700",
+            title: "На основном складе есть доступное количество.",
+        });
+    }
+    if (hasSupplier) {
+        channelTags.push({
+            key: "supplier",
+            label: "Поставщик",
+            className: "bg-blue-50 text-blue-700",
+            title: supplierTitle,
+        });
+    }
 
     return (
         <div className="flex flex-wrap items-center gap-1">
             <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isEffectiveActive
-                    ? "bg-green-50 text-green-700"
-                    : "bg-gray-100 text-gray-600"
-                    }`}
-                title={statusTooltip}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${primary.className}`}
+                title={primary.title}
             >
-                {isEffectiveActive ? "Активен" : "Выкл"}
+                {primary.label}
             </span>
 
-            {reasonLabel ? (
+            {channelTags.map((tag) => (
                 <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        reasonLabel === "Остаток"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : reasonLabel === "Поставщик"
-                                ? "bg-blue-50 text-blue-700"
-                                : reasonLabel === "Предзаказ"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-gray-100 text-gray-700"
-                    }`}
-                    title={`Основная причина: ${reasonLabel}`}
+                    key={tag.key}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tag.className}`}
+                    title={tag.title}
                 >
-                    {reasonLabel}
+                    {tag.label}
                 </span>
-            ) : null}
+            ))}
         </div>
     );
 }
@@ -725,72 +745,18 @@ export default function ProductVariantsEditor({
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {(() => {
-                                                        const suppliers = variantSupplierInfo[infoTarget.id]?.suppliers ?? [];
-                                                        const warehouses = variantSupplierInfo[infoTarget.id]?.warehouses ?? [];
-                                                        const receiptBatches = variantSupplierInfo[infoTarget.id]?.receipt_batches ?? [];
-
-                                                        if (suppliers.length === 0 && receiptBatches.length > 0) {
-                                                            return receiptBatches.map((batch) => (
-                                                                <tr key={`receipt-batch-${batch.receipt_item_id}`} className="border-t">
-                                                                    <td className="px-3 py-2">{batch.supplier_name || "Магазин"}</td>
-                                                                    <td className="px-3 py-2">
-                                                                        {batch.supplier_code || (batch.receipt_document_no ? `#${batch.receipt_document_no}` : `#${batch.receipt_id}`)}
-                                                                    </td>
-                                                                    <td className="px-3 py-2">{batch.supplier_product_name || "—"}</td>
-                                                                    <td className="px-3 py-2">{batch.supplier_price ?? "—"}</td>
-                                                                    <td className="px-3 py-2">{batch.warehouse_name || "—"}</td>
-                                                                    <td className="px-3 py-2">{batch.qty} шт.</td>
-                                                                </tr>
-                                                            ));
-                                                        }
-
-                                                        if (suppliers.length === 0 && warehouses.length > 0) {
-                                                            return warehouses.map((warehouse, idx) => (
-                                                                <tr key={`warehouse-only-${idx}`} className="border-t">
-                                                                    <td className="px-3 py-2 text-gray-500">Магазин</td>
-                                                                    <td className="px-3 py-2 text-gray-500">—</td>
-                                                                    <td className="px-3 py-2 text-gray-500">Складской остаток</td>
-                                                                    <td className="px-3 py-2 text-gray-500">—</td>
-                                                                    <td className="px-3 py-2">{warehouse.warehouse_name || "—"}</td>
-                                                                    <td className="px-3 py-2">{warehouse.stock} шт.</td>
-                                                                </tr>
-                                                            ));
-                                                        }
-
-                                                        if (suppliers.length === 0) {
-                                                            return (
-                                                                <tr>
-                                                                    <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">
-                                                                        Для этого варианта нет активных привязок к поставщикам.
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        }
-
-                                                        return suppliers.map((supplier) => (
-                                                            <tr key={supplier.offer_id} className="border-t">
-                                                                <td className="px-3 py-2">{supplier.supplier_name ?? "—"}</td>
-                                                                <td className="px-3 py-2">{supplier.supplier_code ?? "—"}</td>
-                                                                <td className="px-3 py-2">{supplier.supplier_product_name ?? "—"}</td>
-                                                                <td className="px-3 py-2">{supplier.supplier_price ?? "—"}</td>
-                                                                <td className="px-3 py-2">
-                                                                    {warehouses.length > 0
-                                                                        ? warehouses
-                                                                            .map((warehouse) => warehouse.warehouse_name || "—")
-                                                                            .join(", ")
-                                                                        : "—"}
-                                                                </td>
-                                                                <td className="px-3 py-2">
-                                                                    {warehouses.length > 0
-                                                                        ? warehouses
-                                                                            .map((warehouse) => `${warehouse.stock} шт.`)
-                                                                            .join(", ")
-                                                                        : "—"}
-                                                                </td>
-                                                            </tr>
-                                                        ));
-                                                    })()}
+                                                    {variantSupplierInfo[infoTarget.id] ? (
+                                                        <VariantSuppliersTableRows
+                                                            variant={variantSupplierInfo[infoTarget.id]}
+                                                            cellClassName="px-3 py-2"
+                                                        />
+                                                    ) : (
+                                                        <tr>
+                                                            <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">
+                                                                Для этого варианта нет активных привязок к поставщикам.
+                                                            </td>
+                                                        </tr>
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>

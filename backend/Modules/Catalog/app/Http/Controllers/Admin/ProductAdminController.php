@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -39,10 +40,7 @@ class ProductAdminController extends Controller
                         ->whereColumn('old_price', '>', 'price');
                 },
                 'variants as variants_with_stock_count' => function ($variantQuery) {
-                    $variantQuery->where(function ($q) {
-                        $q->where('stock', '>', 0)
-                            ->orWhere('is_preorder', true);
-                    });
+                    self::scopeAdminVariantHasSellableChannel($variantQuery);
                 },
             ]);
 
@@ -101,19 +99,11 @@ class ProductAdminController extends Controller
             $outOfStock = (string) $request->input('out_of_stock');
             if ($outOfStock === '1') {
                 $query->whereDoesntHave('variants', function ($variantQuery) {
-                    $variantQuery->where(function ($availableQuery) {
-                        $availableQuery
-                            ->where('stock', '>', 0)
-                            ->orWhere('is_preorder', true);
-                    });
+                    self::scopeAdminVariantHasSellableChannel($variantQuery);
                 });
             } elseif ($outOfStock === '0') {
                 $query->whereHas('variants', function ($variantQuery) {
-                    $variantQuery->where(function ($availableQuery) {
-                        $availableQuery
-                            ->where('stock', '>', 0)
-                            ->orWhere('is_preorder', true);
-                    });
+                    self::scopeAdminVariantHasSellableChannel($variantQuery);
                 });
             }
         }
@@ -493,8 +483,6 @@ class ProductAdminController extends Controller
 
         $variants = ProductVariantLink::query()
             ->where('product_id', $product->id)
-            ->where('is_active', true)
-            ->where('stock', '>', 0)
             ->with([
                 'definition',
                 'supplierOffers' => function ($query) {
@@ -516,8 +504,65 @@ class ProductAdminController extends Controller
             ->get()
             ->groupBy('variant_id');
 
-        $data = $variants->map(function (ProductVariantLink $variant) use ($receiptItemsByVariant) {
+        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $productName = (string) $product->name;
+
+        $data = $variants->map(function (ProductVariantLink $variant) use (
+            $receiptItemsByVariant,
+            $productName,
+            $mainWarehouseId
+        ) {
             $receiptItems = $receiptItemsByVariant->get($variant->id, collect());
+            $variantTitle = (string) ($variant->title ?? '');
+            $catalogLine = trim($variantTitle) !== '' ? "{$productName} — {$variantTitle}" : $productName;
+
+            $mainStoreRows = $receiptItems
+                ->filter(function (StockReceiptItem $item) use ($mainWarehouseId) {
+                    if ($mainWarehouseId <= 0) {
+                        return false;
+                    }
+                    $wid = (int) ($item->receipt?->warehouse_id ?? 0);
+
+                    return $wid === $mainWarehouseId && (int) ($item->qty ?? 0) > 0;
+                })
+                ->map(function (StockReceiptItem $item) use ($variant, $catalogLine) {
+                    return [
+                        'receipt_item_id' => $item->id,
+                        'receipt_id' => $item->stock_receipt_id,
+                        'receipt_document_no' => $item->receipt?->document_no,
+                        'supplier_name' => 'Магазин',
+                        'supplier_code' => (string) $variant->id,
+                        'supplier_product_name' => $catalogLine,
+                        'supplier_price' => $item->supplier_price,
+                        'warehouse_name' => $item->receipt?->warehouse?->name ?? 'Основной',
+                        'qty' => (int) ($item->qty ?? 0),
+                        'received_at' => $item->receipt?->received_at?->toDateString(),
+                    ];
+                })
+                ->values();
+
+            $otherReceiptItems = $receiptItems->filter(function (StockReceiptItem $item) use ($mainWarehouseId) {
+                if ($mainWarehouseId <= 0) {
+                    return true;
+                }
+                $wid = (int) ($item->receipt?->warehouse_id ?? 0);
+
+                return $wid !== $mainWarehouseId;
+            });
+
+            $supplierWarehouses = $variant->warehouseStocks
+                ->filter(function ($stock) use ($mainWarehouseId) {
+                    return (int) ($stock->stock ?? 0) > 0
+                        && ($mainWarehouseId <= 0 || (int) ($stock->warehouse_id ?? 0) !== $mainWarehouseId);
+                })
+                ->map(function ($stock) {
+                    return [
+                        'warehouse_name' => $stock->warehouse?->name,
+                        'stock' => (int) ($stock->stock ?? 0),
+                        'available_stock' => (int) ($stock->available_stock ?? 0),
+                    ];
+                })
+                ->values();
 
             return [
                 'id' => $variant->id,
@@ -534,6 +579,8 @@ class ProductAdminController extends Controller
                         ];
                     })
                     ->values(),
+                'supplier_warehouses' => $supplierWarehouses,
+                'main_store_rows' => $mainStoreRows,
                 'suppliers' => $variant->supplierOffers->map(function ($offer) {
                     $payload = is_array($offer->payload) ? $offer->payload : [];
 
@@ -545,7 +592,7 @@ class ProductAdminController extends Controller
                         'supplier_price' => $payload['supplier_price'] ?? $offer->purchase_price,
                     ];
                 })->values(),
-                'receipt_batches' => $receiptItems->map(function (StockReceiptItem $item) {
+                'receipt_batches' => $otherReceiptItems->map(function (StockReceiptItem $item) {
                     $payload = is_array($item->payload) ? $item->payload : [];
 
                     return [
@@ -740,5 +787,43 @@ class ProductAdminController extends Controller
         }
 
         return $grams;
+    }
+
+    /**
+     * Вариант считается «с каналом продаж» для счётчика и фильтра списка товаров:
+     * складской stock / предзаказ или активный оффер без блокирующих флагов в payload
+     * (в т.ч. seller_one_listing_deferred — до «Обновить цены» такие офферы не считаются).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<ProductVariantLink>  $variantQuery
+     */
+    private static function scopeAdminVariantHasSellableChannel(Builder $variantQuery): void
+    {
+        $variantQuery->where(function ($q) {
+            $q->where('stock', '>', 0)
+                ->orWhere('is_preorder', true)
+                ->orWhereHas('supplierOffers', static function (Builder $sq): void {
+                    self::applyAdminSupplierOfferListingFilters($sq);
+                });
+        });
+    }
+
+    /**
+     * @param  Builder<\Modules\Catalog\Models\SupplierVariantOffer>  $sq
+     */
+    private static function applyAdminSupplierOfferListingFilters(Builder $sq): void
+    {
+        $sq->where('is_active', true)
+            ->where(function ($w) {
+                $w->whereNull('payload->missing_in_latest_price')
+                    ->orWhere('payload->missing_in_latest_price', false);
+            })
+            ->where(function ($w) {
+                $w->whereNull('payload->out_of_stock_in_price_file')
+                    ->orWhere('payload->out_of_stock_in_price_file', false);
+            })
+            ->where(function ($w) {
+                $w->whereNull('payload->seller_one_listing_deferred')
+                    ->orWhere('payload->seller_one_listing_deferred', false);
+            });
     }
 }

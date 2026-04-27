@@ -201,6 +201,10 @@ class ProductVariantAdminController extends Controller
                         ->where(function ($q) {
                             $q->whereNull('payload->out_of_stock_in_price_file')
                                 ->orWhere('payload->out_of_stock_in_price_file', false);
+                        })
+                        ->where(function ($q) {
+                            $q->whereNull('payload->seller_one_listing_deferred')
+                                ->orWhere('payload->seller_one_listing_deferred', false);
                         });
                 },
             ])

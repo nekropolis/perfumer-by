@@ -26,8 +26,8 @@ use Modules\Warehouse\Services\StockInventoryService;
 
 class SupplierPriceImportService
 {
-    private const DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
-    private const DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
+    private const string DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
+    private const string DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
     public function __construct(
         private readonly SellerOneVariantMatcher $variantMatcher,
         private readonly SellerOneSpreadsheetParser $spreadsheetParser,
@@ -844,6 +844,7 @@ class SupplierPriceImportService
                             'payload' => [
                                 'source' => 'xls',
                                 'external_code' => $externalCode,
+                                'seller_one_listing_deferred' => true,
                             ],
                         ]
                     );
@@ -855,6 +856,8 @@ class SupplierPriceImportService
                         'stock' => (int) ($offer->stock ?? 0),
                         'captured_at' => Carbon::now(),
                     ]);
+
+                    $this->stockInventory->syncProductStockFlagsByProductId((int) $product->id);
 
                     $linked++;
                 });
@@ -895,8 +898,8 @@ class SupplierPriceImportService
      *   если definition есть в каталожном справочнике (VariantDefinition),
      *   линк создаётся автоматически, confidence добивается до 100%, и
      *   существующий `tryAutoConfirmLink` (порог 95) привяжет supplier и
-     *   через `linkSupplierProductToVariant` проставит retail-цену,
-     *   stock=1 и is_active=true.
+     *   через `linkSupplierProductToVariant` проставит retail-цену и оффер;
+     *   витрина по прайсу включается после «Обновить цены» (см. seller_one_listing_deferred).
      *
      * Защиты от мусора:
      *   1) ТОЛЬКО при `name_match_level` в `exact`, `exact_multiset` (base = 80).
@@ -1133,6 +1136,8 @@ class SupplierPriceImportService
                         'source' => 'seller-one-xls',
                         'external_code' => $externalCode,
                         'supplier_price' => $supplierPrice,
+                        // До первого «Обновить цены» канал прайса на витрине не активен.
+                        'seller_one_listing_deferred' => true,
                     ],
                 ]
             );
@@ -1145,6 +1150,11 @@ class SupplierPriceImportService
                 'captured_at' => Carbon::now(),
             ]);
         });
+
+        $variant->refresh();
+        if ($variant->product_id) {
+            $this->stockInventory->syncProductStockFlagsByProductId((int) $variant->product_id);
+        }
     }
 
     private function buildVariantLabel(ProductVariant $variant): string

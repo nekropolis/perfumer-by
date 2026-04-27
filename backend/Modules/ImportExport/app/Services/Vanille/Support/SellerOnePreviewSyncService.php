@@ -111,11 +111,7 @@ class SellerOnePreviewSyncService
                 'last_parsed_at' => now()?->toDateTimeString(),
             ],
         ]);
-
-        if ($supplierProduct->is_linked && $externalCode !== '') {
-            $inStock = array_key_exists('in_stock', $row) ? $row['in_stock'] : null;
-            $this->applyPriceFilePresenceToOffers((int) $supplierProduct->supplier_id, $externalCode, $inStock);
-        }
+        // Наличие по прайсу на витрину — только из «Обновить цены», не при парсинге (см. applyPriceFilePresenceToOffers).
     }
 
     /**
@@ -131,7 +127,7 @@ class SellerOnePreviewSyncService
 
         foreach ($offers as $offer) {
             $p = is_array($offer->payload) ? $offer->payload : [];
-            unset($p['missing_in_latest_price'], $p['missing_marked_at']);
+            unset($p['missing_in_latest_price'], $p['missing_marked_at'], $p['seller_one_listing_deferred']);
 
             if ($inStockFromColumn === true) {
                 unset($p['out_of_stock_in_price_file'], $p['out_of_stock_marked_at']);

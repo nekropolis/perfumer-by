@@ -156,6 +156,25 @@ export type ProductVariantSupplierItem = {
         stock: number;
         available_stock: number;
     }>;
+    /** Склады без основного — для строк офферов поставщика (основной показывается в main_store_rows). */
+    supplier_warehouses?: Array<{
+        warehouse_name: string | null;
+        stock: number;
+        available_stock: number;
+    }>;
+    /** Приходы на основной склад: канал «Магазин», цена и количество из прихода. */
+    main_store_rows?: Array<{
+        receipt_item_id: number;
+        receipt_id: number;
+        receipt_document_no: string | null;
+        supplier_name: string;
+        supplier_code: string;
+        supplier_product_name: string;
+        supplier_price: number | string | null;
+        warehouse_name: string | null;
+        qty: number;
+        received_at: string | null;
+    }>;
     suppliers: Array<{
         offer_id: number;
         supplier_name: string | null;

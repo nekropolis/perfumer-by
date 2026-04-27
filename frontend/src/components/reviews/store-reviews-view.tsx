@@ -226,14 +226,9 @@ export default function StoreReviewsView({
                             Отзывы покупателей
                         </h2>
                     ) : null}
-                    <button
-                        type="button"
-                        onClick={() => reload()}
-                        disabled={listLoading}
+                    {listLoading && <span
                         className="text-sm text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-50"
-                    >
-                        {listLoading ? "Обновление…" : "Обновить список"}
-                    </button>
+                    >Обновление…</span>}
                 </div>
 
                 {reviews.length === 0 ? (

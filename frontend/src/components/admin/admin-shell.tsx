@@ -83,6 +83,23 @@ export default function AdminShell({ children }: Props) {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarCollapsed ? "1" : "0");
     }, [sidebarCollapsed, sidebarReady]);
 
+    useEffect(() => {
+        const html = document.documentElement;
+        const body = document.body;
+        const prevHtmlOverflow = html.style.overflow;
+        const prevBodyOverflow = body.style.overflow;
+
+        body.classList.add("admin-shell-body");
+        html.style.overflow = "hidden";
+        body.style.overflow = "hidden";
+
+        return () => {
+            body.classList.remove("admin-shell-body");
+            html.style.overflow = prevHtmlOverflow;
+            body.style.overflow = prevBodyOverflow;
+        };
+    }, []);
+
     return (
         <div
             className="flex h-screen flex-col overflow-hidden bg-gray-50"
