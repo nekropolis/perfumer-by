@@ -57,8 +57,8 @@ class Product extends Model
 
     /**
      * Варианты для витрины: предзаказ, либо активный вариант с каналом отгрузки
-     * (строка на складе main/supplier или активный оффер поставщика с привязанным supplier_products).
-     * Варианты без складской/поставщиковой связи на сайт не попадают.
+     * (строка на складе main/supplier или канал прайса поставщика — те же условия, что
+     * {@see \Modules\Catalog\Support\CatalogVariantStockPresenter::supplierListingActive()}).
      */
     public function activeVariants(): HasMany
     {
@@ -75,17 +75,29 @@ class Product extends Model
                                             Warehouse::CODE_SUPPLIER,
                                         ]);
                                     });
-                                })->orWhereExists(function ($sub) {
-                                    $sub->selectRaw('1')
-                                        ->from('supplier_variant_offers as svo')
-                                        ->join('supplier_products as sp', function ($join) {
-                                            $join->on('sp.supplier_id', '=', 'svo.supplier_id')
+                                })->orWhereHas('supplierOffers', function ($offerQuery) {
+                                    $offerQuery->where('supplier_variant_offers.is_active', true)
+                                        ->where(function ($p) {
+                                            $p->whereNull('supplier_variant_offers.payload->missing_in_latest_price')
+                                                ->orWhere('supplier_variant_offers.payload->missing_in_latest_price', false);
+                                        })
+                                        ->where(function ($p) {
+                                            $p->whereNull('supplier_variant_offers.payload->seller_one_listing_deferred')
+                                                ->orWhere('supplier_variant_offers.payload->seller_one_listing_deferred', false);
+                                        })
+                                        ->where(function ($p) {
+                                            $p->whereNull('supplier_variant_offers.payload->out_of_stock_in_price_file')
+                                                ->orWhere('supplier_variant_offers.payload->out_of_stock_in_price_file', false);
+                                        })
+                                        ->whereExists(function ($sub) {
+                                            $sub->selectRaw('1')
+                                                ->from('supplier_products as sp')
+                                                ->whereColumn('sp.supplier_id', 'supplier_variant_offers.supplier_id')
                                                 ->whereColumn('sp.product_id', 'product_variant_links.product_id')
                                                 ->where('sp.is_linked', '=', true)
-                                                ->where('sp.is_active', '=', true);
-                                        })
-                                        ->whereColumn('svo.product_variant_id', 'product_variant_links.id')
-                                        ->where('svo.is_active', '=', true);
+                                                ->where('sp.is_active', '=', true)
+                                                ->where('sp.link_parsing_active', '=', true);
+                                        });
                                 });
                             });
                     });

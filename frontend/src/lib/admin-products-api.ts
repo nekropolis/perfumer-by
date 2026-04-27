@@ -149,6 +149,9 @@ export type ProductAdminDetailResponse = {
 export type ProductVariantSupplierItem = {
     id: number;
     title: string;
+    /** Витрина: флаг «Активен» на связке варианта. */
+    is_active?: boolean;
+    is_preorder?: boolean;
     site_price?: number | string | null;
     stock: number;
     warehouses: Array<{
@@ -161,6 +164,8 @@ export type ProductVariantSupplierItem = {
         warehouse_name: string | null;
         stock: number;
         available_stock: number;
+        /** Виртуальная полка по активному прайсу (без физической строки склада supplier). */
+        virtual_price_channel?: boolean;
     }>;
     /** Приходы на основной склад: канал «Магазин», цена и количество из прихода. */
     main_store_rows?: Array<{
@@ -320,11 +325,22 @@ export async function fetchProductById(id: number | string): Promise<ProductAdmi
     return res.json();
 }
 
-export async function fetchProductVariantSuppliers(id: number): Promise<ProductVariantSuppliersResponse> {
-    const res = await fetch(`${API_BASE}/admin/products/${id}/variant-suppliers`, {
-        headers: getAdminHeaders(),
-        cache: "no-store",
-    });
+export async function fetchProductVariantSuppliers(
+    id: number,
+    options?: { variantId?: number },
+): Promise<ProductVariantSuppliersResponse> {
+    const params = new URLSearchParams();
+    if (options?.variantId != null && options.variantId > 0) {
+        params.set("variant_id", String(options.variantId));
+    }
+    const query = params.toString();
+    const res = await fetch(
+        `${API_BASE}/admin/products/${id}/variant-suppliers${query ? `?${query}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+        },
+    );
 
     if (!res.ok) {
         const text = await res.text();

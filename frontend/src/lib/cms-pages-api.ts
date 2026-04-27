@@ -15,6 +15,22 @@ export type CmsPublicBlock = {
   content?: string | null;
 };
 
+export type CmsPublicPost = {
+  id: number;
+  title: string;
+  type: "news" | "article";
+  excerpt?: string | null;
+  cover_image?: string | null;
+  created_at?: string | null;
+};
+
+export type CmsPublicPostDetail = CmsPublicPost & {
+  content?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  updated_at?: string | null;
+};
+
 function getApiBase(): string {
   const isBrowser = typeof window !== "undefined";
   const internal =
@@ -74,5 +90,47 @@ export async function fetchCmsBlockByCode(
   }
 
   const data = (await res.json()) as { data?: CmsPublicBlock };
+  return data.data ?? null;
+}
+
+export async function fetchCmsPosts(params?: {
+  type?: "news" | "article";
+  limit?: number;
+}): Promise<CmsPublicPost[]> {
+  const base = getApiBase();
+  const sp = new URLSearchParams();
+  if (params?.type) sp.set("type", params.type);
+  if (params?.limit) sp.set("limit", String(params.limit));
+
+  const q = sp.toString();
+  const res = await fetch(`${base}/posts${q ? `?${q}` : ""}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`CMS posts API error: ${res.status}`);
+  }
+
+  const data = (await res.json()) as { data?: CmsPublicPost[] };
+  return data.data ?? [];
+}
+
+export async function fetchCmsPostById(
+  id: number | string,
+): Promise<CmsPublicPostDetail | null> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/posts/${encodeURIComponent(String(id))}`, {
+    cache: "no-store",
+  });
+
+  if (res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    throw new Error(`CMS post API error: ${res.status}`);
+  }
+
+  const data = (await res.json()) as { data?: CmsPublicPostDetail };
   return data.data ?? null;
 }

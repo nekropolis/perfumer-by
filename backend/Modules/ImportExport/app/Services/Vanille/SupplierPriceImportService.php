@@ -562,6 +562,10 @@ class SupplierPriceImportService
             $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             if ($nowListed && !$wasListed) {
                 $becameInStock++;
+                ProductVariantLink::query()
+                    ->whereKey((int) $variant->id)
+                    ->where('is_active', false)
+                    ->update(['is_active' => true]);
             }
             if (!$nowListed && $wasListed) {
                 $becameOutOfStock++;

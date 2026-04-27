@@ -12,11 +12,7 @@ import {
     type AdminProductVariantItem,
     type VariantDefinitionItem,
 } from "@/lib/admin-product-variants-api";
-import {
-    fetchProductVariantSuppliers,
-    type ProductVariantSupplierItem,
-} from "@/lib/admin-products-api";
-import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
+import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 
 type Props = {
     productId: number;
@@ -300,10 +296,9 @@ export default function ProductVariantsEditor({
 
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
-    const [infoTarget, setInfoTarget] = useState<AdminProductVariantItem | null>(null);
-    const [variantSupplierInfo, setVariantSupplierInfo] = useState<Record<number, ProductVariantSupplierItem>>({});
-    const [variantSupplierInfoLoading, setVariantSupplierInfoLoading] = useState(false);
-    const [variantSupplierInfoError, setVariantSupplierInfoError] = useState("");
+    const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
+    const [suppliersModalFocusId, setSuppliersModalFocusId] = useState<number | null>(null);
+    const [suppliersModalSubtitle, setSuppliersModalSubtitle] = useState("");
     const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
 
     const loadVariants = useCallback(async () => {
@@ -340,28 +335,16 @@ export default function ProductVariantsEditor({
         return row ? formatVariantEditTitle(row) : editForm.variant_definition_title || "";
     }, [editForm?.id, editForm?.variant_definition_title, runtimeItems]);
 
-    const loadVariantSupplierInfo = async () => {
-        setVariantSupplierInfoLoading(true);
-        setVariantSupplierInfoError("");
-        try {
-            const response = await fetchProductVariantSuppliers(productId);
-            const indexed = (response.data ?? []).reduce<Record<number, ProductVariantSupplierItem>>((acc, item) => {
-                acc[item.id] = item;
-                return acc;
-            }, {});
-            setVariantSupplierInfo(indexed);
-        } catch (e: unknown) {
-            setVariantSupplierInfoError(e instanceof Error ? e.message : "Не удалось загрузить данные привязок");
-        } finally {
-            setVariantSupplierInfoLoading(false);
-        }
+    const openInfo = (item: AdminProductVariantItem) => {
+        setSuppliersModalSubtitle(formatVariantEditTitle(item));
+        setSuppliersModalFocusId(item.id);
+        setSuppliersModalOpen(true);
     };
 
-    const openInfo = (item: AdminProductVariantItem) => {
-        setInfoTarget(item);
-        if (Object.keys(variantSupplierInfo).length === 0 && !variantSupplierInfoLoading) {
-            void loadVariantSupplierInfo();
-        }
+    const closeSuppliersModal = () => {
+        setSuppliersModalOpen(false);
+        setSuppliersModalFocusId(null);
+        setSuppliersModalSubtitle("");
     };
 
     const openCreate = () => {
@@ -701,72 +684,15 @@ export default function ProductVariantsEditor({
                 onConfirmAction={handleDelete}
             />
 
-            {infoTarget ? (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
-                    <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
-                            <div className="flex items-center justify-between border-b px-5 py-4">
-                                <div>
-                                    <h2 className="text-xl font-semibold">
-                                        {productName} - {buildDisplayName(infoTarget)}
-                                    </h2>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setInfoTarget(null)}
-                                    className="rounded-xl border px-3 py-1.5 text-sm"
-                                >
-                                    Закрыть
-                                </button>
-                            </div>
-
-                            <div className="space-y-4 overflow-y-auto px-5 py-4">
-                                {variantSupplierInfoLoading ? (
-                                    <div className="text-sm text-gray-500">Загрузка привязок поставщиков...</div>
-                                ) : variantSupplierInfoError ? (
-                                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                                        {variantSupplierInfoError}
-                                    </div>
-                                ) : (
-                                    <div className="rounded-xl border">
-                                        <div className="border-b px-3 py-2 text-sm font-medium">
-                                            Привязки к поставщикам
-                                        </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="min-w-full text-sm">
-                                                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                                                    <tr>
-                                                        <th className="px-3 py-2">Поставщик</th>
-                                                        <th className="px-3 py-2">Код</th>
-                                                        <th className="px-3 py-2">Название у поставщика</th>
-                                                        <th className="px-3 py-2">Закуп. цена</th>
-                                                        <th className="px-3 py-2">Склад</th>
-                                                        <th className="px-3 py-2">Кол-во</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {variantSupplierInfo[infoTarget.id] ? (
-                                                        <VariantSuppliersTableRows
-                                                            variant={variantSupplierInfo[infoTarget.id]}
-                                                            cellClassName="px-3 py-2"
-                                                        />
-                                                    ) : (
-                                                        <tr>
-                                                            <td colSpan={6} className="px-3 py-3 text-sm text-gray-500">
-                                                                Для этого варианта нет активных привязок к поставщикам.
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
+            <ProductVariantSuppliersModal
+                open={suppliersModalOpen}
+                onCloseAction={closeSuppliersModal}
+                productId={productId}
+                productTitle={productName}
+                subtitle={suppliersModalSubtitle || undefined}
+                highlightVariantId={suppliersModalFocusId}
+                singleVariantId={suppliersModalFocusId}
+            />
 
             {createModalOpen ? (
                 <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">

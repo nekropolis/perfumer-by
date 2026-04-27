@@ -343,6 +343,22 @@ export default function HeaderMobileMenu({
                         >
                             Отзывы о магазине
                         </Link>
+
+                        <Link
+                            href="/news"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            onClick={onCloseAction}
+                        >
+                            Новости
+                        </Link>
+
+                        <Link
+                            href="/articles"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            onClick={onCloseAction}
+                        >
+                            Статьи
+                        </Link>
                     </div>
 
                     {isAuthenticated ? (

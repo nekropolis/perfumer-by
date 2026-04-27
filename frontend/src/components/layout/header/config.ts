@@ -41,6 +41,8 @@ export const HEADER_SECONDARY_LINKS = [
     { label: "Новинки", href: "/catalog?sort=new" },
     { label: "Акции", href: "/catalog?sale=1" },
     { label: "Бренды", href: "/brands" },
+    { label: "Новости", href: "/news" },
+    { label: "Статьи", href: "/articles" },
     { label: "Отзывы", href: "/reviews" },
     { label: "Контакты", href: "/contacts" },
 ] as const;

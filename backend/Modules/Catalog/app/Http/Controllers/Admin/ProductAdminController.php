@@ -477,12 +477,29 @@ class ProductAdminController extends Controller
         ]);
     }
 
-    public function variantSuppliers(int $id): JsonResponse
+    public function variantSuppliers(Request $request, int $id): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
 
-        $variants = ProductVariantLink::query()
-            ->where('product_id', $product->id)
+        $variantIdFilter = (int) $request->query('variant_id', 0);
+
+        $variantsQuery = ProductVariantLink::query()
+            ->where('product_id', $product->id);
+
+        if ($variantIdFilter > 0) {
+            $belongs = ProductVariantLink::query()
+                ->where('product_id', $product->id)
+                ->whereKey($variantIdFilter)
+                ->exists();
+            if (! $belongs) {
+                return response()->json([
+                    'message' => 'Вариант не найден у этого товара',
+                ], 404);
+            }
+            $variantsQuery->whereKey($variantIdFilter);
+        }
+
+        $variants = $variantsQuery
             ->with([
                 'definition',
                 'supplierOffers' => function ($query) {
@@ -505,12 +522,19 @@ class ProductAdminController extends Controller
             ->groupBy('variant_id');
 
         $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $supplierWarehouseRow = Warehouse::query()
+            ->where('code', Warehouse::CODE_SUPPLIER)
+            ->first(['id', 'name']);
+        $supplierWarehouseId = (int) ($supplierWarehouseRow?->id ?? 0);
+        $supplierWarehouseName = (string) ($supplierWarehouseRow?->name ?: 'Поставщик');
         $productName = (string) $product->name;
 
         $data = $variants->map(function (ProductVariantLink $variant) use (
             $receiptItemsByVariant,
             $productName,
-            $mainWarehouseId
+            $mainWarehouseId,
+            $supplierWarehouseId,
+            $supplierWarehouseName
         ) {
             $receiptItems = $receiptItemsByVariant->get($variant->id, collect());
             $variantTitle = (string) ($variant->title ?? '');
@@ -562,11 +586,37 @@ class ProductAdminController extends Controller
                         'available_stock' => (int) ($stock->available_stock ?? 0),
                     ];
                 })
-                ->values();
+                ->values()
+                ->all();
+
+            $hasPhysicalSupplierShelf = false;
+            if ($supplierWarehouseId > 0) {
+                foreach ($variant->warehouseStocks as $stock) {
+                    if ((int) ($stock->warehouse_id ?? 0) === $supplierWarehouseId && (int) ($stock->stock ?? 0) > 0) {
+                        $hasPhysicalSupplierShelf = true;
+                        break;
+                    }
+                }
+            }
+
+            if (
+                $supplierWarehouseId > 0
+                && CatalogVariantStockPresenter::supplierListingActive($variant)
+                && !$hasPhysicalSupplierShelf
+            ) {
+                $supplierWarehouses[] = [
+                    'warehouse_name' => $supplierWarehouseName.' (по прайсу)',
+                    'stock' => 999,
+                    'available_stock' => 999,
+                    'virtual_price_channel' => true,
+                ];
+            }
 
             return [
                 'id' => $variant->id,
                 'title' => $variant->title,
+                'is_active' => (bool) $variant->is_active,
+                'is_preorder' => (bool) $variant->is_preorder,
                 'site_price' => $variant->price,
                 'stock' => (int) ($variant->stock ?? 0),
                 'warehouses' => $variant->warehouseStocks

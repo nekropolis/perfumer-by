@@ -14,7 +14,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
-import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
+import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
@@ -335,92 +335,68 @@ export default function AdminProductsPage() {
             />
 
             {variantsTarget ? (
-                <div className="fixed inset-0 z-[200] bg-black/50 px-3 py-4 sm:px-6">
-                    <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-                            <div className="flex items-start justify-between border-b px-4 py-3 sm:px-5">
-                                <div className="min-w-0">
-                                    <h2 className="truncate text-sm font-semibold sm:text-base">
-                                        Продукт: {variantsTarget.name}
-                                    </h2>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setVariantsTarget(null)}
-                                    className="ml-3 rounded-lg border px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                                >
-                                    Закрыть
-                                </button>
-                            </div>
-
-                            <div className="overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-                                {variantsLoading ? (
-                                    <div className="rounded-xl border px-3 py-4 text-sm text-gray-500">
-                                        Загрузка вариантов...
-                                    </div>
-                                ) : variantSuppliers.length === 0 ? (
-                                    <div className="rounded-xl border px-3 py-4 text-sm text-gray-500">
-                                        В наличии нет вариантов или нет связок с поставщиками.
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {variantSuppliers.map((variant) => (
-                                            <div key={variant.id} className="rounded-xl border p-3">
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {variant.title || `Вариант #${variant.id}`}
-                                                    </div>
-                                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                                        Остаток: {variant.stock}
-                                                    </span>
-                                                    <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                                        <input
-                                                            type="text"
-                                                            inputMode="decimal"
-                                                            value={getVariantPriceInputValue(variant)}
-                                                            onChange={(e) =>
-                                                                setVariantPriceDrafts((prev) => ({
-                                                                    ...prev,
-                                                                    [variant.id]: e.target.value,
-                                                                }))
-                                                            }
-                                                            onBlur={() => void saveVariantSitePriceOnBlur(variant)}
-                                                            disabled={variantPriceSavingId === variant.id}
-                                                            placeholder="—"
-                                                            className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs text-emerald-700 outline-none focus:border-emerald-300"
-                                                        />
-                                                        <span>{variantPriceSavingId === variant.id ? "Сохранение..." : "BYN"}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-2 overflow-x-auto">
-                                                    <table className="min-w-full text-xs">
-                                                        <thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500">
-                                                            <tr>
-                                                                <th className="px-2.5 py-2">Поставщик</th>
-                                                                <th className="px-2.5 py-2">Код</th>
-                                                                <th className="px-2.5 py-2">Название у поставщика</th>
-                                                                <th className="px-2.5 py-2">Закуп. цена</th>
-                                                                <th className="px-2.5 py-2">Склад</th>
-                                                                <th className="px-2.5 py-2">Кол-во</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <VariantSuppliersTableRows
-                                                                variant={variant}
-                                                                cellClassName="px-2.5 py-2"
-                                                            />
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                    </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                <ProductVariantSuppliersModal
+                    open
+                    onCloseAction={() => setVariantsTarget(null)}
+                    productId={variantsTarget.id}
+                    productTitle={`Продукт: ${variantsTarget.name}`}
+                    suppliers={variantSuppliers}
+                    suppliersLoading={variantsLoading}
+                    suppliersError={error}
+                    renderVariantToolbarAction={(variant) => (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900">
+                            <span className="shrink-0 tabular-nums text-gray-500">{variant.id}</span>
+                            <span className="shrink-0 text-gray-300" aria-hidden>
+                                ·
+                            </span>
+                            <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                    variant.is_active !== false
+                                        ? "bg-green-50 text-green-700"
+                                        : "bg-gray-100 text-gray-600"
+                                }`}
+                            >
+                                {variant.is_active !== false ? "Активен" : "Выкл"}
+                            </span>
+                            {variant.is_preorder ? (
+                                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                    Предзаказ
+                                </span>
+                            ) : null}
+                            <span className="shrink-0 text-gray-300" aria-hidden>
+                                ·
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-medium">
+                                {variant.title || "—"}
+                            </span>
+                            <span className="shrink-0 text-gray-300" aria-hidden>
+                                ·
+                            </span>
+                            <span className="shrink-0 tabular-nums text-gray-700">{variant.stock} шт</span>
+                            <span className="shrink-0 text-gray-300" aria-hidden>
+                                ·
+                            </span>
+                            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={getVariantPriceInputValue(variant)}
+                                    onChange={(e) =>
+                                        setVariantPriceDrafts((prev) => ({
+                                            ...prev,
+                                            [variant.id]: e.target.value,
+                                        }))
+                                    }
+                                    onBlur={() => void saveVariantSitePriceOnBlur(variant)}
+                                    disabled={variantPriceSavingId === variant.id}
+                                    placeholder="—"
+                                    className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
+                                />
+                                <span>{variantPriceSavingId === variant.id ? "…" : "BYN"}</span>
+                            </span>
                         </div>
-                    </div>
-                </div>
+                    )}
+                />
             ) : null}
         </AdminPageCard>
     );
