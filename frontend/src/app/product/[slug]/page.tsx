@@ -50,12 +50,12 @@ export async function generateMetadata({
     const imageUrl = mainProductImageUrlForOg(product);
     const ogImageAlt = primaryProductImageAlt(product);
 
+    /** Open Graph: Next.js допускает только website | article для `metadata.openGraph.type` (иначе Invalid OpenGraph type). Товар — через JSON-LD Product и og:title / og:image ниже. */
     return buildSeoMetadata({
         title,
         description,
         canonicalPath: `/product/${product.slug}`,
         ...(imageUrl ? { imageUrl, ogImageAlt } : {}),
-        ogType: "product",
     });
 }
 

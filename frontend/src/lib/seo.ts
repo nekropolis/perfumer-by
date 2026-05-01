@@ -62,8 +62,8 @@ type SeoInput = {
     imageUrl?: string;
     /** Подпись к превью (OG/Twitter). */
     ogImageAlt?: string;
-    /** По умолчанию website; article — посты; product — карточка товара (og:type). */
-    ogType?: "website" | "article" | "product";
+    /** По умолчанию website; article — посты. `og:type=product` в Metadata API Next.js не поддерживается (E237). */
+    ogType?: "website" | "article";
     /** Без значения: матрица noindex или `getSiteDefaultRobots()`; явно — переопределение. */
     robots?: Metadata["robots"];
     /** Листинги: `<link rel="prev|next">` через Metadata API Next.js. */
@@ -222,14 +222,6 @@ export function buildSeoMetadata({
         ]
         : undefined;
 
-    /** Next.js типизирует OpenGraph без `product`; в разметке нужен og:type product для карточек. */
-    const openGraphType =
-        ogType === "product"
-            ? ("product" as unknown as "website")
-            : ogType === "article"
-              ? ("article" as const)
-              : ("website" as const);
-
     return {
         title,
         description,
@@ -244,7 +236,7 @@ export function buildSeoMetadata({
             url: canonical,
             siteName: SITE_NAME,
             locale: "ru_RU",
-            type: openGraphType,
+            type: ogType === "article" ? "article" : "website",
             ...(ogImages && { images: ogImages }),
         },
         ...(resolvedImage && {
