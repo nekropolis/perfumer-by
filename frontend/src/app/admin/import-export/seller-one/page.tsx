@@ -15,6 +15,7 @@ import {
     deleteSellerOneRule,
     fetchSellerOneParseStatus,
     fetchSellerOneRefreshLinkedJobStatus,
+    fetchSellerOneActiveStatus,
     fetchSellerOneSupplierProducts,
     fetchSellerOnePricingSettings,
     fetchSellerOneRules,
@@ -358,6 +359,36 @@ export default function SellerOneImportPage() {
                 }
 
                 const data = res.data;
+
+                /** Discovery и per-job snapshot расходятся после ручного сброса кеша или новой вкладке. */
+                let canonicalSellerOneJobId: string | null | undefined;
+                try {
+                    const disco = await fetchSellerOneActiveStatus();
+                    canonicalSellerOneJobId = disco.data?.job_id ?? null;
+                } catch {
+                    canonicalSellerOneJobId = undefined;
+                }
+                if (canonicalSellerOneJobId !== undefined) {
+                    const st = data.status;
+                    if (
+                        st !== "completed"
+                        && st !== "failed"
+                        && (canonicalSellerOneJobId === null
+                            || canonicalSellerOneJobId !== refreshLinkedJobId)
+                    ) {
+                        window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+                        setRefreshLinkedJobId(null);
+                        setSupplierRefreshPricesLoading(false);
+                        setBatchProgress("");
+                        setSupplierError(
+                            canonicalSellerOneJobId === null
+                                ? "Фоновая задача обновления цен на сервере больше не активна — состояние сброшено."
+                                : "На сервере другая активная задача Seller One — локальный прогресс обновления цен сброшен.",
+                        );
+                        return;
+                    }
+                }
+
                 const processed = Number(data.processed ?? 0);
                 const totalLinked = Number(data.total_linked ?? 0);
                 const progressText =

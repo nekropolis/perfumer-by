@@ -445,7 +445,7 @@ sudo systemctl reload php8.3-fpm
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=65 --sleep=1 --max-jobs=500 --max-time=3600 --memory=256
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=512
 autostart=true
 autorestart=true
 startretries=10
@@ -469,10 +469,11 @@ sudo supervisorctl status perfumer-queue:*
 > `php artisan catalog:vanille-queue resume`, а автоперезапуски воркеров только
 > сбивали статус. См. `README-dev.md §8`.
 >
-> `--memory=256` — страховка на 4-ГБ сервере. Если PHP-процесс воркера
-> разрастается (бывает на тяжёлых XLSX-импортах), Laravel корректно завершает
-> его после текущего джоба, а supervisor поднимает свежий. Без этого флага
-> PhpSpreadsheet легко съедает 1.5–2 ГБ RSS и кладёт систему в swap.
+> **`--timeout=3720`**: должно быть **≥** таймаута тяжёлых задач Seller One (`RunSellerOne*Job`
+> задают `timeout = 3600`). Значение `65` убивает джобу на минуте, overlap-lock в Redis
+> может висеть до `expireAfter`, UI остаётся «в очереди / 0%», в логе воркера — короткий `DONE`.
+>
+> `--memory=512` — тяжёлые прайсы; при нехватке памяти воркер перезапустится после джобы.
 
 ---
 
@@ -636,7 +637,7 @@ Nginx → `current/...` — симлинк разворачивается на �
 
 ```ini
 [program:perfumer-queue]
-command=/usr/bin/php /var/www/perfumer-by/current/backend/artisan queue:work redis --tries=1 --timeout=65 --sleep=1 --max-jobs=500 --max-time=3600
+command=/usr/bin/php /var/www/perfumer-by/current/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=512
 ...
 ```
 

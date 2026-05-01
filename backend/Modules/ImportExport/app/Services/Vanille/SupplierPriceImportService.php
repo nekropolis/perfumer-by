@@ -531,7 +531,6 @@ class SupplierPriceImportService
 
             $wasListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             $resolvedPrice = $this->pricingService->calculateRetailPrice($supplierPrice);
-            $oldVariantPrice = (float) ($variant->price ?? 0);
             $offerBucketExisting = $offersGroupedByExternal->get($externalCode);
             $existingOffer = ($offerBucketExisting instanceof Collection && $offerBucketExisting->isNotEmpty())
                 ? $offerBucketExisting->first()
@@ -539,8 +538,6 @@ class SupplierPriceImportService
                     ->where('supplier_id', $supplier->id)
                     ->where('external_id', $externalCode)
                     ->first();
-            $oldOfferPrice = $existingOffer ? (float) $existingOffer->price : null;
-            $prevRetail = $oldOfferPrice ?? $oldVariantPrice;
 
             DB::transaction(function () use (
                 $supplier,
@@ -551,12 +548,24 @@ class SupplierPriceImportService
                 $resolvedPrice,
                 $fileInStock,
                 $existingOffer,
-                $prevRetail,
                 &$updated,
                 &$priceHistoryRows,
                 &$priceChanged,
                 $deferStockCb
             ): void {
+                $supplierProduct->refresh();
+                $variant->refresh();
+                $variant->loadMissing('product');
+
+                if ($existingOffer instanceof SupplierVariantOffer) {
+                    $existingOffer->refresh();
+                }
+
+                /** «Старую» розницу для истории считаем из БД перед записью этой транзакцией (важно при retry после rollback). */
+                $prevRetail = $existingOffer instanceof SupplierVariantOffer
+                    ? (float) $existingOffer->price
+                    : (float) ($variant->price ?? 0);
+
                 $product = $variant->product;
                 $existingPayload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
 
@@ -634,7 +643,7 @@ class SupplierPriceImportService
                 }
 
                 $updated++;
-            });
+            }, 8);
 
             $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             if ($nowListed && !$wasListed) {
@@ -730,7 +739,7 @@ class SupplierPriceImportService
                 }
 
                 return $flaggedOffers;
-            });
+            }, 8);
 
             $shelfVariantIds = SupplierVariantOffer::query()
                 ->where('supplier_id', $supplier->id)

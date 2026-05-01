@@ -22,7 +22,11 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 1;
+    /**
+     * При занятости lock (~45 сек между попытками) нужен запас на час параллельного парсинга:
+     * 90 попыток ≈ 67 мин между первой и последней отложенной попыткой.
+     */
+    public int $tries = 90;
 
     public int $timeout = 3600;
 
@@ -184,16 +188,44 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            // Делим общий lock с RunSellerOneParseJob, чтобы heavy-джобы
-            // Seller One не выполнялись параллельно.
+            // Общая блокировка с RunSellerOneParseJob. dontRelease отключён иначе «конфликт»
+            // задача исчезает из очереди без handle() → кеш остаётся queued, бейдж 0%.
+            // releaseAfter — подождём и переиграем после освобождения lock или парсинга.
+            // ->shared(): один ключ lock для всего Seller One (`laravel-queue-overlap:seller_one_heavy_global`),
+            // без shared() ключ включает FQCN джобы — парсинг и refresh блокировали бы только свой класс.
             (new WithoutOverlapping('seller_one_heavy_global'))
+                ->shared()
                 ->expireAfter(3900)
-                ->dontRelease(),
+                ->releaseAfter(45),
         ];
+    }
+
+    /**
+     * Если воркер/очередь сняли задачу до финального Cache::put, discovery остаётся на «queued» навсегда.
+     */
+    private function markCacheFailedAndClearDiscoveryIfHung(string $publicMessage): void
+    {
+        $cacheKey = self::cacheKey($this->jobId);
+        $snap = Cache::get($cacheKey);
+        $st = is_array($snap) ? (string) ($snap['status'] ?? '') : '';
+        if (!in_array($st, ['completed', 'failed'], true)) {
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'failed',
+                'message' => $publicMessage,
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+        }
+        self::clearActiveJobIfMatches($this->jobId);
     }
 
     public function failed(?Throwable $exception): void
     {
+        $this->markCacheFailedAndClearDiscoveryIfHung(
+            $exception?->getMessage() ?: 'Seller One refresh linked prices job failed unexpectedly.',
+        );
+
         $message = $exception?->getMessage() ?: 'Seller One refresh linked prices job failed unexpectedly.';
 
         try {

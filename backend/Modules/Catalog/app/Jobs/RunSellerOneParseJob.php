@@ -21,7 +21,11 @@ class RunSellerOneParseJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 1;
+    /**
+     * См. {@see RunSellerOneRefreshLinkedPricesJob::$tries}: общая блокировка с refresh,
+     * интервал release ~45 с — нужен запас минимум на длительный sibling-job.
+     */
+    public int $tries = 90;
     public int $timeout = 3600;
     public bool $failOnTimeout = true;
 
@@ -144,14 +148,30 @@ class RunSellerOneParseJob implements ShouldQueue
             // Глобальный lock на heavy Seller One операции:
             // parse и refresh не должны выполняться параллельно.
             (new WithoutOverlapping('seller_one_heavy_global'))
+                ->shared()
                 ->expireAfter(3900)
-                ->dontRelease(),
+                ->releaseAfter(45),
         ];
     }
 
     public function failed(?Throwable $exception): void
     {
         $message = $exception?->getMessage() ?: 'Seller One parse job failed unexpectedly.';
+
+        $cacheKey = self::cacheKey($this->jobId);
+        $snap = Cache::get($cacheKey);
+        $st = is_array($snap) ? (string) ($snap['status'] ?? '') : '';
+        if (!in_array($st, ['completed', 'failed'], true)) {
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'status' => 'failed',
+                'processed' => (int) (is_array($snap) ? ($snap['processed'] ?? 0) : 0),
+                'total_rows' => (int) (is_array($snap) ? ($snap['total_rows'] ?? 0) : 0),
+                'message' => $message,
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+        }
+        self::clearActiveJobIfMatches($this->jobId);
 
         try {
             app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
