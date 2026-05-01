@@ -117,9 +117,16 @@ class SellerOnePreviewSyncService
     /**
      * Код снова в файле парсинга: снимаем «нет в файле»; колонка «наличие» (если есть) управляет
      * флагом «нет в наличии по прайсу» на оффере.
+     *
+     * @param  (callable(int): void)|null  $deferStockFlagsForProduct Если задан — не дергать складской пересчёт
+     *        сразу, а сообщить затронутый product_id (для пакета «Обновить цены» на тысячах строк это сильно быстрее).
      */
-    public function applyPriceFilePresenceToOffers(int $supplierId, string $externalCode, ?bool $inStockFromColumn): void
-    {
+    public function applyPriceFilePresenceToOffers(
+        int $supplierId,
+        string $externalCode,
+        ?bool $inStockFromColumn,
+        ?callable $deferStockFlagsForProduct = null,
+    ): void {
         $offers = SupplierVariantOffer::query()
             ->where('supplier_id', $supplierId)
             ->where('external_id', $externalCode)
@@ -145,7 +152,14 @@ class SellerOnePreviewSyncService
             if ($variantId > 0) {
                 $variant = ProductVariantLink::query()->find($variantId);
                 if ($variant) {
-                    $this->stockInventory->syncProductStockFlagsByProductId((int) $variant->product_id);
+                    $productId = (int) $variant->product_id;
+                    if ($deferStockFlagsForProduct !== null) {
+                        if ($productId > 0) {
+                            $deferStockFlagsForProduct($productId);
+                        }
+                    } else {
+                        $this->stockInventory->syncProductStockFlagsByProductId($productId);
+                    }
                 }
             }
         }

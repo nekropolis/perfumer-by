@@ -4,6 +4,7 @@ namespace Modules\ImportExport\Services\Vanille;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -411,6 +412,71 @@ class SupplierPriceImportService
             ]);
         }
 
+        /** @var array<int, true> Продукты, для которых отложен syncProductStockFlagsByProductId (иначе тысячи тяжёлых синхронизаций подряд). */
+        $deferredStockProductIds = [];
+
+        /** @var array<string, bool> Внешние коды, которые есть в прайсе, у связки и проходят фильтр по цене. */
+        $codesEligibleForBatch = [];
+
+        foreach ($linkedProducts as $spWarm) {
+            $pw = is_array($spWarm->payload) ? $spWarm->payload : [];
+            $ecw = trim((string) ($pw['external_code'] ?? str_replace('supplier-xls://', '', (string) $spWarm->external_url)));
+            if ($ecw === '' || !isset($rowByCode[$ecw])) {
+                continue;
+            }
+            if ($this->toFloat($rowByCode[$ecw]['supplier_price'] ?? null) === null) {
+                continue;
+            }
+            $codesEligibleForBatch[$ecw] = true;
+        }
+
+        /** @var Collection<string, Collection<int, SupplierVariantOffer>> */
+        $offersGroupedByExternal = Collection::make();
+        $eligibleList = array_keys($codesEligibleForBatch);
+        if ($eligibleList !== []) {
+            $offersGroupedByExternal = SupplierVariantOffer::query()
+                ->where('supplier_id', $supplier->id)
+                ->whereIn('external_id', $eligibleList)
+                ->get()
+                ->groupBy(static fn ($o): string => (string) $o->external_id);
+        }
+
+        /** @var Collection<int, ProductVariant> */
+        $variantsPreloadedById = Collection::make();
+        $variantPksWarm = [];
+
+        foreach ($linkedProducts as $spWarm2) {
+            $pw = is_array($spWarm2->payload) ? $spWarm2->payload : [];
+            $ecw = trim((string) ($pw['external_code'] ?? str_replace('supplier-xls://', '', (string) $spWarm2->external_url)));
+            if ($ecw === '' || !isset($codesEligibleForBatch[$ecw])) {
+                continue;
+            }
+            $warmVid = (int) ($pw['linked_variant_id'] ?? 0);
+            if ($warmVid <= 0) {
+                $bucketWarm = $offersGroupedByExternal->get($ecw);
+                if ($bucketWarm instanceof Collection && $bucketWarm->isNotEmpty()) {
+                    $warmVid = (int) ($bucketWarm->first()?->product_variant_id ?? 0);
+                }
+            }
+            if ($warmVid > 0) {
+                $variantPksWarm[$warmVid] = true;
+            }
+        }
+
+        if ($variantPksWarm !== []) {
+            $variantsPreloadedById = ProductVariant::query()
+                ->with('product')
+                ->whereIn('id', array_keys($variantPksWarm))
+                ->get()
+                ->keyBy('id');
+        }
+
+        $deferStockCb = static function (int $productId) use (&$deferredStockProductIds): void {
+            if ($productId > 0) {
+                $deferredStockProductIds[$productId] = true;
+            }
+        };
+
         foreach ($linkedProducts as $index => $supplierProduct) {
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
             $externalCode = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
@@ -438,6 +504,12 @@ class SupplierPriceImportService
 
             $variantId = (int) ($payload['linked_variant_id'] ?? 0);
             if ($variantId <= 0) {
+                $bucketVid = $offersGroupedByExternal->get($externalCode);
+                if ($bucketVid instanceof Collection && $bucketVid->isNotEmpty()) {
+                    $variantId = (int) ($bucketVid->first()?->product_variant_id ?? 0);
+                }
+            }
+            if ($variantId <= 0) {
                 $variantId = (int) (SupplierVariantOffer::query()
                     ->where('supplier_id', $supplier->id)
                     ->where('external_id', $externalCode)
@@ -449,7 +521,8 @@ class SupplierPriceImportService
                 continue;
             }
 
-            $variant = ProductVariant::query()->with('product')->find($variantId);
+            $variant = $variantsPreloadedById->get($variantId)
+                ?? ProductVariant::query()->with('product')->find($variantId);
             if (!$variant || !$variant->product) {
                 $skipped++;
 
@@ -459,10 +532,13 @@ class SupplierPriceImportService
             $wasListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             $resolvedPrice = $this->pricingService->calculateRetailPrice($supplierPrice);
             $oldVariantPrice = (float) ($variant->price ?? 0);
-            $existingOffer = SupplierVariantOffer::query()
-                ->where('supplier_id', $supplier->id)
-                ->where('external_id', $externalCode)
-                ->first();
+            $offerBucketExisting = $offersGroupedByExternal->get($externalCode);
+            $existingOffer = ($offerBucketExisting instanceof Collection && $offerBucketExisting->isNotEmpty())
+                ? $offerBucketExisting->first()
+                : SupplierVariantOffer::query()
+                    ->where('supplier_id', $supplier->id)
+                    ->where('external_id', $externalCode)
+                    ->first();
             $oldOfferPrice = $existingOffer ? (float) $existingOffer->price : null;
             $prevRetail = $oldOfferPrice ?? $oldVariantPrice;
 
@@ -478,7 +554,8 @@ class SupplierPriceImportService
                 $prevRetail,
                 &$updated,
                 &$priceHistoryRows,
-                &$priceChanged
+                &$priceChanged,
+                $deferStockCb
             ): void {
                 $product = $variant->product;
                 $existingPayload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
@@ -541,6 +618,7 @@ class SupplierPriceImportService
                     (int) $supplier->id,
                     $externalCode,
                     $fileInStock,
+                    $deferStockCb,
                 );
 
                 if (abs($prevRetail - $resolvedPrice) > 0.004) {
@@ -558,7 +636,6 @@ class SupplierPriceImportService
                 $updated++;
             });
 
-            $variant->refresh();
             $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             if ($nowListed && !$wasListed) {
                 $becameInStock++;
@@ -588,6 +665,10 @@ class SupplierPriceImportService
                     'message' => 'Обновление цен: ' . ($index + 1) . " / {$totalLinked}",
                 ]);
             }
+        }
+
+        foreach (array_keys($deferredStockProductIds) as $productIdSynced) {
+            $this->stockInventory->syncProductStockFlagsByProductId((int) $productIdSynced);
         }
 
         $missingCodes = array_values(array_unique($missingCodes));
