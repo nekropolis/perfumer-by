@@ -185,7 +185,9 @@ export default function ProductReviewsTab({ productId, isActive }: Props) {
                 ) : listError ? (
                     <p className="text-sm text-red-600">{listError}</p>
                 ) : reviews.length === 0 ? (
-                    <p className="text-sm text-[var(--text-secondary)]">Пока нет опубликованных отзывов.</p>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                        Отзывов пока нет. Будьте первым.
+                    </p>
                 ) : (
                     <ul className="space-y-4">
                         {reviews.map((item) => (

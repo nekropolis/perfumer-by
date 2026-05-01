@@ -19,6 +19,7 @@ import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-imag
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import ProductCard from "@/components/product/product-card";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import { formatBynAmountDisplay } from "@/lib/format-byn";
 
 /** Минимум карточек в блоке «Похожие товары»; иначе блок скрыт. */
 const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
@@ -29,7 +30,7 @@ type Props = {
 
 function formatPrice(price: string | null) {
     if (!price) return "—";
-    return `${price} BYN`;
+    return `${formatBynAmountDisplay(price)} BYN`;
 }
 
 function normalizeImages(value: unknown): ProductImageData[] {
@@ -409,6 +410,9 @@ export default function ProductDetailView({ product }: Props) {
                                             if (variant.is_preorder) {
                                                 availabilityText = "Предзаказ";
                                                 availabilityClass = "text-amber-600";
+                                            } else if (product.is_out_of_stock) {
+                                                availabilityText = "Под заказ";
+                                                availabilityClass = "text-sky-700";
                                             } else {
                                                 availabilityText = "В наличии";
                                                 availabilityClass = "text-green-600";
@@ -476,6 +480,7 @@ export default function ProductDetailView({ product }: Props) {
                         formatPriceAction={formatPrice}
                         productId={product.id}
                         productName={product.name}
+                        isProductOutOfStock={product.is_out_of_stock}
                         loyaltyCardNumber={isAuthenticated ? loyaltyCard?.number ?? null : null}
                         loyaltyPercent={isAuthenticated ? loyaltyCard?.discountPercent ?? 0 : 0}
                         loyaltyPrice={isAuthenticated ? loyaltyPrice : null}

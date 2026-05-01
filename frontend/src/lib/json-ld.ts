@@ -2,6 +2,7 @@ import type { CmsPublicPage, CmsPublicPostDetail } from "@/lib/cms-pages-api";
 import { normalizeProductImageUrl } from "@/lib/product-image-url";
 import type { ProductDetailData, ProductImageData, ProductVariantData } from "@/types/catalog";
 import type { SiteContent } from "@/lib/site-content-api";
+import { formatBynAmountDisplay } from "@/lib/format-byn";
 import { stripHtml } from "@/lib/seo-text";
 import { getSiteUrl } from "@/lib/seo";
 
@@ -33,20 +34,27 @@ function schemaAvailabilityFallback(product: ProductDetailData): string {
     if (product.stock_total > 0) {
         return "https://schema.org/InStock";
     }
-    if (variants.some((v) => v.is_preorder)) {
+    if (variants.some((v) => v.is_preorder && v.is_available)) {
         return "https://schema.org/PreOrder";
+    }
+    if (variants.some((v) => v.is_available)) {
+        return product.is_out_of_stock ? "https://schema.org/BackOrder" : "https://schema.org/InStock";
     }
     return "https://schema.org/OutOfStock";
 }
 
-function variantOfferAvailability(variant: ProductVariantData): string {
-    if (variant.is_available) {
-        return "https://schema.org/InStock";
-    }
-    if (variant.is_preorder) {
+/** Согласовано с витриной: предзаказ; иначе склад поставщика → BackOrder вместо InStock. */
+function variantOfferAvailability(product: ProductDetailData, variant: ProductVariantData): string {
+    if (variant.is_preorder && variant.is_available) {
         return "https://schema.org/PreOrder";
     }
-    return "https://schema.org/OutOfStock";
+    if (!variant.is_available) {
+        return "https://schema.org/OutOfStock";
+    }
+    if (product.is_out_of_stock) {
+        return "https://schema.org/BackOrder";
+    }
+    return "https://schema.org/InStock";
 }
 
 function productImagesForJsonLd(images: ProductImageData[]): string[] {
@@ -181,13 +189,13 @@ export function productJsonLd(product: ProductDetailData): Record<string, unknow
                 "@type": "Offer",
                 url: productUrl,
                 priceCurrency: "BYN",
-                availability: variantOfferAvailability(variant),
+                availability: variantOfferAvailability(product, variant),
                 itemCondition: "https://schema.org/NewCondition",
                 sku: `${product.id}-${variant.id}`,
                 name: `${product.name} ${variant.display_name}`.replace(/\s+/g, " ").trim(),
             };
             if (variant.price != null && String(variant.price).trim() !== "") {
-                offer.price = variant.price;
+                offer.price = formatBynAmountDisplay(variant.price);
             }
             return offer;
         });
@@ -201,8 +209,8 @@ export function productJsonLd(product: ProductDetailData): Record<string, unknow
             offers = {
                 "@type": "AggregateOffer",
                 priceCurrency: "BYN",
-                lowPrice: minP,
-                highPrice: maxP,
+                lowPrice: formatBynAmountDisplay(minP),
+                highPrice: formatBynAmountDisplay(maxP),
                 offerCount: 1,
                 availability,
             };
@@ -211,7 +219,7 @@ export function productJsonLd(product: ProductDetailData): Record<string, unknow
                 "@type": "Offer",
                 url: productUrl,
                 priceCurrency: "BYN",
-                price: minP,
+                price: formatBynAmountDisplay(minP),
                 availability,
             };
         } else {

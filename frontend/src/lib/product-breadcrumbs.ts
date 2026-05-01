@@ -12,6 +12,6 @@ export function getProductBreadcrumbItems(product: ProductDetailData): Breadcrum
         ...(product.brand
             ? [{ label: product.brand.name, href: `/brands/${product.brand.slug}` } satisfies BreadcrumbNavItem]
             : []),
-        { label: product.name },
+        { label: product.name, href: `/product/${product.slug}` },
     ];
 }

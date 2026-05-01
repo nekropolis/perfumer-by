@@ -1,4 +1,5 @@
 import type { ProductDetailData } from "@/types/catalog";
+import { formatBynAmountDisplay } from "@/lib/format-byn";
 import { SITE_NAME } from "@/lib/seo";
 import { stripHtml, truncateByWords } from "@/lib/seo-text";
 
@@ -6,7 +7,11 @@ export function buildProductMetaTitle(product: ProductDetailData): string {
     if (product.seo_title?.trim()) {
         return product.seo_title.trim();
     }
-    return `${product.name} купить в Минске и Беларуси, цена | ${SITE_NAME}`;
+    const price = product.price_range?.min ? formatBynAmountDisplay(product.price_range.min) : "";
+    if (price) {
+        return `${product.name} купить в Минске и Беларуси — цена ${price} BYN | ${SITE_NAME}`;
+    }
+    return `${product.name} купить в Минске и Беларуси | ${SITE_NAME}`;
 }
 
 export function buildProductMetaDescription(product: ProductDetailData): string {
@@ -31,7 +36,9 @@ export function buildProductMetaDescription(product: ProductDetailData): string 
         ),
     ];
 
-    const priceFrom = product.price_range?.min ? `Цена от ${product.price_range.min} BYN.` : "";
+    const priceFrom = product.price_range?.min
+        ? `Цена от ${formatBynAmountDisplay(product.price_range.min)} BYN.`
+        : "";
 
     const lead = product.brand?.name?.trim()
         ? `${product.name} — аромат ${product.brand.name}.`

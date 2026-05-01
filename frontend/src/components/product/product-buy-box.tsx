@@ -25,6 +25,8 @@ type Props = {
     formatPriceAction: (price: string | null) => string;
     productId: number;
     productName: string;
+    /** Нет остатка на своём складе; заказ через поставщика — другой текст, чем «В наличии». */
+    isProductOutOfStock?: boolean;
     loyaltyCardNumber?: string | null;
     loyaltyPercent?: number;
     loyaltyPrice?: string | null;
@@ -38,6 +40,7 @@ export default function ProductBuyBox({
     formatPriceAction,
     productId,
     productName,
+    isProductOutOfStock = false,
     loyaltyCardNumber,
     loyaltyPercent = 0,
     loyaltyPrice,
@@ -118,6 +121,10 @@ export default function ProductBuyBox({
                             selectedVariant.is_preorder ? (
                                 <div className="text-sm font-medium text-amber-700">
                                     Доступно под заказ
+                                </div>
+                            ) : isProductOutOfStock ? (
+                                <div className="text-sm font-medium text-sky-800">
+                                    Под заказ (у поставщика)
                                 </div>
                             ) : (
                                 <div className="text-sm font-medium text-green-700">

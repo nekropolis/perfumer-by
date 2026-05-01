@@ -55,6 +55,7 @@ export async function generateMetadata({
         description,
         canonicalPath: `/product/${product.slug}`,
         ...(imageUrl ? { imageUrl, ogImageAlt } : {}),
+        ogType: "product",
     });
 }
 
