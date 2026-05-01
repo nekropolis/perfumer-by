@@ -10,6 +10,7 @@ export type AdminPostFormState = {
     id?: number;
     is_active: boolean;
     title: string;
+    slug: string;
     type: AdminPostType;
     cover_image: string;
     excerpt: string;
@@ -83,6 +84,17 @@ export default function AdminPostForm({
                                         seo_title: form.id ? form.seo_title : title,
                                     });
                                 }}
+                                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="mb-1.5 block text-sm font-medium text-gray-700">Slug (URL)</label>
+                            <input
+                                type="text"
+                                value={form.slug}
+                                onChange={(e) => onChangeAction({ ...form, slug: e.target.value })}
+                                placeholder="латиница-через-дефис; пусто — сгенерируется из названия"
                                 className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                             />
                         </div>

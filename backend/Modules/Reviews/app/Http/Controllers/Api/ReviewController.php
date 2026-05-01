@@ -18,6 +18,7 @@ class ReviewController extends Controller
             'type' => ['required', 'in:product,store'],
             'product_id' => ['nullable', 'integer', 'exists:products,id', 'required_if:type,product'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'offset' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ], [
             'type.required' => 'Укажите тип отзывов.',
             'product_id.required_if' => 'Укажите товар.',
@@ -25,11 +26,14 @@ class ReviewController extends Controller
 
         $limit = (int) ($validated['limit'] ?? 50);
         $limit = max(1, min(100, $limit));
+        $offset = (int) ($validated['offset'] ?? 0);
+        $offset = max(0, $offset);
 
         $query = Review::query()
             ->published()
             ->orderByDesc('published_at')
             ->orderByDesc('created_at')
+            ->offset($offset)
             ->limit($limit);
 
         if ($validated['type'] === Review::TYPE_PRODUCT) {

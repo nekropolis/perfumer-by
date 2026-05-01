@@ -70,6 +70,7 @@ export default function AdminProductEditPage() {
                 description: item.description || "",
                 seo_title: item.seo_title || "",
                 seo_description: item.seo_description || "",
+                seo_keyword: item.seo_keyword || "",
             });
         } catch (e: unknown) {
             setError(
@@ -113,6 +114,7 @@ export default function AdminProductEditPage() {
                 description: form.description,
                 seo_title: form.seo_title,
                 seo_description: form.seo_description,
+                seo_keyword: form.seo_keyword,
             });
 
             await loadData();
@@ -243,6 +245,22 @@ export default function AdminProductEditPage() {
                                         })
                                     }
                                     className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm text-gray-600">
+                                    SEO keyword
+                                </label>
+                                <textarea
+                                    value={form.seo_keyword}
+                                    onChange={(e) =>
+                                        setForm({
+                                            ...form,
+                                            seo_keyword: e.target.value,
+                                        })
+                                    }
+                                    className="min-h-[90px] w-full rounded-xl border px-3 py-2 text-sm"
                                 />
                             </div>
 

@@ -29,6 +29,7 @@ class PostController extends Controller
             ->map(function (CmsPost $post): array {
                 return [
                     'id' => (int) $post->id,
+                    'slug' => (string) $post->slug,
                     'title' => (string) $post->title,
                     'type' => (string) $post->type,
                     'excerpt' => $post->excerpt,
@@ -43,16 +44,22 @@ class PostController extends Controller
         ]);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, string $slug): JsonResponse
     {
-        $post = CmsPost::query()
-            ->where('id', $id)
-            ->where('is_active', true)
-            ->firstOrFail();
+        $type = trim((string) $request->query('type', ''));
+
+        $post = $this->findActivePostBySlug($slug, $type);
+
+        if (! $post && ctype_digit($slug)) {
+            $post = $this->findActivePostByLegacyId((int) $slug, $type);
+        }
+
+        abort_unless($post instanceof CmsPost, 404);
 
         return response()->json([
             'data' => [
                 'id' => (int) $post->id,
+                'slug' => (string) $post->slug,
                 'title' => $post->title,
                 'type' => $post->type,
                 'excerpt' => $post->excerpt,
@@ -64,5 +71,31 @@ class PostController extends Controller
                 'updated_at' => $post->updated_at,
             ],
         ]);
+    }
+
+    private function findActivePostBySlug(string $slug, string $typeFilter): ?CmsPost
+    {
+        $query = CmsPost::query()
+            ->where('slug', $slug)
+            ->where('is_active', true);
+
+        if ($typeFilter !== '' && in_array($typeFilter, [CmsPost::TYPE_NEWS, CmsPost::TYPE_ARTICLE], true)) {
+            $query->where('type', $typeFilter);
+        }
+
+        return $query->first();
+    }
+
+    private function findActivePostByLegacyId(int $id, string $typeFilter): ?CmsPost
+    {
+        $query = CmsPost::query()
+            ->whereKey($id)
+            ->where('is_active', true);
+
+        if ($typeFilter !== '' && in_array($typeFilter, [CmsPost::TYPE_NEWS, CmsPost::TYPE_ARTICLE], true)) {
+            $query->where('type', $typeFilter);
+        }
+
+        return $query->first();
     }
 }

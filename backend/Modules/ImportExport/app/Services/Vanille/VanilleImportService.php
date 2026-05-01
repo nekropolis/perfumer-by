@@ -94,6 +94,8 @@ class VanilleImportService
         $updated = 0;
         $errors = 0;
         $log = [];
+        $createdProducts = [];
+        $updatedProducts = [];
         $brandSlugSet = Brand::query()
             ->pluck('slug')
             ->filter()
@@ -141,9 +143,19 @@ class VanilleImportService
                     $slug = $this->resolveUniqueSlugInMemory($slug, $productSlugSet, $brandSlugSet);
                     $existingProduct = Product::where('slug', $slug)->first();
 
-                    $product = Product::updateOrCreate(
-                        ['slug' => $slug],
-                        [
+                    if ($existingProduct) {
+                        // Для уже существующих товаров при полном репарсе не трогаем:
+                        // наличие/цены, описания и SEO-блоки.
+                        $existingProduct->update([
+                            'brand_id' => $brand?->id,
+                            'name' => $productName,
+                            'h1' => $productName,
+                            'is_active' => true,
+                        ]);
+                        $product = $existingProduct->fresh();
+                    } else {
+                        $product = Product::create([
+                            'slug' => $slug,
                             'brand_id' => $brand?->id,
                             'main_category_id' => null,
                             'name' => $productName,
@@ -157,8 +169,8 @@ class VanilleImportService
                             'is_hit' => false,
                             'is_out_of_stock' => true,
                             'sort_order' => 0,
-                        ]
-                    );
+                        ]);
+                    }
                     $productSlugSet[mb_strtolower((string) $product->slug)] = true;
 
                     SupplierProduct::updateOrCreate(
@@ -181,8 +193,18 @@ class VanilleImportService
 
                     if ($existingProduct) {
                         $updated++;
+                        $updatedProducts[] = [
+                            'name' => $productName,
+                            'slug' => (string) $product->slug,
+                            'url' => trim((string) ($item['url'] ?? '')),
+                        ];
                     } else {
                         $imported++;
+                        $createdProducts[] = [
+                            'name' => $productName,
+                            'slug' => (string) $product->slug,
+                            'url' => trim((string) ($item['url'] ?? '')),
+                        ];
                     }
 
                     $this->attributeParser->syncProductAttributes(
@@ -198,12 +220,15 @@ class VanilleImportService
                             continue;
                         }
 
-                        $variant = ProductVariant::updateOrCreate(
-                            [
+                        $variant = ProductVariant::where([
+                            'product_id' => $product->id,
+                            'variant_definition_id' => $definition->id,
+                        ])->first();
+
+                        if (!$variant) {
+                            ProductVariant::create([
                                 'product_id' => $product->id,
                                 'variant_definition_id' => $definition->id,
-                            ],
-                            [
                                 // Vanille parser should only create product/variant structure.
                                 'price' => null,
                                 'old_price' => null,
@@ -211,8 +236,8 @@ class VanilleImportService
                                 'is_preorder' => false,
                                 'is_active' => true,
                                 'sort_order' => $index,
-                            ]
-                        );
+                            ]);
+                        }
                     }
 
                     if ($offers === []) {
@@ -221,6 +246,11 @@ class VanilleImportService
 
                     $log[] = 'OK: ' . $productName;
                 });
+
+                $importedUrl = trim((string) ($item['url'] ?? ''));
+                if ($importedUrl !== '') {
+                    $this->appendUrlsToParsedManifest([$importedUrl]);
+                }
             } catch (\Throwable $e) {
                 $errors++;
                 $log[] = 'ERROR: ' . ($item['name'] ?? 'unknown') . ' -> ' . $e->getMessage();
@@ -235,6 +265,8 @@ class VanilleImportService
             'errors' => $errors,
             'items' => count($items),
             'log' => $log,
+            'created_products' => $createdProducts,
+            'updated_products' => $updatedProducts,
         ];
     }
 
@@ -500,10 +532,10 @@ class VanilleImportService
      */
     public function getActiveImportJob(): ?VanilleImportJob
     {
-        // Пороги подобраны с запасом относительно RunVanilleImportJob::$timeout (60с на одну пачку)
+        // Пороги подобраны с запасом относительно RunVanilleImportJob::$timeout (300с на пачку)
         // и возможной задержки подхвата следующей пачки queue worker'ом.
         $pendingStaleBefore = Carbon::now()->subMinutes(3);
-        $runningStaleBefore = Carbon::now()->subMinutes(5);
+        $runningStaleBefore = Carbon::now()->subMinutes(7);
 
         VanilleImportJob::query()
             ->where(function ($query) use ($pendingStaleBefore, $runningStaleBefore) {
@@ -801,6 +833,7 @@ class VanilleImportService
 
         $path = $this->ensureVanilleImportDir() . '/product_links.json';
         $existingLinks = [];
+        $existingKeysBeforeMerge = [];
         if ($offset > 0 && file_exists($path)) {
             $decoded = json_decode(file_get_contents($path), true);
             if (is_array($decoded)) {
@@ -813,10 +846,12 @@ class VanilleImportService
                         continue;
                     }
                     $existingLinks[$key] = $link;
+                    $existingKeysBeforeMerge[$key] = true;
                 }
             }
         }
 
+        $addedLinks = [];
         foreach (($result['links'] ?? []) as $link) {
             if (!is_array($link)) {
                 continue;
@@ -824,6 +859,9 @@ class VanilleImportService
             $key = $this->buildLinkDedupKey($link);
             if ($key === '') {
                 continue;
+            }
+            if (!isset($existingKeysBeforeMerge[$key])) {
+                $addedLinks[] = $link;
             }
             $existingLinks[$key] = $link;
         }
@@ -851,6 +889,8 @@ class VanilleImportService
             'total_brands' => $result['total_brands'],
             'max_links' => $result['max_links'],
             'reached_max_links' => $result['reached_max_links'],
+            'added_links' => array_values($addedLinks),
+            'added_links_count' => count($addedLinks),
         ];
     }
 
@@ -861,8 +901,13 @@ class VanilleImportService
         string $mode = self::PARSE_PRODUCTS_MODE_FULL,
         ?string $linksFilePath = null,
     ): array {
+        $newOnlyBuildMeta = null;
         if ($mode === self::PARSE_PRODUCTS_MODE_NEW_ONLY && $linksFilePath === null && $offset === 0) {
-            $linksFilePath = $this->buildNewOnlyProductLinksFile();
+            $newOnlyBuildMeta = $this->buildNewOnlyProductLinksFile();
+            $linksFilePath = (string) ($newOnlyBuildMeta['path'] ?? '');
+            if ($linksFilePath === '') {
+                throw new \RuntimeException('Не удалось подготовить файл ссылок для режима new_only');
+            }
         }
 
         $linksPath = $linksFilePath ?: ($this->ensureVanilleImportDir() . '/product_links.json');
@@ -913,7 +958,14 @@ class VanilleImportService
         $items = [];
         $log = [];
         $errors = 0;
-        $manifestUrls = [];
+        $parsedUrls = [];
+        $parsedProducts = [];
+        if (is_array($newOnlyBuildMeta) && $offset === 0) {
+            $skipped = (int) ($newOnlyBuildMeta['skipped_count'] ?? 0);
+            if ($skipped > 0) {
+                $log[] = 'SKIP: already parsed/imported -> ' . $skipped;
+            }
+        }
 
         foreach ($chunk as $link) {
             $url = $link['url'] ?? null;
@@ -923,17 +975,22 @@ class VanilleImportService
             }
 
             try {
-                $items[] = $this->productParser->parseProductPage($url);
+                $item = $this->productParser->parseProductPage($url);
+                $items[] = $item;
                 $log[] = 'OK: ' . $url;
-                $manifestUrls[] = $this->normalizeLinkUrl($url);
+                $parsedUrls[] = $url;
+                $parsedProducts[] = [
+                    'url' => $url,
+                    'name' => trim((string) ($item['name'] ?? '')),
+                ];
             } catch (\Throwable $e) {
                 $errors++;
                 $log[] = 'ERROR: ' . $url . ' -> ' . $e->getMessage();
             }
         }
 
-        if ($manifestUrls !== []) {
-            $this->appendUrlsToParsedManifest($manifestUrls);
+        if ($parsedUrls !== []) {
+            $this->appendUrlsToParsedManifest($parsedUrls);
         }
 
         $dir = $this->ensureVanilleProductsDir();
@@ -971,6 +1028,8 @@ class VanilleImportService
             'max_links' => $maxLinks,
             'links_path' => $linksPath,
             'parse_mode' => $mode,
+            'parsed_products' => $parsedProducts,
+            'parsed_products_count' => count($parsedProducts),
         ];
     }
 
@@ -999,6 +1058,8 @@ class VanilleImportService
         $totalErrors = 0;
         $totalItems = 0;
         $log = [];
+        $createdProducts = [];
+        $updatedProducts = [];
 
         foreach ($files as $file) {
             $result = $this->importFromJsonFile($file);
@@ -1007,6 +1068,16 @@ class VanilleImportService
             $totalUpdated += (int) ($result['updated'] ?? 0);
             $totalErrors += (int) ($result['errors'] ?? 0);
             $totalItems += (int) ($result['items'] ?? 0);
+            foreach ((array) ($result['created_products'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $createdProducts[] = $row;
+                }
+            }
+            foreach ((array) ($result['updated_products'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $updatedProducts[] = $row;
+                }
+            }
 
             $log[] = 'FILE: ' . basename($file);
             foreach (($result['log'] ?? []) as $line) {
@@ -1025,6 +1096,8 @@ class VanilleImportService
             'items' => $totalItems,
             'files' => array_values($files),
             'log' => $log,
+            'created_products' => $createdProducts,
+            'updated_products' => $updatedProducts,
         ];
     }
 
@@ -1062,6 +1135,8 @@ class VanilleImportService
         $totalErrors = 0;
         $totalItems = 0;
         $log = [];
+        $createdProducts = [];
+        $updatedProducts = [];
 
         foreach ($chunk as $file) {
             $result = $this->importFromJsonFile($file);
@@ -1069,6 +1144,16 @@ class VanilleImportService
             $totalUpdated += (int) ($result['updated'] ?? 0);
             $totalErrors += (int) ($result['errors'] ?? 0);
             $totalItems += (int) ($result['items'] ?? 0);
+            foreach ((array) ($result['created_products'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $createdProducts[] = $row;
+                }
+            }
+            foreach ((array) ($result['updated_products'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $updatedProducts[] = $row;
+                }
+            }
 
             $log[] = 'FILE: ' . basename($file);
             foreach (($result['log'] ?? []) as $line) {
@@ -1092,6 +1177,8 @@ class VanilleImportService
             'done' => $done,
             'total_files' => count($files),
             'processed_files' => $processedFiles,
+            'created_products' => $createdProducts,
+            'updated_products' => $updatedProducts,
         ];
     }
 
@@ -1185,6 +1272,9 @@ class VanilleImportService
                 'terminal' => $terminal,
                 'sample_errors' => array_slice($errorSample, 0, 40),
                 'summary' => $this->summarizeResultForLog($result),
+                'final_log' => $terminal && is_array($result['final_log'] ?? null)
+                    ? array_slice($result['final_log'], 0, 80)
+                    : null,
             ]),
         ]);
 
@@ -1281,6 +1371,8 @@ class VanilleImportService
             'count',
             'errors',
             'path',
+            'added_links_count',
+            'parsed_products_count',
         ];
         $out = [];
         foreach ($keys as $key) {
@@ -1365,49 +1457,133 @@ class VanilleImportService
         );
     }
 
-    private function syncVanilleSupplierUrlsIntoParsedManifest(): void
+    /**
+     * Нормализованные URL товаров Vanille, которые уже привязаны к каталогу (импортированы).
+     * Используется для режима «только новые»: URL не должен исчезать из очереди после одного лишь парсинга без импорта.
+     *
+     * @return array<string, bool>
+     */
+    private function loadImportedVanilleSupplierProductUrlKeys(): array
     {
         $supplier = Supplier::query()->where('code', 'vanille')->first();
         if (!$supplier) {
-            return;
+            return [];
         }
 
-        $buffer = [];
+        $set = [];
         SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
+            ->whereNotNull('product_id')
             ->whereNotNull('external_url')
             ->orderBy('id')
             ->select(['id', 'external_url'])
-            ->chunkById(2000, function ($rows) use (&$buffer): void {
+            ->chunkById(2000, function ($rows) use (&$set): void {
                 foreach ($rows as $row) {
-                    $buffer[] = (string) $row->external_url;
-                    if (count($buffer) >= 500) {
-                        $this->appendUrlsToParsedManifest($buffer);
-                        $buffer = [];
+                    $n = $this->normalizeLinkUrl((string) $row->external_url);
+                    if ($n !== '') {
+                        $set[$n] = true;
                     }
                 }
             });
 
-        if ($buffer !== []) {
-            $this->appendUrlsToParsedManifest($buffer);
-        }
+        return $set;
     }
 
-    private function buildNewOnlyProductLinksFile(): string
+    /**
+     * Спарсить одну карточку и сохранить в отдельный JSON (не перезаписывает products_001.json и т.д.).
+     *
+     * @return array{success: bool, file: string, file_path: string, name: string, offers_count: int, log: list<string>, message?: string}
+     */
+    public function parseSingleProductUrlToJsonFile(string $rawUrl): array
+    {
+        $url = $this->normalizeVanilleProductInputToUrl($rawUrl);
+
+        try {
+            $item = $this->productParser->parseProductPage($url);
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'file' => '',
+                'file_path' => '',
+                'name' => '',
+                'offers_count' => 0,
+                'log' => ['ERROR: ' . $url . ' -> ' . $e->getMessage()],
+                'message' => $e->getMessage(),
+            ];
+        }
+
+        $dir = $this->ensureVanilleProductsDir();
+        $basename = 'product_single_' . now()->format('Y-m-d_His') . '_' . substr(sha1($url), 0, 10) . '.json';
+        $filePath = $dir . '/' . $basename;
+
+        file_put_contents(
+            $filePath,
+            json_encode([$item], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
+        $this->appendUrlsToParsedManifest([$url]);
+
+        $offers = is_array($item['offers'] ?? null) ? $item['offers'] : [];
+
+        return [
+            'success' => true,
+            'file' => $basename,
+            'file_path' => $filePath,
+            'name' => (string) ($item['name'] ?? ''),
+            'offers_count' => count($offers),
+            'log' => ['OK: ' . $url],
+        ];
+    }
+
+    private function normalizeVanilleProductInputToUrl(string $raw): string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            throw new \InvalidArgumentException('Пустой URL');
+        }
+
+        if (!preg_match('#^https?://#i', $raw)) {
+            $raw = 'https://vanille.by/' . ltrim($raw, '/');
+        }
+
+        $parts = parse_url($raw);
+        $host = isset($parts['host']) ? mb_strtolower((string) $parts['host']) : '';
+        if (!in_array($host, ['vanille.by', 'www.vanille.by'], true)) {
+            throw new \InvalidArgumentException('Разрешены только URL с домена vanille.by');
+        }
+
+        $path = isset($parts['path']) ? '/' . trim((string) $parts['path'], '/') : '';
+        if ($path === '/' || $path === '') {
+            throw new \InvalidArgumentException('Укажите страницу товара (путь после домена)');
+        }
+
+        return 'https://vanille.by' . $path;
+    }
+
+    /**
+     * @return array{path: string, source_total: int, filtered_total: int, skipped_count: int}
+     */
+    private function buildNewOnlyProductLinksFile(): array
     {
         $filteredPath = $this->newOnlyProductLinksPath();
         if (is_file($filteredPath)) {
             @unlink($filteredPath);
         }
 
-        $this->syncVanilleSupplierUrlsIntoParsedManifest();
-        $skip = $this->loadParsedUrlsSet();
+        $skip = $this->loadImportedVanilleSupplierProductUrlKeys();
+        foreach (array_keys($this->loadParsedUrlsSet()) as $parsedUrlKey) {
+            $skip[$parsedUrlKey] = true;
+        }
 
         $mainPath = $this->ensureVanilleImportDir() . '/product_links.json';
         if (!file_exists($mainPath)) {
             file_put_contents($filteredPath, '[]');
 
-            return $filteredPath;
+            return [
+                'path' => $filteredPath,
+                'source_total' => 0,
+                'filtered_total' => 0,
+                'skipped_count' => 0,
+            ];
         }
 
         $links = json_decode(file_get_contents($mainPath), true);
@@ -1416,6 +1592,7 @@ class VanilleImportService
         }
 
         $links = $this->deduplicateLinks($links);
+        $sourceTotal = count($links);
         $filtered = [];
         foreach ($links as $link) {
             if (!is_array($link)) {
@@ -1440,7 +1617,13 @@ class VanilleImportService
             json_encode(array_values($filtered), JSON_UNESCAPED_UNICODE)
         );
 
-        return $filteredPath;
+        $filteredTotal = count($filtered);
+        return [
+            'path' => $filteredPath,
+            'source_total' => $sourceTotal,
+            'filtered_total' => $filteredTotal,
+            'skipped_count' => max(0, $sourceTotal - $filteredTotal),
+        ];
     }
 
     private function normalizeLinkUrl(string $url): string

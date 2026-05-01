@@ -28,7 +28,10 @@ export default async function NewsList({ limit = 6 }: { limit?: number }) {
                             <p className="line-clamp-3 text-sm text-gray-600">{item.excerpt || "—"}</p>
                             <div className="flex items-center justify-between pt-1 text-sm">
                                 <span className="text-gray-500">{formatDate(item.created_at)}</span>
-                                <Link href={`/news/${item.id}`} className="font-medium text-black hover:underline">
+                                <Link
+                                    href={`/${encodeURIComponent(item.slug || String(item.id))}`}
+                                    className="font-medium text-black hover:underline"
+                                >
                                     Перейти
                                 </Link>
                             </div>

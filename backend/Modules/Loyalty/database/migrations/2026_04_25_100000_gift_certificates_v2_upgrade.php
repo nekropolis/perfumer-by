@@ -103,13 +103,35 @@ return new class extends Migration
 
     private function dropLegacyOrderGiftColumns(): void
     {
-        if (!Schema::hasTable('orders')) {
+        if (! Schema::hasTable('orders')) {
             return;
+        }
+
+        if (Schema::hasColumn('orders', 'gift_certificate_id')) {
+            $connection = Schema::getConnection();
+            if ($connection->getDriverName() === 'mysql') {
+                $row = DB::selectOne(
+                    'SELECT kcu.CONSTRAINT_NAME AS name
+                     FROM information_schema.KEY_COLUMN_USAGE kcu
+                     INNER JOIN information_schema.TABLE_CONSTRAINTS tc
+                       ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+                      AND kcu.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+                     WHERE kcu.CONSTRAINT_SCHEMA = DATABASE()
+                       AND kcu.TABLE_NAME = ?
+                       AND kcu.COLUMN_NAME = ?
+                       AND tc.CONSTRAINT_TYPE = ?
+                     LIMIT 1',
+                    ['orders', 'gift_certificate_id', 'FOREIGN KEY']
+                );
+                if ($row && isset($row->name) && is_string($row->name) && $row->name !== '') {
+                    DB::statement('ALTER TABLE `orders` DROP FOREIGN KEY `'.$row->name.'`');
+                }
+            }
         }
 
         Schema::table('orders', function (Blueprint $table) {
             if (Schema::hasColumn('orders', 'gift_certificate_id')) {
-                $table->dropConstrainedForeignId('gift_certificate_id');
+                $table->dropColumn('gift_certificate_id');
             }
             foreach (['gift_certificate_number', 'gift_certificate_amount'] as $column) {
                 if (Schema::hasColumn('orders', $column)) {

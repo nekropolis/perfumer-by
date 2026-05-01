@@ -21,7 +21,7 @@ class ImportTelegramMessageFormatter
 
         $title = $job->type === 'pipeline_new_products'
             ? 'Vanille: Парсинг нового товара'
-            : 'Vanille: Обновить все товары';
+            : 'Vanille: Спарсить все товары заново (без изменения цены/наличия/описаний/SEO)';
 
         $statusLabel = $job->status === 'completed' ? 'выполнено' : 'ошибка';
         $lines = [

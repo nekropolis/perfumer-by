@@ -8,7 +8,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Catalog\Models\Product;
-use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
@@ -60,19 +59,14 @@ class AdminDashboardController extends Controller
 
         $activeProductsInStock = Product::query()
             ->where('is_active', true)
-            ->whereHas('variants', function ($query) {
-                $query->where('is_active', true)
-                    ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0');
-            })
+            ->whereHas('activeVariants')
             ->count();
 
-        $activeVariantsInStock = ProductVariantLink::query()
+        $activeVariantsInStock = Product::query()
             ->where('is_active', true)
-            ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0')
-            ->whereHas('product', function ($query) {
-                $query->where('is_active', true);
-            })
-            ->count();
+            ->withCount('activeVariants')
+            ->get()
+            ->sum('active_variants_count');
 
         $monthlyItemsBaseQuery = OrderItem::query()
             ->join('orders', 'orders.id', '=', 'order_items.order_id')

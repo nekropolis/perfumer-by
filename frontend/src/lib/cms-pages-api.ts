@@ -17,6 +17,7 @@ export type CmsPublicBlock = {
 
 export type CmsPublicPost = {
   id: number;
+  slug?: string;
   title: string;
   type: "news" | "article";
   excerpt?: string | null;
@@ -115,11 +116,17 @@ export async function fetchCmsPosts(params?: {
   return data.data ?? [];
 }
 
-export async function fetchCmsPostById(
-  id: number | string,
+export async function fetchCmsPostBySlug(
+  slug: string,
+  type?: "news" | "article",
 ): Promise<CmsPublicPostDetail | null> {
   const base = getApiBase();
-  const res = await fetch(`${base}/posts/${encodeURIComponent(String(id))}`, {
+  const sp = new URLSearchParams();
+  if (type) {
+    sp.set("type", type);
+  }
+  const q = sp.toString();
+  const res = await fetch(`${base}/posts/${encodeURIComponent(slug)}${q ? `?${q}` : ""}`, {
     cache: "no-store",
   });
 
@@ -133,4 +140,12 @@ export async function fetchCmsPostById(
 
   const data = (await res.json()) as { data?: CmsPublicPostDetail };
   return data.data ?? null;
+}
+
+/** @deprecated Используйте fetchCmsPostBySlug — публичный URL теперь по slug. */
+export async function fetchCmsPostById(
+  id: number | string,
+  type?: "news" | "article",
+): Promise<CmsPublicPostDetail | null> {
+  return fetchCmsPostBySlug(String(id), type);
 }

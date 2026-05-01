@@ -21,6 +21,7 @@ return new class extends Migration
 
             $table->boolean('is_linked')->default(false);
             $table->boolean('is_active')->default(true);
+            $table->boolean('link_parsing_active')->default(true);
 
             $table->timestamp('last_seen_at')->nullable();
             $table->json('payload')->nullable();

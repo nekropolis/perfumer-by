@@ -18,7 +18,7 @@ Route::prefix('blocks')->group(function () {
 
 Route::prefix('posts')->group(function () {
     Route::get('/', [PostController::class, 'index']);
-    Route::get('/{id}', [PostController::class, 'show']);
+    Route::get('/{slug}', [PostController::class, 'show'])->where('slug', '[A-Za-z0-9._-]+');
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/pages')->group(function () {

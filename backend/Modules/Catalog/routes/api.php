@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Catalog\Http\Controllers\Admin\AttributeController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeOptionController;
 use Modules\Catalog\Http\Controllers\Admin\BrandController;
+use Modules\Catalog\Http\Controllers\Admin\AdminProductLinkSearchController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
@@ -25,6 +26,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::post('/pipeline/new-products', [VanilleImportController::class, 'pipelineNewProducts']);
     Route::post('/pipeline/refresh-all', [VanilleImportController::class, 'pipelineRefreshAll']);
     Route::post('/parse-products', [VanilleImportController::class, 'parseProducts']);
+    Route::post('/parse-product-url', [VanilleImportController::class, 'parseSingleProductUrl']);
     Route::post('/collect-links', [VanilleImportController::class, 'collectLinks']);
     Route::post('/parse-brands', [VanilleImportController::class, 'parseBrands']);
     Route::get('/parse-status', [VanilleImportController::class, 'vanilleParseStatus']);
@@ -67,6 +69,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(f
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group(function () {
     Route::get('/', [ProductAdminController::class, 'index']);
+    Route::get('/link-search', [AdminProductLinkSearchController::class, 'index']);
     Route::get('/search-smart', [ProductAdminController::class, 'smartSearch']);
     Route::post('/', [ProductAdminController::class, 'store']);
     Route::post('/cache/reset', [ProductAdminController::class, 'resetApiCache']);

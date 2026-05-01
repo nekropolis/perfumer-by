@@ -9,8 +9,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Modules\Catalog\Models\VanilleImportJob;
+use Modules\Catalog\Models\VanilleImportJobLog;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
+use App\Services\AuditLogService;
 use Throwable;
 
 class RunVanilleImportJob implements ShouldQueue
@@ -21,7 +23,9 @@ class RunVanilleImportJob implements ShouldQueue
     use SerializesModels;
 
     public int $tries = 1;
-    public int $timeout = 60;
+
+    /** Seconds per queue invocation; queue connection `retry_after` must be greater than this. */
+    public int $timeout = 300;
     public bool $failOnTimeout = true;
 
     public function __construct(public int $jobId)
@@ -38,7 +42,7 @@ class RunVanilleImportJob implements ShouldQueue
         return [
             // Prevent duplicate queue messages from processing same import job in parallel.
             (new WithoutOverlapping('vanille-import-job:' . $this->jobId))
-                ->expireAfter(120)
+                ->expireAfter(360)
                 ->dontRelease(),
         ];
     }
@@ -59,6 +63,32 @@ class RunVanilleImportJob implements ShouldQueue
             'error' => $errorMessage,
             'finished_at' => now(),
         ]);
+
+        VanilleImportJobLog::query()->create([
+            'vanille_import_job_id' => $job->id,
+            'level' => 'error',
+            'message' => $errorMessage,
+            'context' => [
+                'exception' => $exception ? $exception::class : null,
+                'job_type' => $job->type,
+                'failed_via' => 'queue_failed_callback',
+            ],
+        ]);
+
+        try {
+            app(AuditLogService::class)->record(
+                AuditLogService::ENTITY_VANILLE_IMPORT,
+                $job->id,
+                AuditLogService::ACTION_FAILED,
+                $errorMessage,
+                array_filter([
+                    'exception' => $exception ? $exception::class : null,
+                    'job_type' => $job->type,
+                    'failed_via' => 'queue_failed_callback',
+                ]),
+            );
+        } catch (Throwable) {
+        }
 
         try {
             app(ImportTelegramNotificationService::class)->notifyVanilleJobFinished($job->fresh());

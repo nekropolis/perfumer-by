@@ -21,12 +21,12 @@ return new class extends Migration {
 
             $table->string('seo_title')->nullable();
             $table->string('seo_description', 500)->nullable();
+            $table->text('seo_keyword')->nullable();
 
             $table->boolean('is_active')->default(true);
             $table->boolean('is_new')->default(false);
             $table->boolean('is_hit')->default(false);
             $table->boolean('is_out_of_stock')->default(false);
-            $table->boolean('is_stock_product')->default(false);
 
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();

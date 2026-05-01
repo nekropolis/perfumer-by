@@ -70,6 +70,7 @@ class ProductDetailResource extends JsonResource
             'description' => $this->description,
             'seo_title' => $this->seo_title,
             'seo_description' => $this->seo_description,
+            'seo_keyword' => $this->seo_keyword,
 
             'brand' => $this->brand ? [
                 'id' => $this->brand->id,

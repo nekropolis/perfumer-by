@@ -18,6 +18,7 @@ export type ProductFormState = {
     description: string;
     seo_title: string;
     seo_description: string;
+    seo_keyword: string;
 };
 
 type Props = {

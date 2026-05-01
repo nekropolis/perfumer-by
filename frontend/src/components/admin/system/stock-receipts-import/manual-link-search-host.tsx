@@ -1,13 +1,12 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
-import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
+import { fetchProductLinkSearch, type ProductAdminItem } from "@/lib/admin-products-api";
 import { fetchVariantDefinitions } from "@/lib/admin-product-variants-api";
 import {
     SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
 } from "@/components/admin/import-export/seller-one/constants";
-import { buildSearchCandidates, rankProducts } from "@/components/admin/import-export/seller-one/utils";
 import type { StockReceiptManualLinkState } from "./types";
 import { StockReceiptManualLinkModal } from "./manual-link-modal";
 
@@ -45,16 +44,10 @@ export function StockReceiptManualLinkSearchHost({
             setManualLink((prev) => (prev && prev.mapKey === mapKey ? { ...prev, productsLoading: true } : prev));
             try {
                 const query = debouncedProductSearch.trim();
-                const candidates = buildSearchCandidates(query);
                 let products: ProductAdminItem[] = [];
-
-                for (const candidate of candidates) {
-                    const data = await fetchProducts({ search: candidate || undefined, page: 1 });
-                    const current = data.data || [];
-                    if (current.length > 0) {
-                        products = rankProducts(current, query);
-                        break;
-                    }
+                if (query.length >= 2) {
+                    const data = await fetchProductLinkSearch({ q: query, limit: 40 });
+                    products = data.data || [];
                 }
 
                 if (cancelled) {

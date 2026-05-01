@@ -5,6 +5,7 @@ namespace Modules\ImportExport\Services\Vanille\Support;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 
 /**
  * Матчер поставщика Seller One.
@@ -206,6 +207,14 @@ class SellerOneVariantMatcher
             }
 
             if ($prefixOrdered && $diff === 1) {
+                $extraToken = $targetTokens[count($targetTokens) - 1] ?? '';
+                if (
+                    CatalogProductLinkNameTokenizer::isGenderCanonToken((string) $extraToken)
+                    && ! CatalogProductLinkNameTokenizer::tokensContainGenderCanon($candidateTokens)
+                ) {
+                    continue;
+                }
+
                 $basePoints = 70;
                 $nameLevel = 'partial';
                 $namePercent = 70.0;
@@ -358,41 +367,7 @@ class SellerOneVariantMatcher
      */
     private function productNameTokens(string $name, ?string $brandName): array
     {
-        $normalized = $this->normalizeText($name);
-        if ($normalized === '') {
-            return [];
-        }
-
-        if ($brandName !== null && $brandName !== '') {
-            $brandNorm = $this->normalizeText($brandName);
-            if ($brandNorm !== '') {
-                if ($normalized === $brandNorm) {
-                    return [];
-                }
-                if (Str::startsWith($normalized, $brandNorm . ' ')) {
-                    $normalized = trim((string) mb_substr($normalized, mb_strlen($brandNorm)));
-                }
-            }
-        }
-
-        // Снимаем технические токены (объём/концентрация/tester/пол — с обеих сторон симметрично).
-        $normalized = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $normalized);
-        $normalized = (string) preg_replace('/\b(edp|edt|edc|parfum|extrait)\b/iu', ' ', $normalized);
-        $normalized = (string) preg_replace('/\b(test|tester|тестер|vial|sample|пробник)\b/iu', ' ', $normalized);
-        $normalized = (string) preg_replace(
-            '/\b(for\s*women|for\s*men|for\s*woman|for\s*man|pour\s*femme|pour\s*homme|women|woman|men|man|femme|homme|unisex)\b/iu',
-            ' ',
-            $normalized,
-        );
-        $normalized = preg_replace('/\s+/u', ' ', trim($normalized)) ?: '';
-
-        if ($normalized === '') {
-            return [];
-        }
-
-        $parts = preg_split('/\s+/u', $normalized) ?: [];
-
-        return array_values(array_filter($parts, static fn (string $t): bool => mb_strlen($t) >= 2));
+        return CatalogProductLinkNameTokenizer::variantMatchTokens($name, $brandName);
     }
 
     /**

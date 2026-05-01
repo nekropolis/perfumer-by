@@ -212,6 +212,28 @@ export async function parseVanilleProducts(): Promise<{ message?: string; job: V
     );
 }
 
+export type VanilleParseSingleProductResponse = {
+    message?: string;
+    data?: {
+        success: boolean;
+        file: string;
+        file_path: string;
+        name: string;
+        offers_count: number;
+        log: string[];
+        message?: string;
+    };
+};
+
+export async function parseSingleVanilleProductUrl(
+    url: string
+): Promise<VanilleParseSingleProductResponse> {
+    return adminVanilleFetch<VanilleParseSingleProductResponse>(
+        "/admin/import-export/vanille/parse-product-url",
+        { method: "POST", body: JSON.stringify({ url: url.trim() }) }
+    );
+}
+
 export async function startVanillePipelineNewProducts(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
     return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
         "/admin/import-export/vanille/pipeline/new-products",

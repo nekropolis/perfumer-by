@@ -15,11 +15,14 @@ return new class extends Migration
             $table->string('type')->default('text');
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
+            $table->boolean('is_filterable')->default(false);
+            $table->unsignedInteger('filter_sort_order')->default(0);
 
             $table->timestamps();
 
             $table->index(['is_active', 'sort_order']);
             $table->index('type');
+            $table->index(['is_filterable', 'filter_sort_order'], 'product_attributes_filter_sort_idx');
         });
     }
 

@@ -22,6 +22,7 @@ import {
     fetchVanilleParseStatus,
     fetchVanilleSupplierProducts,
     importParsedVanilleProducts,
+    parseSingleVanilleProductUrl,
     startVanillePipelineNewProducts,
     startVanillePipelineRefreshAll,
 } from "@/lib/admin-vanille-api";
@@ -99,6 +100,8 @@ export default function VanilleProductsPage() {
     const [page, setPage] = useUrlPage();
     const [meta, setMeta] = useState<ApiResponse | null>(null);
     const [importingParsed, setImportingParsed] = useState(false);
+    const [singleUrlInput, setSingleUrlInput] = useState("");
+    const [singleUrlBusy, setSingleUrlBusy] = useState(false);
 
     const [parsingError, setParsingError] = useState("");
     const [parseJob, setParseJob] = useState<VanilleImportQueueJob | null>(null);
@@ -237,6 +240,25 @@ export default function VanilleProductsPage() {
     };
 
     const handlePipelineRefreshAll = async () => {
+        const confirmed = window.confirm(
+            [
+                "Спарсить все товары заново?",
+                "",
+                "Будет обновлено:",
+                "• название, h1, бренд, атрибуты, структура вариантов (добавятся недостающие варианты)",
+                "",
+                "Не будет затронуто у уже созданных товаров:",
+                "• наличие",
+                "• цена",
+                "• описание",
+                "• краткое описание",
+                "• SEO-блоки (title/description и др.)",
+            ].join("\n")
+        );
+        if (!confirmed) {
+            return;
+        }
+
         setParsingError("");
         setCompletionNotice("");
         completionBannerConsumedRef.current = false;
@@ -248,8 +270,41 @@ export default function VanilleProductsPage() {
             setParsingError(
                 e instanceof Error
                     ? e.message
-                    : "Ошибка запуска обновления всех карточек"
+                    : "Ошибка запуска репарса всех карточек"
             );
+        }
+    };
+
+    const handleParseSingleUrl = async () => {
+        const url = singleUrlInput.trim();
+        if (!url) {
+            setParsingError("Введите URL или slug товара vanille.by");
+            return;
+        }
+        setSingleUrlBusy(true);
+        setParsingError("");
+        setCompletionNotice("");
+
+        try {
+            const data = await parseSingleVanilleProductUrl(url);
+            const d = data.data;
+            const extra =
+                d && d.offers_count === 0
+                    ? " Вариантов (offers) на странице не найдено — товар может быть без цен/в ожидании; импорт всё равно создаст карточку без вариантов."
+                    : "";
+            setCompletionNotice(
+                (data.message || "Готово.") +
+                    (d?.file ? ` Файл: ${d.file}.` : "") +
+                    extra
+            );
+            setSingleUrlInput("");
+            void loadItems(1);
+        } catch (e: unknown) {
+            setParsingError(
+                e instanceof Error ? e.message : "Ошибка парсинга по URL"
+            );
+        } finally {
+            setSingleUrlBusy(false);
         }
     };
 
@@ -308,7 +363,33 @@ export default function VanilleProductsPage() {
                             >
                                 {hasActiveParse && parseJob?.type === "pipeline_refresh_all"
                                     ? "Выполняется..."
-                                    : "Обновить все товары"}
+                                    : "Спарсить все товары заново"}
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-gray-600">
+                            «Парсинг нового товара» только скачивает карточки в JSON. Чтобы появились в каталоге,
+                            после завершения нажмите «Импортировать спарсенные товары». Режим «новые» теперь
+                            считает новыми только URL без привязанного товара в базе (раньше URL пропадал из очереди
+                            после одного парсинга без импорта).
+                        </p>
+
+                        <div className="flex flex-col gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-3 sm:flex-row sm:items-center">
+                            <input
+                                type="text"
+                                value={singleUrlInput}
+                                onChange={(e) => setSingleUrlInput(e.target.value)}
+                                placeholder="https://vanille.by/slug или только slug"
+                                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                                disabled={singleUrlBusy}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => void handleParseSingleUrl()}
+                                disabled={singleUrlBusy}
+                                className="shrink-0 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {singleUrlBusy ? "Парсинг…" : "Спарсить только этот URL"}
                             </button>
                         </div>
 

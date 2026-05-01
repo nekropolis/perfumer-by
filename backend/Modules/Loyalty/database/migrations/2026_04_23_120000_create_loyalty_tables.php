@@ -81,10 +81,62 @@ return new class extends Migration
             $table->decimal('percent_increment', 5, 2)->default(0);
             $table->timestamps();
         });
+
+        Schema::table('carts', function (Blueprint $table) {
+            if (! Schema::hasColumn('carts', 'gift_certificate_code')) {
+                $table->string('gift_certificate_code', 64)->nullable()->after('user_id');
+            }
+
+            if (! Schema::hasColumn('carts', 'discount_card_number')) {
+                $table->string('discount_card_number', 64)->nullable()->after('gift_certificate_code');
+            }
+
+            if (! Schema::hasColumn('carts', 'discount_card_session_only')) {
+                $table->boolean('discount_card_session_only')->default(false)->after('discount_card_number');
+            }
+        });
+
+        Schema::table('orders', function (Blueprint $table) {
+            if (! Schema::hasColumn('orders', 'discount_card_id')) {
+                $table->foreignId('discount_card_id')->nullable()->after('total')->constrained('discount_cards')->nullOnDelete();
+            }
+            if (! Schema::hasColumn('orders', 'discount_card_number')) {
+                $table->string('discount_card_number', 64)->nullable()->after('discount_card_id');
+            }
+            if (! Schema::hasColumn('orders', 'discount_percent_snapshot')) {
+                $table->decimal('discount_percent_snapshot', 5, 2)->default(0)->after('discount_card_number');
+            }
+            if (! Schema::hasColumn('orders', 'discount_amount')) {
+                $table->decimal('discount_amount', 12, 2)->default(0)->after('discount_percent_snapshot');
+            }
+        });
     }
 
     public function down(): void
     {
+        Schema::table('orders', function (Blueprint $table) {
+            if (Schema::hasColumn('orders', 'discount_card_id')) {
+                $table->dropConstrainedForeignId('discount_card_id');
+            }
+            foreach (['discount_amount', 'discount_percent_snapshot', 'discount_card_number'] as $column) {
+                if (Schema::hasColumn('orders', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
+        });
+
+        Schema::table('carts', function (Blueprint $table) {
+            if (Schema::hasColumn('carts', 'discount_card_session_only')) {
+                $table->dropColumn('discount_card_session_only');
+            }
+            if (Schema::hasColumn('carts', 'discount_card_number')) {
+                $table->dropColumn('discount_card_number');
+            }
+            if (Schema::hasColumn('carts', 'gift_certificate_code')) {
+                $table->dropColumn('gift_certificate_code');
+            }
+        });
+
         Schema::dropIfExists('order_gift_certificates');
         Schema::dropIfExists('gift_certificate_transactions');
         Schema::dropIfExists('discount_card_transactions');

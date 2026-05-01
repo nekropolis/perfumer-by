@@ -9,13 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('variant_definitions', 'excludes_from_free_delivery_threshold')) {
-            Schema::table('variant_definitions', function (Blueprint $table) {
+        Schema::table('variant_definitions', function (Blueprint $table) {
+            if (! Schema::hasColumn('variant_definitions', 'excludes_from_free_delivery_threshold')) {
                 $table->boolean('excludes_from_free_delivery_threshold')->default(false)->after('is_tester');
-            });
-        }
+            }
+        });
 
-        if (!Schema::hasColumn('product_variant_links', 'excludes_from_free_delivery_threshold')) {
+        if (! Schema::hasColumn('product_variant_links', 'excludes_from_free_delivery_threshold')) {
             return;
         }
 
@@ -40,13 +40,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (!Schema::hasColumn('product_variant_links', 'excludes_from_free_delivery_threshold')) {
+        if (! Schema::hasColumn('product_variant_links', 'excludes_from_free_delivery_threshold')) {
             Schema::table('product_variant_links', function (Blueprint $table) {
                 $table->boolean('excludes_from_free_delivery_threshold')->default(false)->after('is_active');
             });
         }
 
-        if (!Schema::hasColumn('variant_definitions', 'excludes_from_free_delivery_threshold')) {
+        if (! Schema::hasColumn('variant_definitions', 'excludes_from_free_delivery_threshold')) {
             return;
         }
 
@@ -60,5 +60,11 @@ return new class extends Migration
                 ->whereIn('variant_definition_id', $definitionIds)
                 ->update(['excludes_from_free_delivery_threshold' => true]);
         }
+
+        Schema::table('variant_definitions', function (Blueprint $table) {
+            if (Schema::hasColumn('variant_definitions', 'excludes_from_free_delivery_threshold')) {
+                $table->dropColumn('excludes_from_free_delivery_threshold');
+            }
+        });
     }
 };

@@ -14,6 +14,7 @@ import { createAdminPost } from "@/lib/admin-posts-api";
 const emptyForm: AdminPostFormState = {
     is_active: true,
     title: "",
+    slug: "",
     type: "news",
     cover_image: "",
     excerpt: "",

@@ -32,7 +32,7 @@ import type {
     SellerOneSupplierProductItem,
     SellerOneSupplierProductsResponse,
 } from "@/types/Vanille";
-import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
+import { fetchProductLinkSearch, type ProductAdminItem } from "@/lib/admin-products-api";
 import {
     createProductVariant,
     fetchProductVariants,
@@ -45,12 +45,7 @@ import {
     SELLER_ONE_FILE_ACCEPT,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
 } from "@/components/admin/import-export/seller-one/constants";
-import {
-    buildInitialSearchFromRow,
-    buildSearchCandidates,
-    isExactProductNameMatch,
-    rankProducts,
-} from "@/components/admin/import-export/seller-one/utils";
+import { buildInitialSearchFromRow, isExactProductNameMatch } from "@/components/admin/import-export/seller-one/utils";
 import { type ManualLinkState } from "@/components/admin/import-export/seller-one/types";
 import {
     AlertMessage,
@@ -91,16 +86,14 @@ function ManualLinkSearchHost({
             setManualLink((prev) => (prev && prev.rowId === rowId ? { ...prev, productsLoading: true } : prev));
             try {
                 const query = debouncedProductSearch.trim();
-                const candidates = buildSearchCandidates(query);
                 let products: ProductAdminItem[] = [];
-
-                for (const candidate of candidates) {
-                    const data = await fetchProducts({ search: candidate || undefined, page: 1 });
-                    const current = data.data || [];
-                    if (current.length > 0) {
-                        products = rankProducts(current, query);
-                        break;
-                    }
+                if (query.length >= 2) {
+                    const data = await fetchProductLinkSearch({
+                        q: query,
+                        brand_id: manualLink.linkSearchBrandId ?? undefined,
+                        limit: 40,
+                    });
+                    products = data.data || [];
                 }
 
                 if (cancelled) {
@@ -136,7 +129,7 @@ function ManualLinkSearchHost({
         return () => {
             cancelled = true;
         };
-    }, [manualLink.rowId, debouncedProductSearch, setManualLink, setSupplierError]);
+    }, [manualLink.rowId, manualLink.linkSearchBrandId, debouncedProductSearch, setManualLink, setSupplierError]);
 
     useEffect(() => {
         const rowId = manualLink.rowId;
@@ -544,6 +537,7 @@ export default function SellerOneImportPage() {
         setManualLink({
             rowId: row.id,
             rowName: row.external_name,
+            linkSearchBrandId: row.brand?.id ?? null,
             productSearch: initialSearch,
             sourceHint: {
                 brand: row.parsed?.brand || "",

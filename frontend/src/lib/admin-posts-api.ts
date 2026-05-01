@@ -27,6 +27,7 @@ export type AdminPostType = "news" | "article";
 
 export type AdminPostItem = {
   id: number;
+  slug?: string;
   is_active: boolean;
   title: string;
   type: AdminPostType;
@@ -91,6 +92,7 @@ export async function fetchAdminPostById(id: number | string): Promise<AdminPost
 export async function createAdminPost(payload: {
   is_active?: boolean;
   title: string;
+  slug?: string;
   type: AdminPostType;
   cover_image?: string;
   excerpt?: string;
@@ -118,6 +120,7 @@ export async function updateAdminPost(
   payload: {
     is_active?: boolean;
     title: string;
+    slug?: string;
     type: AdminPostType;
     cover_image?: string;
     excerpt?: string;

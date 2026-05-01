@@ -66,9 +66,6 @@ export default function CatalogPageView({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-                        <h2 className="mb-4 text-lg font-semibold leading-tight text-[var(--foreground)]">
-                            Фильтры
-                        </h2>
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}

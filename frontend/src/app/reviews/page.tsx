@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function StoreReviewsPage() {
     let initial: ReviewItem[] = [];
     try {
-        const res = await apiFetch<ReviewsListResponse>("/reviews?type=store&limit=100");
+        const res = await apiFetch<ReviewsListResponse>("/reviews?type=store&limit=5&offset=0");
         initial = res.data ?? [];
     } catch {
         initial = [];

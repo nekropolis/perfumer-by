@@ -30,6 +30,7 @@ export default function AdminPostEditPage() {
                 id: item.id,
                 is_active: Boolean(item.is_active),
                 title: item.title,
+                slug: item.slug ?? "",
                 type: item.type,
                 cover_image: item.cover_image || "",
                 excerpt: item.excerpt || "",

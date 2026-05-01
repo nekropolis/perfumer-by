@@ -14,6 +14,10 @@ return new class extends Migration {
             $table->string('name', 120);
             $table->text('body');
             $table->unsignedTinyInteger('stars');
+            $table->string('status', 32)->default('published');
+            $table->timestamp('published_at')->nullable();
+            $table->text('reply_text')->nullable();
+            $table->timestamp('replied_at')->nullable();
             $table->timestamps();
 
             $table->index(['type', 'product_id', 'created_at']);

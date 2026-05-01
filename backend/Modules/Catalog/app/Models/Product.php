@@ -21,6 +21,7 @@ class Product extends Model
         'description',
         'seo_title',
         'seo_description',
+        'seo_keyword',
         'is_active',
         'is_new',
         'is_hit',

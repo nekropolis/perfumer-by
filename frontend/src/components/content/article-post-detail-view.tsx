@@ -1,39 +1,18 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import { fetchCmsPostById } from "@/lib/cms-pages-api";
+import type { CmsPublicPostDetail } from "@/lib/cms-pages-api";
 
-type Params = { id: string };
+type Props = {
+    post: CmsPublicPostDetail;
+};
 
-export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-    const { id } = await params;
-    const post = await fetchCmsPostById(id);
-    if (!post || post.type !== "news") {
-        return {
-            title: "Новость",
-        };
-    }
-
-    return {
-        title: post.seo_title || post.title,
-        description: post.seo_description || post.excerpt || "",
-    };
-}
-
-export default async function NewsDetailPage({ params }: { params: Promise<Params> }) {
-    const { id } = await params;
-    const post = await fetchCmsPostById(id);
-    if (!post || post.type !== "news") {
-        notFound();
-    }
-
+export default function ArticlePostDetailView({ post }: Props) {
     return (
         <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
             <Breadcrumbs
                 className="mb-6"
                 items={[
                     { label: "Главная", href: "/" },
-                    { label: "Новости", href: "/news" },
+                    { label: "Статьи", href: "/articles" },
                     { label: post.title },
                 ]}
             />

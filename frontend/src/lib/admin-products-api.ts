@@ -86,6 +86,7 @@ export type ProductAdminDetail = {
     description?: string | null;
     seo_title?: string | null;
     seo_description?: string | null;
+    seo_keyword?: string | null;
 
     brand: {
         id: number;
@@ -204,6 +205,38 @@ export type ProductVariantSupplierItem = {
 export type ProductVariantSuppliersResponse = {
     data: ProductVariantSupplierItem[];
 };
+
+export type ProductLinkSearchResponse = {
+    data: ProductAdminItem[];
+};
+
+/**
+ * Поиск товара для связи с прайсом: AND по значимым токенам (бэкенд CatalogProductLinkSearchService).
+ */
+export async function fetchProductLinkSearch(params: {
+    q: string;
+    brand_id?: number;
+    limit?: number;
+}): Promise<ProductLinkSearchResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("q", params.q.trim());
+    if (params.brand_id != null && params.brand_id > 0) {
+        searchParams.set("brand_id", String(params.brand_id));
+    }
+    if (params.limit != null) {
+        searchParams.set("limit", String(params.limit));
+    }
+    const query = searchParams.toString();
+    const res = await fetch(`${API_BASE}/admin/products/link-search?${query}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Product link search API error: ${res.status}`);
+    }
+    return res.json();
+}
 
 export async function fetchProducts(params?: {
     search?: string;
@@ -362,6 +395,7 @@ export async function createProduct(payload: {
     description?: string;
     seo_title?: string;
     seo_description?: string;
+    seo_keyword?: string;
 }) {
     const res = await fetch(`${API_BASE}/admin/products`, {
         method: "POST",
@@ -392,6 +426,7 @@ export async function updateProduct(
         description?: string;
         seo_title?: string;
         seo_description?: string;
+        seo_keyword?: string;
     }
 ) {
     const res = await fetch(`${API_BASE}/admin/products/${id}`, {

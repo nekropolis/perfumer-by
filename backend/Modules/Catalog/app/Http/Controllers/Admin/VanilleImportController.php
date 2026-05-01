@@ -78,6 +78,34 @@ class VanilleImportController extends Controller
         ], 202);
     }
 
+    /**
+     * Синхронно спарсить одну карточку по URL (или slug) и записать в отдельный JSON в imports/vanille/products/.
+     */
+    public function parseSingleProductUrl(Request $request, VanilleImportService $service): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'max:2048'],
+        ]);
+
+        try {
+            $result = $service->parseSingleProductUrlToJsonFile($validated['url']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'message' => $result['message'] ?? 'Не удалось спарсить страницу',
+                'data' => $result,
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Карточка сохранена в файл. Дальше нажмите «Импортировать спарсенные товары».',
+            'data' => $result,
+        ]);
+    }
+
     public function pipelineNewProducts(VanilleImportService $service)
     {
         try {
@@ -102,10 +130,14 @@ class VanilleImportController extends Controller
             return response()->json(['message' => $e->getMessage()], 409);
         }
 
-        $this->writeVanilleAudit($job->id, AuditLogService::ACTION_CREATED, 'Обновить все товары: задача поставлена в очередь');
+        $this->writeVanilleAudit(
+            $job->id,
+            AuditLogService::ACTION_CREATED,
+            'Спарсить все товары заново (без изменения цены/наличия/описаний/SEO): задача поставлена в очередь'
+        );
 
         return response()->json([
-            'message' => 'Запущено обновление всех карточек Vanille',
+            'message' => 'Запущен полный репарс всех карточек Vanille (без изменения цены/наличия/описаний/SEO у существующих товаров)',
             'job' => $job,
         ], 202);
     }

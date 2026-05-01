@@ -18,6 +18,7 @@ const MIN_TEXT = 15;
 const MAX_TEXT = 4000;
 const MIN_NAME = 2;
 const MAX_NAME = 100;
+const STORE_REVIEWS_PAGE_SIZE = 5;
 
 type Props = {
     initialReviews: ReviewItem[];
@@ -57,6 +58,11 @@ export default function StoreReviewsView({
 
     const [reviews, setReviews] = useState<ReviewItem[]>(initialReviews);
     const [listLoading, setListLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const nextOffsetRef = useRef(initialReviews.length);
+    const hasMoreRef = useRef(initialReviews.length === STORE_REVIEWS_PAGE_SIZE);
+    const loadingMoreRef = useRef(false);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     const isFormControlled = typeof onFormOpenChangeAction === "function";
     const [internalFormOpen, setInternalFormOpen] = useState(false);
@@ -84,17 +90,70 @@ export default function StoreReviewsView({
 
     useEffect(() => {
         setReviews(initialReviews);
+        nextOffsetRef.current = initialReviews.length;
+        hasMoreRef.current = initialReviews.length === STORE_REVIEWS_PAGE_SIZE;
     }, [initialReviews]);
 
     const reload = useCallback(() => {
         setListLoading(true);
-        fetchStoreReviews(100)
-            .then((res) => setReviews(res.data))
+        fetchStoreReviews(STORE_REVIEWS_PAGE_SIZE, 0)
+            .then((res) => {
+                const data = res.data ?? [];
+                setReviews(data);
+                nextOffsetRef.current = data.length;
+                hasMoreRef.current = data.length === STORE_REVIEWS_PAGE_SIZE;
+            })
             .catch(() => {
                 /* ignore */
             })
             .finally(() => setListLoading(false));
     }, []);
+
+    const loadMore = useCallback(async () => {
+        if (!hasMoreRef.current || loadingMoreRef.current) {
+            return;
+        }
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+        try {
+            const res = await fetchStoreReviews(STORE_REVIEWS_PAGE_SIZE, nextOffsetRef.current);
+            const batch = res.data ?? [];
+            if (batch.length === 0) {
+                hasMoreRef.current = false;
+                return;
+            }
+            setReviews((prev) => {
+                const seen = new Set(prev.map((r) => r.id));
+                const merged = batch.filter((r) => !seen.has(r.id));
+                return merged.length ? [...prev, ...merged] : prev;
+            });
+            nextOffsetRef.current += batch.length;
+            hasMoreRef.current = batch.length === STORE_REVIEWS_PAGE_SIZE;
+        } catch {
+            /* ignore */
+        } finally {
+            loadingMoreRef.current = false;
+            setLoadingMore(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el) {
+            return;
+        }
+        const obs = new IntersectionObserver(
+            (entries) => {
+                if (!entries.some((e) => e.isIntersecting)) {
+                    return;
+                }
+                void loadMore();
+            },
+            { root: null, rootMargin: "200px 0px", threshold: 0 },
+        );
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, [loadMore]);
 
     const closeForm = useCallback(() => setFormOpen(false), [setFormOpen]);
 
@@ -273,6 +332,12 @@ export default function StoreReviewsView({
                         ))}
                     </ul>
                 )}
+                {reviews.length > 0 ? (
+                    <div ref={sentinelRef} className="h-px w-full" aria-hidden />
+                ) : null}
+                {loadingMore ? (
+                    <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">Загрузка отзывов…</p>
+                ) : null}
             </section>
 
             <ReviewFormModal

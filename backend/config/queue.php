@@ -40,7 +40,9 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Must exceed the longest job timeout (e.g. Modules\Catalog\Jobs\RunVanilleImportJob = 300s).
+            // If retry_after is shorter, the driver may re-dispatch the same job while it is still running.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 390),
             'after_commit' => false,
         ],
 
@@ -68,7 +70,8 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Same rule as database.retry_after — keep above longest job timeout.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 390),
             'block_for' => null,
             'after_commit' => false,
         ],

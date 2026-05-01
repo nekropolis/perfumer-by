@@ -61,6 +61,30 @@ export function useHeaderSearch({
     >([]);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
+    const persistRecentSearch = (rawValue: string) => {
+        const query = rawValue.trim();
+        if (!query) {
+            return;
+        }
+
+        const nextRecent = [
+            query,
+            ...recentSearches.filter(
+                (item) => item.toLowerCase() !== query.toLowerCase(),
+            ),
+        ].slice(0, 8);
+
+        setRecentSearches(nextRecent);
+        try {
+            window.localStorage.setItem(
+                RECENT_SEARCHES_STORAGE_KEY,
+                JSON.stringify(nextRecent),
+            );
+        } catch {
+            // ignore storage write errors
+        }
+    };
+
     useEffect(() => {
         const timerId = window.setTimeout(() => {
             setRecentSearches(readRecentSearches());
@@ -134,23 +158,7 @@ export function useHeaderSearch({
         if (!query) {
             return;
         }
-
-        const nextRecent = [
-            query,
-            ...recentSearches.filter(
-                (item) => item.toLowerCase() !== query.toLowerCase(),
-            ),
-        ].slice(0, 8);
-
-        setRecentSearches(nextRecent);
-        try {
-            window.localStorage.setItem(
-                RECENT_SEARCHES_STORAGE_KEY,
-                JSON.stringify(nextRecent),
-            );
-        } catch {
-            // ignore storage write errors
-        }
+        persistRecentSearch(query);
 
         setSearchOpen(false);
         onAfterNavigateAction();
@@ -167,12 +175,14 @@ export function useHeaderSearch({
     };
 
     const handleSelectProduct = (slug: string) => {
+        persistRecentSearch(searchQuery);
         resetSearch();
         onAfterNavigateAction();
         router.push(`/product/${slug}`);
     };
 
     const handleSelectBrand = (slug: string) => {
+        persistRecentSearch(searchQuery);
         resetSearch();
         onAfterNavigateAction();
         router.push(`/brands/${encodeURIComponent(slug)}`);

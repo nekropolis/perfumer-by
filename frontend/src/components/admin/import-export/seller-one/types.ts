@@ -4,6 +4,8 @@ import type { AdminProductVariantItem, VariantDefinitionItem } from "@/lib/admin
 export type ManualLinkState = {
     rowId: number;
     rowName: string;
+    /** brand_id с строки поставщика — фильтр для link-search */
+    linkSearchBrandId: number | null;
     productSearch: string;
     sourceHint: {
         brand: string;

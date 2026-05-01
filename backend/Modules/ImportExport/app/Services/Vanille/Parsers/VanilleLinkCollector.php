@@ -210,7 +210,14 @@ class VanilleLinkCollector
                 continue;
             }
 
-            if ($brandSlug !== '' && !str_starts_with($slug, $brandSlug . '-')) {
+            $normalizedSlug = mb_strtolower($slug);
+            $normalizedBrandSlug = mb_strtolower($brandSlug);
+            if (
+                $normalizedBrandSlug !== ''
+                && !str_starts_with($normalizedSlug, $normalizedBrandSlug . '-')
+                && !str_contains($normalizedSlug, '-' . $normalizedBrandSlug . '-')
+                && !str_ends_with($normalizedSlug, '-' . $normalizedBrandSlug)
+            ) {
                 continue;
             }
 

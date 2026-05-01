@@ -14,6 +14,7 @@ class CmsPost extends Model
     protected $fillable = [
         'is_active',
         'title',
+        'slug',
         'type',
         'cover_image',
         'excerpt',

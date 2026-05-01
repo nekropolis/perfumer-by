@@ -24,10 +24,22 @@ return new class extends Migration
             $table->index(['status', 'id'], 'vanille_import_jobs_status_id_index');
             $table->index(['type', 'created_at']);
         });
+
+        Schema::create('vanille_import_job_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('vanille_import_job_id')->constrained('vanille_import_jobs')->cascadeOnDelete();
+            $table->string('level', 20)->default('info');
+            $table->text('message');
+            $table->json('context')->nullable();
+            $table->timestamps();
+
+            $table->index(['vanille_import_job_id', 'id']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('vanille_import_job_logs');
         Schema::dropIfExists('vanille_import_jobs');
     }
 };

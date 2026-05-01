@@ -7,6 +7,7 @@ use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Pages\Models\CmsPost;
@@ -26,6 +27,7 @@ class PostAdminController extends Controller
             $search = trim($request->string('search')->toString());
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhere('excerpt', 'like', "%{$search}%");
             });
         }
@@ -49,10 +51,12 @@ class PostAdminController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validatePayload($request);
+        $slug = $this->resolvePersistedSlug($validated, null);
 
         $post = CmsPost::query()->create([
             'is_active' => (bool) ($validated['is_active'] ?? true),
             'title' => trim((string) $validated['title']),
+            'slug' => $slug,
             'type' => (string) $validated['type'],
             'cover_image' => VanilleHelper::normalizeNullableString($validated['cover_image'] ?? null),
             'excerpt' => VanilleHelper::normalizeNullableString($validated['excerpt'] ?? null),
@@ -82,10 +86,12 @@ class PostAdminController extends Controller
     {
         $post = CmsPost::query()->findOrFail($id);
         $validated = $this->validatePayload($request);
+        $slug = $this->resolvePersistedSlug($validated, $id);
 
         $post->update([
             'is_active' => (bool) ($validated['is_active'] ?? $post->is_active),
             'title' => trim((string) $validated['title']),
+            'slug' => $slug,
             'type' => (string) $validated['type'],
             'cover_image' => VanilleHelper::normalizeNullableString($validated['cover_image'] ?? null),
             'excerpt' => VanilleHelper::normalizeNullableString($validated['excerpt'] ?? null),
@@ -184,6 +190,7 @@ class PostAdminController extends Controller
         return $request->validate([
             'is_active' => ['nullable', 'boolean'],
             'title' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:191'],
             'type' => ['required', Rule::in([CmsPost::TYPE_NEWS, CmsPost::TYPE_ARTICLE])],
             'cover_image' => ['nullable', 'string', 'max:2048'],
             'excerpt' => ['nullable', 'string'],
@@ -191,5 +198,35 @@ class PostAdminController extends Controller
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolvePersistedSlug(array $validated, ?int $ignoreId): string
+    {
+        $type = (string) $validated['type'];
+        $raw = trim((string) ($validated['slug'] ?? ''));
+        $base = $raw !== '' ? Str::slug($raw) : Str::slug((string) $validated['title']);
+        if ($base === '') {
+            $base = 'post';
+        }
+
+        return $this->ensureUniquePostSlug($type, $base, $ignoreId);
+    }
+
+    private function ensureUniquePostSlug(string $type, string $base, ?int $ignoreId): string
+    {
+        $slug = $base;
+        $n = 2;
+        while (CmsPost::query()
+            ->where('type', $type)
+            ->where('slug', $slug)
+            ->when($ignoreId !== null, fn ($q) => $q->where('id', '<>', $ignoreId))
+            ->exists()) {
+            $slug = $base.'-'.$n++;
+        }
+
+        return $slug;
     }
 }

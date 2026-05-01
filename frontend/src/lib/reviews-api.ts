@@ -24,10 +24,11 @@ export type SubmitStoreReviewInput = {
     captchaToken?: string;
 };
 
-export async function fetchStoreReviews(limit = 100): Promise<ReviewsListResponse> {
+export async function fetchStoreReviews(limit = 100, offset = 0): Promise<ReviewsListResponse> {
     const params = new URLSearchParams({
         type: "store",
         limit: String(limit),
+        offset: String(offset),
     });
     const res = await fetch(`${API_BASE}/reviews?${params.toString()}`, { cache: "no-store" });
     if (!res.ok) {

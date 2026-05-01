@@ -7,9 +7,11 @@ use Modules\ImportExport\Services\Vanille\VanilleImportService;
 
 class VanilleQueuedJobExecutor
 {
-    private const COLLECT_LINKS_BATCH_SIZE = 3;
+    private const COLLECT_LINKS_BATCH_SIZE = 1;
 
     private const PARSE_PRODUCTS_BATCH_SIZE = 2;
+    private const SUMMARY_SAMPLE_LIMIT = 40;
+    private const IMPORT_SUMMARY_SAMPLE_LIMIT = 60;
 
     public function execute(VanilleImportJob $job, VanilleImportService $service): array
     {
@@ -32,7 +34,7 @@ class VanilleQueuedJobExecutor
             VanilleImportService::JOB_TYPE_PARSE_PRODUCTS => 'Массовый парсинг карточек',
             VanilleImportService::JOB_TYPE_IMPORT_PARSED_PRODUCTS => 'Импорт спарсенных товаров',
             VanilleImportService::JOB_TYPE_PIPELINE_NEW_PRODUCTS => 'Парсинг нового товара',
-            VanilleImportService::JOB_TYPE_PIPELINE_REFRESH_ALL => 'Обновление всех карточек',
+            VanilleImportService::JOB_TYPE_PIPELINE_REFRESH_ALL => 'Спарсить все товары заново (без изменения цены/наличия/описаний/SEO)',
             default => 'Парсинг',
         };
     }
@@ -170,6 +172,21 @@ class VanilleQueuedJobExecutor
             $processedBrands = min($nextOffset, (int) ($batch['total_brands'] ?? $nextOffset));
             $totalBrands = max((int) ($batch['total_brands'] ?? 0), 1);
             $collectProgress = max(5, min(40, (int) round(($processedBrands / $totalBrands) * 40)));
+            $addedLinksTotal = (int) ($result['added_links_count'] ?? 0) + (int) ($batch['added_links_count'] ?? 0);
+            $addedLinksSample = is_array($result['added_links_sample'] ?? null) ? $result['added_links_sample'] : [];
+            foreach ((array) ($batch['added_links'] ?? []) as $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+                $url = trim((string) ($link['url'] ?? ''));
+                if ($url === '' || in_array($url, $addedLinksSample, true)) {
+                    continue;
+                }
+                $addedLinksSample[] = $url;
+                if (count($addedLinksSample) >= self::SUMMARY_SAMPLE_LIMIT) {
+                    break;
+                }
+            }
 
             if (!$doneCollect) {
                 return [
@@ -188,6 +205,8 @@ class VanilleQueuedJobExecutor
                             'offset' => $nextOffset,
                             'limit' => self::COLLECT_LINKS_BATCH_SIZE,
                         ],
+                        'added_links_count' => $addedLinksTotal,
+                        'added_links_sample' => $addedLinksSample,
                         'last_collect_batch' => $batch,
                     ],
                 ];
@@ -205,6 +224,8 @@ class VanilleQueuedJobExecutor
                     ...$result,
                     'phase' => 'parse_products',
                     'collect_finished' => $batch,
+                    'added_links_count' => $addedLinksTotal,
+                    'added_links_sample' => $addedLinksSample,
                     'parse_state' => [
                         'offset' => 0,
                         'limit' => self::PARSE_PRODUCTS_BATCH_SIZE,
@@ -239,6 +260,26 @@ class VanilleQueuedJobExecutor
             $total = max((int) ($batch['total_links'] ?? 0), 1);
             $parseProgress = max(5, min(45, (int) round(($processed / $total) * 45)));
             $nextLinksPath = $batch['links_path'] ?? $linksPath;
+            $parsedProductsTotal = (int) ($result['parsed_products_count'] ?? 0) + (int) ($batch['parsed_products_count'] ?? 0);
+            $parsedProductsSample = is_array($result['parsed_products_sample'] ?? null) ? $result['parsed_products_sample'] : [];
+            foreach ((array) ($batch['parsed_products'] ?? []) as $product) {
+                if (!is_array($product)) {
+                    continue;
+                }
+                $url = trim((string) ($product['url'] ?? ''));
+                $name = trim((string) ($product['name'] ?? ''));
+                if ($url === '') {
+                    continue;
+                }
+                $line = $name !== '' ? ($name . ' | ' . $url) : $url;
+                if (in_array($line, $parsedProductsSample, true)) {
+                    continue;
+                }
+                $parsedProductsSample[] = $line;
+                if (count($parsedProductsSample) >= self::SUMMARY_SAMPLE_LIMIT) {
+                    break;
+                }
+            }
 
             if (!$doneParse) {
                 return [
@@ -261,9 +302,25 @@ class VanilleQueuedJobExecutor
                             'total_count' => $totalCount,
                             'total_errors' => $totalErrors,
                         ],
+                        'parsed_products_count' => $parsedProductsTotal,
+                        'parsed_products_sample' => $parsedProductsSample,
                         'last_parse_batch' => $batch,
                     ],
                 ];
+            }
+
+            $finalLog = [
+                'SUMMARY: new links found -> ' . (int) ($result['added_links_count'] ?? 0),
+            ];
+            foreach ((array) ($result['added_links_sample'] ?? []) as $url) {
+                if (!is_string($url) || trim($url) === '') {
+                    continue;
+                }
+                $finalLog[] = 'LINK: ' . trim($url);
+            }
+            $finalLog[] = 'SUMMARY: parsed products added -> ' . $parsedProductsTotal;
+            foreach ($parsedProductsSample as $line) {
+                $finalLog[] = 'PRODUCT: ' . $line;
             }
 
             return [
@@ -273,6 +330,10 @@ class VanilleQueuedJobExecutor
                 'result' => [
                     ...$result,
                     'phase' => 'completed',
+                    'parsed_products_count' => $parsedProductsTotal,
+                    'parsed_products_sample' => $parsedProductsSample,
+                    'final_log' => $finalLog,
+                    'log' => $finalLog,
                     'parse_finished' => [
                         ...$batch,
                         'count' => $totalCount,
@@ -293,6 +354,8 @@ class VanilleQueuedJobExecutor
         $totalUpdated = (int) ($state['total_updated'] ?? 0);
         $totalErrors = (int) ($state['total_errors'] ?? 0);
         $totalItems = (int) ($state['total_items'] ?? 0);
+        $createdProductsSample = is_array($state['created_products_sample'] ?? null) ? $state['created_products_sample'] : [];
+        $updatedProductsSample = is_array($state['updated_products_sample'] ?? null) ? $state['updated_products_sample'] : [];
         $batchLimit = 1;
 
         $batch = $service->importParsedProductsBatch($offset, $batchLimit);
@@ -306,8 +369,51 @@ class VanilleQueuedJobExecutor
         $totalUpdated += (int) ($batch['updated'] ?? 0);
         $totalErrors += (int) ($batch['errors'] ?? 0);
         $totalItems += (int) ($batch['items'] ?? 0);
+        foreach ((array) ($batch['created_products'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $name = trim((string) ($row['name'] ?? ''));
+            $slug = trim((string) ($row['slug'] ?? ''));
+            $url = trim((string) ($row['url'] ?? ''));
+            $line = trim(implode(' | ', array_filter([$name, $slug, $url])));
+            if ($line === '' || in_array($line, $createdProductsSample, true)) {
+                continue;
+            }
+            $createdProductsSample[] = $line;
+            if (count($createdProductsSample) >= self::IMPORT_SUMMARY_SAMPLE_LIMIT) {
+                break;
+            }
+        }
+        foreach ((array) ($batch['updated_products'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $name = trim((string) ($row['name'] ?? ''));
+            $slug = trim((string) ($row['slug'] ?? ''));
+            $url = trim((string) ($row['url'] ?? ''));
+            $line = trim(implode(' | ', array_filter([$name, $slug, $url])));
+            if ($line === '' || in_array($line, $updatedProductsSample, true)) {
+                continue;
+            }
+            $updatedProductsSample[] = $line;
+            if (count($updatedProductsSample) >= self::IMPORT_SUMMARY_SAMPLE_LIMIT) {
+                break;
+            }
+        }
 
         if ($done) {
+            $finalLog = [
+                'SUMMARY: import created -> ' . $totalImported,
+                'SUMMARY: import updated -> ' . $totalUpdated,
+            ];
+            foreach ($createdProductsSample as $line) {
+                $finalLog[] = 'CREATED: ' . $line;
+            }
+            foreach ($updatedProductsSample as $line) {
+                $finalLog[] = 'UPDATED: ' . $line;
+            }
+
             return [
                 'done' => true,
                 'progress' => 100,
@@ -320,6 +426,10 @@ class VanilleQueuedJobExecutor
                     'updated' => $totalUpdated,
                     'errors' => $totalErrors,
                     'items' => $totalItems,
+                    'created_products_sample' => $createdProductsSample,
+                    'updated_products_sample' => $updatedProductsSample,
+                    'final_log' => $finalLog,
+                    'log' => array_merge((array) ($batch['log'] ?? []), $finalLog),
                 ],
             ];
         }
@@ -335,6 +445,8 @@ class VanilleQueuedJobExecutor
                     'total_updated' => $totalUpdated,
                     'total_errors' => $totalErrors,
                     'total_items' => $totalItems,
+                    'created_products_sample' => $createdProductsSample,
+                    'updated_products_sample' => $updatedProductsSample,
                 ],
                 'total_files' => $totalFiles,
                 'processed_files' => $processedFiles,
@@ -342,6 +454,8 @@ class VanilleQueuedJobExecutor
                 'updated' => $totalUpdated,
                 'errors' => $totalErrors,
                 'items' => $totalItems,
+                'created_products_sample' => $createdProductsSample,
+                'updated_products_sample' => $updatedProductsSample,
             ],
         ];
     }

@@ -27,6 +27,7 @@ const emptyForm: ProductFormState = {
     description: "",
     seo_title: "",
     seo_description: "",
+    seo_keyword: "",
 };
 
 export default function AdminProductCreatePage() {
@@ -75,6 +76,7 @@ export default function AdminProductCreatePage() {
                 description: form.description,
                 seo_title: form.seo_title,
                 seo_description: form.seo_description,
+                seo_keyword: form.seo_keyword,
             });
 
             router.push("/admin/products");
