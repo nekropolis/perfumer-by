@@ -7,6 +7,9 @@ use Modules\Pages\Http\Controllers\Admin\PostAdminController;
 use Modules\Pages\Http\Controllers\Api\BlockController;
 use Modules\Pages\Http\Controllers\Api\PageController;
 use Modules\Pages\Http\Controllers\Api\PostController;
+use Modules\Pages\Http\Controllers\Api\SeoSitemapController;
+
+Route::get('/seo/sitemap-urls', [SeoSitemapController::class, 'index']);
 
 Route::prefix('pages')->group(function () {
     Route::get('/{slug}', [PageController::class, 'showBySlug']);

@@ -1,17 +1,14 @@
-"use client";
-
 import type { ReactNode } from "react";
-import AdminGuard from "@/components/admin/admin-guard";
-import AdminShell from "@/components/admin/admin-shell";
+import type { Metadata } from "next";
+import { matrixRouteMetadata } from "@/lib/seo";
+import AdminAppLayout from "./admin-app-layout";
+
+export const metadata: Metadata = matrixRouteMetadata();
 
 type Props = {
     children: ReactNode;
 };
 
 export default function AdminLayout({ children }: Props) {
-    return (
-        <AdminGuard>
-            <AdminShell>{children}</AdminShell>
-        </AdminGuard>
-    );
+    return <AdminAppLayout>{children}</AdminAppLayout>;
 }

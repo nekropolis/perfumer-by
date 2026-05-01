@@ -76,7 +76,7 @@ export default function HeaderServiceBar({
                                 <div className="absolute right-0 top-8 z-50 w-64 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_16px_40px_rgba(31,23,34,0.08)]">
                                     {phoneDropdownLinks.map((item) => (
                                         <a
-                                            key={item.href}
+                                            key={item.label}
                                             href={item.href}
                                             className="block rounded-xl px-3 py-2 text-xs text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                                             onClick={

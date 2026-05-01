@@ -13,15 +13,17 @@ import { useHeaderSearch } from "@/components/layout/header/use-header-search";
 import {
     HEADER_CATALOG_DRAWER_SECTIONS,
     HEADER_CATALOG_TRIGGER,
-    PHONE_NUMBERS,
-    HEADER_CONTACT_LINKS,
-    HEADER_MESSENGER_LINKS,
-    HEADER_PHONE_DROPDOWN_LINKS,
-    HEADER_PHONE_SHORT_LABEL,
     HEADER_POPULAR_SEARCHES,
     HEADER_SECONDARY_LINKS,
 } from "@/components/layout/header/config";
-import { fetchSiteContent } from "@/lib/site-content-api";
+import { useSiteContent } from "@/components/layout/site-content-context";
+import {
+    buildContactLinks,
+    buildHeaderPhoneDropdown,
+    buildMessengerLinks,
+    buildPhoneLinks,
+    phoneNationalShortSuffix,
+} from "@/lib/site-contact";
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;
@@ -29,7 +31,13 @@ function formatMinskFreeDeliveryPromo(threshold: number): string {
 }
 
 export default function Header() {
-    const [promoText, setPromoText] = useState(() => formatMinskFreeDeliveryPromo(50));
+    const siteContent = useSiteContent();
+    const promoText = formatMinskFreeDeliveryPromo(siteContent.delivery_minsk_free_threshold);
+    const phoneShortLabel = phoneNationalShortSuffix(siteContent.contact_phone_mts) || "640-88-33";
+    const phoneDropdownLinks = buildHeaderPhoneDropdown(siteContent);
+    const messengerLinks = buildMessengerLinks(siteContent);
+    const phoneLinks = buildPhoneLinks(siteContent);
+    const contactLinks = buildContactLinks(siteContent);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
     const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -65,24 +73,6 @@ export default function Header() {
     } = useHeaderSearch({
         onAfterNavigateAction: () => setIsMobileOpen(false),
     });
-
-    useEffect(() => {
-        let cancelled = false;
-        void fetchSiteContent()
-            .then((res) => {
-                if (!cancelled) {
-                    setPromoText(
-                        formatMinskFreeDeliveryPromo(res.data.delivery_minsk_free_threshold),
-                    );
-                }
-            })
-            .catch(() => {
-                /* оставляем строку по умолчанию */
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -327,9 +317,9 @@ export default function Header() {
             <HeaderServiceBar
                 isCompact={isCompact}
                 promoText={promoText}
-                phoneShortLabel={HEADER_PHONE_SHORT_LABEL}
-                phoneDropdownLinks={HEADER_PHONE_DROPDOWN_LINKS}
-                messengerLinks={HEADER_MESSENGER_LINKS}
+                phoneShortLabel={phoneShortLabel}
+                phoneDropdownLinks={phoneDropdownLinks}
+                messengerLinks={messengerLinks}
                 isPhoneDropdownOpen={isPhoneDropdownOpen}
                 phoneDropdownRef={phoneDropdownRef}
                 onTogglePhoneDropdownAction={() =>
@@ -392,8 +382,8 @@ export default function Header() {
                 searchBrandResults={searchBrandResults}
                 recentSearches={recentSearches}
                 popularSearches={HEADER_POPULAR_SEARCHES}
-                phoneLinks={PHONE_NUMBERS}
-                contactLinks={HEADER_CONTACT_LINKS}
+                phoneLinks={phoneLinks}
+                contactLinks={contactLinks}
                 isAuthenticated={isAuthenticated}
                 userName={user?.name || "Пользователь"}
                 userPhone={user?.phone || ""}

@@ -3,6 +3,10 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/layout/providers";
 import AppShell from "@/components/layout/app-shell";
+import JsonLd from "@/components/seo/json-ld";
+import { localBusinessJsonLd, organizationJsonLd, webSiteJsonLd } from "@/lib/json-ld";
+import { getSiteDefaultRobots, getSiteUrl } from "@/lib/seo";
+import { DEFAULT_SITE_CONTENT, fetchSiteContent } from "@/lib/site-content-api";
 
 const manrope = Manrope({
     subsets: ["latin", "cyrillic"],
@@ -16,8 +20,10 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
+    metadataBase: new URL(getSiteUrl()),
     title: "Perfumer",
     description: "Perfumer store",
+    robots: getSiteDefaultRobots(),
     icons: {
         icon: [
             { url: "/favicon.svg", type: "image/svg+xml" },
@@ -25,15 +31,27 @@ export const metadata: Metadata = {
     },
 };
 
-export default function RootLayout({
-                                       children,
-                                   }: Readonly<{
+export default async function RootLayout({
+                                               children,
+                                           }: Readonly<{
     children: React.ReactNode;
 }>) {
+    let organizationLd: ReturnType<typeof organizationJsonLd> | ReturnType<typeof localBusinessJsonLd> =
+        organizationJsonLd();
+    let siteContent = DEFAULT_SITE_CONTENT;
+    try {
+        const site = await fetchSiteContent();
+        siteContent = site.data;
+        organizationLd = localBusinessJsonLd(siteContent);
+    } catch {
+        /* API недоступен — дефолты и базовый Organization */
+    }
+
     return (
         <html lang="ru" suppressHydrationWarning>
         <body className={`${manrope.variable} ${cormorant.variable}`}>
-        <Providers>
+        <JsonLd data={[organizationLd, webSiteJsonLd()]} />
+        <Providers siteContent={siteContent}>
             <AppShell>{children}</AppShell>
         </Providers>
         </body>

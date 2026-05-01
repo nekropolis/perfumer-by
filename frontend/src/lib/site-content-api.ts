@@ -21,6 +21,19 @@ export type SiteContentResponse = {
     data: SiteContent;
 };
 
+/** Совпадает с дефолтами бэкенда `ShopSettingService` / админки — если API недоступен. */
+export const DEFAULT_SITE_CONTENT: SiteContent = {
+    delivery_minsk_free_threshold: 50,
+    delivery_minsk_fee: 3,
+    delivery_belarus_fee: 6,
+    delivery_belarus_free_min_lines: 2,
+    contact_phone_mts: "+375336408833",
+    contact_phone_a1: "+375296408833",
+    contact_phone_life: "+375256408833",
+    contact_telegram_url: "https://t.me/perfumer_support",
+    contact_viber_url: "viber://chat?number=%2B375296408833",
+};
+
 let siteContentRequest: Promise<SiteContentResponse> | null = null;
 
 export async function fetchSiteContent(): Promise<SiteContentResponse> {

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
+import JsonLd from "@/components/seo/json-ld";
 import { apiFetch } from "@/lib/api";
+import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import ProductCard from "@/components/product/product-card";
 import type { ProductListItem } from "@/types/catalog";
 
@@ -57,15 +59,15 @@ export default async function SearchPage({
     const brands = data?.data?.brands ?? [];
     const products = data?.data?.products ?? [];
 
+    const crumbs = [
+        { label: "Главная", href: "/" },
+        { label: "Поиск" },
+    ] as const;
+
     return (
         <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
-            <Breadcrumbs
-                className="mb-4"
-                items={[
-                    { label: "Главная", href: "/" },
-                    { label: "Поиск" },
-                ]}
-            />
+            <JsonLd data={breadcrumbListJsonLd([...crumbs])} />
+            <Breadcrumbs className="mb-4" items={[...crumbs]} />
 
             <h1 className="text-3xl font-semibold sm:text-4xl">Поиск</h1>
             <p className="mt-2 text-sm text-gray-500">

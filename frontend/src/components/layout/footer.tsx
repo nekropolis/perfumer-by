@@ -1,6 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useSiteContent } from "@/components/layout/site-content-context";
+import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
 
 export default function Footer() {
+    const site = useSiteContent();
+
+    const phones = [
+        { label: "МТС", value: site.contact_phone_mts },
+        { label: "A1", value: site.contact_phone_a1 },
+        { label: "life", value: site.contact_phone_life },
+    ];
+
     return (
         <footer className="border-t border-[var(--line)] bg-[var(--background)]">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -15,18 +27,13 @@ export default function Footer() {
                         </div>
 
                         <div className="space-y-2 text-sm text-[var(--foreground)]">
-                            <a href="tel:+375296408833" className="block hover:underline">
-                                +375 (29/33/25) 640-88-33
-                            </a>
-                            <a href="tel:+375296408833" className="block hover:underline">
-                                anystore +375 (29) 640-88-33
-                            </a>
-                            <a href="tel:+375336408833" className="block hover:underline">
-                                anystore +375 (33) 640-88-33
-                            </a>
-                            <a href="tel:+375256408833" className="block hover:underline">
-                                anystore +375 (25) 640-88-33
-                            </a>
+                            {phones.map(({ label, value }) => (
+                                <a key={label} href={telHref(value)} className="block hover:underline">
+                                    Perfumer{" "}
+                                    <span className="text-[var(--text-secondary)]">{label}</span>{" "}
+                                    {formatBelarusDisplay(value)}
+                                </a>
+                            ))}
                         </div>
                     </div>
 
@@ -74,7 +81,7 @@ export default function Footer() {
                             <Link href="#" className="hover:underline">
                                 Партнёры
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="/sitemap" className="hover:underline">
                                 Карта сайта
                             </Link>
                         </div>
@@ -82,13 +89,22 @@ export default function Footer() {
                 </div>
 
                 {/* BOTTOM */}
-                <div className="mt-12 border-t border-[var(--line)] pt-6 text-sm text-[var(--text-secondary)] flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+                <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--line)] pt-6 text-center text-sm text-[var(--text-secondary)] sm:flex-row sm:text-left">
                     <div>
                         ©{" "}
                         <span suppressHydrationWarning>{new Date().getFullYear()}</span>{" "}
                         Perfumer
                     </div>
-                    <div>Все права защищены</div>
+                    <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+                        <Link
+                            href="/sitemap"
+                            className="text-[var(--foreground)] underline-offset-4 transition hover:text-[var(--accent)] hover:underline"
+                        >
+                            Карта сайта
+                        </Link>
+                        <span className="hidden text-[var(--line)] sm:inline">·</span>
+                        <span>Все права защищены</span>
+                    </div>
                 </div>
             </div>
         </footer>

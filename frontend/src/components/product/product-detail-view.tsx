@@ -9,6 +9,7 @@ import { addToCart } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { useAuth } from "@/components/auth/auth-provider";
+import { getProductBreadcrumbItems } from "@/lib/product-breadcrumbs";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
@@ -289,17 +290,7 @@ export default function ProductDetailView({ product }: Props) {
 
     return (
         <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-            <Breadcrumbs
-                className="mb-4"
-                items={[
-                    { label: "Главная", href: "/" },
-                    { label: "Каталог", href: "/catalog" },
-                    ...(product.brand
-                        ? [{ label: product.brand.name, href: `/brands/${product.brand.slug}` }]
-                        : []),
-                    { label: product.name },
-                ]}
-            />
+            <Breadcrumbs className="mb-4" items={getProductBreadcrumbItems(product)} />
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
@@ -492,7 +483,12 @@ export default function ProductDetailView({ product }: Props) {
                 </aside>
 
                 <section className="md:col-span-2 xl:col-span-2">
-                    <ProductServiceInfo />
+                    <ProductServiceInfo
+                        productId={product.id}
+                        productName={product.name}
+                        variantId={selectedVariant?.id ?? null}
+                        variantTitle={selectedVariant?.display_name ?? null}
+                    />
                 </section>
 
                 <section className="min-w-0 md:col-span-2 xl:col-span-2">
@@ -534,8 +530,11 @@ export default function ProductDetailView({ product }: Props) {
 
                         <div className="p-5 sm:p-6">
                             <div className={activeTab === "attributes" ? "block" : "hidden"}>
+                                <h2 id="product-specs-heading" className="sr-only">
+                                    Характеристики
+                                </h2>
                                 {product.attribute_values.length > 0 ? (
-                                    <div className="space-y-3">
+                                    <dl className="space-y-3" aria-labelledby="product-specs-heading">
                                         {product.attribute_values.map((item) => {
                                             const label = item.attribute?.name || "Характеристика";
 
@@ -549,12 +548,12 @@ export default function ProductDetailView({ product }: Props) {
                                                     key={item.id}
                                                     className="grid grid-cols-1 gap-1 border-b border-[var(--line)] pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr] sm:gap-4"
                                                 >
-                                                    <div className="text-sm text-[var(--text-secondary)]">{label}</div>
-                                                    <div className="text-sm">{valueText}</div>
+                                                    <dt className="text-sm text-[var(--text-secondary)]">{label}</dt>
+                                                    <dd className="text-sm text-[var(--foreground)]">{valueText}</dd>
                                                 </div>
                                             );
                                         })}
-                                    </div>
+                                    </dl>
                                 ) : (
                                     <div className="text-sm text-[var(--text-secondary)]">Характеристики отсутствуют</div>
                                 )}
