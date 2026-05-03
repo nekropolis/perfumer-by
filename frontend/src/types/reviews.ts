@@ -18,3 +18,21 @@ export type ReviewItem = {
 export type ReviewsListResponse = {
     data: ReviewItem[];
 };
+
+export type ReviewStatsByStars = {
+    "5": number;
+    "4": number;
+    "3": number;
+    "2": number;
+    "1": number;
+};
+
+export type PublishedReviewStats = {
+    total: number;
+    average: number | null;
+    by_stars: ReviewStatsByStars;
+};
+
+export type ReviewStatsResponse = {
+    data: PublishedReviewStats;
+};

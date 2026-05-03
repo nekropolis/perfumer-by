@@ -9,6 +9,7 @@ import {
     submitStoreReview,
     type ReviewItem,
 } from "@/lib/reviews-api";
+import { formatReviewDateRu, normalizeReviewItem } from "@/lib/review-text-display";
 import { executeRecaptchaV3, loadRecaptchaScript } from "@/lib/recaptcha-v3";
 import { useReviewFormModalEffects } from "@/hooks/use-review-form-modal-effects";
 import ReviewFormModal from "@/components/reviews/review-form-modal";
@@ -22,45 +23,48 @@ const STORE_REVIEWS_PAGE_SIZE = 5;
 
 type Props = {
     initialReviews: ReviewItem[];
+    /** Совпадает с `limit` первого запроса на сервере; дальше подгрузка тем же шагом. */
+    pageSize?: number;
     /** Модалка открывается с родителя (кнопка на странице) */
     formOpen?: boolean;
     onFormOpenChangeAction?: (open: boolean) => void;
     onSubmitSuccessMessageAction?: (message: string) => void;
     /** Скрыть карточку «Оставить отзыв» (кнопка вынесена в page) */
     hideHero?: boolean;
+    /** Фильтр по числу звёзд (серверный `?stars=`) */
+    starsFilter?: number | null;
+    onClearStarsFilterAction?: () => void;
 };
 
-function formatReviewDate(iso: string | null): string {
-    if (!iso) return "";
-    try {
-        return new Intl.DateTimeFormat("ru-RU", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-        }).format(new Date(iso));
-    } catch {
-        return iso;
-    }
+function starsFilterLabel(stars: number): string {
+    if (stars === 1) return "1 звезда";
+    if (stars >= 2 && stars <= 4) return `${stars} звезды`;
+    return "5 звёзд";
 }
 
 export default function StoreReviewsView({
     initialReviews,
+    pageSize: pageSizeProp,
     formOpen: formOpenProp,
     onFormOpenChangeAction,
     onSubmitSuccessMessageAction,
     hideHero = false,
+    starsFilter: starsFilterProp,
+    onClearStarsFilterAction,
 }: Props) {
+    const pageSize = pageSizeProp ?? STORE_REVIEWS_PAGE_SIZE;
+    const starsFilter = starsFilterProp ?? null;
     const router = useRouter();
     const formId = useId();
     const nameId = `${formId}-name`;
     const textId = `${formId}-text`;
     const firstFieldRef = useRef<HTMLInputElement>(null);
 
-    const [reviews, setReviews] = useState<ReviewItem[]>(initialReviews);
+    const [reviews, setReviews] = useState<ReviewItem[]>(() => initialReviews.map(normalizeReviewItem));
     const [listLoading, setListLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const nextOffsetRef = useRef(initialReviews.length);
-    const hasMoreRef = useRef(initialReviews.length === STORE_REVIEWS_PAGE_SIZE);
+    const hasMoreRef = useRef(initialReviews.length === pageSize);
     const loadingMoreRef = useRef(false);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -88,26 +92,43 @@ export default function StoreReviewsView({
 
     const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY?.trim() || "";
 
+    const skipInitialNullFilterFetch = useRef(true);
+
     useEffect(() => {
-        setReviews(initialReviews);
+        if (starsFilter !== null) {
+            return;
+        }
+        setReviews(initialReviews.map(normalizeReviewItem));
         nextOffsetRef.current = initialReviews.length;
-        hasMoreRef.current = initialReviews.length === STORE_REVIEWS_PAGE_SIZE;
-    }, [initialReviews]);
+        hasMoreRef.current = initialReviews.length === pageSize;
+    }, [initialReviews, pageSize, starsFilter]);
+
+    const fetchFirstPage = useCallback(async () => {
+        setListLoading(true);
+        try {
+            const res = await fetchStoreReviews(pageSize, 0, starsFilter ? { stars: starsFilter } : undefined);
+            const data = res.data ?? [];
+            setReviews(data.map(normalizeReviewItem));
+            nextOffsetRef.current = data.length;
+            hasMoreRef.current = data.length === pageSize;
+        } catch {
+            /* ignore */
+        } finally {
+            setListLoading(false);
+        }
+    }, [pageSize, starsFilter]);
+
+    useEffect(() => {
+        if (starsFilter === null && skipInitialNullFilterFetch.current) {
+            skipInitialNullFilterFetch.current = false;
+            return;
+        }
+        void fetchFirstPage();
+    }, [starsFilter, fetchFirstPage]);
 
     const reload = useCallback(() => {
-        setListLoading(true);
-        fetchStoreReviews(STORE_REVIEWS_PAGE_SIZE, 0)
-            .then((res) => {
-                const data = res.data ?? [];
-                setReviews(data);
-                nextOffsetRef.current = data.length;
-                hasMoreRef.current = data.length === STORE_REVIEWS_PAGE_SIZE;
-            })
-            .catch(() => {
-                /* ignore */
-            })
-            .finally(() => setListLoading(false));
-    }, []);
+        void fetchFirstPage();
+    }, [fetchFirstPage]);
 
     const loadMore = useCallback(async () => {
         if (!hasMoreRef.current || loadingMoreRef.current) {
@@ -116,7 +137,11 @@ export default function StoreReviewsView({
         loadingMoreRef.current = true;
         setLoadingMore(true);
         try {
-            const res = await fetchStoreReviews(STORE_REVIEWS_PAGE_SIZE, nextOffsetRef.current);
+            const res = await fetchStoreReviews(
+                pageSize,
+                nextOffsetRef.current,
+                starsFilter ? { stars: starsFilter } : undefined,
+            );
             const batch = res.data ?? [];
             if (batch.length === 0) {
                 hasMoreRef.current = false;
@@ -124,18 +149,18 @@ export default function StoreReviewsView({
             }
             setReviews((prev) => {
                 const seen = new Set(prev.map((r) => r.id));
-                const merged = batch.filter((r) => !seen.has(r.id));
+                const merged = batch.filter((r) => !seen.has(r.id)).map(normalizeReviewItem);
                 return merged.length ? [...prev, ...merged] : prev;
             });
             nextOffsetRef.current += batch.length;
-            hasMoreRef.current = batch.length === STORE_REVIEWS_PAGE_SIZE;
+            hasMoreRef.current = batch.length === pageSize;
         } catch {
             /* ignore */
         } finally {
             loadingMoreRef.current = false;
             setLoadingMore(false);
         }
-    }, []);
+    }, [pageSize, starsFilter]);
 
     useEffect(() => {
         const el = sentinelRef.current;
@@ -277,33 +302,57 @@ export default function StoreReviewsView({
                     ? { "aria-label": "Опубликованные отзывы" }
                     : { "aria-labelledby": `${formId}-list-title` })}
             >
-                <div
-                    className={`mb-4 flex flex-wrap items-end gap-3 ${hideHero ? "justify-end" : "justify-between"}`}
-                >
-                    {!hideHero ? (
-                        <h2 id={`${formId}-list-title`} className="text-lg font-semibold text-[var(--foreground)]">
-                            Отзывы покупателей
-                        </h2>
-                    ) : null}
-                    {listLoading && <span
-                        className="text-sm text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-50"
-                    >Обновление…</span>}
-                </div>
+                {hideHero && starsFilter !== null && onClearStarsFilterAction ? (
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm">
+                        <span className="text-[var(--foreground)]">
+                            Показаны отзывы:{" "}
+                            <span className="font-semibold">{starsFilterLabel(starsFilter)}</span>
+                        </span>
+                        <button
+                            type="button"
+                            onClick={onClearStarsFilterAction}
+                            className="shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                        >
+                            Показать все
+                        </button>
+                    </div>
+                ) : null}
+                {!hideHero || listLoading ? (
+                    <div
+                        className={`mb-4 flex flex-wrap items-end gap-3 ${hideHero ? "justify-end" : "justify-between"}`}
+                    >
+                        {!hideHero ? (
+                            <h2 id={`${formId}-list-title`} className="text-lg font-semibold text-[var(--foreground)]">
+                                Отзывы покупателей
+                            </h2>
+                        ) : null}
+                        {listLoading ? (
+                            <span className="text-sm text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-50">
+                                Обновление…
+                            </span>
+                        ) : null}
+                    </div>
+                ) : null}
 
                 {reviews.length === 0 ? (
-                    <p className="text-sm text-[var(--text-secondary)]">Пока нет опубликованных отзывов.</p>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                        {starsFilter !== null
+                            ? "Нет опубликованных отзывов с выбранной оценкой."
+                            : "Пока нет опубликованных отзывов."}
+                    </p>
                 ) : (
                     <ul className="space-y-5">
                         {reviews.map((item) => (
                             <li
                                 key={item.id}
-                                className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6"
+                                id={`store-review-${item.id}`}
+                                className="scroll-mt-24 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6"
                             >
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-sm font-semibold text-[var(--foreground)]">{item.name}</span>
-                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDate(item.created_at)}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
-                                <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
+                                <div className="mb-2 flex gap-0.5 text-amber-400" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
                                         <Star
                                             key={i}
@@ -322,7 +371,7 @@ export default function StoreReviewsView({
                                         </div>
                                         {item.reply.replied_at ? (
                                             <p className="mb-2 text-xs text-[var(--text-secondary)]">
-                                                {formatReviewDate(item.reply.replied_at)}
+                                                {formatReviewDateRu(item.reply.replied_at)}
                                             </p>
                                         ) : null}
                                         <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{item.reply.text}</p>

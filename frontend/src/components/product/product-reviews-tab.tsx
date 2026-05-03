@@ -6,11 +6,12 @@ import {
     ApiRequestError,
     fetchProductReviews,
     submitProductReview,
-    type ReviewItem,
 } from "@/lib/reviews-api";
+import type { ReviewItem } from "@/types/reviews";
 import { executeRecaptchaV3, loadRecaptchaScript } from "@/lib/recaptcha-v3";
 import { useReviewFormModalEffects } from "@/hooks/use-review-form-modal-effects";
 import ReviewFormModal from "@/components/reviews/review-form-modal";
+import { formatReviewDateRu, normalizeReviewItem } from "@/lib/review-text-display";
 
 const RECAPTCHA_ACTION = "submit_review";
 const MIN_TEXT = 15;
@@ -21,28 +22,19 @@ const MAX_NAME = 100;
 type Props = {
     productId: number;
     isActive: boolean;
+    /** SSR: начальное состояние списка (дублирование в HTML для SEO — в `page.tsx`, `ProductReviewsSeoHtml`). */
+    initialReviews?: ReviewItem[];
 };
 
-function formatReviewDate(iso: string | null): string {
-    if (!iso) return "";
-    try {
-        return new Intl.DateTimeFormat("ru-RU", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-        }).format(new Date(iso));
-    } catch {
-        return iso;
-    }
-}
-
-export default function ProductReviewsTab({ productId, isActive }: Props) {
+export default function ProductReviewsTab({ productId, isActive, initialReviews }: Props) {
     const formId = useId();
     const nameId = `${formId}-name`;
     const textId = `${formId}-text`;
     const firstFieldRef = useRef<HTMLInputElement>(null);
 
-    const [reviews, setReviews] = useState<ReviewItem[]>([]);
+    const [reviews, setReviews] = useState<ReviewItem[]>(() =>
+        (initialReviews ?? []).map(normalizeReviewItem),
+    );
     const [listLoading, setListLoading] = useState(false);
     const [listError, setListError] = useState<string | null>(null);
 
@@ -61,12 +53,16 @@ export default function ProductReviewsTab({ productId, isActive }: Props) {
         setListLoading(true);
         setListError(null);
         fetchProductReviews(productId)
-            .then((res) => setReviews(res.data))
+            .then((res) => setReviews(res.data.map(normalizeReviewItem)))
             .catch((e: unknown) => {
                 setListError(e instanceof Error ? e.message : "Ошибка загрузки");
             })
             .finally(() => setListLoading(false));
     }, [productId]);
+
+    useEffect(() => {
+        setReviews((initialReviews ?? []).map(normalizeReviewItem));
+    }, [productId, initialReviews]);
 
     useEffect(() => {
         if (!isActive) {
@@ -197,9 +193,9 @@ export default function ProductReviewsTab({ productId, isActive }: Props) {
                             >
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-sm font-medium text-[var(--foreground)]">{item.name}</span>
-                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDate(item.created_at)}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
-                                <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
+                                <div className="mb-2 flex gap-0.5 text-amber-400" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
                                         <Star
                                             key={i}
@@ -217,7 +213,7 @@ export default function ProductReviewsTab({ productId, isActive }: Props) {
                                         </div>
                                         {item.reply.replied_at ? (
                                             <p className="mb-1 text-xs text-[var(--text-secondary)]">
-                                                {formatReviewDate(item.reply.replied_at)}
+                                                {formatReviewDateRu(item.reply.replied_at)}
                                             </p>
                                         ) : null}
                                         <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">

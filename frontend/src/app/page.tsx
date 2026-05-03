@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import HomeTemplate from "@/components/home/home-template";
+import JsonLd from "@/components/seo/json-ld";
 import { fetchCmsPageBySlug } from "@/lib/cms-pages-api";
+import {
+    faqPageJsonLd,
+    homeStoreJsonLd,
+    HOME_PAGE_FAQ_ITEMS,
+    HOME_STORE_REVIEWS_ON_HOME_LIMIT,
+    storeReviewItemsToHomeSnippets,
+    type HomePageReviewSnippet,
+} from "@/lib/json-ld";
+import { fetchStoreReviews } from "@/lib/reviews-api";
 import { buildSeoMetadata } from "@/lib/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,5 +36,23 @@ export default async function HomePage() {
     const heroDescription = page?.seo_description || "Интернет-магазин парфюмерии с доставкой по Минску и всей Беларуси.";
     const contentHtml = page?.content || "";
 
-    return <HomeTemplate heroTitle={heroTitle} heroDescription={heroDescription} contentHtml={contentHtml} />;
+    let storeReviews: HomePageReviewSnippet[] = [];
+    try {
+        const reviewsRes = await fetchStoreReviews(HOME_STORE_REVIEWS_ON_HOME_LIMIT, 0);
+        storeReviews = storeReviewItemsToHomeSnippets(reviewsRes.data);
+    } catch {
+        /* API недоступен или нет отзывов — главная без блока отзывов в JSON-LD */
+    }
+
+    return (
+        <>
+            <JsonLd data={[homeStoreJsonLd(storeReviews), faqPageJsonLd(HOME_PAGE_FAQ_ITEMS)]} />
+            <HomeTemplate
+                heroTitle={heroTitle}
+                heroDescription={heroDescription}
+                contentHtml={contentHtml}
+                storeReviews={storeReviews}
+            />
+        </>
+    );
 }

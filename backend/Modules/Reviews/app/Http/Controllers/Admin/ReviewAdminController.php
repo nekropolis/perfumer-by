@@ -40,7 +40,14 @@ class ReviewAdminController extends Controller
 
         if (! empty($validated['search'])) {
             $search = trim((string) $validated['search']);
-            $query->where('name', 'like', LikePattern::wrapContains($search));
+            $like = LikePattern::wrapContains($search);
+            $query->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                    ->orWhereHas('product', function ($pq) use ($like) {
+                        $pq->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like);
+                    });
+            });
         }
 
         if (! empty($validated['status'])) {

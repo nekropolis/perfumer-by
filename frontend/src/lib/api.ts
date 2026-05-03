@@ -1,5 +1,5 @@
 /** Laravel API base (…/api). На SSR приоритет у API_URL / INTERNAL_API_URL, иначе NEXT_PUBLIC_API_URL. */
-function getApiBase(): string {
+export function getApiBase(): string {
     const isBrowser = typeof window !== "undefined";
     const internal = process.env.API_URL?.trim() || process.env.INTERNAL_API_URL?.trim();
     const pub = process.env.NEXT_PUBLIC_API_URL?.trim();

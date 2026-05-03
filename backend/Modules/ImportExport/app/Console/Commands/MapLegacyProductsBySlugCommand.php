@@ -5,6 +5,7 @@ namespace Modules\ImportExport\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
+use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 
 class MapLegacyProductsBySlugCommand extends Command
 {
@@ -101,7 +102,7 @@ class MapLegacyProductsBySlugCommand extends Command
                 );
             });
 
-            $this->syncLegacyUnmatchedProductsTable($unmatchedRows);
+            $this->syncLegacyUnmatchedProductsTable($unmatchedRows, $dumpPath);
 
             if ($syncFields && $matchedIds !== []) {
                 foreach ($matchedIds as $legacyProductId => $productId) {
@@ -585,7 +586,7 @@ class MapLegacyProductsBySlugCommand extends Command
     /**
      * @param  list<array<string, mixed>>  $unmatchedRows
      */
-    private function syncLegacyUnmatchedProductsTable(array $unmatchedRows): void
+    private function syncLegacyUnmatchedProductsTable(array $unmatchedRows, string $dumpPath): void
     {
         if (! DB::getSchemaBuilder()->hasTable('legacy_unmatched_products')) {
             return;
@@ -612,21 +613,70 @@ class MapLegacyProductsBySlugCommand extends Command
             $rowsToUpsert[] = $row;
         }
 
-        if ($rowsToUpsert !== []) {
-            DB::table('legacy_unmatched_products')->upsert(
-                $rowsToUpsert,
-                ['legacy_product_id'],
-                [
-                    'legacy_slug',
-                    'legacy_name',
-                    'legacy_description',
-                    'legacy_meta_title',
-                    'legacy_meta_description',
-                    'legacy_meta_keyword',
-                    'status',
-                    'updated_at',
-                ]
-            );
+        if ($rowsToUpsert === []) {
+            return;
         }
+
+        $legacyIdsForUpsert = array_map(static fn (array $row): int => (int) $row['legacy_product_id'], $rowsToUpsert);
+        $idSet = array_flip($legacyIdsForUpsert);
+
+        $extractor = new LegacyDumpOcReviewExtractor;
+        $reviewsByProductId = [];
+        foreach ($extractor->extractAll($dumpPath) as $rev) {
+            $pid = (int) $rev['legacy_product_id'];
+            if ($pid === 0 || ! isset($idSet[$pid])) {
+                continue;
+            }
+            $reviewsByProductId[$pid][] = $extractor->toStagedPayload($rev);
+        }
+
+        $existingReviewsByProduct = DB::table('legacy_unmatched_products')
+            ->whereIn('legacy_product_id', $legacyIdsForUpsert)
+            ->pluck('legacy_reviews', 'legacy_product_id')
+            ->all();
+
+        foreach ($rowsToUpsert as $i => $row) {
+            $legacyId = (int) $row['legacy_product_id'];
+            $merged = $this->mergeStagedReviewPayloads(
+                LegacyDumpOcReviewExtractor::decodeStagedReviewsJson($existingReviewsByProduct[$legacyId] ?? '[]'),
+                $reviewsByProductId[$legacyId] ?? []
+            );
+            $rowsToUpsert[$i]['legacy_reviews'] = json_encode(array_values($merged), JSON_UNESCAPED_UNICODE);
+        }
+
+        DB::table('legacy_unmatched_products')->upsert(
+            $rowsToUpsert,
+            ['legacy_product_id'],
+            [
+                'legacy_slug',
+                'legacy_name',
+                'legacy_description',
+                'legacy_meta_title',
+                'legacy_meta_description',
+                'legacy_meta_keyword',
+                'legacy_reviews',
+                'status',
+                'updated_at',
+            ]
+        );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $a
+     * @param  list<array<string, mixed>>  $b
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeStagedReviewPayloads(array $a, array $b): array
+    {
+        $byReviewId = [];
+        foreach (array_merge($a, $b) as $item) {
+            $rid = (int) ($item['legacy_review_id'] ?? 0);
+            if ($rid <= 0) {
+                continue;
+            }
+            $byReviewId[$rid] = $item;
+        }
+
+        return $byReviewId;
     }
 }

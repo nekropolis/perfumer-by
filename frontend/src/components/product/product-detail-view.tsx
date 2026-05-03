@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ProductDetailData, ProductImageData, ProductListItem, ProductVariantData } from "@/types/catalog";
+import type { ReviewItem } from "@/types/reviews";
 import { useTransition } from "react";
 import { addToCart } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
@@ -26,6 +27,8 @@ const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
 
 type Props = {
     product: ProductDetailData;
+    /** SSR: начальное состояние вкладки; для view-source/SEO — `ProductReviewsSeoHtml` в `page.tsx`. */
+    initialProductReviews?: ReviewItem[];
 };
 
 function formatPrice(price: string | null) {
@@ -228,9 +231,10 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
     );
 }
 
-export default function ProductDetailView({ product }: Props) {
+export default function ProductDetailView({ product, initialProductReviews }: Props) {
     const [isPending, startTransition] = useTransition();
-    const [activeTab, setActiveTab] = useState<"attributes" | "description" | "reviews">("attributes");
+    const [activeTab, setActiveTab] = useState<"attributes" | "reviews">("attributes");
+    const reviewsTabCount = initialProductReviews?.length ?? 0;
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
@@ -252,7 +256,7 @@ export default function ProductDetailView({ product }: Props) {
     }, [variants, selectedVariantId]);
     const isSelectedVariantInCart = Boolean(
         selectedVariant?.id &&
-            cart?.items?.some((item) => item.product_variant_id === selectedVariant.id)
+        cart?.items?.some((item) => item.product_variant_id === selectedVariant.id)
     );
     const selectedVariantHasDiscount = Boolean(
         selectedVariant &&
@@ -383,11 +387,10 @@ export default function ProductDetailView({ product }: Props) {
                     <button
                         type="button"
                         onClick={() => void toggleWishlist(product.id)}
-                        className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
-                            isInWishlist(product.id)
+                        className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${isInWishlist(product.id)
                                 ? "border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-95"
                                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--background)]"
-                        }`}
+                            }`}
                     >
                         <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
                         <span>{isInWishlist(product.id) ? "В избранном" : "В избранное"}</span>
@@ -498,11 +501,13 @@ export default function ProductDetailView({ product }: Props) {
 
                 <section className="min-w-0 md:col-span-2 xl:col-span-2">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)]">
-                        <div className="flex overflow-x-auto border-b border-[var(--line)]">
+                        <div className="flex overflow-x-auto border-b border-[var(--line)]" role="tablist" aria-label="Информация о товаре">
                             <button
                                 type="button"
+                                role="tab"
+                                aria-selected={activeTab === "attributes"}
                                 onClick={() => setActiveTab("attributes")}
-                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "attributes"
+                                className={`shrink-0 whitespace-nowrap px-6 py-4 text-sm font-medium ${activeTab === "attributes"
                                     ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
                                     : "text-[var(--text-secondary)]"
                                     }`}
@@ -512,29 +517,30 @@ export default function ProductDetailView({ product }: Props) {
 
                             <button
                                 type="button"
-                                onClick={() => setActiveTab("description")}
-                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "description"
-                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
-                                    : "text-[var(--text-secondary)]"
-                                    }`}
-                            >
-                                Описание
-                            </button>
-
-                            <button
-                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
-                                className={`shrink-0 px-6 py-4 text-sm font-medium ${activeTab === "reviews"
+                                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-6 py-4 text-sm font-medium ${activeTab === "reviews"
                                     ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
                                     : "text-[var(--text-secondary)]"
                                     }`}
                             >
-                                Отзывы
+                                <span>Отзывы</span>
+                                <span
+                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold tabular-nums text-white"
+                                    aria-label={`${reviewsTabCount} отзывов`}
+                                >
+                                    {reviewsTabCount}
+                                </span>
                             </button>
                         </div>
 
                         <div className="p-5 sm:p-6">
-                            <div className={activeTab === "attributes" ? "block" : "hidden"}>
+                            <div
+                                className={activeTab === "attributes" ? "block" : "hidden"}
+                                role="tabpanel"
+                                aria-hidden={activeTab !== "attributes"}
+                            >
                                 <h2 id="product-specs-heading" className="sr-only">
                                     Характеристики
                                 </h2>
@@ -564,28 +570,34 @@ export default function ProductDetailView({ product }: Props) {
                                 )}
                             </div>
 
-                            <div className={activeTab === "description" ? "block" : "hidden"}>
-                                {product.description ? (
+                            <div
+                                className={activeTab === "reviews" ? "block" : "hidden"}
+                                role="tabpanel"
+                                aria-hidden={activeTab !== "reviews"}
+                            >
+                                <ProductReviewsTab
+                                    productId={product.id}
+                                    isActive={activeTab === "reviews"}
+                                    initialReviews={initialProductReviews}
+                                />
+                            </div>
+
+                            {product.description ? (
+                                <section
+                                    className="mt-8 border-t border-[var(--line)] pt-8"
+                                    aria-labelledby="product-description-heading"
+                                >
+                                    <h2
+                                        id="product-description-heading"
+                                        className="mt-3 mb-3 text-base font-semibold text-[var(--foreground)]"
+                                    >
+                                        Описание продукта
+                                    </h2>
                                     <div
                                         className="prose prose-sm max-w-none text-[var(--foreground)] sm:prose-base"
                                         dangerouslySetInnerHTML={{ __html: product.description }}
                                     />
-                                ) : (
-                                    <div className="text-sm text-[var(--text-secondary)]">Описание отсутствует</div>
-                                )}
-                            </div>
-
-                            <div className={activeTab === "reviews" ? "block" : "hidden"}>
-                                <ProductReviewsTab productId={product.id} isActive={activeTab === "reviews"} />
-                            </div>
-
-                            {/* Keep description in initial HTML output for SEO crawlers even when Attributes tab is active. */}
-                            {activeTab !== "description" && product.description ? (
-                                <div
-                                    className="sr-only"
-                                    aria-hidden="true"
-                                    dangerouslySetInnerHTML={{ __html: product.description }}
-                                />
+                                </section>
                             ) : null}
                         </div>
                     </div>

@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
+use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 use Modules\Reviews\Models\Review;
 
 class LegacyUnmatchedProductAdminController extends Controller
@@ -198,10 +199,7 @@ class LegacyUnmatchedProductAdminController extends Controller
                 'seo_keyword' => $target->seo_keyword,
             ];
 
-            $legacyReviews = json_decode((string) ($legacy->legacy_reviews ?? '[]'), true);
-            if (! is_array($legacyReviews)) {
-                $legacyReviews = [];
-            }
+            $legacyReviews = LegacyDumpOcReviewExtractor::decodeStagedReviewsJson($legacy->legacy_reviews ?? '[]');
             foreach ($legacyReviews as $legacyReview) {
                 $legacyReviewId = (int) ($legacyReview['legacy_review_id'] ?? 0);
                 if ($legacyReviewId <= 0) {

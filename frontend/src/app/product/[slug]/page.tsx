@@ -1,8 +1,11 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { fetchProductReviews } from "@/lib/reviews-api";
 import type { ProductDetailData, ProductDetailResponse } from "@/types/catalog";
+import type { ReviewItem } from "@/types/reviews";
 import ProductDetailView from "@/components/product/product-detail-view";
+import ProductReviewsSeoHtml from "@/components/product/product-reviews-seo-html";
 import type { Metadata } from "next";
 import JsonLd from "@/components/seo/json-ld";
 import { breadcrumbListJsonLd, productJsonLd } from "@/lib/json-ld";
@@ -71,10 +74,19 @@ export default async function ProductPage({ params }: Props) {
 
     const crumbs = getProductBreadcrumbItems(product);
 
+    let initialProductReviews: ReviewItem[] = [];
+    try {
+        const reviewsResponse = await fetchProductReviews(product.id);
+        initialProductReviews = reviewsResponse.data;
+    } catch {
+        // Страница товара не должна падать, если список отзывов недоступен.
+    }
+
     return (
         <>
-            <JsonLd data={[productJsonLd(product), breadcrumbListJsonLd(crumbs)]} />
-            <ProductDetailView product={product} />
+            <JsonLd data={[productJsonLd(product, initialProductReviews), breadcrumbListJsonLd(crumbs)]} />
+            <ProductReviewsSeoHtml reviews={initialProductReviews} />
+            <ProductDetailView product={product} initialProductReviews={initialProductReviews} />
         </>
     );
 }
