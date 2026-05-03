@@ -292,9 +292,20 @@ export default function VanilleProductsPage() {
                 d && d.offers_count === 0
                     ? " Вариантов (offers) на странице не найдено — товар может быть без цен/в ожидании; импорт всё равно создаст карточку без вариантов."
                     : "";
+            const imp = d?.import;
+            let importLine = "";
+            if (
+                imp &&
+                typeof imp.imported === "number" &&
+                typeof imp.updated === "number" &&
+                (imp.success === true || imp.imported > 0 || imp.updated > 0)
+            ) {
+                importLine = ` В каталоге: новых ${imp.imported}, обновлено ${imp.updated}.`;
+            }
             setCompletionNotice(
                 (data.message || "Готово.") +
                     (d?.file ? ` Файл: ${d.file}.` : "") +
+                    importLine +
                     extra
             );
             setSingleUrlInput("");
@@ -369,9 +380,10 @@ export default function VanilleProductsPage() {
 
                         <p className="text-xs text-gray-600">
                             «Парсинг нового товара» только скачивает карточки в JSON. Чтобы появились в каталоге,
-                            после завершения нажмите «Импортировать спарсенные товары». Режим «новые» теперь
-                            считает новыми только URL без привязанного товара в базе (раньше URL пропадал из очереди
-                            после одного парсинга без импорта).
+                            после завершения нажмите «Импортировать спарсенные товары». «Спарсить только этот URL»
+                            сразу пишет JSON и импортирует эту карточку в каталог (без полного импорта всех файлов).
+                            Режим «новые» теперь считает новыми только URL без привязанного товара в базе (раньше URL
+                            пропадал из очереди после одного парсинга без импорта).
                         </p>
 
                         <div className="flex flex-col gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-3 sm:flex-row sm:items-center">
@@ -389,7 +401,7 @@ export default function VanilleProductsPage() {
                                 disabled={singleUrlBusy}
                                 className="shrink-0 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
                             >
-                                {singleUrlBusy ? "Парсинг…" : "Спарсить только этот URL"}
+                                {singleUrlBusy ? "Парсинг и импорт…" : "Спарсить и импортировать этот URL"}
                             </button>
                         </div>
 

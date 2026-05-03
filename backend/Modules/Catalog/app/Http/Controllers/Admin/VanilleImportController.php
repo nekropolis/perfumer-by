@@ -100,9 +100,19 @@ class VanilleImportController extends Controller
             ], 422);
         }
 
+        $importResult = $service->importFromJsonFile((string) ($result['file_path'] ?? ''));
+        $importOk = (bool) ($importResult['success'] ?? false);
+        $payload = array_merge($result, ['import' => $importResult]);
+
+        $message = $importOk
+            ? 'Карточка сохранена и импортирована в каталог.'
+            : (($importResult['message'] ?? '') !== ''
+                ? (string) $importResult['message']
+                : 'Карточка сохранена, но импорт в каталог завершился с ошибками.');
+
         return response()->json([
-            'message' => 'Карточка сохранена в файл. Дальше нажмите «Импортировать спарсенные товары».',
-            'data' => $result,
+            'message' => $message,
+            'data' => $payload,
         ]);
     }
 

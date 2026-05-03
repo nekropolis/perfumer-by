@@ -212,6 +212,16 @@ export async function parseVanilleProducts(): Promise<{ message?: string; job: V
     );
 }
 
+export type VanilleParseSingleProductImportSummary = {
+    success?: boolean;
+    message?: string;
+    imported?: number;
+    updated?: number;
+    errors?: number;
+    items?: number;
+    log?: string[];
+};
+
 export type VanilleParseSingleProductResponse = {
     message?: string;
     data?: {
@@ -222,6 +232,7 @@ export type VanilleParseSingleProductResponse = {
         offers_count: number;
         log: string[];
         message?: string;
+        import?: VanilleParseSingleProductImportSummary;
     };
 };
 
