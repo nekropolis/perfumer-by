@@ -161,7 +161,7 @@ export default function ReviewsPageClient({ initialReviews, pageSize, children, 
                 </section>
                 <aside
                     ref={asideRef}
-                    className="mx-auto flex w-full max-w-sm shrink-0 flex-col md:mx-0 md:min-h-0 md:w-80 md:max-w-80 md:flex-none md:shrink-0 md:self-stretch"
+                    className="mx-auto flex w-full max-w-sm shrink-0 flex-col md:mx-0 md:min-h-0 md:w-100 md:max-w-100 md:flex-none md:shrink-0 md:self-stretch"
                 >
                     <div
                         ref={pinRef}
