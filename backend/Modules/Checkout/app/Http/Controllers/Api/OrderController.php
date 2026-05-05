@@ -76,6 +76,7 @@ class OrderController extends Controller
                     'orders' => ['completed' => 0, 'cancelled' => 0, 'active' => 0],
                     'delivery_cities' => [],
                     'discount_cards' => [],
+                    'completed_orders' => [],
                 ],
             ]);
         }
@@ -83,10 +84,11 @@ class OrderController extends Controller
         $suffix = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
 
         $orderRows = Order::query()
+            ->with(['items:id,order_id,product_name,variant_title,qty'])
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderByDesc('id')
             ->limit(800)
-            ->get(['id', 'status', 'delivery_city', 'phone'])
+            ->get(['id', 'status', 'delivery_city', 'phone', 'created_at', 'items_qty', 'total'])
             ->filter(fn (Order $o) => Phone::normalize((string) $o->phone) === $digits);
 
         $completed = $orderRows->whereIn('status', ['done', 'completed'])->count();
@@ -98,6 +100,25 @@ class OrderController extends Controller
             ->map(fn ($c) => trim((string) ($c ?? '')))
             ->filter(fn ($c) => $c !== '')
             ->unique()
+            ->values()
+            ->all();
+
+        $completedOrders = $orderRows
+            ->whereIn('status', ['done', 'completed'])
+            ->take(30)
+            ->map(static fn (Order $order): array => [
+                'id' => (int) $order->id,
+                'created_at' => optional($order->created_at)?->toIso8601String(),
+                'items_qty' => (int) ($order->items_qty ?? 0),
+                'total' => (string) $order->total,
+                'items' => $order->items->map(static function (OrderItem $item): array {
+                    return [
+                        'product_name' => (string) ($item->product_name ?? ''),
+                        'variant_title' => (string) ($item->variant_title ?? ''),
+                        'qty' => (int) ($item->qty ?? 0),
+                    ];
+                })->values()->all(),
+            ])
             ->values()
             ->all();
 
@@ -138,6 +159,7 @@ class OrderController extends Controller
                 ],
                 'delivery_cities' => $deliveryCities,
                 'discount_cards' => $cards,
+                'completed_orders' => $completedOrders,
             ],
         ]);
     }

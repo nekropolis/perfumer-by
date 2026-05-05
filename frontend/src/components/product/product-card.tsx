@@ -87,7 +87,7 @@ export default function ProductCard({
             href={`/product/${product.slug}`}
             className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] shadow-sm transition-all duration-200 hover:-translate-y-[2px] hover:shadow-md"
         >
-            <div className="relative aspect-video w-full overflow-hidden bg-[var(--background)] sm:aspect-[4/3.2]">
+            <div className="relative aspect-video w-full overflow-hidden bg-white p-2 sm:aspect-[4/3.2] sm:p-3">
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
@@ -120,7 +120,7 @@ export default function ProductCard({
                         fill
                         loading={eager ? "eager" : "lazy"}
                         sizes="(max-width: 640px) min(100vw, 28rem), (max-width: 1024px) 50vw, 280px"
-                        className="object-cover transition duration-300 group-hover:scale-[1.02]"
+                        className="object-contain transition duration-300 group-hover:scale-[1.01]"
                     />
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--surface)] text-[var(--text-secondary)]">
@@ -148,7 +148,7 @@ export default function ProductCard({
                 )}
             </div>
 
-            <div className="flex flex-1 flex-col p-4">
+            <div className="flex flex-1 flex-col border-t border-[var(--line)] bg-[var(--surface)] p-4">
                 {showBrand && product.brand?.name && (
                     <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">
                         {product.brand.name}

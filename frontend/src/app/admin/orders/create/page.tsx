@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminOrderCreateForm from "@/components/admin/orders/admin-order-create-form";
 
 export default function AdminOrderCreatePage() {
+  const searchParams = useSearchParams();
+  const phoneFromQuery = searchParams.get("phone") ?? "";
+
   return (
     <AdminPageCard>
       <Breadcrumbs
@@ -27,7 +31,7 @@ export default function AdminOrderCreatePage() {
         </Link>
       </div>
 
-      <AdminOrderCreateForm />
+      <AdminOrderCreateForm initialPhone={phoneFromQuery} />
     </AdminPageCard>
   );
 }

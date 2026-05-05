@@ -26,7 +26,7 @@ import {
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
-import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
+import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 
 function parseMoney(s: string): number {
@@ -55,6 +55,7 @@ export default function CheckoutPage() {
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
+    const [allowPlainPhone, setAllowPlainPhone] = useState(false);
     const [comment, setComment] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isPending, startTransition] = useTransition();
@@ -80,7 +81,7 @@ export default function CheckoutPage() {
     const [discountCardConflict, setDiscountCardConflict] = useState<string | null>(null);
     const [discountCardApplyError, setDiscountCardApplyError] = useState("");
 
-    const phoneIsValid = isBelarusPhoneComplete(phone);
+    const phoneIsValid = allowPlainPhone ? isPhoneDigitsComplete(phone) : isBelarusPhoneComplete(phone);
 
     useEffect(() => {
         if (!phone && user?.phone) {
@@ -160,7 +161,11 @@ export default function CheckoutPage() {
         setErrorMessage("");
 
         if (!phoneIsValid) {
-            setErrorMessage("Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX");
+            setErrorMessage(
+                allowPlainPhone
+                    ? "Введите номер только цифрами (минимум 5 цифр)"
+                    : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
+            );
             return;
         }
 
@@ -273,8 +278,35 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="mb-5">
-                        <label className="mb-2 block text-sm font-medium">Телефон *</label>
-                        <PhoneInput value={phone} onChangeAction={setPhone} />
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium">Телефон *</label>
+                            <label className="inline-flex cursor-pointer items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={allowPlainPhone}
+                                    onChange={(e) => {
+                                        setAllowPlainPhone(e.target.checked);
+                                        setPhone((prev) => prev.replace(/\D/g, ""));
+                                    }}
+                                    className="peer sr-only"
+                                />
+                                <span
+                                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                                        allowPlainPhone
+                                            ? "text-white"
+                                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                                    }`}
+                                    style={
+                                        allowPlainPhone
+                                            ? { backgroundColor: "#6f4a7e", borderColor: "#6f4a7e" }
+                                            : undefined
+                                    }
+                                >
+                                    Нет мобильного
+                                </span>
+                            </label>
+                        </div>
+                        <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
                     </div>
 
                     <fieldset className="mb-5">

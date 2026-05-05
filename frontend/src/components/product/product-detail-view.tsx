@@ -279,6 +279,29 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
         mainImage == null
             ? null
             : normalizeProductImageUrl(mainImage.path);
+    const [isImageLightboxOpen, setIsImageLightboxOpen] = useState(false);
+
+    useEffect(() => {
+        if (!isImageLightboxOpen) {
+            return;
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setIsImageLightboxOpen(false);
+            }
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener("keydown", onKeyDown);
+        };
+    }, [isImageLightboxOpen]);
 
     const handleAddToCart = () => {
         if (!selectedVariant?.id) return;
@@ -299,23 +322,32 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
-                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] shadow-sm">
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-white p-2 shadow-sm sm:p-3">
                         <ProductStatusLabels
                             isNew={Boolean(product.is_new)}
                             isHit={Boolean(product.is_hit)}
                             hasDiscount={selectedVariantHasDiscount}
                         />
                         {mainImageUrl ? (
-                            <Image
-                                src={mainImageUrl}
-                                loader={productImageLoader}
-                                alt={mainImage?.alt?.trim() || product.name}
-                                fill
-                                priority
-                                loading="eager"
-                                sizes="(max-width: 1280px) 100vw, 320px"
-                                className="object-cover"
-                            />
+                            <div className="h-full w-full">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsImageLightboxOpen(true)}
+                                    className="relative z-[1] block h-full w-full cursor-zoom-in"
+                                    aria-label="Открыть изображение в полном размере"
+                                >
+                                    <Image
+                                        src={mainImageUrl}
+                                        loader={productImageLoader}
+                                        alt={mainImage?.alt?.trim() || product.name}
+                                        fill
+                                        priority
+                                        loading="eager"
+                                        sizes="(max-width: 1280px) 100vw, 320px"
+                                        className="object-contain"
+                                    />
+                                </button>
+                            </div>
                         ) : (
                             <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--surface)] text-[var(--text-secondary)]">
                                 <div className="mb-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
@@ -354,15 +386,17 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                         onClick={() => setSelectedImageId(image.id)}
                                         className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-[var(--accent)] ring-1 ring-[var(--accent-soft)]" : "border-[var(--line)]"}`}
                                     >
-                                        <Image
-                                            src={thumbUrl}
-                                            loader={productImageLoader}
-                                            alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
-                                            fill
-                                            loading="eager"
-                                            sizes="96px"
-                                            className="object-cover"
-                                        />
+                                        <div className="relative h-full w-full bg-white p-1">
+                                            <Image
+                                                src={thumbUrl}
+                                                loader={productImageLoader}
+                                                alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
+                                                fill
+                                                loading="eager"
+                                                sizes="96px"
+                                                className="object-contain"
+                                            />
+                                        </div>
                                     </button>
                                 );
                             })}
@@ -603,6 +637,36 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     </div>
                 </section>
             </div>
+            {isImageLightboxOpen && mainImageUrl ? (
+                <div
+                    className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 p-3 sm:p-6"
+                    role="presentation"
+                    onClick={() => setIsImageLightboxOpen(false)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Изображение товара в полном размере"
+                        className="relative max-h-[96vh] max-w-[96vw] overflow-auto rounded-2xl bg-black/30 p-2 sm:p-3"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setIsImageLightboxOpen(false)}
+                            className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75"
+                            aria-label="Закрыть полноразмерное изображение"
+                        >
+                            ×
+                        </button>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={mainImageUrl}
+                            alt={mainImage?.alt?.trim() || product.name}
+                            className="block h-auto w-auto max-h-[92vh] max-w-[92vw]"
+                        />
+                    </div>
+                </div>
+            ) : null}
             {product.similar_products && product.similar_products.length >= SIMILAR_PRODUCTS_MIN_TO_SHOW ? (
                 <SimilarProductsCarousel products={product.similar_products} />
             ) : null}

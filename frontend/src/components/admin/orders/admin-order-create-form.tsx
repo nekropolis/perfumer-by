@@ -81,6 +81,22 @@ function isValidBelarusMobileNational(national: string): boolean {
   return ["25", "29", "33", "44"].includes(d.slice(0, 2));
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return value;
+  return dt.toLocaleString("ru-RU");
+}
+
+function totalOrdersCount(context: AdminOrderCustomerContext | null): number {
+  if (!context) return 0;
+  return (
+    Number(context.orders.completed || 0) +
+    Number(context.orders.cancelled || 0) +
+    Number(context.orders.active || 0)
+  );
+}
+
 function emptyLine(): OrderLine {
   return {
     product_id: null,
@@ -166,6 +182,7 @@ function highlightQueryInText(text: string, query: string): ReactNode {
 export type AdminOrderCreateFormProps = {
   mode?: "create" | "edit";
   initialOrder?: OrderData;
+  initialPhone?: string;
 };
 
 type CertificatesPanelProps<T> = {
@@ -201,7 +218,7 @@ function CertificatesPanel<T>({
   );
 }
 
-export default function AdminOrderCreateForm({ mode = "create", initialOrder }: AdminOrderCreateFormProps) {
+export default function AdminOrderCreateForm({ mode = "create", initialOrder, initialPhone }: AdminOrderCreateFormProps) {
   const router = useRouter();
   const isEdit = mode === "edit" && initialOrder != null;
   const itemsLocked = Boolean(
@@ -210,7 +227,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
 
   /** Только цифры после +375 (9 шт.: 25/29/33/44 + номер). */
   const [nationalNumber, setNationalNumber] = useState(() =>
-    initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : "",
+    initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : nationalFromStoredPhone(initialPhone ?? ""),
   );
   const [customerName, setCustomerName] = useState(() => initialOrder?.customer_name ?? "");
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
@@ -230,6 +247,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
 
   const [context, setContext] = useState<AdminOrderCustomerContext | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
+  const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
 
   const debouncedNational = useDebouncedValue(nationalNumber, 280);
 
@@ -636,6 +654,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
   const nationalDebounced = clampNationalDigits(debouncedNational);
   const showPhoneClientPanel =
     phoneHitsOpen && nationalLive.length >= PHONE_CLIENT_HINT_MIN_NATIONAL;
+  const hasOrderHistoryByPhone = totalOrdersCount(context) > 0;
 
   const belarusCitySearch = (
     <div className="relative">
@@ -757,7 +776,10 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
                 className="min-w-0 flex-1 border-0 px-3 py-2 text-sm outline-none ring-0 focus:ring-0"
                 placeholder="29 123-45-67"
                 inputMode="numeric"
-                autoComplete="off"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
 
@@ -766,7 +788,11 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
                 {phoneHitsLoading || nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL ? (
                   <div className="px-3 py-2 text-xs text-gray-500">Поиск клиентов…</div>
                 ) : phoneHits.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-gray-500">Клиенты не найдены</div>
+                  <div className="px-3 py-2 text-xs text-gray-500">
+                    {hasOrderHistoryByPhone
+                      ? `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`
+                      : "Клиенты не найдены"}
+                  </div>
                 ) : (
                   phoneHits.map((u) => (
                     <button
@@ -808,7 +834,14 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
           ) : context ? (
             <div className="grid gap-1.5 sm:grid-cols-2">
               <div>
-                Выполнено: <span className="font-medium text-gray-900">{context.orders.completed}</span>
+                <button
+                  type="button"
+                  onClick={() => setCompletedOrdersOpen(true)}
+                  disabled={context.orders.completed <= 0}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  Выполнено: {context.orders.completed}
+                </button>
               </div>
               <div>
                 Отменено: <span className="font-medium text-gray-900">{context.orders.cancelled}</span>
@@ -1249,6 +1282,77 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder }: 
               aria-hidden
               className="absolute left-1/2 top-full -mt-px h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-gray-900"
             />
+          </div>,
+          document.body,
+        )
+        : null}
+
+      {context && completedOrdersOpen && typeof document !== "undefined"
+        ? createPortal(
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 p-4">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <h3 className="text-sm font-semibold text-gray-900">Выполненные заказы по номеру</h3>
+                <button
+                  type="button"
+                  onClick={() => setCompletedOrdersOpen(false)}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  Закрыть
+                </button>
+              </div>
+              <div className="max-h-[72vh] overflow-auto p-4">
+                {context.completed_orders.length === 0 ? (
+                  <p className="text-sm text-gray-500">Выполненные заказы не найдены.</p>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-gray-500">
+                        <th className="px-3 py-2">№ заказа</th>
+                        <th className="px-3 py-2">Дата</th>
+                        <th className="px-3 py-2">Что заказано</th>
+                        <th className="px-3 py-2 text-right">Кол-во</th>
+                        <th className="px-3 py-2 text-right">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {context.completed_orders.map((order) => (
+                        <tr key={order.id} className="border-b last:border-b-0">
+                          <td className="px-3 py-2 font-medium text-gray-900">
+                            <a
+                              href={`/admin/orders/${order.id}/edit`}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="text-blue-700 underline underline-offset-2 hover:text-blue-800"
+                            >
+                              #{order.id}
+                            </a>
+                          </td>
+                          <td className="px-3 py-2">{formatDateTime(order.created_at)}</td>
+                          <td className="px-3 py-2">
+                            <div className="space-y-1">
+                              {(order.items ?? []).length === 0 ? (
+                                <span className="text-xs text-gray-500">—</span>
+                              ) : (
+                                (order.items ?? []).map((item, idx) => (
+                                  <div key={`${order.id}-item-${idx}`} className="text-xs text-gray-700">
+                                    <span className="font-medium text-gray-900">{item.product_name || "Товар"}</span>
+                                    {item.variant_title ? ` · ${item.variant_title}` : ""}
+                                    {item.qty > 0 ? ` × ${item.qty}` : ""}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{order.items_qty}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{order.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           </div>,
           document.body,
         )

@@ -3,9 +3,14 @@
 namespace Modules\ImportExport\Providers;
 
 use Modules\ImportExport\Console\Commands\MapLegacyBrandsBySlugCommand;
+use Modules\ImportExport\Console\Commands\ImportLegacyProductImagesCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyPostsCommand;
+use Modules\ImportExport\Console\Commands\ImportLegacyCustomersCommand;
+use Modules\ImportExport\Console\Commands\ImportLegacyOrdersCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
+use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
+use Modules\ImportExport\Console\Commands\NormalizeOrderPhonesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class ImportExportServiceProvider extends ModuleServiceProvider
@@ -22,6 +27,11 @@ class ImportExportServiceProvider extends ModuleServiceProvider
     protected array $commands = [
         MapLegacyBrandsBySlugCommand::class,
         MapLegacyProductsBySlugCommand::class,
+        ImportLegacyProductImagesCommand::class,
+        ImportLegacyCustomersCommand::class,
+        ImportLegacyOrdersCommand::class,
+        NormalizeUserPhonesCommand::class,
+        NormalizeOrderPhonesCommand::class,
         ImportLegacyReviewsCommand::class,
         ImportLegacyPostsCommand::class,
     ];

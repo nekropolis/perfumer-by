@@ -188,6 +188,17 @@ export type AdminOrderCustomerContext = {
   };
   delivery_cities: string[];
   discount_cards: { number: string; discount_percent: string }[];
+  completed_orders: {
+    id: number;
+    created_at: string | null;
+    items_qty: number;
+    total: string;
+    items: {
+      product_name: string;
+      variant_title: string;
+      qty: number;
+    }[];
+  }[];
 };
 
 export async function fetchAdminOrderCustomerContext(phone: string): Promise<{ data: AdminOrderCustomerContext }> {

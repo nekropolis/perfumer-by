@@ -21,6 +21,14 @@ export type AdminUser = {
     email: string | null;
     phone: string | null;
     role: string;
+    phone_verified_at?: string | null;
+    orders_count?: number;
+    discount_cards?: {
+        id: number;
+        number: string;
+        discount_percent: number;
+        status: string;
+    }[];
 };
 
 export type AdminUsersResponse = {
@@ -33,8 +41,31 @@ export type AdminUsersResponse = {
     };
 };
 
-export async function fetchAdminUsers(search = ""): Promise<AdminUsersResponse> {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+export type AdminUserResponse = {
+    data: AdminUser;
+};
+
+export type AdminUserOrderHistoryItem = {
+    id: number;
+    created_at: string;
+    items_qty: number;
+    total: string;
+    status: string;
+};
+
+export async function fetchAdminUsers(
+    params: { search?: string; page?: number } = {}
+): Promise<AdminUsersResponse> {
+    const search = (params.search ?? "").trim();
+    const page = Number(params.page ?? 1);
+    const queryParams = new URLSearchParams();
+    if (search !== "") {
+        queryParams.set("search", search);
+    }
+    if (Number.isFinite(page) && page > 1) {
+        queryParams.set("page", String(Math.floor(page)));
+    }
+    const query = queryParams.toString() ? `?${queryParams.toString()}` : "";
 
     const res = await fetch(`${API_BASE}/admin/users${query}`, {
         headers: getAdminHeaders(),
@@ -58,6 +89,90 @@ export async function updateAdminUserRole(id: number, role: string) {
 
     if (!res.ok) {
         throw new Error(`Update role API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function updateAdminUser(
+    id: number,
+    payload: {
+        name: string;
+        email: string | null;
+        phone: string | null;
+        role: string;
+    }
+) {
+    const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(`Update user API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchAdminUser(id: number): Promise<AdminUserResponse> {
+    const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(`User API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchAdminUserOrdersHistory(id: number): Promise<{ data: AdminUserOrderHistoryItem[] }> {
+    const res = await fetch(`${API_BASE}/admin/users/${id}/orders-history`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(`User orders history API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function createAdminUser(payload: {
+    name: string;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    password?: string | null;
+}) {
+    const res = await fetch(`${API_BASE}/admin/users`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(`Create user API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function deleteAdminUser(id: number) {
+    const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error(`Delete user API error: ${res.status}`);
     }
 
     return res.json();

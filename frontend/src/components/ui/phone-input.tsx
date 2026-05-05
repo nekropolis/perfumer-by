@@ -6,6 +6,7 @@ type Props = {
     value: string;
     onChangeAction: (value: string) => void;
     className?: string;
+    plainDigitsMode?: boolean;
 };
 
 const COUNTRY_PREFIX = "375";
@@ -68,8 +69,37 @@ export function isBelarusPhoneComplete(value: string): boolean {
     return /^375(25|29|33|44)\d{7}$/.test(digits);
 }
 
-export default function PhoneInput({ value, onChangeAction, className = "" }: Props) {
+export function isPhoneDigitsComplete(value: string): boolean {
+    const digits = value.replace(/\D/g, "");
+    return digits.length >= 5;
+}
+
+export default function PhoneInput({
+    value,
+    onChangeAction,
+    className = "",
+    plainDigitsMode = false,
+}: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
+
+    if (plainDigitsMode) {
+        const digits = value.replace(/\D/g, "").slice(0, 32);
+        return (
+            <input
+                ref={inputRef}
+                type="text"
+                inputMode="numeric"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={digits}
+                placeholder="Введите номер цифрами"
+                onChange={(e) => onChangeAction(e.target.value.replace(/\D/g, "").slice(0, 32))}
+                className={`w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] ${className}`}
+            />
+        );
+    }
 
     const localDigits = extractLocalDigits(value);
     const displayValue = formatMasked(localDigits);
@@ -238,9 +268,12 @@ export default function PhoneInput({ value, onChangeAction, className = "" }: Pr
     return (
         <input
             ref={inputRef}
-            type="tel"
+            type="text"
             inputMode="numeric"
-            autoComplete="tel"
+            autoComplete="new-password"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             value={displayValue}
             placeholder="+375(29) 777-77-77"
             onChange={() => {}}

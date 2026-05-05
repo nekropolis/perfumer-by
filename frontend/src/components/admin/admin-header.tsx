@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import useDebouncedValue from "@/hooks/use-debounced-value";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
+import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -35,10 +38,47 @@ export default function AdminHeader({
                                         onOpenMobileMenuAction,
                                     }: Props) {
     const { user, logout } = useAuth();
+    const router = useRouter();
+    const pathname = usePathname();
     const [accountOpen, setAccountOpen] = useState(false);
     const [cacheResetBusy, setCacheResetBusy] = useState(false);
+    const [quickPhone, setQuickPhone] = useState("");
+    const [quickPhoneFocused, setQuickPhoneFocused] = useState(false);
+    const [quickPhoneHitsLoading, setQuickPhoneHitsLoading] = useState(false);
+    const [quickPhoneHits, setQuickPhoneHits] = useState<AdminUser[]>([]);
     const accountRef = useRef<HTMLDivElement | null>(null);
+    const quickPhoneRef = useRef<HTMLDivElement | null>(null);
     const roleLabel = getRoleLabel(user?.role);
+    const debouncedQuickPhone = useDebouncedValue(quickPhone, 250);
+
+    const digitsOnly = (s: string) => s.replace(/\D+/g, "");
+    const clampNationalDigits = (s: string) => digitsOnly(s).slice(0, 9);
+    const nationalFromAnyPhone = (phoneRaw: string) => {
+        const digits = digitsOnly(phoneRaw);
+        if (digits.startsWith("375")) {
+            return digits.slice(3, 12);
+        }
+        if (digits.length >= 9) {
+            return digits.slice(-9);
+        }
+        return digits.slice(0, 9);
+    };
+    const formatNationalDisplay = (national: string) => {
+        const d = clampNationalDigits(national);
+        if (d.length <= 2) return d;
+        if (d.length <= 5) return `${d.slice(0, 2)} ${d.slice(2)}`;
+        if (d.length <= 7) return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5)}`;
+        return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}`;
+    };
+    const fullPhone = `375${clampNationalDigits(quickPhone)}`;
+    const showQuickPhoneHits = quickPhoneFocused && clampNationalDigits(quickPhone).length >= 5;
+
+    const openCreateOrderWithPhone = (phoneDigits: string) => {
+        const normalized = `375${clampNationalDigits(nationalFromAnyPhone(phoneDigits))}`;
+        if (normalized.length < 6) return;
+        router.push(`/admin/orders/create?phone=${encodeURIComponent(normalized)}`);
+        setQuickPhoneFocused(false);
+    };
 
     const handleResetCatalogCache = async () => {
         if (cacheResetBusy) return;
@@ -62,6 +102,9 @@ export default function AdminHeader({
             if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
                 setAccountOpen(false);
             }
+            if (quickPhoneRef.current && !quickPhoneRef.current.contains(event.target as Node)) {
+                setQuickPhoneFocused(false);
+            }
         };
 
         document.addEventListener("mousedown", handleClickOutside);
@@ -69,6 +112,41 @@ export default function AdminHeader({
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
+    useEffect(() => {
+        const national = clampNationalDigits(debouncedQuickPhone);
+        if (national.length < 5) {
+            setQuickPhoneHits([]);
+            return;
+        }
+        let cancelled = false;
+        setQuickPhoneHitsLoading(true);
+        void fetchAdminUsers({ search: `375${national}` })
+            .then((response) => {
+                if (cancelled) return;
+                const want = `375${national}`;
+                const rows = (response.data ?? []).filter((u) => {
+                    const d = digitsOnly(u.phone ?? "");
+                    return d === want || d.endsWith(national);
+                });
+                setQuickPhoneHits(rows.slice(0, 6));
+            })
+            .catch(() => {
+                if (!cancelled) setQuickPhoneHits([]);
+            })
+            .finally(() => {
+                if (!cancelled) setQuickPhoneHitsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [debouncedQuickPhone]);
+
+    useEffect(() => {
+        setQuickPhone("");
+        setQuickPhoneHits([]);
+        setQuickPhoneFocused(false);
+    }, [pathname]);
 
     return (
         <header className="h-16 flex-none border-b bg-white">
@@ -88,6 +166,65 @@ export default function AdminHeader({
 
                 <div className="flex items-center gap-3">
                     <AdminActiveTasksWidget />
+                    <div className="relative w-[15.5rem] sm:w-[18rem]" ref={quickPhoneRef}>
+                        <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white">
+                            <span className="flex items-center border-r border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">
+                                +375
+                            </span>
+                            <input
+                                value={formatNationalDisplay(quickPhone)}
+                                onChange={(e) => setQuickPhone(clampNationalDigits(e.target.value))}
+                                onFocus={() => setQuickPhoneFocused(true)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        openCreateOrderWithPhone(clampNationalDigits(quickPhone));
+                                    }
+                                }}
+                                placeholder="29 123-45-67"
+                                inputMode="numeric"
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                                className="w-full min-w-0 border-0 px-2 py-2 text-sm outline-none"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
+                                className="border-l border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Найти
+                            </button>
+                        </div>
+                        {showQuickPhoneHits ? (
+                            <div className="absolute left-0 right-0 z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                                {quickPhoneHitsLoading ? (
+                                    <div className="px-3 py-2 text-xs text-gray-500">Поиск клиентов…</div>
+                                ) : quickPhoneHits.length === 0 ? (
+                                    <button
+                                        type="button"
+                                        className="w-full px-3 py-2 text-left text-xs text-gray-600 hover:bg-gray-50"
+                                        onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
+                                    >
+                                        Клиенты не найдены — создать заказ с этим номером
+                                    </button>
+                                ) : (
+                                    quickPhoneHits.map((u) => (
+                                        <button
+                                            key={u.id}
+                                            type="button"
+                                            className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                                                onClick={() => openCreateOrderWithPhone(u.phone ?? fullPhone)}
+                                        >
+                                            <div className="text-sm font-medium text-gray-900">{u.phone || `+${fullPhone}`}</div>
+                                            <div className="text-xs text-gray-500">{u.name || "Без имени"}</div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
 
                     <button
                         type="button"

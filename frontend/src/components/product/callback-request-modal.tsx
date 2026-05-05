@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PhoneCall, X } from "lucide-react";
-import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
+import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
 import { createCallbackRequest } from "@/lib/stock-notifications-api";
 
 type Props = {
@@ -25,6 +25,7 @@ export default function CallbackRequestModal({
 }: Props) {
     const [mounted, setMounted] = useState(false);
     const [phone, setPhone] = useState("");
+    const [allowPlainPhone, setAllowPlainPhone] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +59,7 @@ export default function CallbackRequestModal({
     useEffect(() => {
         if (!open) {
             setPhone("");
+            setAllowPlainPhone(false);
             setErrorMessage("");
             setSuccessMessage("");
             setIsSubmitting(false);
@@ -68,7 +70,7 @@ export default function CallbackRequestModal({
         return null;
     }
 
-    const phoneIsValid = isBelarusPhoneComplete(phone);
+    const phoneIsValid = allowPlainPhone ? isPhoneDigitsComplete(phone) : isBelarusPhoneComplete(phone);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -78,7 +80,11 @@ export default function CallbackRequestModal({
         setSuccessMessage("");
 
         if (!phoneIsValid) {
-            setErrorMessage("Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX");
+            setErrorMessage(
+                allowPlainPhone
+                    ? "Введите номер только цифрами (минимум 5 цифр)"
+                    : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
+            );
             return;
         }
 
@@ -197,12 +203,41 @@ export default function CallbackRequestModal({
                         />
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
-                                Телефон
-                            </label>
-                            <PhoneInput value={phone} onChangeAction={setPhone} />
+                            <div className="mb-1 flex items-center justify-between gap-3">
+                                <label className="text-sm font-medium text-[var(--foreground)]">
+                                    Телефон
+                                </label>
+                                <label className="inline-flex cursor-pointer items-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={allowPlainPhone}
+                                        onChange={(e) => {
+                                            setAllowPlainPhone(e.target.checked);
+                                            setPhone((prev) => prev.replace(/\D/g, ""));
+                                        }}
+                                        className="peer sr-only"
+                                    />
+                                    <span
+                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                                            allowPlainPhone
+                                                ? "text-white"
+                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                                        }`}
+                                        style={
+                                            allowPlainPhone
+                                                ? { backgroundColor: "#6f4a7e", borderColor: "#6f4a7e" }
+                                                : undefined
+                                        }
+                                    >
+                                        Нет мобильного
+                                    </span>
+                                </label>
+                            </div>
+                            <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
                             <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                Формат: +375 (25/29/33/44) XXX-XX-XX
+                                {allowPlainPhone
+                                    ? "Только цифры, минимум 5 символов"
+                                    : "Формат: +375 (25/29/33/44) XXX-XX-XX"}
                             </p>
                         </div>
 

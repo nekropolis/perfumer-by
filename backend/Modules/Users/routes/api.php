@@ -13,6 +13,11 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/users')->group(function () {
     Route::get('/', [AdminUserController::class, 'index']);
+    Route::post('/', [AdminUserController::class, 'store']);
+    Route::get('/{id}', [AdminUserController::class, 'show']);
+    Route::get('/{id}/orders-history', [AdminUserController::class, 'ordersHistory']);
+    Route::patch('/{id}', [AdminUserController::class, 'update']);
+    Route::delete('/{id}', [AdminUserController::class, 'destroy']);
     Route::patch('/{id}/role', [AdminUserController::class, 'updateRole']);
 });
 
