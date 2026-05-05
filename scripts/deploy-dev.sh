@@ -23,7 +23,8 @@
 # Использование:
 #   ./scripts/deploy-dev.sh                 # полный прогон
 #   ./scripts/deploy-dev.sh --seed          # + прогон сидеров
-#   ./scripts/deploy-dev.sh --no-build      # пропустить npm run build
+#   ./scripts/deploy-dev.sh --build         # выполнить npm run build (тяжело по RAM/CPU)
+#   ./scripts/deploy-dev.sh --no-build      # явно пропустить npm run build
 #   ./scripts/deploy-dev.sh --only-backend  # только backend
 #   ./scripts/deploy-dev.sh --only-frontend # только frontend
 #   ./scripts/deploy-dev.sh --logs          # после деплоя tail -F логов (Ctrl+C)
@@ -67,7 +68,10 @@ DO_SEED=0
 DO_CACHE_CLEAR=1
 DO_QUEUE_RESTART=1
 DO_FRONTEND_DEPS=1
-DO_FRONTEND_BUILD=1
+# В dev по умолчанию НЕ билдим фронт:
+# `next dev`/pm2 достаточно для проверки правок, а `npm run build`
+# на слабом сервере часто упирается в CPU/RAM.
+DO_FRONTEND_BUILD=0
 DO_FRONTEND_RELOAD=1
 TAIL_LOGS=0
 # frontend: «install» не сносит node_modules целиком — меньше пик памяти на слабом dev;
@@ -87,6 +91,7 @@ while [[ $# -gt 0 ]]; do
         --no-cache-clear)     DO_CACHE_CLEAR=0 ;;
         --no-queue-restart)   DO_QUEUE_RESTART=0 ;;
         --no-frontend)        DO_FRONTEND_DEPS=0; DO_FRONTEND_BUILD=0; DO_FRONTEND_RELOAD=0 ;;
+        --build)              DO_FRONTEND_BUILD=1 ;;
         --no-build)           DO_FRONTEND_BUILD=0 ;;
         --only-backend)       DO_FRONTEND_DEPS=0; DO_FRONTEND_BUILD=0; DO_FRONTEND_RELOAD=0 ;;
         --only-frontend)

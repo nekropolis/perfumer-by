@@ -341,7 +341,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     const full = fullPhoneFromNational(nat);
     let cancelled = false;
     setPhoneHitsLoading(true);
-    void fetchAdminUsers(full)
+    void fetchAdminUsers({ search: full })
       .then((response) => {
         if (!cancelled) {
           const want = digitsOnly(full);

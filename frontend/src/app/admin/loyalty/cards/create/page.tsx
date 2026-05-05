@@ -62,7 +62,7 @@ export default function AdminLoyaltyCardCreatePage() {
                 setError("Введите минимум 2 символа для поиска пользователя");
                 return;
             }
-            const response = await fetchAdminUsers(query);
+            const response = await fetchAdminUsers({ search: query });
             setFoundUsers(response.data || []);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка поиска пользователей");
