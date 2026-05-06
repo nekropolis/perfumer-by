@@ -124,7 +124,7 @@ export type ProductAdminDetail = {
         path: string;
         is_main?: boolean;
         sort_order?: number;
-        usage_type?: string;
+        usage_type?: "gallery" | "catalog";
         watermark_status?: string;
     }>;
 

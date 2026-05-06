@@ -30,7 +30,7 @@ export type ProductImagesResponse = {
         alt?: string | null;
         is_main: boolean;
         sort_order: number;
-        usage_type?: string;
+        usage_type?: "gallery" | "catalog";
         watermark_status?: string;
     }>;
 };
