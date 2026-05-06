@@ -23,9 +23,13 @@ import {
     fetchVanilleSupplierProducts,
     importParsedVanilleProducts,
     parseSingleVanilleProductUrl,
+    parseVanilleCatalogImages,
+    parseVanilleProductImages,
+    rewriteVanilleDescriptions,
     startVanillePipelineNewProducts,
     startVanillePipelineRefreshAll,
 } from "@/lib/admin-vanille-api";
+import Link from "next/link";
 
 
 const LINKED_OPTIONS = [
@@ -239,6 +243,21 @@ export default function VanilleProductsPage() {
         }
     };
 
+    const enqueueMediaJob = async (
+        fn: () => Promise<{ job: VanilleImportQueueJob }>,
+        label: string
+    ) => {
+        setParsingError("");
+        setCompletionNotice("");
+        completionBannerConsumedRef.current = false;
+        try {
+            const data = await fn();
+            setParseJob(data.job);
+        } catch (e: unknown) {
+            setParsingError(e instanceof Error ? e.message : label);
+        }
+    };
+
     const handlePipelineRefreshAll = async () => {
         const confirmed = window.confirm(
             [
@@ -376,6 +395,52 @@ export default function VanilleProductsPage() {
                                     ? "Выполняется..."
                                     : "Спарсить все товары заново"}
                             </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    void enqueueMediaJob(parseVanilleCatalogImages, "Каталожные изображения")
+                                }
+                                disabled={hasActiveParse}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {hasActiveParse && parseJob?.type === "parse_catalog_images"
+                                    ? "Каталог…"
+                                    : "Каталожные фото (листинг)"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    void enqueueMediaJob(parseVanilleProductImages, "Галерея карточек")
+                                }
+                                disabled={hasActiveParse}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {hasActiveParse && parseJob?.type === "parse_product_images"
+                                    ? "Галерея…"
+                                    : "Галерея карточек"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    void enqueueMediaJob(rewriteVanilleDescriptions, "Описания")
+                                }
+                                disabled={hasActiveParse}
+                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            >
+                                {hasActiveParse && parseJob?.type === "rewrite_descriptions"
+                                    ? "Описания…"
+                                    : "Уникализация описаний"}
+                            </button>
+
+                            <Link
+                                href="/admin/import-export/retry-queue"
+                                className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                                Очередь ошибок
+                            </Link>
                         </div>
 
                         <p className="text-xs text-gray-600">

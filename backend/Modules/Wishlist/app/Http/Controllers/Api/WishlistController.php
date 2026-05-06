@@ -142,7 +142,7 @@ class WishlistController extends Controller
             ->with([
                 'brand',
                 'mainCategory',
-                'images' => fn ($query) => $query->orderByDesc('is_main')->orderBy('sort_order'),
+                'images' => ProductListResource::imagesForListingEagerLoad(),
                 'activeVariants',
             ])
             ->get()

@@ -12,6 +12,7 @@ use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
 use Modules\Catalog\Models\VanilleImportJob;
 use Modules\Catalog\Models\VanilleImportJobLog;
+use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Modules\Catalog\Models\Supplier;
@@ -245,6 +246,66 @@ class VanilleImportController extends Controller
 
         return response()->json([
             'message' => 'Задача импорта спарсенных товаров добавлена в очередь',
+            'job' => $job,
+        ], 202);
+    }
+
+    public function parseCatalogImages(VanilleImportService $service)
+    {
+        try {
+            $job = $service->enqueueParseCatalogImages();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'message' => 'Импорт каталожных изображений поставлен в очередь',
+            'job' => $job,
+        ], 202);
+    }
+
+    public function parseProductImages(VanilleImportService $service)
+    {
+        try {
+            $job = $service->enqueueParseProductImages();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'message' => 'Импорт галереи карточек Vanille поставлен в очередь',
+            'job' => $job,
+        ], 202);
+    }
+
+    public function rewriteDescriptions(VanilleImportService $service)
+    {
+        try {
+            $job = $service->enqueueRewriteDescriptions();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'message' => 'Уникализация описаний поставлена в очередь',
+            'job' => $job,
+        ], 202);
+    }
+
+    public function retryFailedJob(Request $request, VanilleImportService $service)
+    {
+        $validated = $request->validate([
+            'task_type' => ['required', 'string', 'in:'.ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES.','.ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES.','.ImportRetryItem::TASK_DESCRIPTION_REWRITE],
+        ]);
+
+        try {
+            $job = $service->enqueueRetryFailed($validated['task_type'], null);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'message' => 'Повтор неудачных импортов поставлен в очередь',
             'job' => $job,
         ], 202);
     }

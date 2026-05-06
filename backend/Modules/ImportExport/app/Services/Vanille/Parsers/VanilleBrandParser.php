@@ -6,6 +6,112 @@ use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 
 class VanilleBrandParser
 {
+    /** Slug-пути страницы /brendyi, которые не являются брендами (личный кабинет, страны и т. п.). */
+    private static function excludedVanilleListingSlugList(): array
+    {
+        return [
+            'akczii-i-novosti',
+            'aldegidnyie',
+            'arabskie-emiratyi',
+            'aromat',
+            'aromatnyie',
+            'aromaty',
+            'baxrejn',
+            'brendyi',
+            'catalog',
+            'dostavka',
+            'francziya',
+            'germaniya',
+            'ispaniya',
+            'italiya',
+            'izbrannyie',
+            'kozhanyie',
+            'lk',
+            'o-magazine',
+            'oformlenie',
+            'oplata',
+            'oman',
+            'orientalnyie',
+            'otzyivyi-o-magazine',
+            'parfiumernaia',
+            'parfyumeriya-optom',
+            'polsha',
+            'prosmotrennyie',
+            'pryanyie',
+            'sale',
+            'shop',
+            'skidki',
+            'ssha',
+            'vanilnyie',
+            'velikobritaniya',
+            'yaponiya',
+            'shvejczariya',
+            'lucsie',
+            'czvetochnyie',
+            'czitrusovyie',
+            'muskusnyie',
+            'fruktovyie',
+            'fuzhernyie',
+            'zhirinovskij',
+            'vodnyie',
+            'vostochnyie',
+            'drevesnyie',
+            'svezhie',
+            'stranyi',
+            'rossiya',
+        ];
+    }
+
+    /** @return list<string> */
+    public static function excludedVanilleListingSlugs(): array
+    {
+        return self::excludedVanilleListingSlugList();
+    }
+
+    public static function isExcludedListingSlug(string $slug): bool
+    {
+        $slug = mb_strtolower(trim($slug), 'UTF-8');
+        if ($slug === '') {
+            return false;
+        }
+
+        static $lookup = null;
+        if ($lookup === null) {
+            $lookup = array_fill_keys(self::excludedVanilleListingSlugList(), true);
+        }
+
+        return isset($lookup[$slug]);
+    }
+
+    /**
+     * Отфильтровать строки из brands.json (устаревший файл может содержать исключённые slug до перепарса).
+     *
+     * @param  array<int, mixed>  $brands
+     * @return list<array<string, mixed>>
+     */
+    public static function filterExcludedListingRows(array $brands): array
+    {
+        $out = [];
+        foreach ($brands as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $slug = trim((string) ($row['slug'] ?? ''));
+            if ($slug === '') {
+                continue;
+            }
+
+            if (self::isExcludedListingSlug($slug)) {
+                continue;
+            }
+
+            $out[] = $row;
+        }
+
+        return $out;
+    }
+
     public function __construct(
         protected VanilleHttpClient $httpClient,
     ) {
@@ -63,18 +169,7 @@ class VanilleBrandParser
                 continue;
             }
 
-            if (in_array($slug, [
-                'brendyi',
-                'catalog',
-                'shop',
-                'sale',
-                'skidki',
-                'dostavka',
-                'oplata',
-                'o-magazine',
-                'otzyivyi-o-magazine',
-                'akczii-i-novosti',
-            ], true)) {
+            if (self::isExcludedListingSlug($slug)) {
                 continue;
             }
 

@@ -19,6 +19,7 @@ class Product extends Model
         'h1',
         'short_description',
         'description',
+        'description_rewritten_at',
         'seo_title',
         'seo_description',
         'seo_keyword',
@@ -34,6 +35,7 @@ class Product extends Model
         'is_new' => 'boolean',
         'is_hit' => 'boolean',
         'is_out_of_stock' => 'boolean',
+        'description_rewritten_at' => 'datetime',
     ];
 
     public function brand(): BelongsTo

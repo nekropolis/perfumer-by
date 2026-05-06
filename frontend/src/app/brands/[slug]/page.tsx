@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiNotFoundError } from "@/lib/api";
 import CatalogPageView from "@/components/catalog/catalog-page-view";
 import { buildBrandProductsQuery } from "@/lib/catalog-listing-query";
 import {
@@ -9,6 +9,8 @@ import {
 } from "@/types/catalog";
 import JsonLd from "@/components/seo/json-ld";
 import type { Metadata } from "next";
+import { cache } from "react";
+import { notFound } from "next/navigation";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import {
     brandCanonicalPath,
@@ -19,6 +21,8 @@ import {
 } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+const getBrandCatalogResponse = cache(async (slug: string) => apiFetch<CatalogBrandDetailResponse>(`/catalog/brands/${slug}`));
 
 export async function generateMetadata({
     params,
@@ -34,7 +38,15 @@ export async function generateMetadata({
     const productsQuery = buildBrandProductsQuery(slug, sp);
     const currentPage = Math.max(1, Number(sp.page || "1") || 1);
 
-    const brand = await apiFetch<CatalogBrandDetailResponse>(`/catalog/brands/${slug}`);
+    let brand: CatalogBrandDetailResponse;
+    try {
+        brand = await getBrandCatalogResponse(slug);
+    } catch (e) {
+        if (isApiNotFoundError(e)) {
+            notFound();
+        }
+        throw e;
+    }
 
     let pagination: Metadata["pagination"] | undefined;
     try {
@@ -85,8 +97,17 @@ export default async function BrandPage({
     const paginationQuery = new URLSearchParams(productsQuery.toString());
     paginationQuery.delete("page");
 
-    const [brand, products, brands, filters] = await Promise.all([
-        apiFetch<CatalogBrandDetailResponse>(`/catalog/brands/${slug}`),
+    let brand: CatalogBrandDetailResponse;
+    try {
+        brand = await getBrandCatalogResponse(slug);
+    } catch (e) {
+        if (isApiNotFoundError(e)) {
+            notFound();
+        }
+        throw e;
+    }
+
+    const [products, brands, filters] = await Promise.all([
         apiFetch<ProductsResponse>(`/catalog/products?${productsQuery.toString()}`),
         apiFetch<CatalogBrandsResponse>("/catalog/brands"),
         apiFetch<CatalogFiltersResponse>(`/catalog/filters?brand_slug=${slug}`),

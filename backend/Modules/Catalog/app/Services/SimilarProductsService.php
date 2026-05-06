@@ -4,6 +4,7 @@ namespace Modules\Catalog\Services;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductAttribute;
 
@@ -365,12 +366,7 @@ final class SimilarProductsService
             ->with([
                 'brand:id,name,slug',
                 'mainCategory:id,name,slug',
-                'images' => static function ($q): void {
-                    $q->select('id', 'product_id', 'path', 'is_main', 'sort_order')
-                        ->orderByDesc('is_main')
-                        ->orderBy('sort_order')
-                        ->limit(1);
-                },
+                'images' => ProductListResource::imagesForListingEagerLoad(),
                 'activeVariants' => static function ($q): void {
                     $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'is_preorder', 'is_active', 'stock', 'reserved_stock', 'sort_order')
                         ->with([

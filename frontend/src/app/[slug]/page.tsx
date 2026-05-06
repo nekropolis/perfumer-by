@@ -47,7 +47,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         });
     }
 
-    return {};
+    return {
+        title: "Страница не найдена",
+        robots: { index: false, follow: false },
+    };
 }
 
 export default async function RootSlugPage({ params }: { params: Promise<{ slug: string }> }) {

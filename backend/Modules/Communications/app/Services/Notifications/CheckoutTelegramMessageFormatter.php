@@ -36,8 +36,9 @@ class CheckoutTelegramMessageFormatter
         if ((float) ($order->discount_amount ?? 0) > 0) {
             $lines[] = 'Скидка: −' . number_format((float) $order->discount_amount, 2, '.', '') . ' BYN';
         }
-        if ((float) ($order->gift_certificate_amount ?? 0) > 0) {
-            $lines[] = 'Сертификат: −' . number_format((float) $order->gift_certificate_amount, 2, '.', '') . ' BYN';
+        $giftApplied = $order->resolvedGiftCertificateAmountApplied();
+        if ($giftApplied > 0.0001) {
+            $lines[] = 'Сертификат: −' . number_format($giftApplied, 2, '.', '') . ' BYN';
         }
         if ((float) ($order->delivery_fee ?? 0) > 0) {
             $lines[] = 'Доставка: +' . number_format((float) $order->delivery_fee, 2, '.', '') . ' BYN';
@@ -48,19 +49,44 @@ class CheckoutTelegramMessageFormatter
             $lines[] = 'Комментарий: ' . $order->comment;
         }
 
-        $items = $order->relationLoaded('items') ? $order->items : collect();
-        if ($items->isNotEmpty()) {
+        $order->loadMissing(['giftCertificatePurchases', 'items']);
+        $giftPurchases = $order->giftCertificatePurchases;
+        $items = $order->items;
+
+        $positionLines = [];
+
+        foreach ($giftPurchases as $purchase) {
+            $title = trim((string) ($purchase->template_title ?? '')) ?: 'Подарочный сертификат';
+            $qty = max(1, (int) ($purchase->qty ?? 0));
+            $total = number_format((float) ($purchase->total ?? 0), 2, '.', '');
+            $positionLines[] = sprintf(
+                '- Сертификат: %s × %d = %s BYN',
+                mb_substr($title, 0, 140),
+                $qty,
+                $total
+            );
+        }
+
+        foreach ($items as $item) {
+            $title = trim(($item->product_name ?? '') . ' ' . ($item->variant_title ?? ''));
+            $qty = (int) ($item->qty ?? 0);
+            $total = number_format((float) ($item->total ?? 0), 2, '.', '');
+            $positionLines[] = sprintf('- %s × %d = %s BYN', $title !== '' ? $title : 'Товар', $qty, $total);
+        }
+
+        if ($positionLines !== []) {
             $lines[] = '';
             $lines[] = 'Позиции:';
-            foreach ($items->take(12) as $item) {
-                $title = trim(($item->product_name ?? '') . ' ' . ($item->variant_title ?? ''));
-                $qty = (int) ($item->qty ?? 0);
-                $total = number_format((float) ($item->total ?? 0), 2, '.', '');
-                $lines[] = sprintf('- %s × %d = %s BYN', $title !== '' ? $title : 'Товар', $qty, $total);
+
+            $maxLines = 20;
+            $shown = array_slice($positionLines, 0, $maxLines);
+            foreach ($shown as $row) {
+                $lines[] = $row;
             }
 
-            if ($items->count() > 12) {
-                $lines[] = '... и еще ' . ($items->count() - 12) . ' поз.';
+            $totalCount = count($positionLines);
+            if ($totalCount > $maxLines) {
+                $lines[] = '... и еще ' . ($totalCount - $maxLines) . ' поз.';
             }
         }
 

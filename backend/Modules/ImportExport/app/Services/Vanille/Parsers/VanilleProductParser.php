@@ -31,7 +31,78 @@ class VanilleProductParser
             'characteristics' => $characteristics,
             'description' => $description,
             'offers' => $offers,
+            'gallery_image_urls' => $this->extractGalleryImageUrls($html),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function parseGalleryImageUrlsFromHtml(string $html): array
+    {
+        return $this->extractGalleryImageUrls($html);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function extractGalleryImageUrls(string $html): array
+    {
+        $urls = [];
+
+        if (preg_match_all('/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/iu', $html, $og)) {
+            foreach ($og[1] as $u) {
+                $urls[] = $this->normalizeVanilleImageUrl($u);
+            }
+        }
+
+        if (preg_match_all('/<meta[^>]+itemprop="image"[^>]+content="([^"]+)"/iu', $html, $meta)) {
+            foreach ($meta[1] as $u) {
+                $urls[] = $this->normalizeVanilleImageUrl($u);
+            }
+        }
+
+        if (preg_match_all('/<link[^>]+rel="image_src"[^>]+href="([^"]+)"/iu', $html, $link)) {
+            foreach ($link[1] as $u) {
+                $urls[] = $this->normalizeVanilleImageUrl($u);
+            }
+        }
+
+        if (preg_match_all('/<img[^>]+(?:src|data-src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $html, $imgs)) {
+            foreach ($imgs[1] as $u) {
+                $u = html_entity_decode(trim($u), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($u === '' || str_contains($u, 'data:image')) {
+                    continue;
+                }
+                if (preg_match('/(logo|icon|sprite|payment|banner|pixel)/iu', $u)) {
+                    continue;
+                }
+                $urls[] = $this->normalizeVanilleImageUrl($u);
+            }
+        }
+
+        $urls = array_values(array_unique(array_filter($urls)));
+
+        return array_slice($urls, 0, 12);
+    }
+
+    protected function normalizeVanilleImageUrl(string $url): string
+    {
+        $url = html_entity_decode(trim($url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($url === '') {
+            return '';
+        }
+        if (str_starts_with($url, '//')) {
+            return 'https:'.$url;
+        }
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+        if (str_starts_with($url, '/')) {
+            return 'https://vanille.by'.$url;
+        }
+
+        return 'https://vanille.by/'.$url;
     }
 
     protected function parseCharacteristics(string $html): array

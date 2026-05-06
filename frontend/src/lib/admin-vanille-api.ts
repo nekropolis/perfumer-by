@@ -212,6 +212,34 @@ export async function parseVanilleProducts(): Promise<{ message?: string; job: V
     );
 }
 
+export async function parseVanilleCatalogImages(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
+    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
+        "/admin/import-export/vanille/parse-catalog-images",
+        { method: "POST", body: JSON.stringify({}) }
+    );
+}
+
+export async function parseVanilleProductImages(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
+    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
+        "/admin/import-export/vanille/parse-product-images",
+        { method: "POST", body: JSON.stringify({}) }
+    );
+}
+
+export async function rewriteVanilleDescriptions(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
+    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
+        "/admin/import-export/vanille/rewrite-descriptions",
+        { method: "POST", body: JSON.stringify({}) }
+    );
+}
+
+export async function startVanilleRetryFailedJob(taskType: string): Promise<{ message?: string; job: VanilleImportQueueJob }> {
+    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
+        "/admin/import-export/vanille/retry-failed-job",
+        { method: "POST", body: JSON.stringify({ task_type: taskType }) }
+    );
+}
+
 export type VanilleParseSingleProductImportSummary = {
     success?: boolean;
     message?: string;

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isApiNotFoundError } from "@/lib/api";
 import { fetchProductReviews } from "@/lib/reviews-api";
 import type { ProductDetailData, ProductDetailResponse } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
@@ -41,11 +41,11 @@ export async function generateMetadata({
     let product: ProductDetailData;
     try {
         product = await getProductDetailBySlug(resolvedParams.slug);
-    } catch {
-        return {
-            title: "Товар не найден",
-            robots: { index: false, follow: false },
-        };
+    } catch (e) {
+        if (isApiNotFoundError(e)) {
+            notFound();
+        }
+        throw e;
     }
 
     const title = buildProductMetaTitle(product);
@@ -68,8 +68,11 @@ export default async function ProductPage({ params }: Props) {
     let product: ProductDetailData;
     try {
         product = await getProductDetailBySlug(slug);
-    } catch {
-        notFound();
+    } catch (e) {
+        if (isApiNotFoundError(e)) {
+            notFound();
+        }
+        throw e;
     }
 
     const crumbs = getProductBreadcrumbItems(product);

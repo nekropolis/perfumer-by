@@ -85,6 +85,8 @@ class ProductDetailResource extends JsonResource
                     'alt' => $image->alt,
                     'is_main' => (bool) $image->is_main,
                     'sort_order' => $image->sort_order,
+                    'usage_type' => (string) ($image->usage_type ?? 'gallery'),
+                    'watermark_status' => (string) ($image->watermark_status ?? 'none'),
                 ])->values()->all();
             }),
 

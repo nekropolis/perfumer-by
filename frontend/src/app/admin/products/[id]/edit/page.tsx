@@ -17,6 +17,7 @@ import ProductAttributeValuesEditor from "@/components/admin/products/product-at
 import {
     fetchProductBrandOptions,
     fetchProductById,
+    rewriteProductDescription,
     updateProduct,
     type ProductAdminDetail,
     type ProductBrandOption,
@@ -38,13 +39,16 @@ export default function AdminProductEditPage() {
     const [attributeBindingOptions, setAttributeBindingOptions] = useState<AttributeBindingItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [descriptionRewriting, setDescriptionRewriting] = useState(false);
     const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
 
     const loadData = useCallback(async () => {
         setLoading(true);
         setError("");
 
         try {
+            setSuccessMessage("");
             const [productResponse, brandsResponse, bindingOptionsResponse] = await Promise.all([
                 fetchProductById(params.id),
                 fetchProductBrandOptions(),
@@ -129,6 +133,37 @@ export default function AdminProductEditPage() {
         }
     };
 
+    const handleRewriteDescription = async () => {
+        if (!form?.id) {
+            return;
+        }
+        setError("");
+        setSuccessMessage("");
+        setDescriptionRewriting(true);
+        try {
+            const res = await rewriteProductDescription(form.id);
+            const nextDescription = res.data?.description;
+            if (typeof nextDescription === "string") {
+                setForm((prev) => (prev ? { ...prev, description: nextDescription } : prev));
+                setProductData((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              description: nextDescription,
+                              description_rewritten_at: res.data?.description_rewritten_at ?? prev.description_rewritten_at,
+                          }
+                        : prev,
+                );
+            }
+            setSuccessMessage(res.message || "Описание обновлено");
+            await loadData();
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка уникализации описания");
+        } finally {
+            setDescriptionRewriting(false);
+        }
+    };
+
     return (
         <AdminPageCard>
             <Breadcrumbs
@@ -166,6 +201,16 @@ export default function AdminProductEditPage() {
                 </div>
             ) : null}
 
+            {successMessage ? (
+                <div className="mb-4">
+                    <AdminFeedbackMessage
+                        type="success"
+                        message={successMessage}
+                        onCloseAction={() => setSuccessMessage("")}
+                    />
+                </div>
+            ) : null}
+
             {loading ? (
                 <AdminLoadingState text="Загрузка продукта..." />
             ) : form && productData ? (
@@ -182,6 +227,11 @@ export default function AdminProductEditPage() {
                             submitting={submitting}
                             onChangeAction={setForm}
                             onSubmitAction={handleSubmit}
+                            isLegacyForImport={Boolean(productData.is_legacy_for_import)}
+                            importRetryPendingTasks={productData.import_retry_pending_tasks}
+                            descriptionRewrittenAt={productData.description_rewritten_at ?? null}
+                            descriptionRewriting={descriptionRewriting}
+                            onRewriteDescriptionAction={handleRewriteDescription}
                         />
                     )}
 

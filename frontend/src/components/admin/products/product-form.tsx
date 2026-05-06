@@ -27,6 +27,13 @@ type Props = {
     submitting?: boolean;
     onChangeAction: (value: ProductFormState) => void;
     onSubmitAction: () => void;
+    /** Legacy (импорт): уникализация описания недоступна */
+    isLegacyForImport?: boolean;
+    /** Открытые задачи import_retry_queue для карточки */
+    importRetryPendingTasks?: string[];
+    descriptionRewrittenAt?: string | null;
+    descriptionRewriting?: boolean;
+    onRewriteDescriptionAction?: () => void | Promise<void>;
 };
 
 export default function ProductForm({
@@ -35,9 +42,26 @@ export default function ProductForm({
                                         submitting = false,
                                         onChangeAction,
                                         onSubmitAction,
+                                        isLegacyForImport = false,
+                                        importRetryPendingTasks = [],
+                                        descriptionRewrittenAt = null,
+                                        descriptionRewriting = false,
+                                        onRewriteDescriptionAction,
                                     }: Props) {
+    const pendingLabel = importRetryPendingTasks.length
+        ? importRetryPendingTasks.join(", ")
+        : "";
+
     return (
         <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            {importRetryPendingTasks.length > 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+                    <span className="font-medium">Импорт:</span> есть невыполненные задачи (
+                    <span className="font-mono text-xs">{pendingLabel}</span>
+                    ).
+                </div>
+            ) : null}
+
             <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2 grid gap-2 sm:grid-cols-3">
                     <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
@@ -154,9 +178,38 @@ export default function ProductForm({
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                        Описание
-                    </label>
+                    <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                            Описание
+                            {descriptionRewrittenAt ? (
+                                <span className="ml-2 font-normal text-xs text-gray-500">
+                                    (уникализировано: {new Date(descriptionRewrittenAt).toLocaleString()})
+                                </span>
+                            ) : null}
+                        </label>
+                        {form.id ? (
+                            <button
+                                type="button"
+                                onClick={() => void onRewriteDescriptionAction?.()}
+                                disabled={
+                                    descriptionRewriting || Boolean(isLegacyForImport) || !onRewriteDescriptionAction
+                                }
+                                title={
+                                    isLegacyForImport
+                                        ? "Legacy-товар — уникализация недоступна"
+                                        : "Переписать описание через LLM и сохранить в карточку"
+                                }
+                                className="rounded-lg border bg-white px-3 py-1.5 text-xs disabled:opacity-50"
+                            >
+                                {descriptionRewriting ? "LLM…" : "Уникализировать описание"}
+                            </button>
+                        ) : null}
+                    </div>
+                    {isLegacyForImport ? (
+                        <div className="mb-2 text-xs text-gray-500">
+                            Товар помечен как legacy — описание через LLM не меняется.
+                        </div>
+                    ) : null}
                     <AdminRichTextEditor
                         value={form.description}
                         onChangeAction={(value) => onChangeAction({ ...form, description: value })}

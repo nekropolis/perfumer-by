@@ -6,6 +6,7 @@ import {
     deleteProductImage,
     reorderProductImages,
     setMainProductImage,
+    updateProductImageUsageType,
     uploadProductImages,
 } from "@/lib/admin-product-images-api";
 import {
@@ -28,6 +29,7 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
     const [busyImageId, setBusyImageId] = useState<number | null>(null);
     const [error, setError] = useState("");
     const [draggedImageId, setDraggedImageId] = useState<number | null>(null);
+    const [uploadUsageType, setUploadUsageType] = useState<"gallery" | "catalog">("gallery");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const sortedImages = useMemo(() => {
@@ -40,6 +42,11 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
             return orderA - orderB;
         });
     }, [images]);
+
+    const catalogCount = useMemo(
+        () => sortedImages.filter((i) => i.usage_type === "catalog").length,
+        [sortedImages]
+    );
 
     const refreshFromPayload = (payload: { data: ProductImageItem[] }) => {
         onImagesChangedAction(payload.data || []);
@@ -61,7 +68,9 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
             }
 
             const optimized = await Promise.all(rawFiles.map((file) => optimizeImageForSeo(file)));
-            const response = await uploadProductImages(productId, optimized);
+            const response = await uploadProductImages(productId, optimized, {
+                usage_type: uploadUsageType,
+            });
             refreshFromPayload(response);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Не удалось загрузить изображения");
@@ -98,6 +107,19 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
             refreshFromPayload(response);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Не удалось задать главное изображение");
+        } finally {
+            setBusyImageId(null);
+        }
+    };
+
+    const handleUsageTypeChange = async (imageId: number, usageType: "gallery" | "catalog") => {
+        setBusyImageId(imageId);
+        setError("");
+        try {
+            const response = await updateProductImageUsageType(productId, imageId, usageType);
+            refreshFromPayload(response);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось обновить тип изображения");
         } finally {
             setBusyImageId(null);
         }
@@ -162,6 +184,21 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                 <div className="mt-1 text-xs text-gray-500">
                     Перед загрузкой изображения автоматически сжимаются в SEO-friendly WEBP (до 1600px)
                 </div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm">
+                    <span className="text-gray-600">Тип загрузки:</span>
+                    <select
+                        value={uploadUsageType}
+                        onChange={(e) => setUploadUsageType(e.target.value as "gallery" | "catalog")}
+                        disabled={uploading || processingSeo}
+                        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
+                    >
+                        <option value="gallery">Галерея</option>
+                        <option value="catalog" disabled={catalogCount >= 2}>
+                            Каталог (макс. 2)
+                        </option>
+                    </select>
+                </div>
+
                 <button
                     type="button"
                     onClick={handleChooseFiles}
@@ -188,6 +225,13 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                     {error}
                 </div>
             ) : null}
+
+            <div className="text-xs text-gray-600">
+                Каталожные изображения для листинга / hover:{" "}
+                <span className="font-medium">
+                    {catalogCount}/2
+                </span>
+            </div>
 
             {sortedImages.length === 0 ? (
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-600">
@@ -223,9 +267,43 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
 
                                 <div className="min-w-0">
                                     <div className="truncate text-sm font-medium text-gray-800">
-                                        #{index + 1} {image.is_main ? "• Главная" : ""}
+                                        #{index + 1} {image.is_main ? "• Главная" : ""}{" "}
+                                        {image.usage_type === "catalog" ? "• Каталог" : ""}
                                     </div>
                                     <div className="truncate text-xs text-gray-500">{image.path}</div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <span className="text-xs text-gray-600">Тип:</span>
+                                        <select
+                                            value={image.usage_type === "catalog" ? "catalog" : "gallery"}
+                                            disabled={isBusy}
+                                            onChange={(e) => {
+                                                const v = e.target.value as "gallery" | "catalog";
+                                                if (v === (image.usage_type === "catalog" ? "catalog" : "gallery")) {
+                                                    return;
+                                                }
+                                                if (
+                                                    v === "catalog" &&
+                                                    catalogCount >= 2 &&
+                                                    image.usage_type !== "catalog"
+                                                ) {
+                                                    setError("Каталожных изображений может быть не более двух.");
+                                                    return;
+                                                }
+                                                void handleUsageTypeChange(image.id, v);
+                                            }}
+                                            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs"
+                                        >
+                                            <option value="gallery">Галерея</option>
+                                            <option
+                                                value="catalog"
+                                                disabled={
+                                                    catalogCount >= 2 && image.usage_type !== "catalog"
+                                                }
+                                            >
+                                                Каталог
+                                            </option>
+                                        </select>
+                                    </div>
                                     <div className="mt-1 text-xs text-gray-400">Перетащите карточку, чтобы изменить порядок</div>
                                 </div>
 

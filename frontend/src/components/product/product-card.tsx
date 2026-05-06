@@ -68,6 +68,12 @@ export default function ProductCard({
         ? normalizeProductImageUrl(product.image)
         : null;
 
+    const catalogSwapPaths = Array.isArray(product.catalog_images)
+        ? product.catalog_images.filter((p): p is string => typeof p === "string" && p.trim() !== "")
+        : [];
+    const secondaryImagePath =
+        catalogSwapPaths.length >= 2 ? normalizeProductImageUrl(catalogSwapPaths[1]) : null;
+
     const showEmptyVolumeLabel =
         visibleVariants.length === 0 && !product.is_preorder_available;
     const inWishlist = isInWishlist(product.id);
@@ -113,15 +119,32 @@ export default function ProductCard({
                 </button>
 
                 {imagePath ? (
-                    <Image
-                        src={imagePath}
-                        loader={productImageLoader}
-                        alt={product.name}
-                        fill
-                        loading={eager ? "eager" : "lazy"}
-                        sizes="(max-width: 640px) min(100vw, 28rem), (max-width: 1024px) 50vw, 280px"
-                        className="object-contain transition duration-300 group-hover:scale-[1.01]"
-                    />
+                    <div className="relative h-full w-full">
+                        <Image
+                            src={imagePath}
+                            loader={productImageLoader}
+                            alt={product.name}
+                            fill
+                            loading={eager ? "eager" : "lazy"}
+                            sizes="(max-width: 640px) min(100vw, 28rem), (max-width: 1024px) 50vw, 280px"
+                            className={`object-contain transition duration-300 ${
+                                secondaryImagePath
+                                    ? "group-hover:opacity-0 group-hover:scale-[1.01]"
+                                    : "group-hover:scale-[1.01]"
+                            }`}
+                        />
+                        {secondaryImagePath ? (
+                            <Image
+                                src={secondaryImagePath}
+                                loader={productImageLoader}
+                                alt={`${product.name} — вид 2`}
+                                fill
+                                loading="lazy"
+                                sizes="(max-width: 640px) min(100vw, 28rem), (max-width: 1024px) 50vw, 280px"
+                                className="pointer-events-none absolute inset-0 object-contain opacity-0 transition duration-300 group-hover:opacity-100"
+                            />
+                        ) : null}
+                    </div>
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--surface)] text-[var(--text-secondary)]">
                         <div className="mb-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 shadow-sm">

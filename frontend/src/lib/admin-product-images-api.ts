@@ -30,13 +30,22 @@ export type ProductImagesResponse = {
         alt?: string | null;
         is_main: boolean;
         sort_order: number;
+        usage_type?: string;
+        watermark_status?: string;
     }>;
 };
 
-export async function uploadProductImages(id: number, files: File[]): Promise<ProductImagesResponse> {
+export async function uploadProductImages(
+    id: number,
+    files: File[],
+    options?: { usage_type?: "gallery" | "catalog" }
+): Promise<ProductImagesResponse> {
     const body = new FormData();
     for (const file of files) {
         body.append("images[]", file);
+    }
+    if (options?.usage_type) {
+        body.append("usage_type", options.usage_type);
     }
 
     const res = await fetch(`${API_BASE}/admin/products/${id}/images`, {
@@ -80,6 +89,26 @@ export async function setMainProductImage(id: number, imageId: number): Promise<
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Set main product image API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function updateProductImageUsageType(
+    id: number,
+    imageId: number,
+    usageType: "gallery" | "catalog"
+): Promise<ProductImagesResponse> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/images/${imageId}/usage-type`, {
+        method: "PUT",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ usage_type: usageType }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Update usage type API error: ${res.status}`);
     }
 
     return res.json();

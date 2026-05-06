@@ -99,12 +99,7 @@ class ProductController extends Controller
                 ->with([
                     'brand:id,name,slug',
                     'mainCategory:id,name,slug',
-                    'images' => static function ($q): void {
-                        $q->select('id', 'product_id', 'path', 'is_main', 'sort_order')
-                            ->orderByDesc('is_main')
-                            ->orderBy('sort_order')
-                            ->limit(1);
-                    },
+                    'images' => ProductListResource::imagesForListingEagerLoad(),
                     'activeVariants' => static function ($q): void {
                         $q->select(self::VARIANT_LINK_COLUMNS)
                             ->with([
@@ -301,7 +296,11 @@ class ProductController extends Controller
                             ]);
                     },
                 ])
-                ->firstOrFail();
+                ->first();
+
+            if ($product === null) {
+                return [];
+            }
 
             $similar = app(SimilarProductsService::class)->forProduct($product, 8);
 
@@ -312,6 +311,12 @@ class ProductController extends Controller
                 'data' => $detail,
             ];
         });
+
+        if (!isset($payload['data'])) {
+            return response()->json([
+                'message' => 'Товар не найден.',
+            ], 404);
+        }
 
         return response()->json($payload);
     }
@@ -333,16 +338,24 @@ class ProductController extends Controller
 
     public function brandBySlug(string $slug): JsonResponse
     {
-        $brand = app(CatalogApiCacheService::class)->rememberBrandBySlug($slug, function () use ($slug) {
-            return Brand::query()
+        $payload = app(CatalogApiCacheService::class)->rememberBrandBySlug($slug, function () use ($slug) {
+            $row = Brand::query()
                 ->where('slug', $slug)
                 ->where('is_active', true)
-                ->firstOrFail(['id', 'name', 'slug'])
-                ->toArray();
+                ->first(['id', 'name', 'slug']);
+
+            return $row?->toArray() ?? [];
         });
 
+        // Пустой кеш / «бренда нет» — без id; не смешиваем с JSON 200.
+        if (!isset($payload['id'])) {
+            return response()->json([
+                'message' => 'Бренд не найден.',
+            ], 404);
+        }
+
         return response()->json([
-            'data' => $brand,
+            'data' => $payload,
         ]);
     }
 
@@ -390,12 +403,7 @@ class ProductController extends Controller
 
         $baseProductQuery = Product::query()
             ->where('is_active', true)
-            ->with(['brand:id,name', 'images' => static function ($q): void {
-                $q->select('id', 'product_id', 'path', 'is_main', 'sort_order')
-                    ->orderByDesc('is_main')
-                    ->orderBy('sort_order')
-                    ->limit(1);
-            }, 'variants' => static function ($q): void {
+            ->with(['brand:id,name', 'images' => ProductListResource::imagesForListingEagerLoad(), 'variants' => static function ($q): void {
                 $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
                     ->with(['definition:id,title']);
             }, 'activeVariants' => static function ($q): void {
@@ -778,7 +786,8 @@ class ProductController extends Controller
      */
     private function brandProductDisplayTitleSql(string $productsTable): string
     {
-        $driver = Product::query()->getConnection()->getDriverName();
+        $defaultConnection = (string) config('database.default', 'mysql');
+        $driver = (string) config("database.connections.{$defaultConnection}.driver", 'mysql');
 
         return $driver === 'sqlite'
             ? "trim(COALESCE(brands.name, '') || ' ' || COALESCE({$productsTable}.name, ''))"

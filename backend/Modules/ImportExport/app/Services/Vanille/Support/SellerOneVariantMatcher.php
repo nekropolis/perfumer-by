@@ -2,8 +2,11 @@
 
 namespace Modules\ImportExport\Services\Vanille\Support;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 
@@ -47,10 +50,12 @@ class SellerOneVariantMatcher
     private const VARIANT_BONUS_CONCENTRATION = 8;
 
     /**
+     * @param  Collection<int, Brand>  $brands
+     * @param  Collection<int, SellerOneMatchRule>  $rules
      * @param  array<int, \Illuminate\Support\Collection<int, \Modules\Catalog\Models\Product>>  $productsIndex
      *         Продукты, сгруппированные по brand_id. Предзагружены `brand` и `variants.definition`.
      */
-    public function parseSupplierRow(array $row, $brands, $rules, array $productsIndex): array
+    public function parseSupplierRow(array $row, Collection $brands, Collection $rules, array $productsIndex): array
     {
         $title = $this->applyTitleRules((string) $row['title'], $rules);
         $hasSkipMarker = str_contains($title, '***');
@@ -421,7 +426,10 @@ class SellerOneVariantMatcher
         ];
     }
 
-    private function detectBrand(string $title, $brands): ?array
+    /**
+     * @param  Collection<int, Brand>  $brands
+     */
+    private function detectBrand(string $title, Collection $brands): ?array
     {
         $normalizedTitle = $this->normalizeText($title);
         $best = null;
@@ -537,7 +545,10 @@ class SellerOneVariantMatcher
         };
     }
 
-    private function applyTitleRules(string $title, $rules): string
+    /**
+     * @param  Collection<int, SellerOneMatchRule>  $rules
+     */
+    private function applyTitleRules(string $title, Collection $rules): string
     {
         $result = $title;
         foreach ($rules as $rule) {

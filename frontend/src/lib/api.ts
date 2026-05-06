@@ -1,3 +1,30 @@
+/** Ошибка HTTP от API с кодом статуса (для notFound() и различения 404 / 5xx). */
+export class ApiFetchError extends Error {
+    readonly status: number;
+    readonly url: string;
+    readonly serverMessage: string;
+
+    constructor(status: number, url: string, serverMessage: string) {
+        const suffix = serverMessage ? ` ${serverMessage}` : "";
+        super(`API error: ${status} ${url}.${suffix}`);
+        this.name = "ApiFetchError";
+        this.status = status;
+        this.url = url;
+        this.serverMessage = serverMessage;
+    }
+}
+
+/** 404 от API: `instanceof` иногда ломается при дублировании бандла — дублируем проверку по полю. */
+export function isApiNotFoundError(error: unknown): boolean {
+    if (error instanceof ApiFetchError && error.status === 404) {
+        return true;
+    }
+    if (typeof error === "object" && error !== null && "status" in error) {
+        return (error as { status: unknown }).status === 404;
+    }
+    return false;
+}
+
 /** Laravel API base (…/api). На SSR приоритет у API_URL / INTERNAL_API_URL, иначе NEXT_PUBLIC_API_URL. */
 export function getApiBase(): string {
     const isBrowser = typeof window !== "undefined";
@@ -29,7 +56,15 @@ export async function apiFetch<T>(path: string): Promise<T> {
     });
 
     if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${url}`);
+        const raw = await res.text();
+        let serverMessage = "";
+        try {
+            const parsed = JSON.parse(raw) as { message?: string };
+            serverMessage = parsed?.message?.trim() ?? "";
+        } catch {
+            serverMessage = raw.replace(/\s+/g, " ").trim().slice(0, 180);
+        }
+        throw new ApiFetchError(res.status, url, serverMessage);
     }
 
     const raw = await res.text();

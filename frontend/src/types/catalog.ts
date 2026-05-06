@@ -64,6 +64,9 @@ export type ProductListItem = {
 
     image: string | null;
 
+    /** До двух URL для смены картинки при наведении (листинг Vanille). */
+    catalog_images?: string[];
+
     is_new: boolean;
     is_hit: boolean;
     is_out_of_stock: boolean;

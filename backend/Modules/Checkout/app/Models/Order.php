@@ -28,9 +28,6 @@ class Order extends Model
         'delivery_address',
         'delivery_fee',
         'payment_method',
-        'gift_certificate_id',
-        'gift_certificate_code',
-        'gift_certificate_amount',
         'discount_card_id',
         'discount_card_number',
         'discount_percent_snapshot',
@@ -39,8 +36,21 @@ class Order extends Model
 
     protected $casts = [
         'delivery_fee' => 'decimal:2',
-        'gift_certificate_amount' => 'decimal:2',
     ];
+
+    /** Списание подарочного сертификата: только `order_gift_certificates` (колонки на `orders` сняты в v2 миграции). */
+    public function resolvedGiftCertificateAmountApplied(): float
+    {
+        if (isset($this->attributes['gift_certificate_amount']) && $this->attributes['gift_certificate_amount'] !== null) {
+            return round((float) $this->attributes['gift_certificate_amount'], 2);
+        }
+
+        $lines = $this->relationLoaded('orderGiftCertificates')
+            ? $this->orderGiftCertificates
+            : $this->orderGiftCertificates()->get();
+
+        return round((float) $lines->sum('amount_applied'), 2);
+    }
 
     public function discountCard(): BelongsTo
     {

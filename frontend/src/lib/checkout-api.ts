@@ -138,6 +138,45 @@ export async function fetchCheckoutQuote(payload: {
     return res.json();
 }
 
+function parseCheckoutErrorMessage(status: number, raw: string): string {
+    const fallback = `Ошибка оформления заказа (${status})`;
+    if (!raw.trim()) {
+        return fallback;
+    }
+    try {
+        const parsed = JSON.parse(raw) as {
+            message?: string;
+            errors?: Record<string, string[] | string>;
+        };
+        if (typeof parsed.message === "string" && parsed.message.trim() !== "") {
+            return parsed.message.trim();
+        }
+        if (parsed.errors && typeof parsed.errors === "object") {
+            const parts: string[] = [];
+            for (const v of Object.values(parsed.errors)) {
+                if (Array.isArray(v)) {
+                    for (const s of v) {
+                        if (typeof s === "string" && s.trim() !== "") {
+                            parts.push(s.trim());
+                        }
+                    }
+                } else if (typeof v === "string" && v.trim() !== "") {
+                    parts.push(v.trim());
+                }
+            }
+            if (parts.length > 0) {
+                return parts.join(" ");
+            }
+        }
+    } catch {
+        const preview = raw.replace(/\s+/g, " ").trim().slice(0, 200);
+        if (preview) {
+            return preview;
+        }
+    }
+    return fallback;
+}
+
 export async function createOrder(payload: CheckoutPayload): Promise<CheckoutResponse> {
     const cartToken = typeof window !== "undefined" ? getCartToken() : "";
     const authToken = typeof window !== "undefined" ? getAuthToken() : "";
@@ -146,6 +185,7 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
             "X-Cart-Token": cartToken,
             ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
@@ -153,9 +193,10 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
         cache: "no-store",
     });
 
+    const raw = await res.text();
     if (!res.ok) {
-        throw new Error(`Checkout API error: ${res.status}`);
+        throw new Error(parseCheckoutErrorMessage(res.status, raw));
     }
 
-    return res.json();
+    return JSON.parse(raw) as CheckoutResponse;
 }

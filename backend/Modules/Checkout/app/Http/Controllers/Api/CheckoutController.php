@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
@@ -21,6 +22,7 @@ use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Users\Models\User as CustomerUser;
 use Modules\Warehouse\Services\StockInventoryService;
+use Throwable;
 
 class CheckoutController extends Controller
 {
@@ -39,6 +41,10 @@ class CheckoutController extends Controller
             'delivery_address' => ['required', 'string', 'max:2000'],
             'payment_method' => ['required', Rule::in(['cash', 'card'])],
         ]);
+
+        $validated['customer_name'] = filled(trim((string) ($validated['customer_name'] ?? '')))
+            ? trim((string) $validated['customer_name'])
+            : null;
 
         $phone = $this->normalizePhone($validated['phone']);
         $user = $request->user() ?? Auth::guard('sanctum')->user();
@@ -102,9 +108,6 @@ class CheckoutController extends Controller
                 'discount_card_number' => $quote['discount_card_number'],
                 'discount_percent_snapshot' => $quote['loyalty_discount_percent'],
                 'discount_amount' => $quote['loyalty_discount_amount'],
-                'gift_certificate_id' => null,
-                'gift_certificate_code' => null,
-                'gift_certificate_amount' => 0,
             ]);
 
             foreach ($cart->items as $cartItem) {
@@ -153,28 +156,21 @@ class CheckoutController extends Controller
             $expectedSubtotal = (float) $quote['subtotal'] + (float) ($quote['gift_certificates_purchase_subtotal'] ?? 0);
             abort_if(abs($subtotal - $expectedSubtotal) > 0.02, 422, 'Корзина изменилась, пересчитайте заказ');
 
-            $giftPatch = [];
             if ($quote['gift_certificate'] instanceof GiftCertificate && $quote['gift_certificate_amount'] > 0) {
-                $certificate = $quote['gift_certificate'];
                 app(GiftCertificateLedgerService::class)->confirmCheckoutDebit(
                     $order,
                     $cart,
-                    $certificate,
+                    $quote['gift_certificate'],
                     (float) $quote['gift_certificate_amount']
                 );
-                $giftPatch = [
-                    'gift_certificate_id' => $certificate->id,
-                    'gift_certificate_code' => $certificate->code,
-                    'gift_certificate_amount' => round((float) $quote['gift_certificate_amount'], 2),
-                ];
             }
 
-            $order->update(array_merge([
+            $order->update([
                 'items_qty' => $itemsQty,
                 'subtotal' => $subtotal,
                 'delivery_fee' => $quote['delivery_fee'],
                 'total' => $quote['total'],
-            ], $giftPatch));
+            ]);
 
             app(SoldGiftCertificateFromOrderService::class)->issueFromPurchases($order);
 
@@ -210,7 +206,11 @@ class CheckoutController extends Controller
             'soldGiftCertificates.template',
         ]);
 
-        app(CheckoutTelegramNotificationService::class)->notifyNewOrder($order);
+        try {
+            app(CheckoutTelegramNotificationService::class)->notifyNewOrder($order);
+        } catch (Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'data' => new OrderResource($order),
@@ -223,9 +223,9 @@ class CheckoutController extends Controller
         return preg_replace('/\D+/', '', $phone) ?? '';
     }
 
-    protected function makeVariantDisplayTitle($variant): string
+    protected function makeVariantDisplayTitle(?ProductVariantLink $variant): string
     {
-        if (!$variant) {
+        if ($variant === null) {
             return '';
         }
 

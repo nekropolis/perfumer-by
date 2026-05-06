@@ -143,7 +143,10 @@ export default function CheckoutPage() {
     }, [cart?.token, deliveryMethod, paymentMethod]);
 
     useEffect(() => {
-        if (!cart || cart.items.length === 0) return;
+        if (!cart) return;
+        const hasLines =
+            cart.items.length > 0 || (cart.gift_certificate_items?.length ?? 0) > 0;
+        if (!hasLines) return;
         queueMicrotask(() => {
             void refreshQuote();
         });
@@ -207,12 +210,19 @@ export default function CheckoutPage() {
                 router.push(`/checkout/success?order=${response.data.id}`);
             } catch (error) {
                 console.error(error);
-                setErrorMessage("Не удалось оформить заказ");
+                const text =
+                    error instanceof Error && error.message.trim() !== ""
+                        ? error.message
+                        : "Не удалось оформить заказ";
+                setErrorMessage(text);
             }
         });
     };
 
-    if (!cart || cart.items.length === 0) {
+    if (
+        !cart ||
+        (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)
+    ) {
         return (
             <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
                 <h1 className="mb-6 text-3xl font-semibold">Оформление заказа</h1>
@@ -250,13 +260,23 @@ export default function CheckoutPage() {
                 }
               : null;
 
+    const quoteGiftPurchaseSubtotal = quote?.gift_certificates_purchase_subtotal
+        ? parseMoney(quote.gift_certificates_purchase_subtotal)
+        : 0;
+
+    const breakdownSubtotal =
+        quote != null
+            ? Math.max(0, parseMoney(quote.subtotal) + quoteGiftPurchaseSubtotal).toFixed(2)
+            : cart.subtotal;
+
     const merchandisePayStr =
         quote != null
             ? Math.max(
                   0,
                   parseMoney(quote.subtotal) -
                       parseMoney(quote.loyalty_discount_amount) -
-                      parseMoney(quote.gift_certificate_amount),
+                      parseMoney(quote.gift_certificate_amount) +
+                      quoteGiftPurchaseSubtotal,
               ).toFixed(2)
             : (cart.total ?? cart.subtotal);
 
@@ -481,6 +501,18 @@ export default function CheckoutPage() {
                     <div className="mb-4 text-lg font-medium">Ваш заказ</div>
 
                     <div className="space-y-4">
+                        {cart.gift_certificate_items?.map((item) => (
+                            <div
+                                key={`gift-template-${item.id}`}
+                                className="border-b border-[var(--line)] pb-4 last:border-b-0"
+                            >
+                                <div className="text-sm text-[var(--text-secondary)]">Сертификат</div>
+                                <div className="font-medium">{item.title}</div>
+                                <div className="mt-1 text-sm text-[var(--text-secondary)]">
+                                    {item.qty} × {item.amount} руб.
+                                </div>
+                            </div>
+                        ))}
                         {cart.items.map((item) => (
                             <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
                                 <div className="text-sm text-[var(--text-secondary)]">{item.brand_name || "—"}</div>
@@ -499,7 +531,7 @@ export default function CheckoutPage() {
                         {quoteError ? <p className="mb-2 text-xs text-amber-700">{quoteError}</p> : null}
                         <CartPricingBreakdown
                             itemsQty={cart.qty}
-                            subtotal={quote?.subtotal ?? cart.subtotal}
+                            subtotal={breakdownSubtotal}
                             total={merchandisePayStr}
                             discountCard={discountCardForBreakdown}
                             giftCertificate={giftForBreakdown}

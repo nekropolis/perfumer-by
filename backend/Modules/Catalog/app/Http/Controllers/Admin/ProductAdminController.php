@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Models\Product;
@@ -14,6 +15,10 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Services\ProductDescriptionRewriter;
+use Modules\ImportExport\Models\ImportRetryItem;
+use Modules\ImportExport\Services\ImportRetryQueue;
+use Modules\ImportExport\Support\LegacyProductDetector;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
@@ -285,9 +290,81 @@ class ProductAdminController extends Controller
             ->withCount('variants')
             ->findOrFail($id);
 
+        $resolved = ProductDetailResource::make($product)->resolve();
+
+        $legacyDetector = app(LegacyProductDetector::class);
+        $legacyDetector->preload([(int) $product->id]);
+
+        $pendingRetryTasks = ImportRetryItem::query()
+            ->where('product_id', $product->id)
+            ->where('status', ImportRetryItem::STATUS_PENDING)
+            ->orderBy('task_type')
+            ->pluck('task_type')
+            ->map(static fn ($t) => (string) $t)
+            ->values()
+            ->all();
+
         return response()->json([
-            'data' => ProductDetailResource::make($product)->resolve(),
+            'data' => array_merge($resolved, [
+                'is_legacy_for_import' => $legacyDetector->isLegacy((int) $product->id),
+                'import_retry_pending_tasks' => $pendingRetryTasks,
+                'description_rewritten_at' => optional($product->description_rewritten_at)?->toIso8601String(),
+            ]),
         ]);
+    }
+
+    public function rewriteDescription(
+        int $id,
+        ProductDescriptionRewriter $rewriter,
+        ImportRetryQueue $retryQueue
+    ): JsonResponse {
+        $product = Product::query()->findOrFail($id);
+
+        $result = $rewriter->rewriteProduct($product);
+        if (! ($result['ok'] ?? false)) {
+            $error = (string) ($result['error'] ?? 'unknown');
+
+            return response()->json([
+                'message' => $this->mapDescriptionRewriteErrorMessage($error),
+                'error' => $error,
+            ], 422);
+        }
+
+        DB::transaction(function () use ($product, $result, $retryQueue): void {
+            $product->update([
+                'description' => $result['description'],
+                'description_rewritten_at' => now(),
+            ]);
+            $retryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, (int) $product->id);
+        });
+
+        $fresh = $product->fresh();
+
+        return response()->json([
+            'message' => 'Описание обновлено (уникализация)',
+            'data' => [
+                'description' => $fresh?->description,
+                'description_rewritten_at' => optional($fresh?->description_rewritten_at)?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    private function mapDescriptionRewriteErrorMessage(string $error): string
+    {
+        if ($error === 'legacy_skip') {
+            return 'Этот товар отмечен как legacy — уникализация описания недоступна.';
+        }
+        if ($error === 'source_too_short') {
+            return 'Описание слишком короткое для уникализации (см. min_source_length в конфиге LLM).';
+        }
+        if (str_starts_with($error, 'llm:')) {
+            return 'Ошибка LLM: '.mb_substr($error, 4);
+        }
+        if (str_starts_with($error, 'validation:')) {
+            return 'Ответ модели не прошёл проверку: '.mb_substr($error, 11);
+        }
+
+        return 'Не удалось уникализировать описание: '.$error;
     }
 
     public function variantSuppliers(Request $request, int $id): JsonResponse

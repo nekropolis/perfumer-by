@@ -23,6 +23,9 @@ use Modules\ImportExport\Services\Vanille\Parsers\VanilleProductParser;
 use Modules\ImportExport\Services\Vanille\Support\VanilleQueuedJobExecutor;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
+use Modules\Catalog\Services\ProductDescriptionRewriter;
+use Modules\ImportExport\Models\ImportRetryItem;
+use Modules\ImportExport\Services\ImportRetryQueue;
 use App\Services\AuditLogService;
 use Throwable;
 
@@ -36,6 +39,14 @@ class VanilleImportService
     public const JOB_TYPE_PIPELINE_NEW_PRODUCTS = 'pipeline_new_products';
 
     public const JOB_TYPE_PIPELINE_REFRESH_ALL = 'pipeline_refresh_all';
+
+    public const JOB_TYPE_PARSE_CATALOG_IMAGES = 'parse_catalog_images';
+
+    public const JOB_TYPE_PARSE_PRODUCT_IMAGES = 'parse_product_images';
+
+    public const JOB_TYPE_REWRITE_DESCRIPTIONS = 'rewrite_descriptions';
+
+    public const JOB_TYPE_RETRY_FAILED = 'retry_failed';
 
     public const PARSE_PRODUCTS_MODE_FULL = 'full';
 
@@ -111,7 +122,8 @@ class VanilleImportService
 
         foreach ($items as $item) {
             try {
-                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet) {
+                $newProductIdForLlm = null;
+                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$newProductIdForLlm) {
                     $productName = $this->resolveProductName($item);
                     $brand = null;
 
@@ -170,6 +182,7 @@ class VanilleImportService
                             'is_out_of_stock' => true,
                             'sort_order' => 0,
                         ]);
+                        $newProductIdForLlm = (int) $product->id;
                     }
                     $productSlugSet[mb_strtolower((string) $product->slug)] = true;
 
@@ -247,6 +260,10 @@ class VanilleImportService
                     $log[] = 'OK: ' . $productName;
                 });
 
+                if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {
+                    $this->rewriteDescriptionForNewProductIfPossible($newProductIdForLlm);
+                }
+
                 $importedUrl = trim((string) ($item['url'] ?? ''));
                 if ($importedUrl !== '') {
                     $this->appendUrlsToParsedManifest([$importedUrl]);
@@ -270,20 +287,20 @@ class VanilleImportService
         ];
     }
 
-    protected function normalizePrice($value): ?string
+    protected function normalizePrice(mixed $value): ?string
     {
         if ($value === null || $value === '') {
             return null;
         }
 
-        $value = strip_tags((string)$value);
+        $value = strip_tags((string) $value);
         $value = str_replace(['BYN', ' '], '', $value);
         $value = str_replace(',', '.', $value);
 
         return is_numeric($value) ? number_format((float)$value, 2, '.', '') : null;
     }
 
-    protected function normalizeStock($value): int
+    protected function normalizeStock(mixed $value): int
     {
         if ($value === null || $value === '') {
             return 0;
@@ -411,20 +428,7 @@ class VanilleImportService
 
         try {
             RunVanilleImportJob::dispatch($job->id);
-
-            VanilleImportJobLog::query()->create([
-                'vanille_import_job_id' => $job->id,
-                'level' => 'info',
-                'message' => sprintf(
-                    'Диспатч в очередь: connection=%s, queue=%s',
-                    $connection,
-                    $queueName,
-                ),
-                'context' => [
-                    'queue_connection' => $connection,
-                    'queue_name' => $queueName,
-                ],
-            ]);
+            // Не пишем в vanille_import_job_logs на каждую следующую пачку (это тысячи строк); статус задачи уже в БД.
         } catch (Throwable $e) {
             VanilleImportJobLog::query()->create([
                 'vanille_import_job_id' => $job->id,
@@ -828,6 +832,8 @@ class VanilleImportService
                 'done' => true,
             ];
         }
+
+        $brands = VanilleBrandParser::filterExcludedListingRows($brands);
 
         $result = $this->linkCollector->collect($brands, $offset, $limit, $maxLinks);
 
@@ -1252,12 +1258,9 @@ class VanilleImportService
         array $result,
         int $logTick,
     ): void {
-        $interval = 25;
         $errorSample = $this->extractParseErrorLinesFromResult($result);
-        $shouldWrite = $terminal
-            || $logTick === 1
-            || ($logTick % $interval === 0)
-            || $errorSample !== [];
+        // В БД только старт первого шага, завершение и чанки с ошибками (без «каждые N» прогресса).
+        $shouldWrite = $terminal || $logTick === 1 || $errorSample !== [];
 
         if (!$shouldWrite) {
             return;
@@ -1323,13 +1326,7 @@ class VanilleImportService
                 return;
             }
 
-            $audit->record(
-                AuditLogService::ENTITY_VANILLE_IMPORT,
-                $jobId,
-                AuditLogService::ACTION_RUNNING,
-                $message,
-                $context,
-            );
+            // Прогресс без ошибок только в логах задачи (стартует через persistImportJobProgressLog при tick=1 и т. д.), без аудита «каждый шаг».
         } catch (Throwable) {
         }
     }
@@ -1342,14 +1339,14 @@ class VanilleImportService
         $lines = [];
         if (!empty($result['log']) && is_array($result['log'])) {
             foreach ($result['log'] as $line) {
-                if (is_string($line) && str_starts_with($line, 'ERROR:')) {
+                if (is_string($line) && str_starts_with(mb_strtoupper($line, 'UTF-8'), 'ERROR')) {
                     $lines[] = $line;
                 }
             }
         }
         if (!empty($result['last_parse_batch']['log']) && is_array($result['last_parse_batch']['log'])) {
             foreach ($result['last_parse_batch']['log'] as $line) {
-                if (is_string($line) && str_starts_with($line, 'ERROR:')) {
+                if (is_string($line) && str_starts_with(mb_strtoupper($line, 'UTF-8'), 'ERROR')) {
                     $lines[] = $line;
                 }
             }
@@ -1672,6 +1669,219 @@ class VanilleImportService
         }
 
         return 'Unknown product';
+    }
+
+    private function rewriteDescriptionForNewProductIfPossible(int $productId): void
+    {
+        try {
+            $product = Product::query()->find($productId);
+            if (! $product) {
+                return;
+            }
+            $rewriter = app(ProductDescriptionRewriter::class);
+            $res = $rewriter->rewriteProduct($product);
+            if (($res['ok'] ?? false) && isset($res['description'])) {
+                $product->update([
+                    'description' => $res['description'],
+                    'description_rewritten_at' => now(),
+                ]);
+            }
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
+     */
+    public function runVanilleCatalogImagesJob(VanilleImportJob $job): array
+    {
+        $result = is_array($job->result) ? $job->result : [];
+        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
+        $brandOffset = (int) ($state['brand_offset'] ?? 0);
+        $batch = $this->mediaImportService()->runCatalogImagesBatch($brandOffset, 1);
+
+        return [
+            'done' => (bool) ($batch['done'] ?? true),
+            'progress' => (int) ($batch['progress'] ?? 100),
+            'message' => (string) ($batch['message'] ?? ''),
+            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
+        ];
+    }
+
+    /**
+     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
+     */
+    public function runVanilleProductImagesJob(VanilleImportJob $job): array
+    {
+        $result = is_array($job->result) ? $job->result : [];
+        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
+        $offset = (int) ($state['offset'] ?? 0);
+        $batch = $this->mediaImportService()->runProductGalleryBatch($offset, 3);
+
+        return [
+            'done' => (bool) ($batch['done'] ?? true),
+            'progress' => (int) ($batch['progress'] ?? 100),
+            'message' => (string) ($batch['message'] ?? ''),
+            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
+        ];
+    }
+
+    /**
+     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
+     */
+    public function runVanilleRewriteDescriptionsJob(VanilleImportJob $job): array
+    {
+        $result = is_array($job->result) ? $job->result : [];
+        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
+        $offset = (int) ($state['offset'] ?? 0);
+        $batch = $this->mediaImportService()->runDescriptionRewriteBatch($offset, 2);
+
+        return [
+            'done' => (bool) ($batch['done'] ?? true),
+            'progress' => (int) ($batch['progress'] ?? 100),
+            'message' => (string) ($batch['message'] ?? ''),
+            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
+        ];
+    }
+
+    /**
+     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
+     */
+    public function runVanilleRetryFailedJob(VanilleImportJob $job): array
+    {
+        $result = is_array($job->result) ? $job->result : [];
+        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
+        $taskType = (string) ($state['task_type'] ?? ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES);
+        $onlyIds = isset($state['product_ids']) && is_array($state['product_ids'])
+            ? array_values(array_filter(array_map('intval', $state['product_ids'])))
+            : null;
+
+        $queue = app(ImportRetryQueue::class);
+
+        if ($onlyIds !== null && $onlyIds !== []) {
+            $batch = $this->mediaImportService()->runRetryFailedBatch($taskType, 0, count($onlyIds), $onlyIds);
+
+            return [
+                'done' => true,
+                'progress' => 100,
+                'message' => (string) ($batch['message'] ?? 'Retry'),
+                'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
+            ];
+        }
+
+        $ids = $queue->pendingProductIds($taskType, 5, 0);
+        if ($ids === []) {
+            return [
+                'done' => true,
+                'progress' => 100,
+                'message' => 'Retry: очередь пуста',
+                'result' => ['task_type' => $taskType, 'state' => $state],
+            ];
+        }
+
+        $batch = $this->mediaImportService()->runRetryFailedBatch($taskType, 0, 5, $ids);
+        $remaining = $queue->pendingCount($taskType);
+        $done = $remaining === 0;
+
+        return [
+            'done' => $done,
+            'progress' => $done ? 100 : max(10, 90 - min(80, $remaining * 2)),
+            'message' => (string) ($batch['message'] ?? 'Retry').' (осталось: '.$remaining.')',
+            'result' => array_merge(
+                is_array($batch['result'] ?? null) ? $batch['result'] : [],
+                ['state' => ['task_type' => $taskType], 'pending_remaining' => $remaining],
+            ),
+        ];
+    }
+
+    public function enqueueParseCatalogImages(): VanilleImportJob
+    {
+        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_CATALOG_IMAGES, [
+            'state' => ['brand_offset' => 0],
+        ]);
+    }
+
+    public function enqueueParseProductImages(): VanilleImportJob
+    {
+        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_PRODUCT_IMAGES, [
+            'state' => ['offset' => 0],
+        ]);
+    }
+
+    public function enqueueRewriteDescriptions(): VanilleImportJob
+    {
+        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_REWRITE_DESCRIPTIONS, [
+            'state' => ['offset' => 0],
+        ]);
+    }
+
+    /**
+     * @param  list<int>|null  $productIds
+     */
+    public function enqueueRetryFailed(string $taskType, ?array $productIds = null): VanilleImportJob
+    {
+        $state = ['task_type' => $taskType];
+        if ($productIds !== null && $productIds !== []) {
+            $state['product_ids'] = array_values(array_map('intval', $productIds));
+        }
+
+        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_RETRY_FAILED, [
+            'state' => $state,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $initialResult
+     */
+    private function enqueueJobWithInitialResult(string $type, array $initialResult): VanilleImportJob
+    {
+        $activeJob = VanilleImportJob::query()
+            ->whereIn('status', ['pending', 'running'])
+            ->orderByDesc('id')
+            ->first();
+
+        if ($activeJob) {
+            throw new \RuntimeException('Уже выполняется задача парсинга Vanille. Дождитесь завершения.');
+        }
+
+        $this->pruneOrphanQueuePayloads();
+
+        $job = VanilleImportJob::query()->create([
+            'type' => $type,
+            'status' => 'pending',
+            'progress' => 0,
+            'message' => $this->queuedJobExecutor->label($type).': в очереди',
+            'result' => $initialResult,
+        ]);
+
+        VanilleImportJobLog::query()->create([
+            'vanille_import_job_id' => $job->id,
+            'level' => 'info',
+            'message' => $this->queuedJobExecutor->label($type).': задача поставлена в очередь',
+            'context' => [
+                'type' => $type,
+            ],
+        ]);
+
+        try {
+            app(AuditLogService::class)->record(
+                AuditLogService::ENTITY_VANILLE_IMPORT,
+                $job->id,
+                AuditLogService::ACTION_CREATED,
+                $this->queuedJobExecutor->label($type).': задача поставлена в очередь',
+                ['job_type' => $type],
+            );
+        } catch (Throwable) {
+        }
+
+        $this->dispatchRunJob($job);
+
+        return $job->fresh();
+    }
+
+    private function mediaImportService(): VanilleMediaImportService
+    {
+        return app(VanilleMediaImportService::class);
     }
 
 }

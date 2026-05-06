@@ -4,12 +4,38 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductListResource extends JsonResource
 {
+    /**
+     * Eager-load для листинга: сначала каталожные (до 2 на карточке), затем галерея с главной.
+     *
+     * @return \Closure(\Illuminate\Database\Eloquent\Builder<\Modules\Catalog\Models\ProductImage>): void
+     */
+    public static function imagesForListingEagerLoad(): \Closure
+    {
+        return static function ($q): void {
+            $select = ['id', 'product_id', 'path', 'is_main', 'sort_order'];
+
+            if (self::hasUsageTypeColumn()) {
+                $select[] = 'usage_type';
+            }
+
+            $q->select($select)
+                ->when(
+                    self::hasUsageTypeColumn(),
+                    static fn ($query) => $query->orderByRaw("CASE WHEN usage_type = 'catalog' THEN 0 ELSE 1 END")
+                )
+                ->orderByDesc('is_main')
+                ->orderBy('sort_order')
+                ->limit(8);
+        };
+    }
+
     public function toArray(Request $request): array
     {
         $variants = $this->relationLoaded('activeVariants')
@@ -61,9 +87,25 @@ class ProductListResource extends JsonResource
         });
         $preorderAvailable = $variants->contains(fn ($variant) => (bool) $variant->is_preorder);
 
-        $listingImage = $this->relationLoaded('images') && $this->images->isNotEmpty()
-            ? $this->images->first()
-            : null;
+        $images = $this->relationLoaded('images') ? $this->images : collect();
+        $catalogPaths = $images
+            ->filter(static function ($image): bool {
+                $usageType = (string) ($image->usage_type ?? '');
+                if ($usageType === 'catalog') {
+                    return true;
+                }
+
+                // Fallback для инстансов без новой колонки в БД:
+                // считаем catalog-изображениями файлы из поддиректории /catalog/.
+                return str_contains((string) ($image->path ?? ''), '/catalog/');
+            })
+            ->take(2)
+            ->pluck('path')
+            ->filter()
+            ->values()
+            ->all();
+
+        $listingImagePath = $images->isNotEmpty() ? (string) $images->first()->path : null;
 
         $discountPercent = null;
         if ($minOldPrice && $minPrice && $minOldPrice > $minPrice) {
@@ -113,7 +155,9 @@ class ProductListResource extends JsonResource
                 'slug' => $this->mainCategory->slug,
             ] : null,
 
-            'image' => $listingImage?->path,
+            'image' => $listingImagePath,
+
+            'catalog_images' => $catalogPaths,
 
             'is_new' => $this->is_new,
             'is_hit' => $this->is_hit,
@@ -137,5 +181,22 @@ class ProductListResource extends JsonResource
             'variants_count' => $variants->count(),
             'variant_labels' => $variantLabels,
         ];
+    }
+
+    private static function hasUsageTypeColumn(): bool
+    {
+        static $hasColumn = null;
+
+        if ($hasColumn !== null) {
+            return $hasColumn;
+        }
+
+        try {
+            $hasColumn = Schema::hasColumn('product_images', 'usage_type');
+        } catch (\Throwable) {
+            $hasColumn = false;
+        }
+
+        return $hasColumn;
     }
 }

@@ -1273,8 +1273,10 @@ class StockInventoryService
         }
 
         $headerWarehouseId = $this->resolveOrderWriteoffHeaderWarehouseId($order);
+        // FK `warehouses`: 0 невалиден (даёт SQL 500 при пустой конфигурации складов).
+        $warehouseIdForHeader = $headerWarehouseId > 0 ? $headerWarehouseId : null;
         $writeoff = StockWriteoff::query()->create([
-            'warehouse_id' => $headerWarehouseId,
+            'warehouse_id' => $warehouseIdForHeader,
             'type' => 'reserve',
             'order_id' => $order->id,
             'status' => StockWriteoff::STATUS_POSTED,

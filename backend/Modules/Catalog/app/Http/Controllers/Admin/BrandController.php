@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Support\VanilleHelper;
 use Throwable;
 
@@ -160,6 +161,8 @@ class BrandController extends Controller
                 'message' => 'Некорректный формат brands.json',
             ], 422);
         }
+
+        $decoded = VanilleBrandParser::filterExcludedListingRows($decoded);
 
         $existingNames = Brand::query()
             ->pluck('name')

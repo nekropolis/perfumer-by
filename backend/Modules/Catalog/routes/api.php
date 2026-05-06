@@ -12,6 +12,7 @@ use Modules\Catalog\Http\Controllers\Admin\ProductImageAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
+use Modules\ImportExport\Http\Controllers\Admin\ImportRetryQueueAdminController;
 
 Route::prefix('catalog')->group(function () {
     Route::get('/brands', [ProductController::class, 'brands']);
@@ -34,6 +35,20 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::get('/import-jobs/{id}/logs', [VanilleImportController::class, 'listImportJobLogs']);
     Route::get('/supplier-products', [VanilleImportController::class, 'supplierProducts']);
     Route::post('/import-parsed-products', [VanilleImportController::class, 'importParsedProducts']);
+    Route::post('/parse-catalog-images', [VanilleImportController::class, 'parseCatalogImages']);
+    Route::post('/parse-product-images', [VanilleImportController::class, 'parseProductImages']);
+    Route::post('/rewrite-descriptions', [VanilleImportController::class, 'rewriteDescriptions']);
+    Route::post('/retry-failed-job', [VanilleImportController::class, 'retryFailedJob']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/retry-queue')->group(function () {
+    Route::get('/', [ImportRetryQueueAdminController::class, 'index']);
+    Route::post('/run', [ImportRetryQueueAdminController::class, 'run']);
+    Route::post('/dismiss', [ImportRetryQueueAdminController::class, 'dismiss']);
+    Route::post('/retry-one', [ImportRetryQueueAdminController::class, 'retryOne']);
+    Route::post('/run-bulk-retry', [ImportRetryQueueAdminController::class, 'runBulkRetry']);
+    Route::post('/{id}/dismiss', [ImportRetryQueueAdminController::class, 'dismissById']);
+    Route::post('/{id}/retry-one', [ImportRetryQueueAdminController::class, 'retryOneById']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/seller-one')->group(function () {
@@ -82,8 +97,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::get('/{id}', [ProductAdminController::class, 'show']);
     Route::get('/{id}/variant-suppliers', [ProductAdminController::class, 'variantSuppliers']);
     Route::put('/{id}', [ProductAdminController::class, 'update']);
+    Route::post('/{id}/rewrite-description', [ProductAdminController::class, 'rewriteDescription']);
     Route::delete('/{id}', [ProductAdminController::class, 'destroy']);
     Route::post('/{id}/images', [ProductImageAdminController::class, 'upload']);
+    Route::put('/{id}/images/{imageId}/usage-type', [ProductImageAdminController::class, 'updateUsageType']);
+    Route::post('/{id}/images/{imageId}/watermark-decision', [ProductImageAdminController::class, 'watermarkDecision']);
     Route::put('/{id}/images/reorder', [ProductImageAdminController::class, 'reorder']);
     Route::put('/{id}/images/{imageId}/set-main', [ProductImageAdminController::class, 'setMain']);
     Route::delete('/{id}/images/{imageId}', [ProductImageAdminController::class, 'destroy']);

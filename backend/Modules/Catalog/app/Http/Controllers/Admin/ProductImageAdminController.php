@@ -21,12 +21,43 @@ class ProductImageAdminController extends Controller
         $validated = $request->validate([
             'images' => ['required', 'array', 'min:1', 'max:20'],
             'images.*' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'usage_type' => ['nullable', 'string', 'in:gallery,catalog'],
         ]);
 
         return response()->json([
             'message' => 'Картинки загружены',
-            'data' => $this->service->upload($product, $validated['images']),
+            'data' => $this->service->upload(
+                $product,
+                $validated['images'],
+                $validated['usage_type'] ?? null
+            ),
         ], 201);
+    }
+
+    public function updateUsageType(Request $request, int $id, int $imageId): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+        $validated = $request->validate([
+            'usage_type' => ['required', 'string', 'in:gallery,catalog'],
+        ]);
+
+        return response()->json([
+            'message' => 'Тип изображения обновлён',
+            'data' => $this->service->updateUsageType($product, $imageId, $validated['usage_type']),
+        ]);
+    }
+
+    public function watermarkDecision(Request $request, int $id, int $imageId): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+        $validated = $request->validate([
+            'decision' => ['required', 'string', 'in:accept,reject'],
+        ]);
+
+        return response()->json([
+            'message' => 'Статус watermark обновлён',
+            'data' => $this->service->setWatermarkDecision($product, $imageId, $validated['decision']),
+        ]);
     }
 
     public function reorder(Request $request, int $id): JsonResponse

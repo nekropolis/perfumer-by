@@ -7,16 +7,33 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductImage extends Model
 {
+    public const USAGE_GALLERY = 'gallery';
+
+    public const USAGE_CATALOG = 'catalog';
+
+    public const WATERMARK_NONE = 'none';
+
+    public const WATERMARK_DETECTED = 'detected';
+
+    public const WATERMARK_CROPPED = 'cropped';
+
+    public const WATERMARK_NEEDS_REVIEW = 'needs_review';
+
     protected $fillable = [
         'product_id',
         'path',
         'alt',
         'sort_order',
         'is_main',
+        'usage_type',
+        'source_url',
+        'watermark_status',
+        'watermark_meta',
     ];
 
     protected $casts = [
         'is_main' => 'boolean',
+        'watermark_meta' => 'array',
     ];
 
     public function product(): BelongsTo

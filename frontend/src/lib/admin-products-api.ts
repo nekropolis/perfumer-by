@@ -88,6 +88,11 @@ export type ProductAdminDetail = {
     seo_description?: string | null;
     seo_keyword?: string | null;
 
+    /** Админ-метаданные импорта (расширение ответа GET /admin/products/:id). */
+    is_legacy_for_import?: boolean;
+    import_retry_pending_tasks?: string[];
+    description_rewritten_at?: string | null;
+
     brand: {
         id: number;
         name: string;
@@ -119,6 +124,8 @@ export type ProductAdminDetail = {
         path: string;
         is_main?: boolean;
         sort_order?: number;
+        usage_type?: string;
+        watermark_status?: string;
     }>;
 
     attribute_values?: Array<{
@@ -356,6 +363,31 @@ export async function fetchProductById(id: number | string): Promise<ProductAdmi
     }
 
     return res.json();
+}
+
+export async function rewriteProductDescription(id: number): Promise<{
+    message?: string;
+    data?: { description?: string | null; description_rewritten_at?: string | null };
+}> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/rewrite-description`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({}),
+        cache: "no-store",
+    });
+
+    const text = await res.text();
+    let parsed: { message?: string; data?: { description?: string | null; description_rewritten_at?: string | null } } | null = null;
+    try {
+        parsed = JSON.parse(text) as typeof parsed;
+    } catch {
+        parsed = null;
+    }
+    if (!res.ok) {
+        throw new Error(parsed?.message || text || `Rewrite description API error: ${res.status}`);
+    }
+
+    return (parsed || {}) as Awaited<ReturnType<typeof rewriteProductDescription>>;
 }
 
 export async function fetchProductVariantSuppliers(
