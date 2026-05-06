@@ -4,12 +4,23 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductDetailResource extends JsonResource
 {
+    private static function hasUsageTypeColumn(): bool
+    {
+        static $hasColumn = null;
+        if ($hasColumn === null) {
+            $hasColumn = Schema::hasColumn('product_images', 'usage_type');
+        }
+
+        return (bool) $hasColumn;
+    }
+
     public function toArray(Request $request): array
     {
         $variants = $this->relationLoaded('variants')
@@ -79,7 +90,13 @@ class ProductDetailResource extends JsonResource
             ] : null,
 
             'images' => $this->whenLoaded('images', function () {
-                return $this->images->map(fn ($image) => [
+                $isAdminRoute = request()->is('api/admin/*');
+                $images = $this->images;
+                if (! $isAdminRoute && self::hasUsageTypeColumn()) {
+                    $images = $images->filter(fn ($image) => (string) ($image->usage_type ?? 'gallery') !== 'catalog');
+                }
+
+                return $images->map(fn ($image) => [
                     'id' => $image->id,
                     'path' => $image->path,
                     'alt' => $image->alt,

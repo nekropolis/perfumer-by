@@ -269,6 +269,7 @@ export default function AdminOrdersPage() {
             {!loading && activeTab === "orders" && orders.length > 0 && (
                 <AdminOrdersTable
                     initialOrders={orders}
+                    searchQuery={searchInput}
                     onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                     onErrorMessageAction={(message) => setToast({ type: "error", message })}
                     dateFilterSummary={dateFilterSummary}

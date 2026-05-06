@@ -26,7 +26,7 @@ class VanilleCatalogImageParser
     }
 
     /**
-     * @return list<array{slug:string, image_url:string}>
+     * @return list<array{slug:string, image_url:string, image_urls:list<string>}>
      */
     public function parseListing(string $html, ?string $brandSlug = null): array
     {
@@ -61,15 +61,16 @@ class VanilleCatalogImageParser
                     continue;
                 }
 
-                $imageUrl = $this->findFirstImageUrlInHtml($inner);
-                if ($imageUrl === '') {
+                $imageUrls = $this->findImageUrlsInHtml($inner);
+                if ($imageUrls === []) {
                     continue;
                 }
 
                 $seenSlug[$slug] = true;
                 $out[] = [
                     'slug' => $slug,
-                    'image_url' => $imageUrl,
+                    'image_url' => $imageUrls[0],
+                    'image_urls' => $imageUrls,
                 ];
             }
         }
@@ -77,13 +78,29 @@ class VanilleCatalogImageParser
         return $out;
     }
 
-    private function findFirstImageUrlInHtml(string $fragment): string
+    /**
+     * @return list<string>
+     */
+    private function findImageUrlsInHtml(string $fragment): array
     {
-        if (preg_match('/<img[^>]+(?:data-src|src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $fragment, $im)) {
-            return $this->normalizeUrl($im[1]);
+        $out = [];
+        $seen = [];
+
+        if (preg_match_all('/<img[^>]+(?:data-src|src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $fragment, $matches)) {
+            foreach ($matches[1] as $rawUrl) {
+                $url = $this->normalizeUrl((string) $rawUrl);
+                if ($url === '' || isset($seen[$url])) {
+                    continue;
+                }
+                $seen[$url] = true;
+                $out[] = $url;
+                if (count($out) >= 2) {
+                    break;
+                }
+            }
         }
 
-        return '';
+        return $out;
     }
 
     private function normalizeUrl(string $url): string

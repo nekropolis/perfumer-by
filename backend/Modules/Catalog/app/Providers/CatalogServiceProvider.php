@@ -5,15 +5,18 @@ namespace Modules\Catalog\Providers;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Category;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Jobs\SyncProductSearchIndexJob;
 use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\ProductAttributeOption;
 use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
 use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
+use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
@@ -61,6 +64,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         ImportVanilleSampleCommand::class,
         ParseVanilleProductsCommand::class,
         PruneBrandsWithoutProductsCommand::class,
+        ReindexProductSearchCommand::class,
         VanilleImportQueueCommand::class,
     ];
 
@@ -85,6 +89,31 @@ class CatalogServiceProvider extends ModuleServiceProvider
             $modelClass::saved($bump);
             $modelClass::deleted($bump);
         }
+
+        Product::saved(function (Product $product): void {
+            if (!(bool) config('services.catalog_search.enabled', false)) {
+                return;
+            }
+
+            if ((bool) config('services.catalog_search.async_updates', true)) {
+                SyncProductSearchIndexJob::dispatch((int) $product->id, false);
+                return;
+            }
+
+            app(ProductSearchIndexer::class)->syncProduct($product);
+        });
+        Product::deleted(function (Product $product): void {
+            if (!(bool) config('services.catalog_search.enabled', false)) {
+                return;
+            }
+
+            if ((bool) config('services.catalog_search.async_updates', true)) {
+                SyncProductSearchIndexJob::dispatch((int) $product->id, true);
+                return;
+            }
+
+            app(ProductSearchIndexer::class)->deleteProductById((int) $product->id);
+        });
     }
 
 }

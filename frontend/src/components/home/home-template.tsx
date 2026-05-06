@@ -80,7 +80,7 @@ function ProductCard({
 export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, storeReviews }: HomeTemplateProps) {
     return (
         <>
-            <main className="mx-auto max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
+            <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
                 <section className="overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--background)] px-5 py-7 md:px-8 md:py-9">
                     <div className="flex flex-col gap-6 md:flex-row md:items-center">
                         <div className="order-1 md:min-w-0 md:flex-[1.28]">

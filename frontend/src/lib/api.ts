@@ -47,12 +47,18 @@ export function getApiBase(): string {
     return base.replace(/\/$/, "");
 }
 
-export async function apiFetch<T>(path: string): Promise<T> {
+type ApiFetchOptions = {
+    signal?: AbortSignal;
+    cache?: RequestCache;
+};
+
+export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
     const base = getApiBase();
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
     const res = await fetch(url, {
-        cache: "no-store",
+        cache: options.cache ?? "no-store",
+        signal: options.signal,
     });
 
     if (!res.ok) {

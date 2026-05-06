@@ -2,14 +2,53 @@
 
 import Link from "next/link";
 import { Boxes, Pencil, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
 import { resolveProductStatuses } from "@/lib/product-statuses";
 
 type Props = {
     items: ProductAdminItem[];
+    searchQuery?: string;
     onDeleteAction: (item: ProductAdminItem) => void;
     onVariantsAction: (item: ProductAdminItem) => void;
 };
+
+function highlightQueryInText(text: string, query: string): ReactNode {
+    const q = query.trim();
+    if (!q) {
+        return text;
+    }
+
+    const lowerText = text.toLocaleLowerCase("ru-RU");
+    const lowerQ = q.toLocaleLowerCase("ru-RU");
+    const parts: ReactNode[] = [];
+    let pos = 0;
+
+    for (let i = 0; i < 80 && pos < text.length; i += 1) {
+        const idx = lowerText.indexOf(lowerQ, pos);
+        if (idx === -1) {
+            parts.push(text.slice(pos));
+            break;
+        }
+
+        if (idx > pos) {
+            parts.push(text.slice(pos, idx));
+        }
+
+        parts.push(
+            <mark
+                key={`hl-${idx}-${i}`}
+                className="rounded-sm bg-amber-200 px-0.5 text-gray-900"
+            >
+                {text.slice(idx, idx + q.length)}
+            </mark>,
+        );
+
+        pos = idx + q.length;
+    }
+
+    return parts.length > 0 ? <>{parts}</> : text;
+}
 
 function StatusBadge({ active }: { active: boolean }) {
     return (
@@ -54,7 +93,12 @@ function ProductStatusChips({
     );
 }
 
-export default function ProductsTable({ items, onDeleteAction, onVariantsAction }: Props) {
+export default function ProductsTable({
+    items,
+    searchQuery = "",
+    onDeleteAction,
+    onVariantsAction,
+}: Props) {
     return (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="min-w-full text-sm">
@@ -73,10 +117,30 @@ export default function ProductsTable({ items, onDeleteAction, onVariantsAction 
                 <tbody>
                 {items.map((item) => (
                     <tr key={item.id} className="border-t border-gray-100 align-center transition hover:bg-gray-50/70">
-                        <td className="px-3 py-3 text-gray-500">{item.id}</td>
-                        <td className="px-3 py-3 font-medium text-gray-900">{item.name}</td>
-                        <td className="px-3 py-3 text-gray-700">{item.brand?.name ?? "—"}</td>
-                        <td className="px-3 py-3 text-gray-500">{item.slug}</td>
+                        <td className="px-3 py-3 text-gray-500">
+                            {highlightQueryInText(String(item.id), searchQuery)}
+                        </td>
+                        <td className="px-3 py-3 font-medium text-gray-900">
+                            <div>{highlightQueryInText(item.name, searchQuery)}</div>
+                            {item.matched_variant_ids && item.matched_variant_ids.length > 0 ? (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    {item.matched_variant_ids.map((variantId) => (
+                                        <span
+                                            key={`${item.id}-variant-${variantId}`}
+                                            className="inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
+                                        >
+                                            вариант: #{highlightQueryInText(String(variantId), searchQuery)}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-gray-700">
+                            {highlightQueryInText(item.brand?.name ?? "—", searchQuery)}
+                        </td>
+                        <td className="px-3 py-3 text-gray-500">
+                            {highlightQueryInText(item.slug, searchQuery)}
+                        </td>
                         <td className="px-3 py-3">
                             <StatusBadge active={item.is_active} />
                         </td>

@@ -116,8 +116,8 @@ class VanilleMediaImportService
 
             foreach ($rows as $row) {
                 $slug = (string) ($row['slug'] ?? '');
-                $imgUrl = $this->normalizeListingImageUrl($row['image_url'] ?? null);
-                if ($slug === '' || $imgUrl === '') {
+                $imageUrls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
+                if ($slug === '' || $imageUrls === []) {
                     continue;
                 }
 
@@ -128,7 +128,9 @@ class VanilleMediaImportService
                 $productId = (int) $supplierProduct->product_id;
 
                 try {
-                    $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
+                    foreach ($imageUrls as $imgUrl) {
+                        $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
+                    }
                     $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
                 } catch (Throwable $e) {
                     $failed++;
@@ -136,7 +138,7 @@ class VanilleMediaImportService
                         ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
                         $productId,
                         $e->getMessage(),
-                        ['slug' => $slug, 'image_url' => $imgUrl],
+                        ['slug' => $slug, 'image_urls' => $imageUrls],
                     );
                     $log[] = 'ERROR product '.$productId.' slug='.$slug.' -> '.$e->getMessage();
                 }
@@ -458,14 +460,14 @@ class VanilleMediaImportService
         $sp->loadMissing('brand');
         $brandSlug = (string) ($sp->brand?->slug ?? '');
         $rows = $this->collectBrandListingRows($brandUrl, $brandSlug !== '' ? $brandSlug : null);
-        $listingImageUrl = '';
+        $listingImageUrls = [];
         foreach ($rows as $row) {
             if (mb_strtolower(trim((string) ($row['slug'] ?? ''))) === mb_strtolower($slug)) {
-                $listingImageUrl = $this->normalizeListingImageUrl($row['image_url'] ?? null);
+                $listingImageUrls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
                 break;
             }
         }
-        if ($listingImageUrl === '') {
+        if ($listingImageUrls === []) {
             throw new \RuntimeException('Картинка на листинге не найдена для slug='.$slug);
         }
 
@@ -475,7 +477,9 @@ class VanilleMediaImportService
             return;
         }
 
-        $this->storeCatalogImageForProduct($productId, $this->normalizeListingImageUrl($listingImageUrl), $slug);
+        foreach ($listingImageUrls as $listingImageUrl) {
+            $this->storeCatalogImageForProduct($productId, $listingImageUrl, $slug);
+        }
         $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
     }
 
@@ -666,6 +670,31 @@ class VanilleMediaImportService
     }
 
     /**
+     * @param  mixed  $raw
+     * @return list<string>
+     */
+    private function normalizeListingImageUrls(mixed $raw): array
+    {
+        $items = is_array($raw) ? $raw : [$raw];
+        $out = [];
+        $seen = [];
+
+        foreach ($items as $item) {
+            $url = $this->normalizeListingImageUrl($item);
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+            $seen[$url] = true;
+            $out[] = $url;
+            if (count($out) >= 2) {
+                break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Второй аргумент без native type: иначе PHP 8 кидает TypeError на null до trim(), что ломает ретраи при любой рассинхронизации кода/OPcache.
      *
      * @param  string|null  $imageUrl
@@ -705,12 +734,18 @@ class VanilleMediaImportService
         }
 
         $maxSort = (int) ProductImage::query()->where('product_id', $productId)->max('sort_order');
+        $isFirstCatalogImage = $catalogCount === 0;
+        if ($isFirstCatalogImage) {
+            ProductImage::query()
+                ->where('product_id', $productId)
+                ->update(['is_main' => false]);
+        }
         $row = [
             'product_id' => $productId,
             'path' => $dbPath,
             'alt' => null,
             'sort_order' => $maxSort + 1,
-            'is_main' => false,
+            'is_main' => $isFirstCatalogImage,
         ];
         if (self::hasProductImagesExtendedSchema()) {
             $row['usage_type'] = ProductImage::USAGE_CATALOG;

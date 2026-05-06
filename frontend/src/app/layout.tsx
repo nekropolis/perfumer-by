@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/layout/providers";
@@ -29,6 +29,12 @@ export const metadata: Metadata = {
             { url: "/favicon.svg", type: "image/svg+xml" },
         ],
     },
+};
+
+export const viewport: Viewport = {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
 };
 
 export default async function RootLayout({

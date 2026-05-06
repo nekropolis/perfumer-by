@@ -62,6 +62,7 @@ export default function Header() {
         searchLoading,
         searchResults,
         searchBrandResults,
+        suggestedQuery,
         recentSearches,
         resetSearch,
         handleSearchChange,
@@ -90,7 +91,9 @@ export default function Header() {
                 setIsPhoneDropdownOpen(false);
             }
 
+            const isDesktop = window.innerWidth >= 768;
             if (
+                isDesktop &&
                 searchRef.current &&
                 !searchRef.current.contains(event.target as Node) &&
                 !mobileMenuRootRef.current?.contains(event.target as Node)
@@ -159,8 +162,8 @@ export default function Header() {
         bodyStyle.right = "0";
         bodyStyle.width = "100%";
         bodyStyle.overscrollBehavior = "none";
-        htmlStyle.overflowX = "clip";
-        bodyStyle.overflowX = "clip";
+        htmlStyle.overflowX = "hidden";
+        bodyStyle.overflowX = "hidden";
 
         return () => {
             bodyStyle.overflow = previous.bodyOverflow;
@@ -309,6 +312,16 @@ export default function Header() {
         setIsMobileOpen((prev) => !prev);
     };
 
+    const openMobileSearch = () => {
+        setIsCatalogDrawerOpen(false);
+        setIsMobileOpen(false);
+        if (searchOpen) {
+            resetSearch();
+            return;
+        }
+        setSearchOpen(true);
+    };
+
     return (
         <header
             ref={headerRef}
@@ -341,6 +354,7 @@ export default function Header() {
                 searchQuery={searchQuery}
                 searchResults={searchResults}
                 searchBrandResults={searchBrandResults}
+                suggestedQuery={suggestedQuery}
                 recentSearches={recentSearches}
                 popularSearches={HEADER_POPULAR_SEARCHES}
                 wishlistQty={wishlistQty}
@@ -360,12 +374,14 @@ export default function Header() {
                 onPopularSelectAction={selectSuggestion}
                 onBrandSelectAction={handleSelectBrand}
                 onProductSelectAction={handleSelectProduct}
+                onSuggestedQueryAction={selectSuggestion}
                 onToggleAccountAction={() => setIsAccountOpen((prev) => !prev)}
                 onCloseAccountAction={() => setIsAccountOpen(false)}
                 onLogoutAction={() => {
                     logout();
                     setIsAccountOpen(false);
                 }}
+                onOpenMobileSearchAction={openMobileSearch}
                 onToggleMobileMenuAction={toggleMobileMenu}
             />
 
@@ -375,13 +391,7 @@ export default function Header() {
                 isOpen={isMobileOpen}
                 menuRootRef={mobileMenuRootRef}
                 topOffset={menuTopOffset}
-                searchOpen={searchOpen}
-                searchLoading={searchLoading}
-                searchQuery={searchQuery}
-                searchResults={searchResults}
-                searchBrandResults={searchBrandResults}
-                recentSearches={recentSearches}
-                popularSearches={HEADER_POPULAR_SEARCHES}
+                wishlistQty={wishlistQty}
                 phoneLinks={phoneLinks}
                 contactLinks={contactLinks}
                 isAuthenticated={isAuthenticated}
@@ -391,15 +401,6 @@ export default function Header() {
                     resetSearch();
                     setIsMobileOpen(false);
                 }}
-                onSearchFocusAction={() => setSearchOpen(true)}
-                onSearchChangeAction={handleSearchChange}
-                onSearchSubmitAction={submitSearchPage}
-                onSearchResetAction={resetSearch}
-                onClearRecentAction={clearRecentSearches}
-                onRecentSelectAction={selectSuggestion}
-                onPopularSelectAction={selectSuggestion}
-                onBrandSelectAction={handleSelectBrand}
-                onProductSelectAction={handleSelectProduct}
                 onLogoutAction={() => {
                     logout();
                     resetSearch();

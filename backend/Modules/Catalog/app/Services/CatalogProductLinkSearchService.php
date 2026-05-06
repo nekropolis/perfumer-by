@@ -534,8 +534,16 @@ class CatalogProductLinkSearchService
             $escaped = $this->escapeLikeValue($trim);
             $productIds = SupplierVariantOffer::query()
                 ->where('supplier_variant_offers.is_active', true)
-                ->whereNotNull('supplier_variant_offers.sku')
-                ->where('supplier_variant_offers.sku', 'like', '%'.$escaped.'%')
+                ->where(function ($q) use ($escaped): void {
+                    $like = '%'.$escaped.'%';
+                    $q->where(function ($sq) use ($like): void {
+                        $sq->whereNotNull('supplier_variant_offers.sku')
+                            ->where('supplier_variant_offers.sku', 'like', $like);
+                    })->orWhere(function ($eq) use ($like): void {
+                        $eq->whereNotNull('supplier_variant_offers.external_id')
+                            ->where('supplier_variant_offers.external_id', 'like', $like);
+                    });
+                })
                 ->join('product_variant_links', 'product_variant_links.id', '=', 'supplier_variant_offers.product_variant_id')
                 ->select('product_variant_links.product_id')
                 ->distinct()

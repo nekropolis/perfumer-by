@@ -48,8 +48,9 @@ class ProductAdminController extends Controller
         if ($request->filled('search')) {
             $search = trim($request->string('search')->toString());
             $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
+            $isNumericIdSearch = preg_match('/^\d{1,12}$/', $search) === 1 && (int) $search > 0;
 
-            $query->where(function ($q) use ($search, $stem) {
+            $query->where(function ($q) use ($search, $stem, $isNumericIdSearch) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhereHas('variants.definition', function ($def) use ($search) {
@@ -60,6 +61,12 @@ class ProductAdminController extends Controller
                 if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
                     // «Gucci Guilty - 90 ml» не матчит LIKE по имени «Gucci Guilty» — добавляем точное имя по stem.
                     $q->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
+                }
+                if ($isNumericIdSearch) {
+                    $q->orWhere((new Product())->getQualifiedKeyName(), (int) $search);
+                    $q->orWhereHas('variants', function ($variantQuery) use ($search): void {
+                        $variantQuery->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search);
+                    });
                 }
             });
 
@@ -129,6 +136,32 @@ class ProductAdminController extends Controller
         $products = $query
             ->when($request->filled('search'), fn ($q) => $q->orderByDesc('id'))
             ->paginate(20);
+
+        if ($request->filled('search')) {
+            $search = trim($request->string('search')->toString());
+            $isNumericIdSearch = preg_match('/^\d{1,12}$/', $search) === 1 && (int) $search > 0;
+            $productIds = $products->getCollection()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+
+            $matchedVariantIdsByProductId = collect();
+            if ($isNumericIdSearch && $productIds !== []) {
+                $variantRows = ProductVariantLink::query()
+                    ->whereIn('product_id', $productIds)
+                    ->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search)
+                    ->get(['id', 'product_id']);
+
+                $matchedVariantIdsByProductId = $variantRows
+                    ->groupBy('product_id')
+                    ->map(static fn ($rows): array => $rows->pluck('id')->map(static fn ($id): int => (int) $id)->values()->all());
+            }
+
+            $products->setCollection(
+                $products->getCollection()->map(function (Product $product) use ($matchedVariantIdsByProductId): Product {
+                    $product->setAttribute('matched_variant_ids', $matchedVariantIdsByProductId->get((int) $product->id, []));
+
+                    return $product;
+                })
+            );
+        }
 
         return response()->json($products);
     }

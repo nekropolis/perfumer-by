@@ -19,6 +19,7 @@ export type ProductAdminItem = {
     id: number;
     name: string;
     slug: string;
+    matched_variant_ids?: number[];
     is_active: boolean;
     is_new: boolean;
     is_hit: boolean;

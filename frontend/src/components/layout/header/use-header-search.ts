@@ -12,6 +12,7 @@ type HeaderSearchResponse = {
     data: {
         brands: HeaderSearchBrandItem[];
         products: HeaderSearchItem[];
+        suggested_query?: string | null;
     };
 };
 
@@ -60,6 +61,7 @@ export function useHeaderSearch({
         HeaderSearchBrandItem[]
     >([]);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
+    const [suggestedQuery, setSuggestedQuery] = useState<string | null>(null);
 
     const persistRecentSearch = (rawValue: string) => {
         const query = rawValue.trim();
@@ -102,21 +104,25 @@ export function useHeaderSearch({
         }
 
         let cancelled = false;
+        const controller = new AbortController();
         const timeoutId = setTimeout(() => {
             void apiFetch<HeaderSearchResponse>(
                 `/catalog/products/smart-search?q=${encodeURIComponent(query)}&limit=16`,
+                { signal: controller.signal },
             )
                 .then((res) => {
                     if (!cancelled) {
                         setSearchBrandResults(res.data?.brands ?? []);
                         setSearchResults(res.data?.products ?? []);
+                        setSuggestedQuery(res.data?.suggested_query?.trim() || null);
                     }
                 })
                 .catch((error) => {
-                    if (!cancelled) {
+                    if (!cancelled && (error as { name?: string })?.name !== "AbortError") {
                         console.error(error);
                         setSearchBrandResults([]);
                         setSearchResults([]);
+                        setSuggestedQuery(null);
                     }
                 })
                 .finally(() => {
@@ -128,6 +134,7 @@ export function useHeaderSearch({
 
         return () => {
             cancelled = true;
+            controller.abort();
             clearTimeout(timeoutId);
         };
     }, [searchOpen, searchQuery]);
@@ -137,6 +144,7 @@ export function useHeaderSearch({
         setSearchLoading(false);
         setSearchBrandResults([]);
         setSearchResults([]);
+        setSuggestedQuery(null);
         setSearchOpen(false);
     };
 
@@ -148,6 +156,7 @@ export function useHeaderSearch({
             setSearchLoading(false);
             setSearchBrandResults([]);
             setSearchResults([]);
+            setSuggestedQuery(null);
         } else {
             setSearchLoading(true);
         }
@@ -201,6 +210,7 @@ export function useHeaderSearch({
         searchLoading,
         searchResults,
         searchBrandResults,
+        suggestedQuery,
         recentSearches,
         resetSearch,
         handleSearchChange,

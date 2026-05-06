@@ -10,7 +10,7 @@ export default function HeaderWishlistButton({ qty }: HeaderWishlistButtonProps)
     return (
         <Link
             href="/wishlist"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)] md:h-11 md:w-11"
+            className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)] md:inline-flex md:h-11 md:w-11"
         >
             <span aria-hidden>♡</span>
             {qty > 0 && (

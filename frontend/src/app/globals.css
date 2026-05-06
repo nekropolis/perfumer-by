@@ -32,6 +32,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), serif;
   background-image: linear-gradient(180deg, #F9F5F1 0%, #F7F3EE 100%);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body.admin-shell-body {
@@ -64,6 +67,11 @@ textarea:focus {
 
 .ProseMirror p {
   margin: 0.5rem 0;
+}
+
+.ProseMirror {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ProseMirror h2 {
@@ -112,6 +120,20 @@ textarea:focus {
 .ProseMirror a {
   color: #2563eb;
   text-decoration: underline;
+}
+
+.ProseMirror img,
+.ProseMirror video,
+.ProseMirror iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.ProseMirror table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ProseMirror strong {

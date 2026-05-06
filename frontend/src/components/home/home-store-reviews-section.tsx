@@ -204,7 +204,7 @@ function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] })
                             scrollByViewport(1);
                         }
                     }}
-                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
+                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [contain:layout_paint] [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
                 >
                     <div className="mt-2 flex w-max snap-x snap-mandatory gap-3">
                         {reviews.map((review) => (

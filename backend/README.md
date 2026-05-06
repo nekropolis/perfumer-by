@@ -1,3 +1,45 @@
+## Smart Search Setup (Meilisearch)
+
+This backend supports smart catalog search (`/api/catalog/products/smart-search`) with typo tolerance and fast retrieval via Meilisearch.
+
+### Environment
+
+Add to `.env`:
+
+```dotenv
+CATALOG_SEARCH_ENABLED=true
+CATALOG_SEARCH_LOG_METRICS=true
+CATALOG_SEARCH_ASYNC_UPDATES=true
+CATALOG_SEARCH_QUEUE_NAME=default
+CATALOG_SEARCH_CACHE_TTL_SECONDS=20
+
+CATALOG_SEARCH_MEILI_URL=http://127.0.0.1:7700
+CATALOG_SEARCH_MEILI_KEY=yourStrongMasterKey
+CATALOG_SEARCH_MEILI_INDEX=catalog_products
+CATALOG_SEARCH_MEILI_TIMEOUT_SECONDS=2
+```
+
+### Reindex
+
+```bash
+php artisan optimize:clear
+php artisan catalog:search:reindex
+```
+
+### Queue worker (required for async index updates)
+
+```bash
+php artisan queue:work --queue=default
+```
+
+### Verify
+
+```bash
+curl "http://127.0.0.1:8000/api/catalog/products/smart-search?q=diorr&limit=16&debug=1"
+```
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

@@ -176,6 +176,99 @@ php artisan catalog:import-vanille-sample /path/to/file.json
 
 ---
 
+## Smart Search (Meilisearch)
+
+Умный поиск товаров использует endpoint `GET /api/catalog/products/smart-search` и поддерживает:
+
+- исправление опечаток (typo tolerance),
+- частичный ввод (prefix/autocomplete),
+- ранжирование и fallback,
+- мгновенные подсказки в шапке + live-обновление на `/search`.
+
+### 1) Поднять Meilisearch
+
+Linux (без Docker), быстрый вариант:
+
+```bash
+cd /tmp
+curl -L https://install.meilisearch.com | sh
+sudo mv meilisearch /usr/local/bin/meilisearch
+sudo chmod +x /usr/local/bin/meilisearch
+
+sudo mkdir -p /var/lib/meilisearch
+sudo chown -R www-data:www-data /var/lib/meilisearch
+
+MEILI_MASTER_KEY="yourStrongMasterKey" \
+MEILI_NO_ANALYTICS=true \
+meilisearch --http-addr 127.0.0.1:7700 --db-path /var/lib/meilisearch
+```
+
+Проверка:
+
+```bash
+curl http://127.0.0.1:7700/health
+```
+
+Ожидается: `{"status":"available"}`.
+
+### 2) Настроить backend `.env`
+
+```dotenv
+CATALOG_SEARCH_ENABLED=true
+CATALOG_SEARCH_LOG_METRICS=true
+CATALOG_SEARCH_ASYNC_UPDATES=true
+CATALOG_SEARCH_QUEUE_NAME=default
+CATALOG_SEARCH_CACHE_TTL_SECONDS=20
+
+CATALOG_SEARCH_MEILI_URL=http://127.0.0.1:7700
+CATALOG_SEARCH_MEILI_KEY=yourStrongMasterKey
+CATALOG_SEARCH_MEILI_INDEX=catalog_products
+CATALOG_SEARCH_MEILI_TIMEOUT_SECONDS=2
+```
+
+Важно:
+
+- не оставляй дубликаты `CATALOG_SEARCH_*` в `.env`,
+- `CATALOG_SEARCH_MEILI_URL` должен быть заполнен (не пустой в конце файла),
+- после изменений всегда очищай конфиг-кэш.
+
+### 3) Очистить кэш конфигов и проиндексировать каталог
+
+```bash
+cd /var/www/perfumer-by/backend
+php artisan optimize:clear
+php artisan catalog:search:reindex
+```
+
+### 4) Запустить очереди (для async-обновлений индекса)
+
+Если `CATALOG_SEARCH_ASYNC_UPDATES=true`, должен работать queue worker:
+
+```bash
+cd /var/www/perfumer-by/backend
+php artisan queue:work --queue=default
+```
+
+### 5) Проверка API поиска
+
+```bash
+curl "http://127.0.0.1:8000/api/catalog/products/smart-search?q=diorr&limit=16&debug=1"
+curl "http://127.0.0.1:8000/api/catalog/products/smart-search?q=sau&limit=24&debug=1"
+```
+
+В `debug` ищи:
+
+- `search_backend: meilisearch`,
+- `search_backend_elapsed_ms`,
+- `total_elapsed_ms`.
+
+Если Meilisearch временно недоступен:
+
+- можно выключить интеграцию через `CATALOG_SEARCH_ENABLED=false`,
+- поиск продолжит работать через legacy fallback-логику.
+
+---
+
 ## Seller One: что есть в админке
 
 В блоке импорта Seller One доступны:

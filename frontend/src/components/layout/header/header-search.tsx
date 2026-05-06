@@ -16,6 +16,7 @@ type HeaderSearchProps = {
     searchQuery: string;
     searchResults: HeaderSearchItem[];
     searchBrandResults: HeaderSearchBrandItem[];
+    suggestedQuery: string | null;
     recentSearches: string[];
     popularSearches: readonly string[];
     onFocusAction: () => void;
@@ -27,6 +28,7 @@ type HeaderSearchProps = {
     onPopularSelectAction: (value: string) => void;
     onBrandSelectAction: (slug: string) => void;
     onProductSelectAction: (slug: string) => void;
+    onSuggestedQueryAction: (value: string) => void;
 };
 
 export default function HeaderSearch({
@@ -37,6 +39,7 @@ export default function HeaderSearch({
     searchQuery,
     searchResults,
     searchBrandResults,
+    suggestedQuery,
     recentSearches,
     popularSearches,
     onFocusAction,
@@ -48,6 +51,7 @@ export default function HeaderSearch({
     onPopularSelectAction,
     onBrandSelectAction,
     onProductSelectAction,
+    onSuggestedQueryAction,
 }: HeaderSearchProps) {
     return (
         <div className="hidden min-w-0 flex-1 md:block">
@@ -146,7 +150,18 @@ export default function HeaderSearch({
                                 </div>
                             </div>
                         ) : searchBrandResults.length === 0 && searchResults.length === 0 ? (
-                            <div className="px-3 py-3 text-sm text-[var(--text-secondary)]">Ничего не найдено</div>
+                            <div className="px-3 py-3 text-sm text-[var(--text-secondary)]">
+                                <div>Ничего не найдено</div>
+                                {suggestedQuery ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onSuggestedQueryAction(suggestedQuery)}
+                                        className="mt-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    >
+                                        Возможно, вы имели в виду: <span className="font-medium">{suggestedQuery}</span>
+                                    </button>
+                                ) : null}
+                            </div>
                         ) : (
                             <div className="max-h-80 overflow-y-auto">
                                 {searchBrandResults.length > 0 ? (

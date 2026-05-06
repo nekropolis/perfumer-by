@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
+import type { ReactNode } from "react";
 import type { OrderData } from "@/types/orders";
 import { fetchOrder, updateOrderStatus } from "@/lib/admin-orders-api";
 import { getOrderStatusTableTextClass, ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
@@ -12,6 +13,7 @@ import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 
 type Props = {
     initialOrders: OrderData[];
+    searchQuery?: string;
     onSuccessMessageAction?: (message: string) => void;
     onErrorMessageAction?: (message: string) => void;
     /** Подпись фильтра по дате создания (как у кнопки в тулбаре). */
@@ -24,8 +26,46 @@ const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
+function highlightQueryInText(text: string, query: string): ReactNode {
+    const q = query.trim();
+    if (!q) {
+        return text;
+    }
+
+    const lowerText = text.toLocaleLowerCase("ru-RU");
+    const lowerQ = q.toLocaleLowerCase("ru-RU");
+    const parts: ReactNode[] = [];
+    let pos = 0;
+
+    for (let i = 0; i < 80 && pos < text.length; i += 1) {
+        const idx = lowerText.indexOf(lowerQ, pos);
+        if (idx === -1) {
+            parts.push(text.slice(pos));
+            break;
+        }
+
+        if (idx > pos) {
+            parts.push(text.slice(pos, idx));
+        }
+
+        parts.push(
+            <mark
+                key={`ord-hl-${idx}-${i}`}
+                className="rounded-sm bg-amber-200 px-0.5 text-gray-900"
+            >
+                {text.slice(idx, idx + q.length)}
+            </mark>,
+        );
+
+        pos = idx + q.length;
+    }
+
+    return parts.length > 0 ? <>{parts}</> : text;
+}
+
 export default function AdminOrdersTable({
     initialOrders,
+    searchQuery = "",
     onSuccessMessageAction,
     onErrorMessageAction,
     dateFilterSummary,
@@ -155,11 +195,15 @@ export default function AdminOrdersTable({
                                         className="text-left font-medium text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
                                         onClick={() => openOrderDetail(order.id)}
                                     >
-                                        #{order.id}
+                                        #{highlightQueryInText(String(order.id), searchQuery)}
                                     </button>
                                 </td>
-                                <td className="px-4 py-4">{order.customer_name || "—"}</td>
-                                <td className="px-4 py-4">{order.phone}</td>
+                                <td className="px-4 py-4">
+                                    {highlightQueryInText(order.customer_name || "—", searchQuery)}
+                                </td>
+                                <td className="px-4 py-4">
+                                    {highlightQueryInText(order.phone || "—", searchQuery)}
+                                </td>
                                 <td className="px-4 py-4">
                                     <AdminStatusDropdown
                                         value={order.status}

@@ -277,7 +277,7 @@ export default function AdminProductsPage() {
                         <AdminSearchInput
                             value={searchInput}
                             onChangeAction={setSearchInput}
-                            placeholder="Поиск по названию или slug"
+                            placeholder="Поиск по названию, slug, ID товара или ID варианта"
                         />
                         <AdminFilterSelect
                             value={outOfStockFilter}
@@ -318,6 +318,7 @@ export default function AdminProductsPage() {
                 ) : (
                     <ProductsTable
                         items={items}
+                        searchQuery={searchInput}
                         onDeleteAction={requestDelete}
                         onVariantsAction={(item) => void openVariantsModal(item)}
                     />

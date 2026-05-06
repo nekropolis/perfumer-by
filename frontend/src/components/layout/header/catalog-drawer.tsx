@@ -27,30 +27,21 @@ export default function HeaderCatalogDrawer({
         () => false
     );
 
-    if (!mounted || typeof document === "undefined") {
+    if (!mounted || !isOpen || typeof document === "undefined") {
         return null;
     }
 
     return createPortal(
-        <div
-            className={`fixed inset-0 z-[200] transition-opacity duration-300 ${
-                isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            aria-hidden={!isOpen}
-        >
+        <div className="fixed inset-0 z-[200] transition-opacity duration-300 pointer-events-auto opacity-100" aria-hidden={false}>
             <button
                 type="button"
-                className={`absolute inset-0 bg-[var(--foreground)]/30 backdrop-blur-[2px] transition-opacity duration-300 ${
-                    isOpen ? "opacity-100" : "opacity-0"
-                }`}
+                className="absolute inset-0 bg-[var(--foreground)]/30 backdrop-blur-[2px] transition-opacity duration-300 opacity-100"
                 aria-label="Закрыть меню каталога"
                 onClick={onCloseAction}
             />
 
             <div
-                className={`fixed left-0 top-0 h-full w-full max-w-[460px] overflow-y-auto bg-[var(--surface)] p-6 shadow-2xl transition-transform duration-300 ease-out ${
-                    isOpen ? "translate-x-0" : "-translate-x-6"
-                }`}
+                className="fixed left-0 top-0 h-full w-full max-w-[460px] overflow-y-auto bg-[var(--surface)] p-6 shadow-2xl transition-transform duration-300 ease-out translate-x-0"
             >
                 <div className="mb-6 flex items-center justify-between">
                     <div>

@@ -50,40 +50,55 @@ class VanilleProductParser
     {
         $urls = [];
 
-        if (preg_match_all('/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/iu', $html, $og)) {
-            foreach ($og[1] as $u) {
-                $urls[] = $this->normalizeVanilleImageUrl($u);
+        // 1) Точные источники галереи на карточке товара (main + thumbs + zoom):
+        if (preg_match('/<div[^>]+class="[^"]*product-photo[^"]*"[^>]*>(.*?)<\/div>\s*<div/isu', $html, $photoScope)) {
+            $scope = $photoScope[1];
+
+            if (preg_match_all('/<a[^>]+class="[^"]*product-photo__thumb-item[^"]*"[^>]+href="([^"]+)"/iu', $scope, $thumbLinks)) {
+                foreach ($thumbLinks[1] as $u) {
+                    $urls[] = $this->normalizeVanilleImageUrl((string) $u);
+                }
+            }
+
+            if (preg_match_all('/<a[^>]+class="[^"]*product-photo__item--lg[^"]*"[^>]+href="([^"]+)"/iu', $scope, $mainLinks)) {
+                foreach ($mainLinks[1] as $u) {
+                    $urls[] = $this->normalizeVanilleImageUrl((string) $u);
+                }
+            }
+
+            if (preg_match_all('/data-zoom-image="([^"]+)"/iu', $scope, $zoom)) {
+                foreach ($zoom[1] as $u) {
+                    $urls[] = $this->normalizeVanilleImageUrl((string) $u);
+                }
             }
         }
 
-        if (preg_match_all('/<meta[^>]+itemprop="image"[^>]+content="([^"]+)"/iu', $html, $meta)) {
-            foreach ($meta[1] as $u) {
-                $urls[] = $this->normalizeVanilleImageUrl($u);
-            }
-        }
-
-        if (preg_match_all('/<link[^>]+rel="image_src"[^>]+href="([^"]+)"/iu', $html, $link)) {
-            foreach ($link[1] as $u) {
-                $urls[] = $this->normalizeVanilleImageUrl($u);
-            }
-        }
-
-        if (preg_match_all('/<img[^>]+(?:src|data-src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $html, $imgs)) {
+        // 2) Безопасный fallback, если photo-блок не найден (старый шаблон):
+        if ($urls === [] && preg_match_all('/<img[^>]+(?:src|data-src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $html, $imgs)) {
             foreach ($imgs[1] as $u) {
-                $u = html_entity_decode(trim($u), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                if ($u === '' || str_contains($u, 'data:image')) {
-                    continue;
-                }
-                if (preg_match('/(logo|icon|sprite|payment|banner|pixel)/iu', $u)) {
-                    continue;
-                }
-                $urls[] = $this->normalizeVanilleImageUrl($u);
+                $urls[] = $this->normalizeVanilleImageUrl((string) $u);
             }
         }
 
-        $urls = array_values(array_unique(array_filter($urls)));
+        $urls = array_values(array_unique(array_filter($urls, function (string $url): bool {
+            if (! str_contains($url, '/assets/images/products/')) {
+                return false;
+            }
+            if (preg_match('/(logo|icon|sprite|payment|banner|pixel|social)/iu', $url)) {
+                return false;
+            }
 
-        return array_slice($urls, 0, 12);
+            return true;
+        })));
+
+        usort($urls, static function (string $a, string $b): int {
+            $aScore = (int) str_contains($a, '/largewebp/') * 3 + (int) str_contains($a, '/large/') * 2;
+            $bScore = (int) str_contains($b, '/largewebp/') * 3 + (int) str_contains($b, '/large/') * 2;
+
+            return $bScore <=> $aScore;
+        });
+
+        return array_slice($urls, 0, 8);
     }
 
     protected function normalizeVanilleImageUrl(string $url): string

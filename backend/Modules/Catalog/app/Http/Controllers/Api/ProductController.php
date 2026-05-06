@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
@@ -15,6 +16,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Services\SimilarProductsService;
+use Modules\Catalog\Services\SmartSearch\ProductSearchRetrievalService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -361,6 +363,7 @@ class ProductController extends Controller
 
     public function smartSearch(Request $request): JsonResponse
     {
+        $startedAt = microtime(true);
         $query = trim($request->string('q')->toString());
         $limit = max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_MAX_LIMIT));
         $debug = $request->boolean('debug') && (bool) config('app.debug');
@@ -411,62 +414,77 @@ class ProductController extends Controller
                     ->with(['definition:id,title']);
             }]);
 
-        $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
-            $q->where('name', 'like', $queryLike)
-                ->orWhere('slug', 'like', $queryLike)
-                ->orWhereHas('brand', function ($bq) use ($queryLike): void {
-                    $bq->where('name', 'like', $queryLike)
-                        ->orWhere('slug', 'like', $queryLike);
-                })
-                ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
-                    $vq->where('title', 'like', $queryLike);
-                });
-            $this->orWhereBrandPlusProductNameLike($q, $queryLike);
+        $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, self::SMART_SEARCH_POOL_LIMIT);
+        $suggestedQuery = $meiliResult['suggested_query'] ?? null;
+        $meiliIds = $meiliResult['ids'] ?? [];
 
-            foreach ($patternLikes as $like) {
-                $q->orWhere('name', 'like', $like)
-                    ->orWhere('slug', 'like', $like)
-                    ->orWhereHas('brand', function ($bq) use ($like): void {
-                        $bq->where('name', 'like', $like)
-                            ->orWhere('slug', 'like', $like);
+        if ($meiliIds !== []) {
+            $pool = (clone $baseProductQuery)
+                ->whereIn('id', $meiliIds)
+                ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'])
+                ->sortBy(static function (Product $product) use ($meiliIds): int {
+                    $index = array_search((int) $product->id, $meiliIds, true);
+                    return $index === false ? PHP_INT_MAX : (int) $index;
+                })
+                ->values();
+        } else {
+            $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
+                $q->where('name', 'like', $queryLike)
+                    ->orWhere('slug', 'like', $queryLike)
+                    ->orWhereHas('brand', function ($bq) use ($queryLike): void {
+                        $bq->where('name', 'like', $queryLike)
+                            ->orWhere('slug', 'like', $queryLike);
                     })
-                    ->orWhereHas('variants.definition', function ($vq) use ($like): void {
-                        $vq->where('title', 'like', $like);
+                    ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
+                        $vq->where('title', 'like', $queryLike);
                     });
-                $this->orWhereBrandPlusProductNameLike($q, $like);
+                $this->orWhereBrandPlusProductNameLike($q, $queryLike);
+
+                foreach ($patternLikes as $like) {
+                    $q->orWhere('name', 'like', $like)
+                        ->orWhere('slug', 'like', $like)
+                        ->orWhereHas('brand', function ($bq) use ($like): void {
+                            $bq->where('name', 'like', $like)
+                                ->orWhere('slug', 'like', $like);
+                        })
+                        ->orWhereHas('variants.definition', function ($vq) use ($like): void {
+                            $vq->where('title', 'like', $like);
+                        });
+                    $this->orWhereBrandPlusProductNameLike($q, $like);
+                }
+                $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
+            });
+
+            $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $query): void {
+                $q->where('name', 'like', $queryLike)
+                    ->orWhere('slug', 'like', $queryLike)
+                    ->orWhereHas('brand', function ($bq) use ($queryLike): void {
+                        $bq->where('name', 'like', $queryLike)
+                            ->orWhere('slug', 'like', $queryLike);
+                    })
+                    ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
+                        $vq->where('title', 'like', $queryLike);
+                    });
+                $this->orWhereBrandPlusProductNameLike($q, $queryLike);
+                $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
+            });
+            $directPool = $directMatchQuery
+                ->orderByDesc('id')
+                ->limit(self::SMART_SEARCH_DIRECT_MATCH_LIMIT)
+                ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
+
+            $directIds = $directPool->pluck('id')->all();
+            $broadQuery = (clone $poolQuery);
+            if ($directIds !== []) {
+                $broadQuery->whereKeyNot($directIds);
             }
-            $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
-        });
+            $broadPool = $broadQuery
+                ->orderByDesc('id')
+                ->limit(self::SMART_SEARCH_POOL_LIMIT)
+                ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
 
-        $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $query): void {
-            $q->where('name', 'like', $queryLike)
-                ->orWhere('slug', 'like', $queryLike)
-                ->orWhereHas('brand', function ($bq) use ($queryLike): void {
-                    $bq->where('name', 'like', $queryLike)
-                        ->orWhere('slug', 'like', $queryLike);
-                })
-                ->orWhereHas('variants.definition', function ($vq) use ($queryLike): void {
-                    $vq->where('title', 'like', $queryLike);
-                });
-            $this->orWhereBrandPlusProductNameLike($q, $queryLike);
-            $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
-        });
-        $directPool = $directMatchQuery
-            ->orderByDesc('id')
-            ->limit(self::SMART_SEARCH_DIRECT_MATCH_LIMIT)
-            ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
-
-        $directIds = $directPool->pluck('id')->all();
-        $broadQuery = (clone $poolQuery);
-        if ($directIds !== []) {
-            $broadQuery->whereKeyNot($directIds);
+            $pool = $directPool->concat($broadPool)->unique('id');
         }
-        $broadPool = $broadQuery
-            ->orderByDesc('id')
-            ->limit(self::SMART_SEARCH_POOL_LIMIT)
-            ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
-
-        $pool = $directPool->concat($broadPool)->unique('id');
 
         $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
         if ($codeOrSkuBoostIds !== []) {
@@ -702,6 +720,9 @@ class ProductController extends Controller
             'data' => [
                 'brands' => $rankedBrands,
                 'products' => $rankedProducts,
+                'suggested_query' => (count($rankedProducts) === 0 && count($rankedBrands) === 0)
+                    ? $suggestedQuery
+                    : null,
             ],
         ];
         if ($debug) {
@@ -713,7 +734,37 @@ class ProductController extends Controller
                 'product_pool_count' => $pool->count(),
                 'brand_result_count' => count($rankedBrands),
                 'product_result_count' => count($rankedProducts),
+                'search_backend' => $meiliResult['source'] ?? 'legacy',
+                'search_backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
+                'total_elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
+        }
+
+        $totalElapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+        if ((bool) config('services.catalog_search.log_metrics', true)) {
+            $normalizedForProbe = mb_strtolower(trim($query), 'UTF-8');
+            $probeQueries = collect((array) config('catalog_search.quality_probe_queries', []))
+                ->map(static fn ($item): string => mb_strtolower(trim((string) $item), 'UTF-8'))
+                ->filter(static fn (string $item): bool => $item !== '')
+                ->values()
+                ->all();
+            $targetP95Ms = $limit <= 16
+                ? (int) config('catalog_search.slo.header_p95_ms', 250)
+                : (int) config('catalog_search.slo.search_page_p95_ms', 450);
+
+            Log::info('catalog.smart_search', [
+                'query' => $query,
+                'has_results' => (count($rankedProducts) + count($rankedBrands)) > 0,
+                'brand_count' => count($rankedBrands),
+                'product_count' => count($rankedProducts),
+                'suggested_query' => $response['data']['suggested_query'],
+                'backend' => $meiliResult['source'] ?? 'legacy',
+                'backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
+                'total_elapsed_ms' => $totalElapsedMs,
+                'slo_target_ms' => $targetP95Ms,
+                'slo_exceeded' => $totalElapsedMs > $targetP95Ms,
+                'quality_probe_query' => in_array($normalizedForProbe, $probeQueries, true),
+            ]);
         }
 
         return response()->json($response);
