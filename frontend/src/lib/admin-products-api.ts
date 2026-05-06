@@ -376,10 +376,14 @@ export async function rewriteProductDescription(id: number): Promise<{
         cache: "no-store",
     });
 
+    type RewriteDescriptionResponse = {
+        message?: string;
+        data?: { description?: string | null; description_rewritten_at?: string | null };
+    };
     const text = await res.text();
-    let parsed: { message?: string; data?: { description?: string | null; description_rewritten_at?: string | null } } | null = null;
+    let parsed: RewriteDescriptionResponse | null = null;
     try {
-        parsed = JSON.parse(text) as typeof parsed;
+        parsed = JSON.parse(text) as RewriteDescriptionResponse;
     } catch {
         parsed = null;
     }
