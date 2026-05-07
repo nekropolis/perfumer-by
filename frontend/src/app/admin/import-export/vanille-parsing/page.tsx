@@ -28,18 +28,19 @@ import {
     rewriteVanilleDescriptions,
     startVanillePipelineNewProducts,
     startVanillePipelineRefreshAll,
+    vanilleSingleUrlMediaFollowUp,
 } from "@/lib/admin-vanille-api";
 import Link from "next/link";
 
 
 const LINKED_OPTIONS = [
-    {value: "true", label: "Только связанные"},
-    {value: "false", label: "Только новые"},
+    { value: "true", label: "Только связанные" },
+    { value: "false", label: "Только новые" },
 ];
 
 const ACTIVE_OPTIONS = [
-    {value: "true", label: "Только активные"},
-    {value: "false", label: "Только неактивные"},
+    { value: "true", label: "Только активные" },
+    { value: "false", label: "Только неактивные" },
 ];
 
 function DismissibleSuccessBanner({
@@ -67,9 +68,9 @@ function DismissibleSuccessBanner({
 }
 
 function DismissibleAlert({
-                              message,
-                              onCloseAction,
-                          }: {
+    message,
+    onCloseAction,
+}: {
     message: string;
     onCloseAction: () => void;
 }) {
@@ -106,6 +107,10 @@ export default function VanilleProductsPage() {
     const [importingParsed, setImportingParsed] = useState(false);
     const [singleUrlInput, setSingleUrlInput] = useState("");
     const [singleUrlBusy, setSingleUrlBusy] = useState(false);
+    /** После успешного импорта по URL — те же фоновые задачи, что и кнопки выше (весь каталог). */
+    const [singleUrlChainCatalog, setSingleUrlChainCatalog] = useState(false);
+    const [singleUrlChainGallery, setSingleUrlChainGallery] = useState(false);
+    const [singleUrlChainDescriptions, setSingleUrlChainDescriptions] = useState(false);
 
     const [parsingError, setParsingError] = useState("");
     const [parseJob, setParseJob] = useState<VanilleImportQueueJob | null>(null);
@@ -300,6 +305,10 @@ export default function VanilleProductsPage() {
             setParsingError("Введите URL или slug товара vanille.by");
             return;
         }
+        const chainCatalog = singleUrlChainCatalog;
+        const chainGallery = singleUrlChainGallery;
+        const chainDescriptions = singleUrlChainDescriptions;
+
         setSingleUrlBusy(true);
         setParsingError("");
         setCompletionNotice("");
@@ -321,12 +330,44 @@ export default function VanilleProductsPage() {
             ) {
                 importLine = ` В каталоге: новых ${imp.imported}, обновлено ${imp.updated}.`;
             }
-            setCompletionNotice(
+            const importOk =
+                !!imp &&
+                (imp.success === true ||
+                    (typeof imp.imported === "number" && imp.imported > 0) ||
+                    (typeof imp.updated === "number" && imp.updated > 0));
+
+            let notice =
                 (data.message || "Готово.") +
-                    (d?.file ? ` Файл: ${d.file}.` : "") +
-                    importLine +
-                    extra
-            );
+                (d?.file ? ` Файл: ${d.file}.` : "") +
+                importLine +
+                extra;
+
+            if (
+                importOk &&
+                (chainCatalog || chainGallery || chainDescriptions)
+            ) {
+                try {
+                    const followUp = await vanilleSingleUrlMediaFollowUp({
+                        url,
+                        catalog: chainCatalog,
+                        gallery: chainGallery,
+                        descriptions: chainDescriptions,
+                    });
+                    if (followUp.message) {
+                        notice += ` ${followUp.message}`;
+                    }
+                } catch (chainErr: unknown) {
+                    setParsingError(
+                        chainErr instanceof Error
+                            ? chainErr.message
+                            : "Ошибка дополнительных шагов для этого товара"
+                    );
+                    void loadItems(1);
+                    return;
+                }
+            }
+
+            setCompletionNotice(notice);
             setSingleUrlInput("");
             void loadItems(1);
         } catch (e: unknown) {
@@ -341,297 +382,337 @@ export default function VanilleProductsPage() {
     return (
         <AdminPageCard>
             <>
-            {completionNotice ? (
-                <div className="mb-4">
-                    <DismissibleSuccessBanner
-                        message={completionNotice}
-                        onCloseAction={() => {
-                            setCompletionNotice("");
-                            completionBannerConsumedRef.current = true;
-                        }}
-                    />
-                </div>
-            ) : null}
+                {completionNotice ? (
+                    <div className="mb-4">
+                        <DismissibleSuccessBanner
+                            message={completionNotice}
+                            onCloseAction={() => {
+                                setCompletionNotice("");
+                                completionBannerConsumedRef.current = true;
+                            }}
+                        />
+                    </div>
+                ) : null}
 
-            <AdminTableToolbar
-                title="Товары поставщика Vanille"
-                description="Просмотр спарсенных и связанных товаров Vanille"
-                action={
-                    <button
-                        type="button"
-                        onClick={handleImportParsedProducts}
-                        disabled={importingParsed || hasActiveParse}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {importingParsed
-                            ? "Запуск..."
-                            : hasActiveParse && parseJob?.type === "import_parsed_products"
-                                ? "Импорт выполняется..."
-                                : "Импортировать спарсенные товары"}
-                    </button>
-                }
-            >
-                <div className="w-full space-y-4">
-                    <div className="rounded-2xl border bg-white p-6 space-y-4">
-                        <div className="flex flex-wrap gap-3">
-                            <button
-                                type="button"
-                                onClick={handlePipelineNewProducts}
-                                disabled={hasActiveParse}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {hasActiveParse && parseJob?.type === "pipeline_new_products"
-                                    ? "Выполняется..."
-                                    : "Парсинг нового товара"}
-                            </button>
+                <AdminTableToolbar
+                    title="Товары поставщика Vanille"
+                    description="Просмотр спарсенных и связанных товаров Vanille"
+                    action={
+                        <button
+                            type="button"
+                            onClick={handleImportParsedProducts}
+                            disabled={importingParsed || hasActiveParse}
+                            className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                        >
+                            {importingParsed
+                                ? "Запуск..."
+                                : hasActiveParse && parseJob?.type === "import_parsed_products"
+                                    ? "Импорт выполняется..."
+                                    : "Импортировать спарсенные товары"}
+                        </button>
+                    }
+                >
+                    <div className="w-full space-y-4">
+                        <div className="rounded-2xl border bg-white p-6 space-y-4">
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handlePipelineNewProducts}
+                                    disabled={hasActiveParse}
+                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                >
+                                    {hasActiveParse && parseJob?.type === "pipeline_new_products"
+                                        ? "Выполняется..."
+                                        : "Парсинг нового товара"}
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={handlePipelineRefreshAll}
-                                disabled={hasActiveParse}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {hasActiveParse && parseJob?.type === "pipeline_refresh_all"
-                                    ? "Выполняется..."
-                                    : "Спарсить все товары заново"}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={handlePipelineRefreshAll}
+                                    disabled={hasActiveParse}
+                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                >
+                                    {hasActiveParse && parseJob?.type === "pipeline_refresh_all"
+                                        ? "Выполняется..."
+                                        : "Спарсить все товары заново"}
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void enqueueMediaJob(parseVanilleCatalogImages, "Каталожные изображения")
-                                }
-                                disabled={hasActiveParse}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {hasActiveParse && parseJob?.type === "parse_catalog_images"
-                                    ? "Каталог…"
-                                    : "Каталожные фото (листинг)"}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void enqueueMediaJob(parseVanilleCatalogImages, "Каталожные изображения")
+                                    }
+                                    disabled={hasActiveParse}
+                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                >
+                                    {hasActiveParse && parseJob?.type === "parse_catalog_images"
+                                        ? "Каталог…"
+                                        : "Каталожные фото (листинг)"}
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void enqueueMediaJob(parseVanilleProductImages, "Галерея карточек")
-                                }
-                                disabled={hasActiveParse}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {hasActiveParse && parseJob?.type === "parse_product_images"
-                                    ? "Галерея…"
-                                    : "Галерея карточек"}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void enqueueMediaJob(parseVanilleProductImages, "Галерея карточек")
+                                    }
+                                    disabled={hasActiveParse}
+                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                >
+                                    {hasActiveParse && parseJob?.type === "parse_product_images"
+                                        ? "Галерея…"
+                                        : "Галерея карточек"}
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void enqueueMediaJob(rewriteVanilleDescriptions, "Описания")
-                                }
-                                disabled={hasActiveParse}
-                                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {hasActiveParse && parseJob?.type === "rewrite_descriptions"
-                                    ? "Описания…"
-                                    : "Уникализация описаний"}
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void enqueueMediaJob(rewriteVanilleDescriptions, "Описания")
+                                    }
+                                    disabled={hasActiveParse}
+                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                >
+                                    {hasActiveParse && parseJob?.type === "rewrite_descriptions"
+                                        ? "Описания…"
+                                        : "Уникализация описаний"}
+                                </button>
 
-                            <Link
-                                href="/admin/import-export/retry-queue"
-                                className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                Очередь ошибок
-                            </Link>
-                        </div>
-
-                        <p className="text-xs text-gray-600">
-                            «Парсинг нового товара» только скачивает карточки в JSON. Чтобы появились в каталоге,
-                            после завершения нажмите «Импортировать спарсенные товары». «Спарсить только этот URL»
-                            сразу пишет JSON и импортирует эту карточку в каталог (без полного импорта всех файлов).
-                            Режим «новые» теперь считает новыми только URL без привязанного товара в базе (раньше URL
-                            пропадал из очереди после одного парсинга без импорта).
-                        </p>
-
-                        <div className="flex flex-col gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-3 sm:flex-row sm:items-center">
-                            <input
-                                type="text"
-                                value={singleUrlInput}
-                                onChange={(e) => setSingleUrlInput(e.target.value)}
-                                placeholder="https://vanille.by/slug или только slug"
-                                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-                                disabled={singleUrlBusy}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => void handleParseSingleUrl()}
-                                disabled={singleUrlBusy}
-                                className="shrink-0 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
-                            >
-                                {singleUrlBusy ? "Парсинг и импорт…" : "Спарсить и импортировать этот URL"}
-                            </button>
-                        </div>
-
-                        {parseStatusLoading ? null : parseJob ? (
-                            <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                                <div className="font-medium">
-                                    Статус: {parseJob.message || "Задача парсинга"}
-                                </div>
-                                <div className="mt-1 text-xs text-gray-500">
-                                    Состояние: {parseJob.status} · Прогресс: {parseJob.progress ?? 0}%
-                                </div>
-                                {hasActiveParse ? (
-                                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                                        <div
-                                            className="h-full rounded-full bg-black transition-all"
-                                            style={{ width: `${Math.max(0, Math.min(100, parseJob.progress ?? 0))}%` }}
-                                        />
-                                    </div>
-                                ) : null}
+                                <Link
+                                    href="/admin/import-export/retry-queue"
+                                    className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                    Очередь ошибок
+                                </Link>
                             </div>
-                        ) : null}
 
-                        {parsingError ? (
-                            <DismissibleAlert
-                                message={parsingError}
-                                onCloseAction={() => setParsingError("")}
+                            <p className="text-xs text-gray-600">
+                                «Парсинг нового товара» и «Спарсить все товары заново» только скачивает карточки в JSON. Чтобы товары появились в каталоге,
+                                после завершения нажмите «Импортировать спарсенные товары».
+                            </p>
+
+                            <div className="flex flex-col gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-3">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                    <input
+                                        type="text"
+                                        value={singleUrlInput}
+                                        onChange={(e) => setSingleUrlInput(e.target.value)}
+                                        placeholder="https://vanille.by/slug или только slug"
+                                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                                        disabled={singleUrlBusy || hasActiveParse}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleParseSingleUrl()}
+                                        disabled={singleUrlBusy || hasActiveParse}
+                                        className="shrink-0 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
+                                    >
+                                        {singleUrlBusy
+                                            ? "Парсинг и импорт…"
+                                            : hasActiveParse
+                                                ? "Дождитесь задачи…"
+                                                : "Спарсить и импортировать товар"}
+                                    </button>
+                                </div>
+
+                                <p className="text-[11px] leading-snug text-gray-500">
+                                    Введите URL или slug товара vanille.by и нажмите «Спарсить и импортировать товар». Перед парсингом можно выбрать опциональные действия для этого товара.
+                                </p>
+
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-700">
+                                    <label className="inline-flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={singleUrlChainCatalog}
+                                            onChange={(e) => setSingleUrlChainCatalog(e.target.checked)}
+                                            disabled={singleUrlBusy || hasActiveParse}
+                                            className="rounded border-gray-300"
+                                        />
+                                        Затем: каталожные фото (листинг)
+                                    </label>
+                                    <label className="inline-flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={singleUrlChainGallery}
+                                            onChange={(e) => setSingleUrlChainGallery(e.target.checked)}
+                                            disabled={singleUrlBusy || hasActiveParse}
+                                            className="rounded border-gray-300"
+                                        />
+                                        Затем: галерея карточек
+                                    </label>
+                                    <label className="inline-flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={singleUrlChainDescriptions}
+                                            onChange={(e) => setSingleUrlChainDescriptions(e.target.checked)}
+                                            disabled={singleUrlBusy || hasActiveParse}
+                                            className="rounded border-gray-300"
+                                        />
+                                        Затем: уникализация описаний
+                                    </label>
+                                </div>
+                            </div>
+
+                            {parseStatusLoading ? null : parseJob ? (
+                                <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                                    <div className="font-medium">
+                                        Статус: {parseJob.message || "Задача парсинга"}
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500">
+                                        Состояние: {parseJob.status} · Прогресс: {parseJob.progress ?? 0}%
+                                    </div>
+                                    {hasActiveParse ? (
+                                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                            <div
+                                                className="h-full rounded-full bg-black transition-all"
+                                                style={{ width: `${Math.max(0, Math.min(100, parseJob.progress ?? 0))}%` }}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : null}
+
+                            {parsingError ? (
+                                <DismissibleAlert
+                                    message={parsingError}
+                                    onCloseAction={() => setParsingError("")}
+                                />
+                            ) : null}
+                        </div>
+
+                        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                            <AdminSearchInput
+                                value={searchInput}
+                                onChangeAction={setSearchInput}
+                                placeholder="Название, slug, url"
                             />
-                        ) : null}
-                    </div>
 
-                    <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-                        <AdminSearchInput
-                            value={searchInput}
-                            onChangeAction={setSearchInput}
-                            placeholder="Название, slug, url"
-                        />
+                            <AdminFilterSelect
+                                value={linked}
+                                onChangeAction={setLinked}
+                                options={LINKED_OPTIONS}
+                                placeholder="Все связи"
+                            />
 
-                        <AdminFilterSelect
-                            value={linked}
-                            onChangeAction={setLinked}
-                            options={LINKED_OPTIONS}
-                            placeholder="Все связи"
-                        />
-
-                        <AdminFilterSelect
-                            value={active}
-                            onChangeAction={setActive}
-                            options={ACTIVE_OPTIONS}
-                            placeholder="Все статусы"
-                        />
-                    </div>
-                </div>
-            </AdminTableToolbar>
-
-            {error && (
-                <AdminFeedbackMessage
-                    type="error"
-                    message={error}
-                    onCloseAction={() => setError("")}
-                />
-            )}
-
-            {loading && <AdminLoadingState text="Загрузка товаров поставщика..."/>}
-
-            {!loading && items.length === 0 && (
-                <AdminEmptyState
-                    title="Товары не найдены"
-                    description="Попробуйте изменить поиск или фильтры."
-                />
-            )}
-            {!loading && items.length > 0 &&
-                (
-                    <div className="space-y-4">
-                        <div className="text-sm text-gray-500">
-                            Всего: {meta?.total ?? items.length}
+                            <AdminFilterSelect
+                                value={active}
+                                onChangeAction={setActive}
+                                options={ACTIVE_OPTIONS}
+                                placeholder="Все статусы"
+                            />
                         </div>
-
-                        <div className="overflow-x-auto rounded-xl border">
-                            <table className="min-w-full text-sm">
-                                <thead className="bg-gray-50">
-                                <tr className="text-left">
-                                    <th className="px-4 py-3">ID</th>
-                                    <th className="px-4 py-3">Внешний товар</th>
-                                    <th className="px-4 py-3">Бренд</th>
-                                    <th className="px-4 py-3">Локальный товар</th>
-                                    <th className="px-4 py-3">Связь</th>
-                                    <th className="px-4 py-3">Активность</th>
-                                    <th className="px-4 py-3">Последний раз видели</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {items.map((item) => (
-                                    <tr key={item.id} className="border-t align-top">
-                                        <td className="px-4 py-3">{item.id}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium">{item.external_name}</div>
-                                            <div className="text-xs text-gray-500">{item.external_slug}</div>
-                                            <a
-                                                href={item.external_url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-xs text-blue-600 hover:underline"
-                                            >
-                                                открыть источник
-                                            </a>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.brand ? item.brand.name : "—"}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.product ? (
-                                                <div>
-                                                    <div className="font-medium">{item.product.name}</div>
-                                                    <div className="text-xs text-gray-500">{item.product.slug}</div>
-                                                </div>
-                                            ) : (
-                                                "—"
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.is_linked ? (
-                                                <span
-                                                    className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-                                                    linked
-                                                </span>
-                                            ) : (
-                                                <span
-                                                    className="rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-700">
-                                                    new
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.is_active ? (
-                                                <span
-                                                    className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-                                                    active
-                                                </span>
-                                            ) : (
-                                                <span
-                                                    className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                                                    inactive
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3">{item.last_seen_at || "—"}</td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <AdminPagination
-                            currentPage={meta?.current_page ?? 1}
-                            lastPage={meta?.last_page ?? 1}
-                            onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
-                            onNextAction={() =>
-                                setPage((p) =>
-                                    meta && meta.current_page < meta.last_page ? p + 1 : p
-                                )
-                            }
-                        />
-
                     </div>
+                </AdminTableToolbar>
+
+                {error && (
+                    <AdminFeedbackMessage
+                        type="error"
+                        message={error}
+                        onCloseAction={() => setError("")}
+                    />
                 )}
+
+                {loading && <AdminLoadingState text="Загрузка товаров поставщика..." />}
+
+                {!loading && items.length === 0 && (
+                    <AdminEmptyState
+                        title="Товары не найдены"
+                        description="Попробуйте изменить поиск или фильтры."
+                    />
+                )}
+                {!loading && items.length > 0 &&
+                    (
+                        <div className="space-y-4">
+                            <div className="text-sm text-gray-500">
+                                Всего: {meta?.total ?? items.length}
+                            </div>
+
+                            <div className="overflow-x-auto rounded-xl border">
+                                <table className="min-w-full text-sm">
+                                    <thead className="bg-gray-50">
+                                        <tr className="text-left">
+                                            <th className="px-4 py-3">ID</th>
+                                            <th className="px-4 py-3">Внешний товар</th>
+                                            <th className="px-4 py-3">Бренд</th>
+                                            <th className="px-4 py-3">Локальный товар</th>
+                                            <th className="px-4 py-3">Связь</th>
+                                            <th className="px-4 py-3">Активность</th>
+                                            <th className="px-4 py-3">Последний раз видели</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {items.map((item) => (
+                                            <tr key={item.id} className="border-t align-top">
+                                                <td className="px-4 py-3">{item.id}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="font-medium">{item.external_name}</div>
+                                                    <div className="text-xs text-gray-500">{item.external_slug}</div>
+                                                    <a
+                                                        href={item.external_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-xs text-blue-600 hover:underline"
+                                                    >
+                                                        открыть источник
+                                                    </a>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.brand ? item.brand.name : "—"}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.product ? (
+                                                        <div>
+                                                            <div className="font-medium">{item.product.name}</div>
+                                                            <div className="text-xs text-gray-500">{item.product.slug}</div>
+                                                        </div>
+                                                    ) : (
+                                                        "—"
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.is_linked ? (
+                                                        <span
+                                                            className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                                                            linked
+                                                        </span>
+                                                    ) : (
+                                                        <span
+                                                            className="rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-700">
+                                                            new
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.is_active ? (
+                                                        <span
+                                                            className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+                                                            active
+                                                        </span>
+                                                    ) : (
+                                                        <span
+                                                            className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                                                            inactive
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">{item.last_seen_at || "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <AdminPagination
+                                currentPage={meta?.current_page ?? 1}
+                                lastPage={meta?.last_page ?? 1}
+                                onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                                onNextAction={() =>
+                                    setPage((p) =>
+                                        meta && meta.current_page < meta.last_page ? p + 1 : p
+                                    )
+                                }
+                            />
+
+                        </div>
+                    )}
             </>
         </AdminPageCard>
     );

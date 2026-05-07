@@ -414,9 +414,28 @@ class ProductController extends Controller
                     ->with(['definition:id,title']);
             }]);
 
-        $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, self::SMART_SEARCH_POOL_LIMIT);
-        $suggestedQuery = $meiliResult['suggested_query'] ?? null;
-        $meiliIds = $meiliResult['ids'] ?? [];
+        $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
+        $isCodeLikeQuery = preg_match('/^[\p{L}\p{N}\-_]{2,}$/u', $query) === 1 && !str_contains($query, ' ');
+        $isStrictNumericQuery = preg_match('/^\d{3,12}$/', $query) === 1;
+
+        $meiliResult = [
+            'ids' => [],
+            'suggested_query' => null,
+            'source' => 'legacy',
+            'elapsed_ms' => 0,
+        ];
+        $suggestedQuery = null;
+        $meiliIds = [];
+
+        if ($codeOrSkuBoostIds !== [] && $isCodeLikeQuery) {
+            $meiliIds = $codeOrSkuBoostIds;
+            $meiliResult['ids'] = $meiliIds;
+            $meiliResult['source'] = 'code_lookup';
+        } elseif (!$isStrictNumericQuery) {
+            $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, self::SMART_SEARCH_POOL_LIMIT);
+            $suggestedQuery = $meiliResult['suggested_query'] ?? null;
+            $meiliIds = $meiliResult['ids'] ?? [];
+        }
 
         if ($meiliIds !== []) {
             $pool = (clone $baseProductQuery)
@@ -486,7 +505,6 @@ class ProductController extends Controller
             $pool = $directPool->concat($broadPool)->unique('id');
         }
 
-        $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
         if ($codeOrSkuBoostIds !== []) {
             $existing = $pool->pluck('id')->all();
             $missingIds = array_values(array_diff($codeOrSkuBoostIds, $existing));
@@ -499,6 +517,7 @@ class ProductController extends Controller
             }
         }
         $codeOrSkuBoostSet = array_fill_keys($codeOrSkuBoostIds, true);
+        $matchedCodeByProductId = $this->matchedCodeByProductId($query, $pool->pluck('id')->map(static fn ($id): int => (int) $id)->all());
 
         $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
         $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
@@ -515,7 +534,7 @@ class ProductController extends Controller
                 ->groupBy('variant_id');
         }
 
-        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet) {
+        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet, $matchedCodeByProductId) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
@@ -625,6 +644,7 @@ class ProductController extends Controller
                 'is_preorder_available' => $isPreorderAvailable,
                 'variants_count' => (int) ($product->variants?->count() ?? 0),
                 'variant_labels' => $variantTitles->values()->all(),
+                'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
                 '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
                 'score' => round($bestScore, 6),
             ];
@@ -819,9 +839,107 @@ class ProductController extends Controller
                 ->distinct()
                 ->pluck('products.id');
             $ids = $ids->merge($fromSku);
+
+            $fromExternalId = SupplierVariantOffer::query()
+                ->where('supplier_variant_offers.is_active', true)
+                ->whereNotNull('supplier_variant_offers.external_id')
+                ->where('supplier_variant_offers.external_id', 'like', $like)
+                ->join('product_variant_links', 'product_variant_links.id', '=', 'supplier_variant_offers.product_variant_id')
+                ->join('products', 'products.id', '=', 'product_variant_links.product_id')
+                ->where('products.is_active', true)
+                ->select('products.id')
+                ->distinct()
+                ->pluck('products.id');
+            $ids = $ids->merge($fromExternalId);
+        }
+
+        if (preg_match('/^\d{1,12}$/', $trim) && (int) $trim > 0) {
+            $fromVariantId = \Modules\Catalog\Models\ProductVariantLink::query()
+                ->whereKey((int) $trim)
+                ->join('products', 'products.id', '=', 'product_variant_links.product_id')
+                ->where('products.is_active', true)
+                ->select('products.id')
+                ->distinct()
+                ->pluck('products.id');
+            $ids = $ids->merge($fromVariantId);
         }
 
         return $ids->unique()->map(static fn ($id): int => (int) $id)->values()->all();
+    }
+
+    /**
+     * @param  list<int>  $productIds
+     * @return array<int, string>
+     */
+    private function matchedCodeByProductId(string $rawQuery, array $productIds): array
+    {
+        $trim = trim($rawQuery);
+        if ($trim === '' || $productIds === []) {
+            return [];
+        }
+
+        $matched = [];
+        if (preg_match('/^\d{1,12}$/', $trim) === 1 && (int) $trim > 0) {
+            $productId = (int) $trim;
+            if (in_array($productId, $productIds, true)) {
+                $matched[$productId] = $trim;
+            }
+
+            $variantRows = \Modules\Catalog\Models\ProductVariantLink::query()
+                ->whereKey((int) $trim)
+                ->whereIn('product_id', $productIds)
+                ->get(['id', 'product_id']);
+            foreach ($variantRows as $row) {
+                $pid = (int) $row->product_id;
+                if (!isset($matched[$pid])) {
+                    $matched[$pid] = (string) $row->id;
+                }
+            }
+        }
+
+        $escaped = addcslashes($trim, '%_\\');
+        $like = '%'.$escaped.'%';
+        $offerRows = SupplierVariantOffer::query()
+            ->where('supplier_variant_offers.is_active', true)
+            ->where(function ($q) use ($like): void {
+                $q->where('supplier_variant_offers.sku', 'like', $like)
+                    ->orWhere('supplier_variant_offers.external_id', 'like', $like);
+            })
+            ->join('product_variant_links', 'product_variant_links.id', '=', 'supplier_variant_offers.product_variant_id')
+            ->whereIn('product_variant_links.product_id', $productIds)
+            ->select([
+                'product_variant_links.product_id',
+                'supplier_variant_offers.sku',
+                'supplier_variant_offers.external_id',
+            ])
+            ->get();
+
+        $queryNorm = mb_strtolower($trim, 'UTF-8');
+        foreach ($offerRows as $row) {
+            $pid = (int) $row->product_id;
+            if (isset($matched[$pid])) {
+                continue;
+            }
+
+            $candidates = array_values(array_filter([
+                trim((string) ($row->sku ?? '')),
+                trim((string) ($row->external_id ?? '')),
+            ]));
+            if ($candidates === []) {
+                continue;
+            }
+
+            $exact = null;
+            foreach ($candidates as $candidate) {
+                if (mb_strtolower($candidate, 'UTF-8') === $queryNorm) {
+                    $exact = $candidate;
+                    break;
+                }
+            }
+            $matched[$pid] = $exact ?? $candidates[0];
+        }
+
+        return $matched;
     }
 
     /**

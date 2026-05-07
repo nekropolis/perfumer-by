@@ -120,6 +120,15 @@ export default function SearchResultsClient({
                 </label>
                 <input
                     id="search-page-query"
+                    type="text"
+                    name="search_page_query"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
                     value={query}
                     onChange={(event) => {
                         const next = event.target.value;

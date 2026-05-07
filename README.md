@@ -293,7 +293,7 @@ curl "http://127.0.0.1:8000/api/catalog/products/smart-search?q=sau&limit=24&deb
 
 Шаги подключения реального провайдера:
 
-1) **Привести backend в актуальное состояние**
+1. **Привести backend в актуальное состояние**
 
 ```bash
 cd /var/www/perfumer-by/backend
@@ -303,7 +303,7 @@ php artisan optimize:clear
 php artisan migrate
 ```
 
-2) **Проверить, что модуль Communications включен**
+2. **Проверить, что модуль Communications включен**
 
 Файл `backend/modules_statuses.json`:
 
@@ -315,7 +315,7 @@ php artisan migrate
 
 Если временно выключен — включи и снова выполни `composer dump-autoload` + `php artisan optimize:clear`.
 
-3) **Настроить `.env` под реальный провайдер**
+3. **Настроить `.env` под реальный провайдер**
 
 Минимально для production:
 
@@ -343,7 +343,7 @@ RECAPTCHA_SECRET_KEY=...
 RECAPTCHA_MIN_SCORE=0.5
 ```
 
-4) **Проверить API контракт провайдера**
+4. **Проверить API контракт провайдера**
 
 Сейчас отправка в `http` драйвере идет с payload:
 
@@ -353,7 +353,7 @@ RECAPTCHA_MIN_SCORE=0.5
 
 Если у провайдера другие поля/заголовки/подпись, адаптируй маппинг в `backend/Modules/Communications/app/Services/OtpDeliveryService.php`.
 
-5) **Проверить миграции таблицы верификаций**
+5. **Проверить миграции таблицы верификаций**
 
 В `phone_verifications` должны быть поля доставки:
 
@@ -363,13 +363,13 @@ RECAPTCHA_MIN_SCORE=0.5
 - `delivery_error`
 - `delivered_at`
 
-6) **Сделать smoke-тест**
+6. **Сделать smoke-тест**
 
 - вызвать `POST /auth/request-code` с валидным телефоном;
 - проверить, что ответ содержит `delivery_channel`;
 - проверить успешный `POST /auth/verify-code`.
 
-7) **Временный безопасный режим**
+7. **Временный безопасный режим**
 
 Если провайдер недоступен или неверные креды:
 
@@ -396,4 +396,3 @@ php artisan catalog:parse-vanille-products --offset=<нужный_offset>
 - prod: `make prod`
 
 Перед переключением останавливай текущий режим (`make dev-stop` или `make prod-stop`).
-

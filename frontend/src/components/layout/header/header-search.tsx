@@ -74,6 +74,15 @@ export default function HeaderSearch({
                 <input
                     suppressHydrationWarning
                     ref={desktopSearchInputRef}
+                    type="text"
+                    name="catalog_search_query"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
                     value={searchQuery}
                     onFocus={onFocusAction}
                     onKeyDown={(e) => {
@@ -222,6 +231,11 @@ export default function HeaderSearch({
                                                 ) : null}
                                             </div>
                                             <div className="min-w-0">
+                                                {item.matched_code ? (
+                                                    <div className="truncate text-[11px] font-medium text-[var(--accent)]">
+                                                        {renderHighlightedText(item.matched_code, searchQuery)}
+                                                    </div>
+                                                ) : null}
                                                 <div className="truncate text-sm font-medium text-[var(--foreground)]">
                                                     {renderHighlightedText(item.name, searchQuery)}
                                                 </div>

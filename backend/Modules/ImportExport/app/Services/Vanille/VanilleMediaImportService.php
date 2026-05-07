@@ -842,6 +842,67 @@ class VanilleMediaImportService
         return [$binary, ProductImage::WATERMARK_NEEDS_REVIEW, ['reason' => 'service_unavailable']];
     }
 
+    /**
+     * Каталожное фото, галерея и уникализация описания — только для одного product_id (без очереди по каталогу).
+     *
+     * @return array{success: bool, message: string, steps: array<string, array{ok: bool, error?: string}>}
+     */
+    public function runSingleProductMediaFollowUp(int $productId, bool $catalog, bool $gallery, bool $descriptions): array
+    {
+        $steps = [];
+        $parts = [];
+
+        if ($catalog) {
+            try {
+                $this->retryOneCatalogImage($productId);
+                $steps['catalog_image'] = ['ok' => true];
+                $parts[] = 'Каталожное фото: готово.';
+            } catch (Throwable $e) {
+                $err = $e->getMessage();
+                $steps['catalog_image'] = ['ok' => false, 'error' => $err];
+                $parts[] = 'Каталожное фото: '.$err;
+            }
+        }
+
+        if ($gallery) {
+            try {
+                $this->retryOneGallery($productId);
+                $steps['gallery'] = ['ok' => true];
+                $parts[] = 'Галерея: готово.';
+            } catch (Throwable $e) {
+                $err = $e->getMessage();
+                $steps['gallery'] = ['ok' => false, 'error' => $err];
+                $parts[] = 'Галерея: '.$err;
+            }
+        }
+
+        if ($descriptions) {
+            try {
+                $this->retryOneDescription($productId);
+                $steps['description'] = ['ok' => true];
+                $parts[] = 'Описание: готово.';
+            } catch (Throwable $e) {
+                $err = $e->getMessage();
+                $steps['description'] = ['ok' => false, 'error' => $err];
+                $parts[] = 'Описание: '.$err;
+            }
+        }
+
+        $allOk = $steps !== [];
+        foreach ($steps as $step) {
+            if (($step['ok'] ?? false) !== true) {
+                $allOk = false;
+                break;
+            }
+        }
+
+        return [
+            'success' => $allOk,
+            'message' => implode(' ', $parts),
+            'steps' => $steps,
+        ];
+    }
+
     private function descriptionRewriter(): ProductDescriptionRewriter
     {
         return app(ProductDescriptionRewriter::class);

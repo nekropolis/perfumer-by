@@ -16,6 +16,7 @@ export type HeaderSearchItem = {
     is_preorder_available?: boolean;
     /** Свободный остаток по вариантам (учёт резерва) — для подписи в подсказке поиска */
     stock_total?: number;
+    matched_code?: string | null;
     score?: number;
 };
 

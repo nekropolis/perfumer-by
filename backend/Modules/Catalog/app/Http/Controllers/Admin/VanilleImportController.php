@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Modules\Catalog\Jobs\RunSellerOneParseJob;
 use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
+use Modules\ImportExport\Services\Vanille\VanilleMediaImportService;
 use Modules\Catalog\Models\VanilleImportJob;
 use Modules\Catalog\Models\VanilleImportJobLog;
 use Modules\ImportExport\Models\ImportRetryItem;
@@ -115,6 +116,48 @@ class VanilleImportController extends Controller
             'message' => $message,
             'data' => $payload,
         ]);
+    }
+
+    /**
+     * Каталожное фото / галерея / описание только для товара по введённому URL (без массовой очереди).
+     */
+    public function singleUrlMediaFollowUp(
+        Request $request,
+        VanilleImportService $importService,
+        VanilleMediaImportService $mediaService
+    ): \Illuminate\Http\JsonResponse {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'max:2048'],
+            'catalog' => ['sometimes', 'boolean'],
+            'gallery' => ['sometimes', 'boolean'],
+            'descriptions' => ['sometimes', 'boolean'],
+        ]);
+
+        $catalog = (bool) ($validated['catalog'] ?? false);
+        $gallery = (bool) ($validated['gallery'] ?? false);
+        $descriptions = (bool) ($validated['descriptions'] ?? false);
+
+        if ($catalog === false && $gallery === false && $descriptions === false) {
+            return response()->json(['message' => 'Отметьте хотя бы один шаг.'], 422);
+        }
+
+        $productId = $importService->resolveLinkedVanilleProductId($validated['url']);
+        if ($productId === null) {
+            return response()->json([
+                'message' => 'Не найден связанный товар Vanille по этому URL. Сначала импортируйте карточку.',
+            ], 422);
+        }
+
+        $result = $mediaService->runSingleProductMediaFollowUp($productId, $catalog, $gallery, $descriptions);
+
+        return response()->json([
+            'message' => $result['message'],
+            'data' => [
+                'product_id' => $productId,
+                'success' => $result['success'],
+                'steps' => $result['steps'],
+            ],
+        ], $result['success'] ? 200 : 422);
     }
 
     public function pipelineNewProducts(VanilleImportService $service)

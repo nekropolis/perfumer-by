@@ -50,6 +50,7 @@ export type ProductListItem = {
     h1: string | null;
     short_description: string | null;
     variant_labels: string[];
+    matched_code?: string | null;
 
     brand: {
         id: number;

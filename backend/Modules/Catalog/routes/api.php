@@ -28,6 +28,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::post('/pipeline/refresh-all', [VanilleImportController::class, 'pipelineRefreshAll']);
     Route::post('/parse-products', [VanilleImportController::class, 'parseProducts']);
     Route::post('/parse-product-url', [VanilleImportController::class, 'parseSingleProductUrl']);
+    Route::post('/single-url-media-follow-up', [VanilleImportController::class, 'singleUrlMediaFollowUp']);
     Route::post('/collect-links', [VanilleImportController::class, 'collectLinks']);
     Route::post('/parse-brands', [VanilleImportController::class, 'parseBrands']);
     Route::get('/parse-status', [VanilleImportController::class, 'vanilleParseStatus']);

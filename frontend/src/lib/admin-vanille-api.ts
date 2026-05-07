@@ -273,6 +273,40 @@ export async function parseSingleVanilleProductUrl(
     );
 }
 
+export type VanilleSingleUrlMediaFollowUpStep = {
+    ok: boolean;
+    error?: string;
+};
+
+export type VanilleSingleUrlMediaFollowUpResponse = {
+    message?: string;
+    data?: {
+        product_id: number;
+        success: boolean;
+        steps?: Record<string, VanilleSingleUrlMediaFollowUpStep>;
+    };
+};
+
+export async function vanilleSingleUrlMediaFollowUp(body: {
+    url: string;
+    catalog?: boolean;
+    gallery?: boolean;
+    descriptions?: boolean;
+}): Promise<VanilleSingleUrlMediaFollowUpResponse> {
+    return adminVanilleFetch<VanilleSingleUrlMediaFollowUpResponse>(
+        "/admin/import-export/vanille/single-url-media-follow-up",
+        {
+            method: "POST",
+            body: JSON.stringify({
+                url: body.url.trim(),
+                catalog: Boolean(body.catalog),
+                gallery: Boolean(body.gallery),
+                descriptions: Boolean(body.descriptions),
+            }),
+        }
+    );
+}
+
 export async function startVanillePipelineNewProducts(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
     return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
         "/admin/import-export/vanille/pipeline/new-products",

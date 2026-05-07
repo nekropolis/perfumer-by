@@ -1557,6 +1557,43 @@ class VanilleImportService
     }
 
     /**
+     * Локальный product_id связанного товара Vanille по URL/slug страницы (после импорта).
+     */
+    public function resolveLinkedVanilleProductId(string $rawUrl): ?int
+    {
+        try {
+            $canonicalUrl = $this->normalizeVanilleProductInputToUrl($rawUrl);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $key = $this->normalizeLinkUrl($canonicalUrl);
+        if ($key === '') {
+            return null;
+        }
+
+        $supplierId = (int) Supplier::query()->where('code', 'vanille')->value('id');
+        if ($supplierId <= 0) {
+            return null;
+        }
+
+        $rows = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->whereNotNull('product_id')
+            ->where('is_linked', true)
+            ->whereNotNull('external_url')
+            ->get(['product_id', 'external_url']);
+
+        foreach ($rows as $row) {
+            if ($this->normalizeLinkUrl((string) $row->external_url) === $key) {
+                return (int) $row->product_id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{path: string, source_total: int, filtered_total: int, skipped_count: int}
      */
     private function buildNewOnlyProductLinksFile(): array
