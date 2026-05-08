@@ -478,8 +478,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         type="button"
                         onClick={() => void toggleWishlist(product.id)}
                         className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${isInWishlist(product.id)
-                                ? "border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-95"
-                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--background)]"
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-95"
+                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--background)]"
                             }`}
                     >
                         <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
@@ -703,39 +703,39 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                 >
                     <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
                         <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-[var(--foreground)]">
+                            <div className="truncate text-sm font-medium text-[var(--foreground)]">
                                 {product.h1 || product.name}
-                        </div>
+                            </div>
                             <div className="truncate text-xs text-[var(--text-secondary)]">
                                 {selectedVariant?.display_name || "Вариант не выбран"}
                             </div>
-                                <div className="text-base font-semibold text-[var(--foreground)]">
-                                    {selectedVariant
-                                        ? formatPrice(
-                                            isAuthenticated && loyaltyPrice ? loyaltyPrice : selectedVariant.price
-                                        )
-                                        : "Цена уточняется"}
-                                </div>
+                            <div className="text-base font-semibold text-[var(--foreground)]">
+                                {selectedVariant
+                                    ? formatPrice(
+                                        isAuthenticated && loyaltyPrice ? loyaltyPrice : selectedVariant.price
+                                    )
+                                    : "Цена уточняется"}
                             </div>
-                            {isSelectedVariantInCart ? (
-                                <Link
-                                    href="/cart"
-                                    className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[var(--accent-soft)] bg-[var(--background)] px-4 text-sm font-medium text-[var(--accent)]"
-                                >
-                                    В корзине (оформить)
-                                </Link>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={handleAddToCart}
-                                    disabled={!selectedVariant?.is_available || isPending}
-                                    className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {isPending ? "Добавление..." : "В корзину"}
-                                </button>
-                            )}
                         </div>
+                        {isSelectedVariantInCart ? (
+                            <Link
+                                href="/cart"
+                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[var(--accent-soft)] bg-[var(--background)] px-4 text-sm font-medium text-[var(--accent)]"
+                            >
+                                В корзине (оформить)
+                            </Link>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleAddToCart}
+                                disabled={!selectedVariant?.is_available || isPending}
+                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isPending ? "Добавление..." : "В корзину"}
+                            </button>
+                        )}
                     </div>
+                </div>
             ) : null}
             {isImageLightboxOpen && mainImageUrl ? (
                 <div
