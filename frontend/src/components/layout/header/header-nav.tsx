@@ -10,7 +10,7 @@ type HeaderNavProps = {
 export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
     return (
         <div
-            className={`hidden bg-[var(--background)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${isCompact
+            className={`hidden bg-[var(--background)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block border-b border-[var(--line)] opacity-100 ${isCompact
                     ? "max-h-0 overflow-hidden border-t border-transparent opacity-0"
                     : "max-h-11 border-t border-[var(--line)] opacity-100"
                 }`}

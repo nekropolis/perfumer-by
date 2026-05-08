@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ProductDetailData, ProductImageData, ProductListItem, ProductVariantData } from "@/types/catalog";
@@ -280,6 +281,9 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
             ? null
             : normalizeProductImageUrl(mainImage.path);
     const [isImageLightboxOpen, setIsImageLightboxOpen] = useState(false);
+    const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
+    const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
+    const buyBoxAsideRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         if (!isImageLightboxOpen) {
@@ -303,6 +307,58 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
         };
     }, [isImageLightboxOpen]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const updateViewportOffsets = () => {
+            const vv = window.visualViewport;
+            if (!vv) {
+                setMobileBarBottomOffset(0);
+                return;
+            }
+            const bottomOffset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+            setMobileBarBottomOffset(bottomOffset);
+        };
+
+        const updateVisibility = () => {
+            const aside = buyBoxAsideRef.current;
+            if (!aside) {
+                setShowMobileBuyBar(false);
+                return;
+            }
+
+            const isMobileViewport = window.matchMedia("(max-width: 1279px)").matches;
+            if (!isMobileViewport) {
+                setShowMobileBuyBar(false);
+                return;
+            }
+
+            const rect = aside.getBoundingClientRect();
+            const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+            const isBuyBoxVisible = rect.bottom > 0 && rect.top < viewportHeight;
+            const hasReachedBuyBoxArea = rect.top < viewportHeight;
+            const isBuyBoxAboveViewport = rect.bottom <= 0;
+
+            setShowMobileBuyBar(hasReachedBuyBoxArea && isBuyBoxAboveViewport && !isBuyBoxVisible);
+        };
+
+        updateViewportOffsets();
+        updateVisibility();
+        window.addEventListener("scroll", updateVisibility, { passive: true });
+        window.addEventListener("resize", updateVisibility);
+        window.visualViewport?.addEventListener("resize", updateViewportOffsets);
+        window.visualViewport?.addEventListener("scroll", updateViewportOffsets);
+
+        return () => {
+            window.removeEventListener("scroll", updateVisibility);
+            window.removeEventListener("resize", updateVisibility);
+            window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
+            window.visualViewport?.removeEventListener("scroll", updateViewportOffsets);
+        };
+    }, []);
+
     const handleAddToCart = () => {
         if (!selectedVariant?.id) return;
 
@@ -317,7 +373,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
     };
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <main className="mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-6 xl:pb-8">
             <Breadcrumbs className="mb-4" items={getProductBreadcrumbItems(product)} />
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
@@ -508,7 +564,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
                 </section>
 
-                <aside className="self-start md:col-span-2 xl:col-span-1 xl:sticky xl:top-24">
+                <aside ref={buyBoxAsideRef} className="self-start md:col-span-2 xl:col-span-1 xl:sticky xl:top-24">
                     <ProductBuyBox
                         selectedVariant={selectedVariant}
                         isSelectedVariantInCart={isSelectedVariantInCart}
@@ -637,6 +693,50 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     </div>
                 </section>
             </div>
+            {showMobileBuyBar ? (
+                <div
+                    className="fixed inset-x-0 bottom-0 z-[130] border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-3 backdrop-blur xl:hidden"
+                    style={{
+                        bottom: `${mobileBarBottomOffset}px`,
+                        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+                    }}
+                >
+                    <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-[var(--foreground)]">
+                                {product.h1 || product.name}
+                        </div>
+                            <div className="truncate text-xs text-[var(--text-secondary)]">
+                                {selectedVariant?.display_name || "Вариант не выбран"}
+                            </div>
+                                <div className="text-base font-semibold text-[var(--foreground)]">
+                                    {selectedVariant
+                                        ? formatPrice(
+                                            isAuthenticated && loyaltyPrice ? loyaltyPrice : selectedVariant.price
+                                        )
+                                        : "Цена уточняется"}
+                                </div>
+                            </div>
+                            {isSelectedVariantInCart ? (
+                                <Link
+                                    href="/cart"
+                                    className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[var(--accent-soft)] bg-[var(--background)] px-4 text-sm font-medium text-[var(--accent)]"
+                                >
+                                    В корзине (оформить)
+                                </Link>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleAddToCart}
+                                    disabled={!selectedVariant?.is_available || isPending}
+                                    className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isPending ? "Добавление..." : "В корзину"}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+            ) : null}
             {isImageLightboxOpen && mainImageUrl ? (
                 <div
                     className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 p-3 sm:p-6"

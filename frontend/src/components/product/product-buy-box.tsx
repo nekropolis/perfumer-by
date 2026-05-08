@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
@@ -46,6 +47,7 @@ export default function ProductBuyBox({
     loyaltyPrice,
 }: Props) {
     const [notifyOpen, setNotifyOpen] = useState(false);
+    const hasLoyaltyDiscount = Boolean(loyaltyCardNumber && loyaltyPercent > 0 && loyaltyPrice && selectedVariant?.price);
 
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
@@ -88,8 +90,8 @@ export default function ProductBuyBox({
 
                     <div className="mb-4 flex flex-wrap items-end gap-2">
                         <div className="text-4xl font-semibold leading-none">
-                            {loyaltyPrice
-                                ? formatPriceAction(loyaltyPrice)
+                            {hasLoyaltyDiscount
+                                ? formatPriceAction(loyaltyPrice ?? null)
                                 : selectedVariant.price
                                     ? formatPriceAction(selectedVariant.price)
                                     : selectedVariant.is_preorder
@@ -97,14 +99,14 @@ export default function ProductBuyBox({
                                         : "Цена уточняется"}
                         </div>
 
-                        {(selectedVariant.old_price || (loyaltyPrice && selectedVariant.price)) && (
+                        {(selectedVariant.old_price || hasLoyaltyDiscount) && (
                             <div className="text-base text-[var(--text-secondary)] line-through">
                                 {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                             </div>
                         )}
                     </div>
 
-                    {loyaltyCardNumber && loyaltyPrice && (
+                    {hasLoyaltyDiscount && (
                         <div className="mb-4 text-sm text-green-700">
                             Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
                         </div>
@@ -141,14 +143,13 @@ export default function ProductBuyBox({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                         {canAddToCart ? (
                             isSelectedVariantInCart ? (
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="inline-flex flex-1 cursor-default items-center justify-center gap-2 rounded-2xl border border-[var(--accent-soft)] bg-[var(--background)] px-5 py-4 text-base font-medium text-[var(--accent)]"
+                                <Link
+                                    href="/cart"
+                                    className="inline-flex flex-1 cursor-default items-center justify-center gap-2 rounded-2xl border border-[var(--accent-soft)] bg-[var(--background)] px-5 py-4 text-base font-medium text-[var(--accent)] cursor-pointer"
                                 >
                                     <span aria-hidden>✓</span>
-                                    <span>Товар в корзине</span>
-                                </button>
+                                    <span>В корзине (оформить)</span>
+                                </Link>
                             ) : (
                                 <button
                                     type="button"

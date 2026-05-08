@@ -22,7 +22,7 @@ export default function AppShell({ children }: Props) {
         <>
             <Header />
             {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
-            <div className="w-full min-w-0 max-w-full overflow-x-hidden">{children}</div>
+            <div className="w-full min-w-0 max-w-full">{children}</div>
             <Footer />
             <ScrollToTopButton />
         </>

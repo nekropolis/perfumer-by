@@ -2,6 +2,7 @@
 
 import { Star, X } from "lucide-react";
 import type { FormEventHandler, RefObject } from "react";
+import RecaptchaNotice from "@/components/ui/recaptcha-notice";
 
 export type ReviewFormFieldErrors = {
     name?: string;
@@ -30,6 +31,7 @@ type Props = {
     submitting: boolean;
     maxName: number;
     maxText: number;
+    showRecaptchaNotice?: boolean;
 };
 
 export default function ReviewFormModal({
@@ -53,6 +55,7 @@ export default function ReviewFormModal({
     submitting,
     maxName,
     maxText,
+    showRecaptchaNotice = false,
 }: Props) {
     if (!open) {
         return null;
@@ -164,6 +167,9 @@ export default function ReviewFormModal({
                             Отмена
                         </button>
                     </div>
+                    {showRecaptchaNotice ? (
+                        <RecaptchaNotice className="pt-1 text-[10px] leading-4 text-[var(--text-secondary)]" />
+                    ) : null}
                 </form>
             </div>
         </div>

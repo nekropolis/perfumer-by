@@ -20,9 +20,15 @@ function readStickyTopPx(): number {
     if (typeof document === "undefined") {
         return 91;
     }
-    const raw = getComputedStyle(document.documentElement).getPropertyValue("--catalog-toolbar-sticky-top").trim();
-    const n = Number.parseFloat(raw);
-    return (Number.isFinite(n) ? n : 79) + 12;
+    const styles = getComputedStyle(document.documentElement);
+    const rawSidebar = styles.getPropertyValue("--page-sidebar-sticky-top").trim();
+    const sidebarValue = Number.parseFloat(rawSidebar);
+    if (Number.isFinite(sidebarValue)) {
+        return sidebarValue + 12;
+    }
+    const rawCatalog = styles.getPropertyValue("--catalog-toolbar-sticky-top").trim();
+    const catalogValue = Number.parseFloat(rawCatalog);
+    return (Number.isFinite(catalogValue) ? catalogValue : 79) + 12;
 }
 
 type Props = {
@@ -75,8 +81,9 @@ export default function ReviewsPageClient({ initialReviews, pageSize, children, 
         const cr = col.getBoundingClientRect();
         const pinH = pin.getBoundingClientRect().height;
         const bottomLimit = topGap + pinH + 12;
-        const shouldPin = cr.top <= topGap && cr.bottom >= bottomLimit;
-        if (shouldPin) {
+        const canBeFixed = cr.top <= topGap && cr.bottom >= bottomLimit;
+        const reachedColumnBottom = cr.top <= topGap && cr.bottom < bottomLimit;
+        if (canBeFixed) {
             const next: CSSProperties = {
                 position: "fixed",
                 top: topGap,
@@ -89,6 +96,26 @@ export default function ReviewsPageClient({ initialReviews, pageSize, children, 
                     prev &&
                     prev.position === "fixed" &&
                     prev.top === next.top &&
+                    prev.left === next.left &&
+                    prev.width === next.width
+                ) {
+                    return prev;
+                }
+                return next;
+            });
+        } else if (reachedColumnBottom) {
+            const next: CSSProperties = {
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                width: "100%",
+                zIndex: 25,
+            };
+            setPinStyle((prev) => {
+                if (
+                    prev &&
+                    prev.position === "absolute" &&
+                    prev.bottom === next.bottom &&
                     prev.left === next.left &&
                     prev.width === next.width
                 ) {
@@ -161,7 +188,7 @@ export default function ReviewsPageClient({ initialReviews, pageSize, children, 
                 </section>
                 <aside
                     ref={asideRef}
-                    className="mx-auto flex w-full max-w-sm shrink-0 flex-col md:mx-0 md:min-h-0 md:w-100 md:max-w-100 md:flex-none md:shrink-0 md:self-stretch"
+                    className="mx-auto flex w-full max-w-sm shrink-0 flex-col md:relative md:mx-0 md:min-h-0 md:w-100 md:max-w-100 md:flex-none md:shrink-0 md:self-stretch"
                 >
                     <div
                         ref={pinRef}

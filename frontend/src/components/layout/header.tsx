@@ -42,10 +42,14 @@ export default function Header() {
     const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
-    const [isCompact, setIsCompact] = useState(false);
+    const [isMainRowPinned, setIsMainRowPinned] = useState(false);
+    const [mainRowHeight, setMainRowHeight] = useState(78);
+    const [viewportTopOffset, setViewportTopOffset] = useState(0);
     const [menuTopOffset, setMenuTopOffset] = useState(64);
 
     const headerRef = useRef<HTMLElement | null>(null);
+    const mainRowRef = useRef<HTMLDivElement | null>(null);
+    const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
     const mobileMenuRootRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
     const { wishlistQty } = useWishlist();
@@ -110,12 +114,83 @@ export default function Header() {
     }, [setSearchOpen]);
 
     useEffect(() => {
+        const el = mainRowRef.current;
+        if (!el) {
+            return;
+        }
+
         const measure = () => {
-            const next = headerRef.current?.offsetHeight ?? 64;
+            setMainRowHeight(el.offsetHeight || 78);
+        };
+
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        window.addEventListener("resize", measure);
+
+        return () => {
+            ro.disconnect();
+            window.removeEventListener("resize", measure);
+        };
+    }, []);
+
+    useEffect(() => {
+        const sentinel = mainRowSentinelRef.current;
+        if (!sentinel) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setIsMainRowPinned(!entry.isIntersecting);
+            },
+            { threshold: 0 },
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const updateViewportOffset = () => {
+            const vv = window.visualViewport;
+            if (!vv) {
+                setViewportTopOffset(0);
+                return;
+            }
+            setViewportTopOffset(Math.max(0, vv.offsetTop));
+        };
+
+        updateViewportOffset();
+        window.visualViewport?.addEventListener("resize", updateViewportOffset);
+        window.visualViewport?.addEventListener("scroll", updateViewportOffset);
+        window.addEventListener("resize", updateViewportOffset);
+
+        return () => {
+            window.visualViewport?.removeEventListener("resize", updateViewportOffset);
+            window.visualViewport?.removeEventListener("scroll", updateViewportOffset);
+            window.removeEventListener("resize", updateViewportOffset);
+        };
+    }, []);
+
+    useEffect(() => {
+        const measure = () => {
+            const staticHeaderHeight = headerRef.current?.offsetHeight ?? 0;
+            const topOffsetCompensation = isMainRowPinned ? viewportTopOffset : 0;
+            const next = Math.max(64, staticHeaderHeight + topOffsetCompensation);
+            const sidebarStickyTop = Math.max(64, mainRowHeight + topOffsetCompensation);
             setMenuTopOffset(next);
             document.documentElement.style.setProperty(
                 "--catalog-toolbar-sticky-top",
                 `${next}px`,
+            );
+            document.documentElement.style.setProperty(
+                "--page-sidebar-sticky-top",
+                `${sidebarStickyTop}px`,
             );
         };
 
@@ -130,8 +205,9 @@ export default function Header() {
             window.removeEventListener("resize", measure);
             ro?.disconnect();
             document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
+            document.documentElement.style.removeProperty("--page-sidebar-sticky-top");
         };
-    }, [isCompact, isPhoneDropdownOpen, isMobileOpen]);
+    }, [isMainRowPinned, mainRowHeight, viewportTopOffset, isPhoneDropdownOpen, isMobileOpen]);
 
     useEffect(() => {
         if (!isMobileOpen) {
@@ -195,97 +271,6 @@ export default function Header() {
         return () => window.removeEventListener("resize", handleResize);
     }, [isMobileOpen, resetSearch]);
 
-    useEffect(() => {
-        const COMPACT_ON_SCROLL_Y = 24;
-        const COMPACT_OFF_SCROLL_Y = 2;
-
-        let rafId = 0;
-        let upIntentUntil = 0;
-        let touchStartY = 0;
-
-        const getScrollTop = () => {
-            if (typeof window === "undefined") {
-                return 0;
-            }
-
-            const scrollingElement = document.scrollingElement;
-            const fromWindow = window.scrollY || 0;
-            const fromDocument = scrollingElement ? scrollingElement.scrollTop : 0;
-
-            return Math.max(fromWindow, fromDocument);
-        };
-
-        const onScroll = () => {
-            if (rafId) {
-                return;
-            }
-
-            rafId = window.requestAnimationFrame(() => {
-                rafId = 0;
-
-                const top = getScrollTop();
-                const now = Date.now();
-
-                setIsCompact((prev) => {
-                    if (!prev && top >= COMPACT_ON_SCROLL_Y) {
-                        return true;
-                    }
-
-                    if (prev && top <= COMPACT_OFF_SCROLL_Y && now <= upIntentUntil) {
-                        return false;
-                    }
-
-                    return prev;
-                });
-            });
-        };
-
-        const onWheel = (event: WheelEvent) => {
-            if (event.deltaY < 0) {
-                upIntentUntil = Date.now() + 300;
-            }
-        };
-
-        const onTouchStart = (event: TouchEvent) => {
-            touchStartY = event.touches[0]?.clientY ?? 0;
-        };
-
-        const onTouchMove = (event: TouchEvent) => {
-            const currentY = event.touches[0]?.clientY ?? 0;
-
-            if (currentY > touchStartY) {
-                upIntentUntil = Date.now() + 300;
-            }
-
-            touchStartY = currentY;
-        };
-
-        onScroll();
-
-        window.addEventListener("scroll", onScroll, { passive: true });
-        document.addEventListener("scroll", onScroll, {
-            passive: true,
-            capture: true,
-        });
-        window.addEventListener("resize", onScroll);
-        window.addEventListener("wheel", onWheel, { passive: true });
-        window.addEventListener("touchstart", onTouchStart, { passive: true });
-        window.addEventListener("touchmove", onTouchMove, { passive: true });
-
-        return () => {
-            window.removeEventListener("scroll", onScroll);
-            document.removeEventListener("scroll", onScroll, true);
-            window.removeEventListener("resize", onScroll);
-            window.removeEventListener("wheel", onWheel);
-            window.removeEventListener("touchstart", onTouchStart);
-            window.removeEventListener("touchmove", onTouchMove);
-
-            if (rafId) {
-                window.cancelAnimationFrame(rafId);
-            }
-        };
-    }, []);
-
     const openMessengerApp = (appHref: string, webHref: string) => {
         if (typeof window === "undefined") {
             return;
@@ -323,12 +308,9 @@ export default function Header() {
     };
 
     return (
-        <header
-            ref={headerRef}
-            className="sticky top-0 z-40 isolate border-b border-[var(--line)] bg-[var(--header-bg)] shadow-sm md:bg-[var(--header-bg)]/95 md:backdrop-blur"
-        >
+        <header ref={headerRef} className="relative z-[140]">
             <HeaderServiceBar
-                isCompact={isCompact}
+                isCompact={false}
                 promoText={promoText}
                 phoneShortLabel={phoneShortLabel}
                 phoneDropdownLinks={phoneDropdownLinks}
@@ -344,48 +326,58 @@ export default function Header() {
                 onOpenMessengerAction={openMessengerApp}
             />
 
-            <HeaderMainRow
-                searchRef={searchRef}
-                desktopSearchInputRef={desktopSearchInputRef}
-                accountRef={accountRef}
-                catalogTriggerLabel={HEADER_CATALOG_TRIGGER.label}
-                searchOpen={searchOpen}
-                searchLoading={searchLoading}
-                searchQuery={searchQuery}
-                searchResults={searchResults}
-                searchBrandResults={searchBrandResults}
-                suggestedQuery={suggestedQuery}
-                recentSearches={recentSearches}
-                popularSearches={HEADER_POPULAR_SEARCHES}
-                wishlistQty={wishlistQty}
-                cartQty={cartQty}
-                isAuthenticated={isAuthenticated}
-                isAccountOpen={isAccountOpen}
-                userName={user?.name || "Пользователь"}
-                userPhone={user?.phone || ""}
-                isMobileOpen={isMobileOpen}
-                onOpenCatalogDrawerAction={() => setIsCatalogDrawerOpen(true)}
-                onSearchFocusAction={() => setSearchOpen(true)}
-                onSearchChangeAction={handleSearchChange}
-                onSearchSubmitAction={submitSearchPage}
-                onSearchResetAction={resetSearch}
-                onClearRecentAction={clearRecentSearches}
-                onRecentSelectAction={selectSuggestion}
-                onPopularSelectAction={selectSuggestion}
-                onBrandSelectAction={handleSelectBrand}
-                onProductSelectAction={handleSelectProduct}
-                onSuggestedQueryAction={selectSuggestion}
-                onToggleAccountAction={() => setIsAccountOpen((prev) => !prev)}
-                onCloseAccountAction={() => setIsAccountOpen(false)}
-                onLogoutAction={() => {
-                    logout();
-                    setIsAccountOpen(false);
-                }}
-                onOpenMobileSearchAction={openMobileSearch}
-                onToggleMobileMenuAction={toggleMobileMenu}
-            />
+            <div ref={mainRowSentinelRef} aria-hidden className="h-px w-full" />
+            {isMainRowPinned ? (
+                <div aria-hidden className="w-full" style={{ height: `${mainRowHeight}px` }} />
+            ) : null}
+            <div
+                ref={mainRowRef}
+                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120]" : "relative z-30"} border-b border-[var(--line)] bg-[var(--header-bg)] shadow-sm md:bg-[var(--header-bg)]/95 md:backdrop-blur`}
+                style={isMainRowPinned ? { top: `${viewportTopOffset}px` } : undefined}
+            >
+                <HeaderMainRow
+                    searchRef={searchRef}
+                    desktopSearchInputRef={desktopSearchInputRef}
+                    accountRef={accountRef}
+                    catalogTriggerLabel={HEADER_CATALOG_TRIGGER.label}
+                    searchOpen={searchOpen}
+                    searchLoading={searchLoading}
+                    searchQuery={searchQuery}
+                    searchResults={searchResults}
+                    searchBrandResults={searchBrandResults}
+                    suggestedQuery={suggestedQuery}
+                    recentSearches={recentSearches}
+                    popularSearches={HEADER_POPULAR_SEARCHES}
+                    wishlistQty={wishlistQty}
+                    cartQty={cartQty}
+                    isAuthenticated={isAuthenticated}
+                    isAccountOpen={isAccountOpen}
+                    userName={user?.name || "Пользователь"}
+                    userPhone={user?.phone || ""}
+                    isMobileOpen={isMobileOpen}
+                    onOpenCatalogDrawerAction={() => setIsCatalogDrawerOpen(true)}
+                    onSearchFocusAction={() => setSearchOpen(true)}
+                    onSearchChangeAction={handleSearchChange}
+                    onSearchSubmitAction={submitSearchPage}
+                    onSearchResetAction={resetSearch}
+                    onClearRecentAction={clearRecentSearches}
+                    onRecentSelectAction={selectSuggestion}
+                    onPopularSelectAction={selectSuggestion}
+                    onBrandSelectAction={handleSelectBrand}
+                    onProductSelectAction={handleSelectProduct}
+                    onSuggestedQueryAction={selectSuggestion}
+                    onToggleAccountAction={() => setIsAccountOpen((prev) => !prev)}
+                    onCloseAccountAction={() => setIsAccountOpen(false)}
+                    onLogoutAction={() => {
+                        logout();
+                        setIsAccountOpen(false);
+                    }}
+                    onOpenMobileSearchAction={openMobileSearch}
+                    onToggleMobileMenuAction={toggleMobileMenu}
+                />
+            </div>
 
-            <HeaderNav isCompact={isCompact} links={HEADER_SECONDARY_LINKS} />
+            <HeaderNav isCompact={false} links={HEADER_SECONDARY_LINKS} />
 
             <HeaderMobileMenu
                 isOpen={isMobileOpen}

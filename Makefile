@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-ROOT := /var/www/perfumer-by
+ROOT := $(patsubst %/,%,$(abspath $(dir $(lastword $(MAKEFILE_LIST)))))
 BACKEND := $(ROOT)/backend
 FRONTEND := $(ROOT)/frontend
 
@@ -11,11 +11,12 @@ PM2 := pm2
 FRONT_DEV_NAME := perfumer-frontend-dev
 FRONT_PROD_NAME := perfumer-frontend
 
-.PHONY: help dev dev-restart dev-stop prod prod-restart prod-stop logs logs-dev status backend-clear backend-migrate backend-seed build install-front install-back deploy release rollback bootstrap-shared
+.PHONY: help dev dev-check-api dev-restart dev-stop prod prod-restart prod-stop logs logs-dev status backend-clear backend-migrate backend-seed build install-front install-back deploy release rollback bootstrap-shared
 
 help:
 	@echo "Available commands:"
 	@echo "  make dev              - start frontend in dev mode (next dev via PM2; not deploy-dev.sh)"
+	@echo "  make dev-check-api    - validate API URL reachability for SSR"
 	@echo "  make dev-restart      - restart frontend dev"
 	@echo "  make dev-stop         - stop frontend dev"
 	@echo "  make prod             - build frontend and start prod"
@@ -42,14 +43,40 @@ build:
 	cd $(FRONTEND) && rm -rf .next && $(NPM) run build
 
 dev:
+	@$(MAKE) dev-check-api
 	@$(MAKE) dev-stop
-	@echo "Stopping prod frontend on :3000 if running (otherwise next dev jumps to 3001)..."
-	@$(PM2) stop $(FRONT_PROD_NAME) >/dev/null 2>&1 || true
-	@sleep 1
-	@echo "Starting frontend dev (WATCHPACK_POLLING for SFTP/VM file visibility)..."
-	@cd $(FRONTEND) && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true $(PM2) start npm --name $(FRONT_DEV_NAME) -- run dev
-	@$(PM2) save >/dev/null 2>&1 || true
-	@$(PM2) list
+	@if command -v $(PM2) >/dev/null 2>&1; then \
+		echo "Stopping prod frontend on :3000 if running (otherwise next dev jumps to 3001)..."; \
+		$(PM2) stop $(FRONT_PROD_NAME) >/dev/null 2>&1 || true; \
+		sleep 1; \
+		echo "Starting frontend dev via PM2 (WATCHPACK_POLLING for SFTP/VM file visibility)..."; \
+		cd $(FRONTEND) && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true $(PM2) start npm --name $(FRONT_DEV_NAME) -- run dev; \
+		$(PM2) save >/dev/null 2>&1 || true; \
+		$(PM2) list; \
+	else \
+		echo "PM2 not found, starting frontend dev directly..."; \
+		cd $(FRONTEND) && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true $(NPM) run dev; \
+	fi
+
+dev-check-api:
+	@API_BASE="$$( \
+		set -a; \
+		if [ -f "$(FRONTEND)/.env.local" ]; then . "$(FRONTEND)/.env.local" >/dev/null 2>&1 || true; fi; \
+		echo "$${API_URL:-$${INTERNAL_API_URL:-$${NEXT_PUBLIC_API_URL:-}}}" \
+	)"; \
+	if [ -z "$$API_BASE" ]; then \
+		echo "WARN: API_URL/INTERNAL_API_URL/NEXT_PUBLIC_API_URL is not set. SSR routes may hang on Rendering."; \
+		echo "Set API_URL=http://127.0.0.1:8000/api in frontend/.env.local"; \
+		exit 0; \
+	fi; \
+	echo "Checking API reachability: $$API_BASE"; \
+	if curl -sS -m 4 -o /dev/null "$$API_BASE"; then \
+		echo "API reachable."; \
+	else \
+		echo "ERROR: API is unreachable at $$API_BASE"; \
+		echo "Fix frontend/.env.local (API_URL) or start backend before make dev."; \
+		exit 1; \
+	fi
 
 dev-restart:
 	@$(MAKE) dev-stop

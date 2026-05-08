@@ -147,3 +147,8 @@ textarea:focus {
 .ProseMirror:focus {
   outline: none;
 }
+
+/* reCAPTCHA v3 badge may be hidden if required branding text is shown in UI. */
+.grecaptcha-badge {
+  visibility: hidden;
+}

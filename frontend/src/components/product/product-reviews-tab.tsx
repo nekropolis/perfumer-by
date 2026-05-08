@@ -248,6 +248,7 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
                 submitting={submitting}
                 maxName={MAX_NAME}
                 maxText={MAX_TEXT}
+                showRecaptchaNotice={Boolean(recaptchaSiteKey)}
             />
         </div>
     );

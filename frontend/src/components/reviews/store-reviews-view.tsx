@@ -410,6 +410,7 @@ export default function StoreReviewsView({
                 submitting={submitting}
                 maxName={MAX_NAME}
                 maxText={MAX_TEXT}
+                showRecaptchaNotice={Boolean(recaptchaSiteKey)}
             />
         </div>
     );

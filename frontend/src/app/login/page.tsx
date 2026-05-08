@@ -6,6 +6,7 @@ import { ApiRequestError, requestPhoneCode, verifyPhoneCode } from "@/lib/auth-a
 import { useAuth } from "@/components/auth/auth-provider";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
 import {isPrivilegedRole} from "@/constants/admin-roles";
+import RecaptchaNotice from "@/components/ui/recaptcha-notice";
 
 declare global {
     interface Window {
@@ -222,6 +223,9 @@ export default function LoginPage() {
                         Включена дополнительная проверка безопасности. Это нормально при частых попытках входа.
                     </div>
                 )}
+                {recaptchaSiteKey ? (
+                    <RecaptchaNotice className="mt-4 text-[10px] leading-4 text-[var(--text-secondary)]" />
+                ) : null}
             </div>
         </main>
     );
