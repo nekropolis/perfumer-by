@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
+
 type DiscountCardLine = {
     number: string;
     discount_percent: string;
@@ -60,7 +62,7 @@ export default function CartPricingBreakdown({
 
             <div className="flex items-center justify-between">
                 <span>Сумма товаров</span>
-                <span className="text-[var(--foreground)]">{subtotal} руб.</span>
+                <span className="text-[var(--foreground)]">{formatMoneyRub(subtotal)}</span>
             </div>
 
             {hasCard ? (
@@ -70,7 +72,9 @@ export default function CartPricingBreakdown({
                             Скидка по карте <span className="font-mono font-medium">{discountCard!.number}</span>
                             <span className="text-green-800/90"> ({discountCard!.discount_percent}%)</span>
                         </span>
-                        <span className="shrink-0 font-medium">−{discountCard!.discount_amount} руб.</span>
+                        <span className="shrink-0 font-medium">
+                            −{formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount} руб.
+                        </span>
                     </div>
                 </div>
             ) : null}
@@ -78,14 +82,16 @@ export default function CartPricingBreakdown({
             {hasCert ? (
                 <div className="flex items-center justify-between text-green-800">
                     <span>Сертификат {giftCertificate!.code || giftCertificate!.number}</span>
-                    <span className="font-medium">−{giftCertificate!.amount} руб.</span>
+                    <span className="font-medium">
+                        −{formatMoneyDisplay(giftCertificate!.amount) ?? giftCertificate!.amount} руб.
+                    </span>
                 </div>
             ) : null}
 
             {savings > 0.004 ? (
                 <div className="flex items-center justify-between rounded-lg bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--foreground)]">
                     <span>Выгода по скидкам</span>
-                    <span className="font-semibold text-green-700">{savings.toFixed(2)} руб.</span>
+                    <span className="font-semibold text-green-700">{formatMoneyRub(savings.toFixed(2))}</span>
                 </div>
             ) : null}
 
@@ -96,7 +102,7 @@ export default function CartPricingBreakdown({
                         {parseMoney(deliveryFee) < 0.005 ? (
                             <span className="text-green-700">Бесплатно</span>
                         ) : (
-                            <span>{deliveryFee} руб.</span>
+                            <span>{formatMoneyRub(deliveryFee)}</span>
                         )}
                     </span>
                 </div>
@@ -104,7 +110,9 @@ export default function CartPricingBreakdown({
 
             <div className="flex items-center justify-between border-t border-[var(--line)] pt-3 text-base font-semibold text-[var(--foreground)]">
                 <span>К оплате</span>
-                <span>{grandTotal && grandTotal.trim() !== "" ? `${grandTotal} руб.` : `${total} руб.`}</span>
+                <span>
+                    {grandTotal && grandTotal.trim() !== "" ? formatMoneyRub(grandTotal) : formatMoneyRub(total)}
+                </span>
             </div>
         </div>
     );

@@ -10,6 +10,7 @@ import {
 } from "@/constants/order-statuses";
 import OrderDiscountSummary from "@/components/account/order-discount-summary";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { formatMoneyRub } from "@/lib/format-money-display";
 
 type Props = {
     orderId: number | null;
@@ -127,7 +128,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                     <div>
                                         <dt className="text-[var(--text-secondary)]">Стоимость доставки</dt>
                                         <dd className="mt-0.5 font-medium text-[var(--foreground)]">
-                                            {order.delivery_fee ?? "0.00"} руб.
+                                            {formatMoneyRub(order.delivery_fee ?? "0")}
                                         </dd>
                                     </div>
                                     <div className="sm:col-span-2">
@@ -181,14 +182,14 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                                                     <div className="mt-1 flex flex-col gap-0.5 text-xs leading-relaxed text-[var(--text-secondary)] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:text-sm">
                                                         <span>Код товара: {item.sku || item.id}</span>
-                                                        <span>Цена: {item.price} руб.</span>
+                                                        <span>Цена: {formatMoneyRub(item.price)}</span>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center justify-between rounded-xl bg-[var(--background)] px-3 py-2 text-sm font-medium text-[var(--foreground)] sm:block sm:bg-transparent sm:p-0 sm:text-right">
                                                 <div>Кол-во: {item.qty}</div>
-                                                <div className="sm:mt-1">Сумма: {item.total} руб.</div>
+                                                <div className="sm:mt-1">Сумма: {formatMoneyRub(item.total)}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -202,7 +203,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                             Подарочный сертификат: {row.template_title}
                                         </div>
                                         <div className="mt-2 text-sm text-[var(--text-secondary)]">
-                                            Номинал {row.amount} руб. × {row.qty} шт. — {row.total} руб.
+                                            Номинал {formatMoneyRub(row.amount)} × {row.qty} шт. — {formatMoneyRub(row.total)}
                                         </div>
                                         <div className="mt-2 text-xs text-[var(--text-secondary)]">
                                             Остаток по сертификату уточняйте у менеджера.
@@ -215,7 +216,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                             <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">
                                 <div className="text-sm text-[var(--text-secondary)]">К оплате</div>
-                                <div className="text-2xl font-semibold">{order.total} руб.</div>
+                                <div className="text-2xl font-semibold">{formatMoneyRub(order.total)}</div>
                             </div>
                         </div>
                     )}

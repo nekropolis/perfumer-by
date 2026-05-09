@@ -21,7 +21,7 @@ import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-imag
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import ProductCard from "@/components/product/product-card";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
-import { formatBynAmountDisplay } from "@/lib/format-byn";
+import { formatMoneyDisplay } from "@/lib/format-money-display";
 
 /** Минимум карточек в блоке «Похожие товары»; иначе блок скрыт. */
 const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
@@ -34,7 +34,8 @@ type Props = {
 
 function formatPrice(price: string | null) {
     if (!price) return "—";
-    return `${formatBynAmountDisplay(price)} BYN`;
+    const v = formatMoneyDisplay(price);
+    return v ? `${v} BYN` : "—";
 }
 
 function normalizeImages(value: unknown): ProductImageData[] {

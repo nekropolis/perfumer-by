@@ -5,6 +5,7 @@ import { useEffect, useState, startTransition, useCallback } from "react";
 import { fetchMyOrders } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
+import { formatMoneyDisplay } from "@/lib/format-money-display";
 
 type OrdersAccountProps = {
     isAuthenticated: boolean;
@@ -130,7 +131,7 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
                                 Сумма
                             </div>
                             <div className="mt-2 text-2xl font-semibold">
-                                {totalSpent.toLocaleString("ru-RU")} BYN
+                                {formatMoneyDisplay(totalSpent) ?? "0,00"} BYN
                             </div>
                         </div>
                     </div>
@@ -163,13 +164,13 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
                                         key: `item-${item.id}`,
                                         title: item.product_name,
                                         subtitle: item.variant_title,
-                                        right: `${item.qty} × ${item.price} BYN`,
+                                        right: `${item.qty} × ${formatMoneyDisplay(item.price) ?? item.price} BYN`,
                                     })),
                                     ...(order.gift_certificate_purchases ?? []).map((row) => ({
                                         key: `gift-${row.id}`,
                                         title: `Подарочный сертификат: ${row.template_title}`,
                                         subtitle: `${row.qty} шт.`,
-                                        right: `${row.total} BYN`,
+                                        right: `${formatMoneyDisplay(row.total) ?? row.total} BYN`,
                                     })),
                                 ].slice(0, 2);
 
@@ -194,7 +195,7 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
 
                                                 <div className="mt-2 text-sm text-[var(--text-secondary)]">
                                                     {order.items_qty} товаров ·{" "}
-                                                    {Number(order.total).toLocaleString("ru-RU")} BYN
+                                                    {formatMoneyDisplay(order.total) ?? order.total} BYN
                                                 </div>
                                                 {(() => {
                                                     const cardDiscount = parseMoney(order.discount_amount);
@@ -219,10 +220,7 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
 
                                                     return (
                                                         <div className="mt-1 text-xs font-medium text-green-700">
-                                                            Скидка: −{totalDiscount.toLocaleString("ru-RU", {
-                                                                minimumFractionDigits: 2,
-                                                                maximumFractionDigits: 2,
-                                                            })}{" "}
+                                                            Скидка: −{formatMoneyDisplay(totalDiscount) ?? "0,00"}{" "}
                                                             BYN
                                                             {reasonParts.length > 0 ? ` · ${reasonParts.join(", ")}` : ""}
                                                         </div>

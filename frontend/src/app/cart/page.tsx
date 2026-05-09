@@ -21,6 +21,7 @@ import {
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
+import { formatMoneyRub } from "@/lib/format-money-display";
 
 export default function CartPage() {
     const { cart, loading, setCartState } = useCart();
@@ -154,7 +155,7 @@ export default function CartPage() {
                                 <div className="min-w-0 flex-1">
                                     <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">Сертификат</div>
                                     <div className="block text-lg font-medium leading-6 text-[var(--foreground)]">{item.title}</div>
-                                    <div className="mt-3 text-sm font-medium text-[var(--foreground)]">{item.amount} руб.</div>
+                                    <div className="mt-3 text-sm font-medium text-[var(--foreground)]">{formatMoneyRub(item.amount)}</div>
                                 </div>
                                 <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
                                     <div className="flex items-center rounded-2xl border border-[var(--line)] bg-[var(--background)]">
@@ -177,7 +178,7 @@ export default function CartPage() {
                                         </button>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-base font-semibold text-[var(--foreground)]">{item.total} руб.</div>
+                                        <div className="text-base font-semibold text-[var(--foreground)]">{formatMoneyRub(item.total)}</div>
                                         <button
                                             type="button"
                                             onClick={() => deleteGiftTemplateItem(item.id)}
@@ -222,10 +223,10 @@ export default function CartPage() {
 
                                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                                         <div className="font-medium text-[var(--foreground)]">
-                                            {item.price} руб.
+                                            {formatMoneyRub(item.price)}
                                             {item.old_price && (
                                                 <span className="ml-2 font-normal text-[var(--text-secondary)] line-through">
-                                                    {item.old_price} руб.
+                                                    {formatMoneyRub(item.old_price)}
                                                 </span>
                                             )}
                                         </div>
@@ -271,7 +272,7 @@ export default function CartPage() {
 
                                     <div className="text-right">
                                         <div className="text-base font-semibold text-[var(--foreground)]">
-                                            {item.total} руб.
+                                            {formatMoneyRub(item.total)}
                                         </div>
 
                                         <button
@@ -314,7 +315,7 @@ export default function CartPage() {
                                         }
                                         className="min-h-10 rounded-xl border border-[var(--line)] px-3 py-2 text-xs"
                                     >
-                                        {template.amount} руб.
+                                        {formatMoneyRub(template.amount)}
                                     </button>
                                 ))}
                                 <Link
@@ -556,7 +557,7 @@ export default function CartPage() {
                                 <div>
                                     <div className="text-sm text-[var(--text-secondary)]">Итого</div>
                                     <div className="mt-1 text-3xl font-semibold leading-none">
-                                        {cart.total ?? cart.subtotal} руб.
+                                        {formatMoneyRub(cart.total ?? cart.subtotal)}
                                     </div>
                                 </div>
                             </div>
@@ -581,7 +582,7 @@ export default function CartPage() {
                     <div className="min-w-0 flex-1">
                         <div className="text-xs text-[var(--text-secondary)]">Итого</div>
                         <div className="truncate text-lg font-semibold">
-                            {cart.total ?? cart.subtotal} руб.
+                            {formatMoneyRub(cart.total ?? cart.subtotal)}
                         </div>
                     </div>
 

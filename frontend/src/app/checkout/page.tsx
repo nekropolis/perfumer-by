@@ -26,6 +26,7 @@ import {
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
+import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
 import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 
@@ -355,14 +356,14 @@ export default function CheckoutPage() {
                         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{DELIVERY_HINTS[deliveryMethod]}</p>
                         {shopSettings && deliveryMethod === "minsk_courier" ? (
                             <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                Бесплатно от {shopSettings.delivery_minsk_free_threshold} руб. (после скидки по карте). Иначе{" "}
-                                {shopSettings.delivery_minsk_fee} руб.
+                                Бесплатно от {formatMoneyRub(String(shopSettings.delivery_minsk_free_threshold))} (после скидки по карте). Иначе{" "}
+                                {formatMoneyRub(String(shopSettings.delivery_minsk_fee))}.
                             </p>
                         ) : null}
                         {shopSettings && deliveryMethod === "belarus_courier" ? (
                             <p className="mt-1 text-xs text-[var(--text-secondary)]">
                                 Бесплатно от {shopSettings.delivery_belarus_free_min_lines} наименований (без учёта позиций с флагом
-                                «не в 2 наименования»). Иначе {shopSettings.delivery_belarus_fee} руб.
+                                «не в 2 наименования»). Иначе {formatMoneyRub(String(shopSettings.delivery_belarus_fee))}.
                             </p>
                         ) : null}
                     </fieldset>
@@ -509,7 +510,7 @@ export default function CheckoutPage() {
                                 <div className="text-sm text-[var(--text-secondary)]">Сертификат</div>
                                 <div className="font-medium">{item.title}</div>
                                 <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                                    {item.qty} × {item.amount} руб.
+                                    {item.qty} × {formatMoneyRub(item.amount)}
                                 </div>
                             </div>
                         ))}
@@ -521,7 +522,7 @@ export default function CheckoutPage() {
                                     {item.variant?.display_name || item.variant?.title}
                                 </div>
                                 <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                                    {item.qty} × {item.price} руб.
+                                    {item.qty} × {formatMoneyRub(item.price)}
                                 </div>
                             </div>
                         ))}
@@ -759,7 +760,12 @@ export default function CheckoutPage() {
                             {paymentMethod === "card"
                                 ? " При оплате картой процент скидки к заказу не применяется."
                                 : parseMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
-                                  ? ` Скидка: ${quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−${quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount} руб.).`
+                                  ? ` Скидка: ${quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−${
+                                        formatMoneyDisplay(
+                                            quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount,
+                                        ) ??
+                                        (quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount)
+                                    } руб.).`
                                   : " Скидка по карте для текущих условий не применяется."}
                         </p>
                     ) : null}

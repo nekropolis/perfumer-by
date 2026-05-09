@@ -30,11 +30,29 @@ class AdminUserController extends Controller
             ->with(['discountCards:id,card_number,discount_percent,status'])
             ->withCount('orders')
             ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($subQuery) use ($search) {
+                $digitsSearch = preg_replace('/\D+/', '', $search) ?? '';
+                $driver = $query->getConnection()->getDriverName();
+
+                $query->where(function ($subQuery) use ($search, $digitsSearch, $driver) {
                     $subQuery
                         ->where('name', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
+
+                    if ($digitsSearch !== '' && strlen($digitsSearch) >= 4) {
+                        // Совпадение по цифрам номера (частичный ввод), если в БД есть пробелы/скобки
+                        if ($driver === 'mysql') {
+                            $subQuery->orWhereRaw(
+                                "REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '') LIKE ?",
+                                ['%'.$digitsSearch.'%']
+                            );
+                        } elseif ($driver === 'sqlite') {
+                            $subQuery->orWhereRaw(
+                                "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') LIKE ?",
+                                ['%'.$digitsSearch.'%']
+                            );
+                        }
+                    }
                 });
             })
             ->latest('id')

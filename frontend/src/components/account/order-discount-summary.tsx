@@ -1,6 +1,7 @@
 "use client";
 
 import type { OrderData } from "@/types/orders";
+import { formatMoneyRub } from "@/lib/format-money-display";
 
 function parseMoney(s: string | undefined | null): number {
     if (s == null || s === "") return 0;
@@ -28,7 +29,7 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
         <div className="mt-6 space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm">
             <div className="flex justify-between text-[var(--text-secondary)]">
                 <span>Сумма товаров со скидкой</span>
-                <span>{order.subtotal} руб.</span>
+                <span>{formatMoneyRub(order.subtotal)}</span>
             </div>
             {hasCard ? (
                 <div className="flex justify-between text-green-800">
@@ -39,19 +40,19 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
                         </span>
                         {pct ? <span> ({pct}%)</span> : null}
                     </span>
-                    <span>−{order.discount_amount} руб.</span>
+                    <span>−{formatMoneyRub(order.discount_amount)}</span>
                 </div>
             ) : null}
             {hasCert ? (
                 <div className="flex justify-between text-green-800">
                     <span>Сертификат {certLabel}</span>
-                    <span>−{order.gift_certificate_amount} руб.</span>
+                    <span>−{formatMoneyRub(order.gift_certificate_amount)}</span>
                 </div>
             ) : null}
             {savings > 0.004 ? (
                 <div className="flex justify-between border-t border-[var(--line)] pt-2 text-xs text-[var(--foreground)]">
                     <span>Выгода</span>
-                    <span className="font-semibold text-green-700">{savings.toFixed(2)} руб.</span>
+                    <span className="font-semibold text-green-700">{formatMoneyRub(savings)}</span>
                 </div>
             ) : null}
         </div>

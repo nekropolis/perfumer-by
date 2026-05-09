@@ -127,7 +127,15 @@ export default function AdminHeader({
                 const want = `375${national}`;
                 const rows = (response.data ?? []).filter((u) => {
                     const d = digitsOnly(u.phone ?? "");
-                    return d === want || d.endsWith(national);
+                    if (!d || national.length === 0) {
+                        return false;
+                    }
+                    const after375 = d.startsWith("375") ? d.slice(3) : d;
+                    return (
+                        d === want ||
+                        after375.startsWith(national) ||
+                        d.endsWith(national)
+                    );
                 });
                 setQuickPhoneHits(rows.slice(0, 6));
             })
