@@ -235,7 +235,7 @@ export default function CheckoutPage() {
     }
 
     const cardInCheckout = cart.discount_card ?? null;
-    const canRemoveDiscountCard = Boolean(cardInCheckout) && (!isAuthenticated || Boolean(cardInCheckout?.session_only));
+    const canRemoveDiscountCard = Boolean(cardInCheckout);
 
     const discountCardForBreakdown =
         quote == null
@@ -666,7 +666,7 @@ export default function CheckoutPage() {
                                                     } catch (e) {
                                                         if (
                                                             e instanceof DiscountCardApplyError &&
-                                                            e.code === "DISCOUNT_CARD_OTHER_ACCOUNT" &&
+                                                            e.code === "USER_ALREADY_HAS_DISCOUNT_CARD" &&
                                                             isAuthenticated
                                                         ) {
                                                             setDiscountCardConflict(discountCardNumber.trim());
@@ -691,8 +691,7 @@ export default function CheckoutPage() {
                                     {discountCardConflict ? (
                                         <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                                             <p className="mb-2">
-                                                Карта не привязана к вашему аккаунту. Применить скидку только к этому заказу (без
-                                                привязки к профилю)?
+                                                Применить эту карту только к текущему заказу? Карта в профиле не изменится.
                                             </p>
                                             <div className="flex flex-wrap gap-2">
                                                 <button

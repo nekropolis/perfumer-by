@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -51,8 +51,8 @@ export default function AdminHeader({
     const roleLabel = getRoleLabel(user?.role);
     const debouncedQuickPhone = useDebouncedValue(quickPhone, 250);
 
-    const digitsOnly = (s: string) => s.replace(/\D+/g, "");
-    const clampNationalDigits = (s: string) => digitsOnly(s).slice(0, 9);
+    const digitsOnly = useCallback((s: string) => s.replace(/\D+/g, ""), []);
+    const clampNationalDigits = useCallback((s: string) => digitsOnly(s).slice(0, 9), [digitsOnly]);
     const nationalFromAnyPhone = (phoneRaw: string) => {
         const digits = digitsOnly(phoneRaw);
         if (digits.startsWith("375")) {
@@ -140,7 +140,7 @@ export default function AdminHeader({
         return () => {
             cancelled = true;
         };
-    }, [debouncedQuickPhone]);
+    }, [clampNationalDigits, debouncedQuickPhone, digitsOnly]);
 
     useEffect(() => {
         setQuickPhone("");
@@ -165,8 +165,10 @@ export default function AdminHeader({
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <AdminActiveTasksWidget />
-                    <div className="relative w-[15.5rem] sm:w-[18rem]" ref={quickPhoneRef}>
+                    <div className="hidden sm:block">
+                        <AdminActiveTasksWidget />
+                    </div>
+                    <div className="relative w-[13.5rem] sm:w-[15.5rem] lg:w-[18rem]" ref={quickPhoneRef}>
                         <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white">
                             <span className="flex items-center border-r border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">
                                 +375
@@ -291,11 +293,12 @@ export default function AdminHeader({
 
                     <button
                         type="button"
-                        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm lg:hidden"
+                        className="inline-flex items-center rounded-xl border p-2 text-sm lg:hidden"
                         onClick={onOpenMobileMenuAction}
+                        aria-label="Открыть меню"
+                        title="Открыть меню"
                     >
                         <Menu size={18} />
-                        Меню
                     </button>
                 </div>
             </div>

@@ -26,6 +26,11 @@ type ActiveTask = {
     progress: number;
 };
 
+type Props = {
+    compact?: boolean;
+    className?: string;
+};
+
 const VANILLE_TYPE_LABELS: Record<VanilleImportQueueJob["type"], string> = {
     parse_brands: "Парсинг брендов Vanille",
     collect_links: "Сбор ссылок Vanille",
@@ -106,7 +111,7 @@ function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
     };
 }
 
-export default function AdminActiveTasksWidget() {
+export default function AdminActiveTasksWidget({ compact = false, className }: Props) {
     const [tasks, setTasks] = useState<ActiveTask[]>([]);
 
     const load = useCallback(async (): Promise<{ active: boolean }> => {
@@ -153,14 +158,14 @@ export default function AdminActiveTasksWidget() {
     }
 
     return (
-        <div className="hidden items-center gap-2 sm:flex">
+        <div className={className ?? (compact ? "flex items-center gap-2" : "hidden items-center gap-2 sm:flex")}>
             {tasks.map((task) => (
                 <div
                     key={task.key}
                     role="status"
                     aria-live="polite"
                     title={task.message ? `${task.title}: ${task.message} · ${task.statusLabel}` : task.title}
-                    className="inline-flex h-10 max-w-[260px] cursor-default items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-2.5 text-xs shadow-sm"
+                    className={`inline-flex ${compact ? "h-9 max-w-[220px]" : "h-10 max-w-[260px]"} cursor-default items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-2.5 text-xs shadow-sm`}
                 >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-inner">
                         <Loader2 size={13} className="animate-spin" />

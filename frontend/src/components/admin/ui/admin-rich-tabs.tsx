@@ -27,7 +27,7 @@ export default function AdminRichTabs<T extends string>({
     showDescription = true,
 }: Props<T>) {
     return (
-        <div className={className}>
+        <div className={`${className} min-w-0 overflow-x-hidden`}>
             <div className={columnsClassName}>
                 {items.map((tab) => {
                     const Icon = tab.icon;
@@ -38,7 +38,7 @@ export default function AdminRichTabs<T extends string>({
                             key={tab.id}
                             type="button"
                             onClick={() => onChangeAction(tab.id)}
-                            className={`flex items-center ${showDescription ? "gap-3 px-4 py-3 rounded-[18px]" : "gap-2 px-3 py-2 rounded-xl border"} text-left transition-all duration-200 ${
+                            className={`flex w-full min-w-0 items-center ${showDescription ? "gap-3 px-4 py-3 rounded-[18px]" : "gap-2 px-3 py-2 rounded-xl border"} text-left transition-all duration-200 ${
                                 isActive
                                     ? `${showDescription ? "" : "border-slate-900/25"} bg-slate-900 text-white shadow-[0_10px_25px_rgba(15,23,42,0.18)]`
                                     : `${showDescription ? "" : "border-slate-200"} bg-transparent text-slate-700 hover:bg-white hover:shadow-sm`

@@ -11,28 +11,50 @@ use Modules\Loyalty\Models\OrderGiftCertificate;
 
 class GiftCertificateLedgerService
 {
-    public function certificateIsUsable(?GiftCertificate $cert): bool
+    /**
+     * @return array{message: string, code: string}|null null если сертификат можно применить к корзине
+     */
+    public function giftCertificateApplyBlock(?GiftCertificate $cert): ?array
     {
         if (!$cert) {
-            return false;
+            return [
+                'message' => 'Такого подарочного сертификата нет, проверьте код.',
+                'code' => 'GIFT_CERTIFICATE_NOT_FOUND',
+            ];
         }
         if ($cert->status === GiftCertificate::STATUS_NEW) {
-            return false;
+            return [
+                'message' => 'Сертификат ещё не активирован. Активация выполняется в магазине.',
+                'code' => 'GIFT_CERTIFICATE_NOT_ACTIVATED',
+            ];
         }
-
         if ($cert->status !== GiftCertificate::STATUS_ACTIVE) {
-            return false;
+            return [
+                'message' => 'Сертификат недействителен, свяжитесь с менеджером магазина.',
+                'code' => 'GIFT_CERTIFICATE_INACTIVE',
+            ];
         }
         if ($cert->expires_at && $cert->expires_at->isPast()) {
-            return false;
+            return [
+                'message' => 'Срок действия сертификата истёк.',
+                'code' => 'GIFT_CERTIFICATE_EXPIRED',
+            ];
         }
 
         $rawCode = $cert->getAttributes()['code'] ?? null;
         if ($rawCode === null || trim((string) $rawCode) === '') {
-            return false;
+            return [
+                'message' => 'Сертификат недействителен, свяжитесь с менеджером магазина.',
+                'code' => 'GIFT_CERTIFICATE_INVALID',
+            ];
         }
 
-        return true;
+        return null;
+    }
+
+    public function certificateIsUsable(?GiftCertificate $cert): bool
+    {
+        return $this->giftCertificateApplyBlock($cert) === null;
     }
 
     public function availableAmount(GiftCertificate $cert): float

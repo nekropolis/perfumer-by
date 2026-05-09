@@ -22,11 +22,13 @@ export class DiscountCardApplyError extends Error {
 
 export class GiftCertificateApplyError extends Error {
     readonly status: number;
+    readonly code?: string;
 
-    constructor(message: string, status: number) {
+    constructor(message: string, status: number, code?: string) {
         super(message);
         this.name = "GiftCertificateApplyError";
         this.status = status;
+        this.code = code;
     }
 }
 
@@ -41,6 +43,16 @@ function extractApiMessage(text: string, fallback: string): string {
         const payload = JSON.parse(text);
         if (payload?.message && typeof payload.message === "string") {
             return payload.message;
+        }
+        const errors = payload?.errors;
+        if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+            for (const key of Object.keys(errors)) {
+                const val = errors[key as keyof typeof errors];
+                const msg = Array.isArray(val) ? val[0] : typeof val === "string" ? val : undefined;
+                if (typeof msg === "string" && msg.trim()) {
+                    return msg;
+                }
+            }
         }
     } catch {
         /* ignore */
@@ -77,8 +89,15 @@ async function cartFetch<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json();
 }
 
-export async function fetchCart(): Promise<CartResponse> {
-    return cartFetch<CartResponse>("/cart");
+export type FetchCartOptions = {
+    /** Полная перезагрузка страницы: сбросить временную карту / отключение профильной в черновике корзины на сервере. */
+    loyaltyBootstrapReload?: boolean;
+};
+
+export async function fetchCart(init?: FetchCartOptions): Promise<CartResponse> {
+    return cartFetch<CartResponse>("/cart", {
+        headers: init?.loyaltyBootstrapReload ? { "X-Cart-Loyalty-Bootstrap": "reload" } : {},
+    });
 }
 
 export async function addToCart(variantId: number, qty = 1): Promise<CartResponse> {
@@ -121,8 +140,17 @@ export async function applyGiftCertificate(code: string): Promise<CartResponse> 
 
     if (!res.ok) {
         const text = await res.text();
+        let code: string | undefined;
         const message = extractApiMessage(text, "Не удалось применить сертификат");
-        throw new GiftCertificateApplyError(message, res.status);
+        try {
+            const payload = text ? JSON.parse(text) : null;
+            if (payload?.code) {
+                code = String(payload.code);
+            }
+        } catch {
+            /* ignore */
+        }
+        throw new GiftCertificateApplyError(message, res.status, code);
     }
 
     return res.json();

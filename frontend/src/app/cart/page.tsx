@@ -37,7 +37,7 @@ export default function CartPage() {
     const [giftCertQuickAddOpen, setGiftCertQuickAddOpen] = useState(false);
 
     const cardInCart = cart?.discount_card ?? null;
-    const canRemoveDiscountCard = Boolean(cardInCart) && (!isAuthenticated || Boolean(cardInCart?.session_only));
+    const canRemoveDiscountCard = Boolean(cardInCart);
 
     const changeQty = (itemId: number, qty: number) => {
         if (qty < 1) return;
@@ -464,7 +464,7 @@ export default function CartPage() {
                                                         } catch (e) {
                                                             if (
                                                                 e instanceof DiscountCardApplyError &&
-                                                                e.code === "DISCOUNT_CARD_OTHER_ACCOUNT" &&
+                                                                e.code === "USER_ALREADY_HAS_DISCOUNT_CARD" &&
                                                                 isAuthenticated
                                                             ) {
                                                                 setDiscountCardConflict(discountCardNumber.trim());
@@ -488,7 +488,9 @@ export default function CartPage() {
                                         ) : null}
                                         {discountCardConflict ? (
                                             <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                                                <p className="mb-2">Карта не привязана к вашему аккаунту. Применить скидку только к этому заказу (без привязки к профилю)?</p>
+                                                <p className="mb-2">
+                                                    Применить эту карту только к текущему заказу? Карта в профиле не изменится.
+                                                </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     <button
                                                         type="button"

@@ -50,6 +50,14 @@ class CartController extends Controller
     {
         $cart = $this->resolveCart($request);
 
+        if ($request->header('X-Cart-Loyalty-Bootstrap') === 'reload') {
+            $cart->update([
+                'discount_card_number' => null,
+                'discount_card_session_only' => false,
+            ]);
+            $cart->refresh();
+        }
+
         $cart->load([
             'items.product.brand',
             'items.variant',
@@ -163,13 +171,24 @@ class CartController extends Controller
 
         $cart = $this->resolveCart($request);
         $code = trim((string) ($validated['code'] ?? $validated['number'] ?? ''));
-        abort_if($code === '', 422, 'Код сертификата обязателен');
+        if ($code === '') {
+            return response()->json([
+                'message' => 'Введите код подарочного сертификата.',
+                'code' => 'GIFT_CERTIFICATE_CODE_REQUIRED',
+            ], 422);
+        }
 
         $certificate = GiftCertificate::query()->where('code', $code)->first();
-        abort_if(!$certificate, 422, 'Сертификат с таким кодом не найден');
-        abort_if(!app(GiftCertificateLedgerService::class)->certificateIsUsable($certificate), 422, 'Сертификат недоступен');
+        $ledger = app(GiftCertificateLedgerService::class);
+        $block = $ledger->giftCertificateApplyBlock($certificate);
+        if ($block !== null) {
+            return response()->json([
+                'message' => $block['message'],
+                'code' => $block['code'],
+            ], 422);
+        }
 
-        app(GiftCertificateLedgerService::class)->releaseAllReservesForCartToken($cart->token);
+        $ledger->releaseAllReservesForCartToken($cart->token);
         $cart->update(['gift_certificate_code' => $certificate->code]);
         $cart->refresh()->load(['items.product.brand', 'items.variant']);
         $cart->load('giftCertificateItems.template');
@@ -197,14 +216,32 @@ class CartController extends Controller
 
         $cart = $this->resolveCart($request);
         $number = trim($validated['number']);
+        if ($number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER) {
+            return response()->json([
+                'message' => 'Некорректный номер карты.',
+                'code' => 'DISCOUNT_CARD_INVALID',
+            ], 422);
+        }
         $user = $this->resolveAuthenticatedUser($request);
         $sessionOnly = (bool) ($validated['session_only'] ?? false);
 
         $card = DiscountCard::query()
             ->where('card_number', $number)
-            ->where('status', DiscountCard::STATUS_ACTIVE)
             ->first();
-        abort_if(!$card, 422, 'Скидочная карта не найдена или неактивна');
+
+        if (!$card) {
+            return response()->json([
+                'message' => 'Такой карты лояльности нет, проверьте номер.',
+                'code' => 'DISCOUNT_CARD_NOT_FOUND',
+            ], 422);
+        }
+
+        if ($card->status !== DiscountCard::STATUS_ACTIVE) {
+            return response()->json([
+                'message' => 'Карта недействительна, свяжитесь с менеджером магазина.',
+                'code' => 'DISCOUNT_CARD_INACTIVE',
+            ], 422);
+        }
 
         if ($user && !$sessionOnly) {
             $linkedToSelf = $user->discountCards()
@@ -242,10 +279,31 @@ class CartController extends Controller
     public function clearDiscountCard(Request $request): JsonResponse
     {
         $cart = $this->resolveCart($request);
-        $cart->update([
-            'discount_card_number' => null,
-            'discount_card_session_only' => false,
-        ]);
+        $user = $this->resolveAuthenticatedUser($request);
+
+        $number = trim((string) $cart->discount_card_number);
+        $isMarker = $number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER;
+        $hasStoredRealNumber = $number !== '' && !$isMarker;
+
+        if ($user && $cart->discount_card_session_only && $hasStoredRealNumber) {
+            // Временная «другая карта» для заказа — возвращаем профильную.
+            $cart->update([
+                'discount_card_number' => null,
+                'discount_card_session_only' => false,
+            ]);
+        } elseif ($user) {
+            // Убираем профильную из черновика заказа или готовим ввод другой карты (до перезагрузки страницы).
+            $cart->update([
+                'discount_card_number' => Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER,
+                'discount_card_session_only' => false,
+            ]);
+        } else {
+            $cart->update([
+                'discount_card_number' => null,
+                'discount_card_session_only' => false,
+            ]);
+        }
+
         $cart->refresh()->load(['items.product.brand', 'items.variant']);
         $cart->load('giftCertificateItems.template');
 

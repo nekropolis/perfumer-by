@@ -101,6 +101,13 @@ export default function UserAccount({ user, logoutAction }: UserAccountProps) {
                     ) : null}
                 </div>
 
+                {activeCard ? (
+                    <div className="mt-5 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm leading-snug text-white/90">
+                        Карта привязана к профилю постоянно. Отвязать или заменить её может только менеджер магазина — напишите или
+                        позвоните в магазин.
+                    </div>
+                ) : null}
+
                 {!activeCard ? (
                     <button
                         type="button"

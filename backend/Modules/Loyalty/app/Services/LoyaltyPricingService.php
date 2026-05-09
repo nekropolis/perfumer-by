@@ -104,6 +104,9 @@ class LoyaltyPricingService
     public function resolveDiscountCard(Cart $cart, ?CustomerUser $user = null): ?DiscountCard
     {
         $number = trim((string) $cart->discount_card_number);
+        if ($number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER) {
+            return null;
+        }
         if ($number !== '') {
             $card = DiscountCard::query()
                 ->where('card_number', $number)

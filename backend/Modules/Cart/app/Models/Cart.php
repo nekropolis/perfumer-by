@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cart extends Model
 {
+    /**
+     * Значение discount_card_number: пользователь убрал карту из корзины;
+     * не подставлять привязанную карту из профиля до следующего явного «Применить».
+     */
+    public const DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER = '__profile_discount_suppressed__';
+
     protected $table = 'carts';
 
     protected $fillable = [

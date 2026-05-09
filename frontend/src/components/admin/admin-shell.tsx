@@ -3,10 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useEffect, useState, startTransition } from "react";
-import { X, Store } from "lucide-react";
+import { X, Store, User } from "lucide-react";
 import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
+import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import { useAuth } from "@/components/auth/auth-provider";
+import { resetCatalogApiCache } from "@/lib/admin-products-api";
 
 type Props = {
     children: ReactNode;
@@ -62,10 +64,29 @@ const SIDEBAR_STORAGE_KEY = "admin-sidebar-collapsed";
  */
 export default function AdminShell({ children }: Props) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [sidebarReady, setSidebarReady] = useState(false);
+    const [cacheResetBusy, setCacheResetBusy] = useState(false);
 
     const { logout } = useAuth();
+
+    const handleResetCatalogCache = async () => {
+        if (cacheResetBusy) return;
+        setCacheResetBusy(true);
+        try {
+            const res = await resetCatalogApiCache();
+            if (typeof window !== "undefined") {
+                window.alert(res.message || "Кеш каталога сброшен");
+            }
+        } catch (e) {
+            if (typeof window !== "undefined") {
+                window.alert(e instanceof Error ? e.message : "Ошибка сброса кеша каталога");
+            }
+        } finally {
+            setCacheResetBusy(false);
+        }
+    };
 
     useEffect(() => {
         const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
@@ -143,51 +164,83 @@ export default function AdminShell({ children }: Props) {
                 <div className="fixed inset-0 z-[200] lg:hidden">
                     <div
                         className="absolute inset-0 bg-black/40"
-                        onClick={() => setMobileMenuOpen(false)}
+                        onClick={() => {
+                            setMobileActionsOpen(false);
+                            setMobileMenuOpen(false);
+                        }}
                     />
 
                     <div className="absolute left-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-white shadow-2xl">
-                        <div className="flex flex-none items-center justify-between border-b p-4">
+                        <div className="relative flex flex-none items-center justify-between gap-2 border-b p-4">
                             <div className="text-lg font-semibold">Меню</div>
 
-                            <button
-                                type="button"
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border"
-                                onClick={() => setMobileMenuOpen(false)}
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
+                            <div className="flex items-center gap-2">
+                                <AdminActiveTasksWidget compact className="flex items-center gap-2" />
+                                <button
+                                    type="button"
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border"
+                                    onClick={() => setMobileActionsOpen((prev) => !prev)}
+                                    aria-label="Действия"
+                                    title="Действия"
+                                >
+                                    <User size={18} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border"
+                                    onClick={() => {
+                                        setMobileActionsOpen(false);
+                                        setMobileMenuOpen(false);
+                                    }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
 
-                        <div className="flex flex-none flex-col gap-2 border-b p-4">
-                            <a
-                                href="/"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm"
-                            >
-                                <Store size={18} />
-                                Магазин
-                            </a>
+                            {mobileActionsOpen ? (
+                                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-[210] w-[min(88vw,22rem)] rounded-2xl border bg-white p-2 shadow-xl">
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleResetCatalogCache()}
+                                            disabled={cacheResetBusy}
+                                            className="rounded-xl border px-4 py-3 text-left text-sm transition hover:bg-gray-50 disabled:opacity-60"
+                                        >
+                                            {cacheResetBusy ? "Сбрасываем кеш..." : "Сбросить кеш"}
+                                        </button>
 
-                            <Link
-                                href="/account"
-                                className="rounded-xl border px-4 py-3 text-sm"
-                                onClick={() => setMobileMenuOpen(false)}
-                            >
-                                Личный кабинет
-                            </Link>
+                                        <a
+                                            href="/"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                        >
+                                            <Store size={18} />
+                                            Магазин
+                                        </a>
 
-                            <button
-                                type="button"
-                                className="rounded-xl border px-4 py-3 text-left text-sm"
-                                onClick={() => {
-                                    logout();
-                                    setMobileMenuOpen(false);
-                                }}
-                            >
-                                Выйти
-                            </button>
+                                        <Link
+                                            href="/account"
+                                            className="rounded-xl border px-4 py-3 text-sm"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                        >
+                                            Личный кабинет
+                                        </Link>
+
+                                        <button
+                                            type="button"
+                                            className="rounded-xl border px-4 py-3 text-left text-sm"
+                                            onClick={() => {
+                                                logout();
+                                                setMobileMenuOpen(false);
+                                            }}
+                                        >
+                                            Выйти
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="min-h-0 flex-1 overflow-y-auto p-4">

@@ -72,9 +72,6 @@ export default function CartPricingBreakdown({
                         </span>
                         <span className="shrink-0 font-medium">−{discountCard!.discount_amount} руб.</span>
                     </div>
-                    {discountCard!.session_only ? (
-                        <span className="text-xs font-normal text-green-800/80">Только для этого заказа</span>
-                    ) : null}
                 </div>
             ) : null}
 

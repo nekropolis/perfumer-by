@@ -6,12 +6,25 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
 import { fetchCart } from "@/lib/cart-api";
 import type { CartData } from "@/types/cart";
 import { useAuth } from "@/components/auth/auth-provider";
+
+function isNavigationReload(): boolean {
+    if (typeof window === "undefined") {
+        return false;
+    }
+    const nav = performance.getEntriesByType?.("navigation")?.[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === "reload") {
+        return true;
+    }
+    const legacy = (performance as unknown as { navigation?: { type?: number } }).navigation;
+    return legacy?.type === 1;
+}
 
 type CartContextType = {
     cart: CartData | null;
@@ -31,6 +44,38 @@ export function CartProvider({ children }: Props) {
     const { isAuthenticated, user } = useAuth();
     const [cart, setCart] = useState<CartData | null>(null);
     const [loading, setLoading] = useState(true);
+    const loyaltyReloadBootstrapSentRef = useRef(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            try {
+                const sendBootstrap =
+                    !loyaltyReloadBootstrapSentRef.current && isNavigationReload();
+                if (sendBootstrap) {
+                    loyaltyReloadBootstrapSentRef.current = true;
+                }
+                const response = await fetchCart({
+                    loyaltyBootstrapReload: sendBootstrap,
+                });
+                if (!cancelled) {
+                    setCart(response.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch cart", error);
+                if (!cancelled) {
+                    setCart(null);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isAuthenticated, user?.id]);
 
     const refreshCart = useCallback(async () => {
         try {
@@ -43,16 +88,6 @@ export function CartProvider({ children }: Props) {
             setLoading(false);
         }
     }, []);
-
-    useEffect(() => {
-        void refreshCart();
-    }, [refreshCart]);
-
-    useEffect(() => {
-        // After login/logout or user switch, refetch cart with current auth context
-        // so linked loyalty card and pricing are reflected immediately.
-        void refreshCart();
-    }, [isAuthenticated, user?.id, refreshCart]);
 
     const cartQty = useMemo(() => {
         if (!cart) {

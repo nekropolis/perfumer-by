@@ -38,13 +38,20 @@ class MyLoyaltyCardController extends Controller
 
         $card = DiscountCard::query()
             ->where('card_number', $number)
-            ->where('status', DiscountCard::STATUS_ACTIVE)
             ->first();
 
         if (!$card) {
             return response()->json([
-                'message' => 'Такого номера карты не существует, проверьте номер и повторите попытку.',
+                'message' => 'Такой карты лояльности нет, проверьте номер.',
+                'code' => 'DISCOUNT_CARD_NOT_FOUND',
             ], 404);
+        }
+
+        if ($card->status !== DiscountCard::STATUS_ACTIVE) {
+            return response()->json([
+                'message' => 'Карта недействительна, свяжитесь с менеджером магазина.',
+                'code' => 'DISCOUNT_CARD_INACTIVE',
+            ], 422);
         }
 
         $already = $user->discountCards()->where('discount_cards.id', $card->id)->first();
