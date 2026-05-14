@@ -156,15 +156,9 @@ class VanilleImportService
                     $existingProduct = Product::where('slug', $slug)->first();
 
                     if ($existingProduct) {
-                        // Для уже существующих товаров при полном репарсе не трогаем:
-                        // наличие/цены, описания и SEO-блоки.
-                        $existingProduct->update([
-                            'brand_id' => $brand?->id,
-                            'name' => $productName,
-                            'h1' => $productName,
-                            'is_active' => true,
-                        ]);
-                        $product = $existingProduct->fresh();
+                        // Существующий товар: не перезаписываем название, H1, бренд, активность,
+                        // описания, SEO, цены/наличие — только характеристики и недостающие варианты ниже.
+                        $product = $existingProduct;
                     } else {
                         $product = Product::create([
                             'slug' => $slug,

@@ -20,6 +20,7 @@ use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
+use Modules\Loyalty\Services\LoyaltyPricingService;
 use Modules\Users\Models\User as CustomerUser;
 use Modules\Warehouse\Services\StockInventoryService;
 use Throwable;
@@ -30,7 +31,8 @@ class CheckoutController extends Controller
     {
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
-            'phone' => ['required', "regex:" . Phone::REGEX],
+            'phone' => ['required', 'string', 'max:64'],
+            'phone_plain_digits' => ['sometimes', 'boolean'],
             'comment' => ['nullable', 'string'],
             'delivery_method' => ['required', Rule::in([
                 CheckoutDeliveryService::METHOD_MINSK,
@@ -40,7 +42,16 @@ class CheckoutController extends Controller
             'delivery_city' => ['nullable', 'string', 'max:255'],
             'delivery_address' => ['required', 'string', 'max:2000'],
             'payment_method' => ['required', Rule::in(['cash', 'card'])],
+            'cart_item_ids' => ['sometimes', 'array'],
+            'cart_item_ids.*' => ['integer', 'min:1'],
+            'gift_certificate_cart_item_ids' => ['sometimes', 'array'],
+            'gift_certificate_cart_item_ids.*' => ['integer', 'min:1'],
         ]);
+
+        Phone::assertValidFlexible(
+            $validated['phone'],
+            (bool) ($validated['phone_plain_digits'] ?? false),
+        );
 
         $validated['customer_name'] = filled(trim((string) ($validated['customer_name'] ?? '')))
             ? trim((string) $validated['customer_name'])
@@ -66,6 +77,26 @@ class CheckoutController extends Controller
         abort_if(!$cart, 422, 'Cart not found');
         abort_if($cart->items->isEmpty() && $cart->giftCertificateItems->isEmpty(), 422, 'Cart is empty');
 
+        $partialCheckout = $request->has('cart_item_ids') || $request->has('gift_certificate_cart_item_ids');
+        $checkoutProductLineIds = $partialCheckout
+            ? array_values(array_map('intval', $validated['cart_item_ids'] ?? []))
+            : [];
+        $checkoutGiftLineIds = $partialCheckout
+            ? array_values(array_map('intval', $validated['gift_certificate_cart_item_ids'] ?? []))
+            : [];
+
+        if ($partialCheckout) {
+            abort_if($checkoutProductLineIds === [] && $checkoutGiftLineIds === [], 422, 'Выберите хотя бы одну позицию для оформления');
+            $allowedProduct = $cart->items->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($checkoutProductLineIds as $id) {
+                abort_if(!in_array($id, $allowedProduct, true), 422, 'Некорректная позиция корзины');
+            }
+            $allowedGift = $cart->giftCertificateItems->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($checkoutGiftLineIds as $id) {
+                abort_if(!in_array($id, $allowedGift, true), 422, 'Некорректная позиция подарочного сертификата');
+            }
+        }
+
         if (
             $validated['payment_method'] === 'card'
             && !in_array($validated['delivery_method'], [CheckoutDeliveryService::METHOD_MINSK, CheckoutDeliveryService::METHOD_PICKUP], true)
@@ -79,13 +110,34 @@ class CheckoutController extends Controller
         }
 
         foreach ($cart->items as $cartItem) {
+            if ($partialCheckout && !in_array((int) $cartItem->id, $checkoutProductLineIds, true)) {
+                continue;
+            }
             $variant = $cartItem->variant;
             abort_if(!$variant || !$variant->is_active, 422, 'One of the cart items is unavailable');
         }
 
-        $quote = $quoteService->quote($cart, $user, $validated['payment_method'], $validated['delivery_method']);
+        $quote = $quoteService->quote(
+            $cart,
+            $user,
+            $validated['payment_method'],
+            $validated['delivery_method'],
+            $partialCheckout ? $checkoutProductLineIds : null,
+            $partialCheckout ? $checkoutGiftLineIds : null,
+        );
 
-        $order = DB::transaction(function () use ($cart, $cartToken, $orderUserId, $validated, $phone, $quote) {
+        $order = DB::transaction(function () use (
+            $cart,
+            $cartToken,
+            $orderUserId,
+            $validated,
+            $phone,
+            $quote,
+            $partialCheckout,
+            $checkoutProductLineIds,
+            $checkoutGiftLineIds,
+            $user,
+        ) {
             $subtotal = 0;
             $itemsQty = 0;
 
@@ -111,6 +163,9 @@ class CheckoutController extends Controller
             ]);
 
             foreach ($cart->items as $cartItem) {
+                if ($partialCheckout && !in_array((int) $cartItem->id, $checkoutProductLineIds, true)) {
+                    continue;
+                }
                 $price = (float) ($cartItem->variant?->price ?? 0);
                 $lineTotal = $price * $cartItem->qty;
 
@@ -133,6 +188,9 @@ class CheckoutController extends Controller
             }
 
             foreach ($cart->giftCertificateItems as $giftCartItem) {
+                if ($partialCheckout && !in_array((int) $giftCartItem->id, $checkoutGiftLineIds, true)) {
+                    continue;
+                }
                 $amount = (float) ($giftCartItem->template?->amount ?? 0);
                 $qty = (int) $giftCartItem->qty;
                 if ($amount <= 0 || $qty <= 0) {
@@ -174,13 +232,34 @@ class CheckoutController extends Controller
 
             app(SoldGiftCertificateFromOrderService::class)->issueFromPurchases($order);
 
-            $cart->items()->delete();
-            $cart->giftCertificateItems()->delete();
-            $cart->update([
-                'gift_certificate_code' => null,
-                'discount_card_number' => null,
-                'discount_card_session_only' => false,
-            ]);
+            if ($partialCheckout) {
+                if ($checkoutProductLineIds !== []) {
+                    $cart->items()->whereIn('id', $checkoutProductLineIds)->delete();
+                }
+                if ($checkoutGiftLineIds !== []) {
+                    $cart->giftCertificateItems()->whereIn('id', $checkoutGiftLineIds)->delete();
+                }
+                $cart->refresh()->load(['items', 'giftCertificateItems']);
+                if ($cart->items->isEmpty() && $cart->giftCertificateItems->isEmpty()) {
+                    $cart->update([
+                        'gift_certificate_code' => null,
+                        'discount_card_number' => null,
+                        'discount_card_session_only' => false,
+                    ]);
+                } else {
+                    app(LoyaltyPricingService::class)->syncGiftCertificateReserveForCart($cart, $user, [
+                        'payment_method' => $validated['payment_method'],
+                    ]);
+                }
+            } else {
+                $cart->items()->delete();
+                $cart->giftCertificateItems()->delete();
+                $cart->update([
+                    'gift_certificate_code' => null,
+                    'discount_card_number' => null,
+                    'discount_card_session_only' => false,
+                ]);
+            }
 
             return $order;
         });

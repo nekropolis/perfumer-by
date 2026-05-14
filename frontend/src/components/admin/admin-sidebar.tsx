@@ -16,7 +16,6 @@ import {
     Package,
     PackageMinus,
     PanelsTopLeft,
-    PhoneCall,
     ScrollText,
     Settings,
     ShieldUser,
@@ -31,7 +30,7 @@ import { fetchAdminReviewsStats } from "@/lib/admin-reviews-api";
 import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
-type BadgeKey = "ordersNew" | "stockBackInStockNew" | "stockCallbackNew" | "reviewsPending";
+type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending";
 
 type LinkItem = {
     type: "link";
@@ -57,17 +56,10 @@ const sections: SidebarSection[] = [
             { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingCart, badgeKey: "ordersNew" },
             {
                 type: "link",
-                href: "/admin/stock-notifications?kind=back_in_stock",
-                label: "Запросы на поступление",
+                href: "/admin/stock-notifications",
+                label: "Запросы товаров",
                 icon: BellRing,
-                badgeKey: "stockBackInStockNew",
-            },
-            {
-                type: "link",
-                href: "/admin/stock-notifications?kind=callback",
-                label: "Заказы звонков",
-                icon: PhoneCall,
-                badgeKey: "stockCallbackNew",
+                badgeKey: "stockProductRequestsNew",
             },
             { type: "link", href: "/admin/reviews", label: "Отзывы", icon: MessageSquare, badgeKey: "reviewsPending" },
             { type: "link", href: "/admin/shop-settings", label: "Настройки магазина", icon: Settings },
@@ -212,9 +204,6 @@ function isItemActive(
         return true;
     }
 
-    // Пропускаем общий пункт секции, если активен пункт с фильтром:
-    // корневой /admin/stock-notifications не должен светиться,
-    // когда подсвечен более специфичный ?kind=...
     return targetPath !== "/admin" && pathname.startsWith(targetPath) && currentQuery === "";
 }
 
@@ -232,8 +221,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const currentQuery = searchParams.toString();
     const [tooltip, setTooltip] = useState<TooltipState>(null);
     const [newOrdersCount, setNewOrdersCount] = useState(0);
-    const [stockBackInStockNew, setStockBackInStockNew] = useState(0);
-    const [stockCallbackNew, setStockCallbackNew] = useState(0);
+    const [stockProductRequestsNew, setStockProductRequestsNew] = useState(0);
     const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
@@ -259,8 +247,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
             if (stockResult.status === "fulfilled") {
                 backInStock = stockResult.value.data.back_in_stock_new ?? 0;
                 callback = stockResult.value.data.callback_new ?? 0;
-                setStockBackInStockNew(backInStock);
-                setStockCallbackNew(callback);
+                setStockProductRequestsNew(backInStock + callback);
             }
 
             let reviewsPending = 0;
@@ -293,8 +280,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
     const badgeCounts: Record<BadgeKey, number> = {
         ordersNew: newOrdersCount,
-        stockBackInStockNew: stockBackInStockNew,
-        stockCallbackNew: stockCallbackNew,
+        stockProductRequestsNew: stockProductRequestsNew,
         reviewsPending: reviewsPendingCount,
     };
 

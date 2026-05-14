@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
+import PhoneInput, {
+    isBelarusPhoneComplete,
+    isPlainByPhoneComplete,
+    normalizePlainByDigitsInput,
+} from "@/components/ui/phone-input";
 import { createStockNotificationRequest } from "@/lib/stock-notifications-api";
 
 type Props = {
@@ -94,7 +98,7 @@ export default function StockNotificationModal({
         return null;
     }
 
-    const phoneIsValid = allowPlainPhone ? isPhoneDigitsComplete(phone) : isBelarusPhoneComplete(phone);
+    const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -106,7 +110,7 @@ export default function StockNotificationModal({
         if (!phoneIsValid) {
             setErrorMessage(
                 allowPlainPhone
-                    ? "Введите номер только цифрами (минимум 5 цифр)"
+                    ? "Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после кода страны)."
                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
             );
             return;
@@ -131,6 +135,7 @@ export default function StockNotificationModal({
                 product_id: productId,
                 variant_id: variantId ?? null,
                 phone,
+                phone_plain_digits: allowPlainPhone,
                 comment: cleanedComment || undefined,
             });
 
@@ -245,16 +250,17 @@ export default function StockNotificationModal({
                                         checked={allowPlainPhone}
                                         onChange={(e) => {
                                             setAllowPlainPhone(e.target.checked);
-                                            setPhone((prev) => prev.replace(/\D/g, ""));
+                                            setPhone((prev) =>
+                                                e.target.checked ? normalizePlainByDigitsInput(prev) : prev,
+                                            );
                                         }}
                                         className="peer sr-only"
                                     />
                                     <span
-                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
-                                            allowPlainPhone
+                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
                                                 ? "text-white"
                                                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
-                                        }`}
+                                            }`}
                                         style={
                                             allowPlainPhone
                                                 ? { backgroundColor: "#6f4a7e", borderColor: "#6f4a7e" }
@@ -266,11 +272,6 @@ export default function StockNotificationModal({
                                 </label>
                             </div>
                             <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
-                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                {allowPlainPhone
-                                    ? "Только цифры, минимум 5 символов"
-                                    : "Формат: +375 (25/29/33/44) XXX-XX-XX"}
-                            </p>
                         </div>
 
                         <div>

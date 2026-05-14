@@ -201,6 +201,13 @@ class OrderController extends Controller
             $toBoundary = $tmp->endOfDay();
         }
 
+        $perPage = (int) $request->input('per_page', 25);
+        if (! in_array($perPage, [25, 50, 100], true)) {
+            $perPage = 25;
+        }
+
+        $page = max(1, (int) $request->input('page', 1));
+
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
@@ -251,7 +258,7 @@ class OrderController extends Controller
                 ]);
             })
             ->latest('id')
-            ->paginate(20);
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'data' => OrderResource::collection($orders->getCollection()),

@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -109,7 +110,7 @@ return new class extends Migration
 
         if (Schema::hasColumn('orders', 'gift_certificate_id')) {
             $connection = Schema::getConnection();
-            if ($connection->getDriverName() === 'mysql') {
+            if ($connection instanceof Connection && (string) ($connection->getConfig('driver') ?? '') === 'mysql') {
                 $row = DB::selectOne(
                     'SELECT kcu.CONSTRAINT_NAME AS name
                      FROM information_schema.KEY_COLUMN_USAGE kcu

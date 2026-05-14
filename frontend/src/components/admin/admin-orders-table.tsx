@@ -63,6 +63,37 @@ function highlightQueryInText(text: string, query: string): ReactNode {
     return parts.length > 0 ? <>{parts}</> : text;
 }
 
+function formatOrderCreatedParts(value?: string | null): { date: string; time: string } | null {
+    if (!value) {
+        return null;
+    }
+    try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) {
+            return null;
+        }
+        return {
+            date: d.toLocaleDateString("ru-RU"),
+            time: d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        };
+    } catch {
+        return null;
+    }
+}
+
+function AdminOrderCreatedAtCell({ createdAt }: { createdAt?: string | null }) {
+    const parts = formatOrderCreatedParts(createdAt);
+    if (!parts) {
+        return "—";
+    }
+    return (
+        <div className="flex flex-col gap-0.5 leading-tight">
+            <span className="whitespace-nowrap">{parts.date}</span>
+            <span className="whitespace-nowrap text-[11px] text-gray-500">{parts.time}</span>
+        </div>
+    );
+}
+
 export default function AdminOrdersTable({
     initialOrders,
     searchQuery = "",
@@ -141,17 +172,6 @@ export default function AdminOrdersTable({
             });
     };
 
-    const formatDateOnly = (value?: string | null): string => {
-        if (!value) {
-            return "—";
-        }
-        try {
-            return new Date(value).toLocaleDateString("ru-RU");
-        } catch {
-            return value;
-        }
-    };
-
     return (
         <>
             <div className="overflow-x-auto">
@@ -219,8 +239,8 @@ export default function AdminOrdersTable({
                                 </td>
                                 <td className="px-4 py-4">{order.items_qty}</td>
                                 <td className="px-4 py-4 whitespace-nowrap">{order.total} руб.</td>
-                                <td className="whitespace-nowrap px-4 py-4 text-gray-600">
-                                    {formatDateOnly(order.created_at)}
+                                <td className="px-4 py-4 text-gray-600">
+                                    <AdminOrderCreatedAtCell createdAt={order.created_at} />
                                 </td>
                                 <td className="px-4 py-4">
                                     <div className="flex items-center gap-1.5">

@@ -20,9 +20,15 @@ class CallbackRequestController extends Controller
         $validated = $request->validate([
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
             'variant_id' => ['nullable', 'integer', 'exists:product_variant_links,id'],
-            'phone' => ['required', 'string', 'max:32', 'regex:' . Phone::REGEX],
+            'phone' => ['required', 'string', 'max:64'],
+            'phone_plain_digits' => ['sometimes', 'boolean'],
             'comment' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        Phone::assertValidFlexible(
+            $validated['phone'],
+            (bool) ($validated['phone_plain_digits'] ?? false),
+        );
 
         $phone = Phone::normalize($validated['phone']);
         $comment = $this->sanitizeComment($validated['comment'] ?? null);

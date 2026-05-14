@@ -129,13 +129,15 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
         setBusyImageId(imageId);
         setError("");
         try {
-            const response = await deleteProductImage(productId, imageId);
-            refreshFromPayload(response);
+            if (confirm("Вы уверены, что хотите удалить изображение?")) {
+                const response = await deleteProductImage(productId, imageId);
+                refreshFromPayload(response);
+            }
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Не удалось удалить изображение");
-        } finally {
-            setBusyImageId(null);
-        }
+            } finally {
+                setBusyImageId(null);
+            }
     };
 
     const handleCardDragStart = (imageId: number) => {

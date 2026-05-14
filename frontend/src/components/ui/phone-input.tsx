@@ -7,13 +7,19 @@ type Props = {
     onChangeAction: (value: string) => void;
     className?: string;
     plainDigitsMode?: boolean;
+    /** Подсказка под полем (текст общий для чекаута, логина и модалок). По умолчанию включена. */
+    showHint?: boolean;
 };
 
+const PHONE_INPUT_HINT_PLAIN = "Любые 5–14 цифр после 375.";
+const PHONE_INPUT_HINT_MOBILE = "Мобильный (25/29/33/44) и номер.";
+
 const COUNTRY_PREFIX = "375";
-const MASK_TEMPLATE = "+375(__) ___-__-__";
+/** Маска только для части после +375 (в инпуте без кода страны). */
+const MASK_LOCAL = `(__) ___-__-__`;
 const ALLOWED_OPERATOR_CODES = ["25", "29", "33", "44"];
 
-const DIGIT_POSITIONS = [5, 6, 9, 10, 11, 13, 14, 16, 17];
+const MASK_LOCAL_DIGIT_POSITIONS = [1, 2, 5, 6, 7, 9, 10, 12, 13];
 
 function extractLocalDigits(value: string): string {
     const digits = value.replace(/\D/g, "");
@@ -24,30 +30,30 @@ function extractLocalDigits(value: string): string {
 }
 
 function formatMasked(localDigits: string): string {
-    const chars = MASK_TEMPLATE.split("");
+    const chars = MASK_LOCAL.split("");
 
-    for (let i = 0; i < DIGIT_POSITIONS.length; i++) {
-        chars[DIGIT_POSITIONS[i]] = localDigits[i] ?? "_";
+    for (let i = 0; i < MASK_LOCAL_DIGIT_POSITIONS.length; i++) {
+        chars[MASK_LOCAL_DIGIT_POSITIONS[i]] = localDigits[i] ?? "_";
     }
 
     return chars.join("");
 }
 
 function getDigitIndexFromCursor(cursorPos: number): number {
-    for (let i = 0; i < DIGIT_POSITIONS.length; i++) {
-        if (cursorPos <= DIGIT_POSITIONS[i]) {
+    for (let i = 0; i < MASK_LOCAL_DIGIT_POSITIONS.length; i++) {
+        if (cursorPos <= MASK_LOCAL_DIGIT_POSITIONS[i]) {
             return i;
         }
     }
-    return DIGIT_POSITIONS.length;
+    return MASK_LOCAL_DIGIT_POSITIONS.length;
 }
 
 function getCursorFromDigitIndex(digitIndex: number): number {
-    if (digitIndex <= 0) return DIGIT_POSITIONS[0];
-    if (digitIndex >= DIGIT_POSITIONS.length) {
-        return DIGIT_POSITIONS[DIGIT_POSITIONS.length - 1] + 1;
+    if (digitIndex <= 0) return MASK_LOCAL_DIGIT_POSITIONS[0];
+    if (digitIndex >= MASK_LOCAL_DIGIT_POSITIONS.length) {
+        return MASK_LOCAL_DIGIT_POSITIONS[MASK_LOCAL_DIGIT_POSITIONS.length - 1] + 1;
     }
-    return DIGIT_POSITIONS[digitIndex];
+    return MASK_LOCAL_DIGIT_POSITIONS[digitIndex];
 }
 
 function normalizeLocalDigits(digits: string): string {
@@ -69,9 +75,24 @@ export function isBelarusPhoneComplete(value: string): boolean {
     return /^375(25|29|33|44)\d{7}$/.test(digits);
 }
 
-export function isPhoneDigitsComplete(value: string): boolean {
-    const digits = value.replace(/\D/g, "");
-    return digits.length >= 5;
+/** Режим «нет мобильного»: хвост после 375, до 14 цифр (префикс хранится отдельно в значении как 375 + хвост). */
+function extractPlainRestFromStored(stored: string): string {
+    const d = stored.replace(/\D/g, "");
+    if (d.length === 0) {
+        return "";
+    }
+    if (d.startsWith(COUNTRY_PREFIX)) {
+        return d.slice(COUNTRY_PREFIX.length).slice(0, 14);
+    }
+    return d.slice(0, 14);
+}
+
+export function normalizePlainByDigitsInput(input: string): string {
+    return COUNTRY_PREFIX + extractPlainRestFromStored(input);
+}
+
+export function isPlainByPhoneComplete(value: string): boolean {
+    return /^375\d{5,14}$/.test(value.replace(/\D/g, ""));
 }
 
 export default function PhoneInput({
@@ -79,25 +100,46 @@ export default function PhoneInput({
     onChangeAction,
     className = "",
     plainDigitsMode = false,
+    showHint = true,
 }: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
 
+    const rootClass = ["w-full", className].filter(Boolean).join(" ");
+    const hintText = plainDigitsMode ? PHONE_INPUT_HINT_PLAIN : PHONE_INPUT_HINT_MOBILE;
+    const hintEl = showHint ? (
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">{hintText}</p>
+    ) : null;
+
     if (plainDigitsMode) {
-        const digits = value.replace(/\D/g, "").slice(0, 32);
+        const rest = extractPlainRestFromStored(value);
         return (
-            <input
-                ref={inputRef}
-                type="text"
-                inputMode="numeric"
-                autoComplete="new-password"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                value={digits}
-                placeholder="Введите номер цифрами"
-                onChange={(e) => onChangeAction(e.target.value.replace(/\D/g, "").slice(0, 32))}
-                className={`w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] ${className}`}
-            />
+            <div className={rootClass}>
+                <div className="flex min-h-[48px] w-full items-stretch overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]">
+                    <span
+                        className="flex shrink-0 select-none items-center border-r border-[var(--line)] bg-[var(--background)] px-3 py-3 font-mono text-sm font-medium tabular-nums text-[var(--text-secondary)]"
+                        aria-hidden
+                    >
+                        +375
+                    </span>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={rest}
+                        placeholder="номер без кода страны"
+                        onChange={(e) => {
+                            const nextRest = e.target.value.replace(/\D/g, "").slice(0, 14);
+                            onChangeAction(COUNTRY_PREFIX + nextRest);
+                        }}
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 outline-none ring-0 placeholder:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-soft)]"
+                    />
+                </div>
+                {hintEl}
+            </div>
         );
     }
 
@@ -266,22 +308,33 @@ export default function PhoneInput({
     };
 
     return (
-        <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            autoComplete="new-password"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            value={displayValue}
-            placeholder="+375(29) 777-77-77"
-            onChange={() => {}}
-            onFocus={handleFocus}
-            onClick={handleClick}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            className={`w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] ${className}`}
-        />
+        <div className={rootClass}>
+            <div className="flex min-h-[48px] w-full items-stretch overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]">
+                <span
+                    className="flex shrink-0 select-none items-center border-r border-[var(--line)] bg-[var(--background)] px-3 py-3 font-mono text-sm font-medium tabular-nums text-[var(--text-secondary)]"
+                    aria-hidden
+                >
+                    +375
+                </span>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    value={displayValue}
+                    placeholder="(29) 777-77-77"
+                    onChange={() => {}}
+                    onFocus={handleFocus}
+                    onClick={handleClick}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 font-mono text-[var(--foreground)] outline-none ring-0 placeholder:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-soft)]"
+                />
+            </div>
+            {hintEl}
+        </div>
     );
 }

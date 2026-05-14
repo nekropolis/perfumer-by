@@ -34,21 +34,35 @@ final class CheckoutQuoteService
         ?CustomerUser $user,
         string $paymentMethod,
         string $deliveryMethod,
+        ?array $checkoutCartItemIds = null,
+        ?array $checkoutGiftCertificateCartItemIds = null,
     ): array {
         $paymentMethod = $paymentMethod === 'card' ? 'card' : 'cash';
 
-        $pricing = $this->loyaltyPricing->calculateForCart($cart, $user, [
-            'payment_method' => $paymentMethod,
-        ]);
+        $loyaltyOptions = ['payment_method' => $paymentMethod];
+        if ($checkoutCartItemIds !== null) {
+            $loyaltyOptions['checkout_cart_item_ids'] = $checkoutCartItemIds;
+        }
+
+        $pricing = $this->loyaltyPricing->calculateForCart($cart, $user, $loyaltyOptions);
 
         $subtotal = (float) $pricing['subtotal'];
         $loyaltyAmount = (float) $pricing['loyalty_discount_amount'];
-        $giftPurchasesSubtotal = (float) $cart->giftCertificateItems->sum(function ($row) {
+        $giftRows = $cart->giftCertificateItems;
+        if ($checkoutGiftCertificateCartItemIds !== null) {
+            if ($checkoutGiftCertificateCartItemIds === []) {
+                $giftRows = collect();
+            } else {
+                $allowed = array_fill_keys(array_map('intval', $checkoutGiftCertificateCartItemIds), true);
+                $giftRows = $giftRows->filter(fn ($row) => isset($allowed[(int) $row->id]));
+            }
+        }
+        $giftPurchasesSubtotal = (float) $giftRows->sum(function ($row) {
             return ((float) ($row->template?->amount ?? 0)) * (int) $row->qty;
         });
         $merchandiseAfterLoyalty = max(0, round($subtotal - $loyaltyAmount + $giftPurchasesSubtotal, 2));
 
-        $deliveryFee = round($this->delivery->deliveryFee($cart, $deliveryMethod, $merchandiseAfterLoyalty), 2);
+        $deliveryFee = round($this->delivery->deliveryFee($cart, $deliveryMethod, $merchandiseAfterLoyalty, $checkoutCartItemIds), 2);
         $giftAmount = (float) ($pricing['gift_certificate_amount'] ?? 0);
         /** @var GiftCertificate|null $gift */
         $gift = $pricing['gift_certificate'] ?? null;

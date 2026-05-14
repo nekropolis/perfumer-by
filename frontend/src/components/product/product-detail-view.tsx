@@ -281,6 +281,32 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
         mainImage == null
             ? null
             : normalizeProductImageUrl(mainImage.path);
+    const lightboxImageIndex = useMemo(() => {
+        if (!mainImage) {
+            return 0;
+        }
+        const i = images.findIndex((image) => image.id === mainImage.id);
+        return i >= 0 ? i : 0;
+    }, [images, mainImage]);
+    const lightboxHasMultiple = images.length > 1;
+    const advanceLightboxImage = useCallback(
+        (delta: -1 | 1) => {
+            if (images.length <= 1) {
+                return;
+            }
+            setSelectedImageId((prev) => {
+                const resolved = prev ?? defaultImage?.id ?? images[0]?.id ?? null;
+                if (resolved == null) {
+                    return prev;
+                }
+                const i = images.findIndex((image) => image.id === resolved);
+                const base = i >= 0 ? i : 0;
+                const next = (base + delta + images.length) % images.length;
+                return images[next].id;
+            });
+        },
+        [defaultImage?.id, images, setSelectedImageId],
+    );
     const [isImageLightboxOpen, setIsImageLightboxOpen] = useState(false);
     const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
@@ -297,6 +323,19 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 setIsImageLightboxOpen(false);
+                return;
+            }
+            if (images.length <= 1) {
+                return;
+            }
+            if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                advanceLightboxImage(-1);
+                return;
+            }
+            if (event.key === "ArrowRight") {
+                event.preventDefault();
+                advanceLightboxImage(1);
             }
         };
 
@@ -306,7 +345,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
             document.body.style.overflow = previousOverflow;
             window.removeEventListener("keydown", onKeyDown);
         };
-    }, [isImageLightboxOpen]);
+    }, [advanceLightboxImage, images.length, isImageLightboxOpen]);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -747,7 +786,11 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     <div
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Изображение товара в полном размере"
+                        aria-label={
+                            lightboxHasMultiple
+                                ? "Галерея изображений товара в полном размере"
+                                : "Изображение товара в полном размере"
+                        }
                         className="relative max-h-[96vh] max-w-[96vw] overflow-auto rounded-2xl bg-black/30 p-2 sm:p-3"
                         onClick={(event) => event.stopPropagation()}
                     >
@@ -759,12 +802,75 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         >
                             ×
                         </button>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src={mainImageUrl}
-                            alt={mainImage?.alt?.trim() || product.name}
-                            className="block h-auto w-auto max-h-[92vh] max-w-[92vw]"
-                        />
+                        <div className="flex flex-col items-center gap-3 pt-1">
+                            <div className="relative flex max-w-full items-center justify-center px-10 sm:px-12">
+                                {lightboxHasMultiple ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => advanceLightboxImage(-1)}
+                                        className="absolute left-0 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 sm:left-1"
+                                        aria-label="Предыдущее изображение"
+                                    >
+                                        <ChevronLeft className="h-6 w-6" aria-hidden />
+                                    </button>
+                                ) : null}
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={mainImageUrl}
+                                    alt={mainImage?.alt?.trim() || product.name}
+                                    className="block h-auto w-auto max-h-[min(92vh,720px)] max-w-[92vw] object-contain"
+                                />
+                                {lightboxHasMultiple ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => advanceLightboxImage(1)}
+                                        className="absolute right-0 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 sm:right-1"
+                                        aria-label="Следующее изображение"
+                                    >
+                                        <ChevronRight className="h-6 w-6" aria-hidden />
+                                    </button>
+                                ) : null}
+                            </div>
+                            {lightboxHasMultiple ? (
+                                <>
+                                    <p className="text-center text-xs text-white/75" aria-live="polite">
+                                        {lightboxImageIndex + 1} / {images.length}
+                                    </p>
+                                    <div
+                                        className="flex max-w-[min(92vw,720px)] gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                        aria-label="Миниатюры изображений"
+                                    >
+                                        {images.map((image, index) => {
+                                            const thumbUrl = normalizeProductImageUrl(image.path);
+                                            const isActive = image.id === (mainImage?.id ?? null);
+                                            return (
+                                                <button
+                                                    key={image.id}
+                                                    type="button"
+                                                    onClick={() => setSelectedImageId(image.id)}
+                                                    aria-current={isActive ? "true" : undefined}
+                                                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-white/95 p-0.5 transition ${
+                                                        isActive
+                                                            ? "border-white ring-2 ring-white/90"
+                                                            : "border-white/25 opacity-80 hover:opacity-100"
+                                                    }`}
+                                                    aria-label={`Фото ${index + 1}`}
+                                                >
+                                                    <Image
+                                                        src={thumbUrl}
+                                                        loader={productImageLoader}
+                                                        alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
+                                                        fill
+                                                        sizes="56px"
+                                                        className="object-contain"
+                                                    />
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             ) : null}

@@ -2,6 +2,7 @@
 
 namespace Modules\Users\Http\Controllers\Api;
 
+use Illuminate\Database\Connection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -31,7 +32,10 @@ class AdminUserController extends Controller
             ->withCount('orders')
             ->when($search !== '', function ($query) use ($search) {
                 $digitsSearch = preg_replace('/\D+/', '', $search) ?? '';
-                $driver = $query->getConnection()->getDriverName();
+                $conn = $query->getConnection();
+                $driver = $conn instanceof Connection
+                    ? (string) ($conn->getConfig('driver') ?? '')
+                    : '';
 
                 $query->where(function ($subQuery) use ($search, $digitsSearch, $driver) {
                     $subQuery

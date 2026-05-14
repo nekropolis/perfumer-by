@@ -25,6 +25,9 @@ export async function fetchOrders(params?: {
   from?: string;
   /** YYYY-MM-DD — конец интервала created_at (включительно, конец дня) */
   to?: string;
+  page?: number;
+  /** Только 25, 50 или 100 (остальное API приведёт к 25) */
+  per_page?: number;
 }): Promise<OrdersResponse> {
   const searchParams = new URLSearchParams();
 
@@ -46,6 +49,14 @@ export async function fetchOrders(params?: {
 
   if (params?.to) {
     searchParams.set("to", params.to);
+  }
+
+  if (params?.page != null && params.page > 0) {
+    searchParams.set("page", String(params.page));
+  }
+
+  if (params?.per_page != null && params.per_page > 0) {
+    searchParams.set("per_page", String(params.per_page));
   }
 
   const query = searchParams.toString();

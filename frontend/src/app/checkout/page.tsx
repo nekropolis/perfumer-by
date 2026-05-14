@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
+    CHECKOUT_LINE_SELECTION_STORAGE_KEY,
     createOrder,
     fetchCheckoutQuote,
     fetchCheckoutShopSettings,
     searchCheckoutCities,
     type CheckoutCityHit,
     type CheckoutDeliveryMethod,
+    type CheckoutLineSelectionStored,
     type CheckoutPaymentMethod,
     type CheckoutQuote,
     type CheckoutShopSettings,
@@ -20,6 +22,7 @@ import {
     clearDiscountCard,
     clearGiftCertificate,
     DiscountCardApplyError,
+    fetchCart,
     GiftCertificateApplyError,
     normalizeGiftCertificateCodeInput,
 } from "@/lib/cart-api";
@@ -27,8 +30,13 @@ import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
-import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
+import PhoneInput, {
+    isBelarusPhoneComplete,
+    isPlainByPhoneComplete,
+    normalizePlainByDigitsInput,
+} from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import type { CartData } from "@/types/cart";
 
 function parseMoney(s: string): number {
     const n = Number.parseFloat(s.replace(",", "."));
@@ -49,9 +57,34 @@ const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
     card: "Оплата картой при получении (при доставке по Минску или самовывозе). При оплате картой скидка по накопительной карте не применяется.",
 };
 
+/** Убирает id строк, которых уже нет в корзине (после частичного оформления и т.п.), чтобы quote не слал 422. */
+function sanitizeCheckoutLineSelectionForCart(
+    cart: CartData | null,
+    selection: CheckoutLineSelectionStored | null,
+): CheckoutLineSelectionStored | null {
+    if (!cart || !selection) {
+        return null;
+    }
+    const productIds = new Set(cart.items.map((item) => item.id));
+    const giftLineIds = new Set((cart.gift_certificate_items ?? []).map((row) => row.id));
+    const cartIds = selection.cart_item_ids.filter((id) => productIds.has(id));
+    const giftIds = selection.gift_certificate_cart_item_ids.filter((id) => giftLineIds.has(id));
+    if (cartIds.length === 0 && giftIds.length === 0) {
+        return null;
+    }
+    return { cart_item_ids: cartIds, gift_certificate_cart_item_ids: giftIds };
+}
+
+function selectionSignature(selection: CheckoutLineSelectionStored): string {
+    return JSON.stringify({
+        p: [...selection.cart_item_ids].sort((a, b) => a - b),
+        g: [...selection.gift_certificate_cart_item_ids].sort((a, b) => a - b),
+    });
+}
+
 export default function CheckoutPage() {
     const router = useRouter();
-    const { cart, setCartState } = useCart();
+    const { cart, setCartState, refreshCart } = useCart();
     const { user, isAuthenticated } = useAuth();
 
     const [customerName, setCustomerName] = useState("");
@@ -81,8 +114,75 @@ export default function CheckoutPage() {
     const [discountCardNumber, setDiscountCardNumber] = useState("");
     const [discountCardConflict, setDiscountCardConflict] = useState<string | null>(null);
     const [discountCardApplyError, setDiscountCardApplyError] = useState("");
+    const [checkoutLineFilter, setCheckoutLineFilter] = useState<CheckoutLineSelectionStored | null>(null);
 
-    const phoneIsValid = allowPlainPhone ? isPhoneDigitsComplete(phone) : isBelarusPhoneComplete(phone);
+    const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
+
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(CHECKOUT_LINE_SELECTION_STORAGE_KEY);
+            if (!raw) {
+                return;
+            }
+            sessionStorage.removeItem(CHECKOUT_LINE_SELECTION_STORAGE_KEY);
+            const parsed = JSON.parse(raw) as {
+                cart_item_ids?: unknown;
+                gift_certificate_cart_item_ids?: unknown;
+            };
+            const cartIds = Array.isArray(parsed.cart_item_ids)
+                ? parsed.cart_item_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+                : [];
+            const giftIds = Array.isArray(parsed.gift_certificate_cart_item_ids)
+                ? parsed.gift_certificate_cart_item_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+                : [];
+            if (cartIds.length === 0 && giftIds.length === 0) {
+                return;
+            }
+            queueMicrotask(() => {
+                setCheckoutLineFilter({
+                    cart_item_ids: cartIds,
+                    gift_certificate_cart_item_ids: giftIds,
+                });
+            });
+        } catch {
+            /* ignore */
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!cart || !checkoutLineFilter) {
+            return;
+        }
+        const sanitized = sanitizeCheckoutLineSelectionForCart(cart, checkoutLineFilter);
+        if (sanitized === null) {
+            queueMicrotask(() => {
+                setCheckoutLineFilter(null);
+            });
+            return;
+        }
+        if (selectionSignature(sanitized) !== selectionSignature(checkoutLineFilter)) {
+            queueMicrotask(() => {
+                setCheckoutLineFilter(sanitized);
+            });
+        }
+    }, [cart, checkoutLineFilter]);
+
+    const effectiveCheckoutLineSelection = useMemo(
+        () => sanitizeCheckoutLineSelectionForCart(cart, checkoutLineFilter),
+        [cart, checkoutLineFilter],
+    );
+
+    const checkoutQuotePayload = useMemo(() => {
+        const base = { payment_method: paymentMethod, delivery_method: deliveryMethod };
+        if (!effectiveCheckoutLineSelection) {
+            return base;
+        }
+        return {
+            ...base,
+            cart_item_ids: effectiveCheckoutLineSelection.cart_item_ids,
+            gift_certificate_cart_item_ids: effectiveCheckoutLineSelection.gift_certificate_cart_item_ids,
+        };
+    }, [effectiveCheckoutLineSelection, deliveryMethod, paymentMethod]);
 
     useEffect(() => {
         if (!phone && user?.phone) {
@@ -135,13 +235,13 @@ export default function CheckoutPage() {
         if (!cart?.token) return;
         setQuoteError("");
         try {
-            const r = await fetchCheckoutQuote({ payment_method: paymentMethod, delivery_method: deliveryMethod });
+            const r = await fetchCheckoutQuote(checkoutQuotePayload);
             setQuote(r.data);
         } catch {
             setQuote(null);
             setQuoteError("Не удалось пересчитать заказ");
         }
-    }, [cart?.token, deliveryMethod, paymentMethod]);
+    }, [cart?.token, checkoutQuotePayload]);
 
     useEffect(() => {
         if (!cart) return;
@@ -167,7 +267,7 @@ export default function CheckoutPage() {
         if (!phoneIsValid) {
             setErrorMessage(
                 allowPlainPhone
-                    ? "Введите номер только цифрами (минимум 5 цифр)"
+                    ? "Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после кода страны)."
                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
             );
             return;
@@ -184,29 +284,31 @@ export default function CheckoutPage() {
 
         startTransition(async () => {
             try {
+                const lineSelection = sanitizeCheckoutLineSelectionForCart(cart, checkoutLineFilter);
                 const response = await createOrder({
                     customer_name: customerName,
                     phone,
+                    phone_plain_digits: allowPlainPhone,
                     comment,
                     delivery_method: deliveryMethod,
                     delivery_city: deliveryCity.trim() || cityQuery.trim() || null,
                     delivery_address: orderDeliveryAddress,
                     payment_method: paymentMethod,
+                    ...(lineSelection
+                        ? {
+                              cart_item_ids: lineSelection.cart_item_ids,
+                              gift_certificate_cart_item_ids: lineSelection.gift_certificate_cart_item_ids,
+                          }
+                        : {}),
                 });
 
-                setCartState({
-                    id: cart?.id ?? 0,
-                    token: cart?.token ?? "",
-                    qty: 0,
-                    subtotal: "0.00",
-                    products_subtotal: "0.00",
-                    gift_certificates_subtotal: "0.00",
-                    total: "0.00",
-                    gift_certificate: null,
-                    discount_card: null,
-                    items: [],
-                    gift_certificate_items: [],
-                });
+                setCheckoutLineFilter(null);
+                try {
+                    const cartResponse = await fetchCart();
+                    setCartState(cartResponse.data);
+                } catch {
+                    await refreshCart();
+                }
 
                 router.push(`/checkout/success?order=${response.data.id}`);
             } catch (error) {
@@ -307,7 +409,9 @@ export default function CheckoutPage() {
                                     checked={allowPlainPhone}
                                     onChange={(e) => {
                                         setAllowPlainPhone(e.target.checked);
-                                        setPhone((prev) => prev.replace(/\D/g, ""));
+                                        setPhone((prev) =>
+                                            e.target.checked ? normalizePlainByDigitsInput(prev) : prev,
+                                        );
                                     }}
                                     className="peer sr-only"
                                 />

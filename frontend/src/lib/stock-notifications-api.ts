@@ -31,6 +31,7 @@ export type CreateStockNotificationPayload = {
     product_id: number;
     variant_id?: number | null;
     phone: string;
+    phone_plain_digits?: boolean;
     comment?: string;
 };
 
@@ -38,6 +39,7 @@ export type CreateCallbackRequestPayload = {
     product_id?: number | null;
     variant_id?: number | null;
     phone: string;
+    phone_plain_digits?: boolean;
     comment?: string;
 };
 

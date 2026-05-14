@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
+import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -52,17 +53,7 @@ export default function AdminHeader({
     const debouncedQuickPhone = useDebouncedValue(quickPhone, 250);
 
     const digitsOnly = useCallback((s: string) => s.replace(/\D+/g, ""), []);
-    const clampNationalDigits = useCallback((s: string) => digitsOnly(s).slice(0, 9), [digitsOnly]);
-    const nationalFromAnyPhone = (phoneRaw: string) => {
-        const digits = digitsOnly(phoneRaw);
-        if (digits.startsWith("375")) {
-            return digits.slice(3, 12);
-        }
-        if (digits.length >= 9) {
-            return digits.slice(-9);
-        }
-        return digits.slice(0, 9);
-    };
+    const clampNationalDigits = useCallback((s: string) => clampBelarusNationalDigits(s), []);
     const formatNationalDisplay = (national: string) => {
         const d = clampNationalDigits(national);
         if (d.length <= 2) return d;
@@ -74,7 +65,7 @@ export default function AdminHeader({
     const showQuickPhoneHits = quickPhoneFocused && clampNationalDigits(quickPhone).length >= 5;
 
     const openCreateOrderWithPhone = (phoneDigits: string) => {
-        const normalized = `375${clampNationalDigits(nationalFromAnyPhone(phoneDigits))}`;
+        const normalized = `375${clampNationalDigits(phoneDigits)}`;
         if (normalized.length < 6) return;
         router.push(`/admin/orders/create?phone=${encodeURIComponent(normalized)}`);
         setQuickPhoneFocused(false);

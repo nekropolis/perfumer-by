@@ -22,6 +22,7 @@ import {
 } from "@/lib/admin-products-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
+import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 
 const DELIVERY_OPTIONS = [
@@ -29,6 +30,9 @@ const DELIVERY_OPTIONS = [
   { value: "belarus_courier", label: "Курьер по РБ" },
   { value: "pickup", label: "Самовывоз" },
 ] as const;
+
+/** Для «Курьер по Минску» населённый пункт в заказе всегда фиксирован. */
+const MINSK_COURIER_CITY = "Минск";
 
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Наличными" },
@@ -58,9 +62,9 @@ const PHONE_PREFIX = "375";
 /** Код оператора (2) + 3 цифры номера — только тогда запрашиваем и показываем клиентов. */
 const PHONE_CLIENT_HINT_MIN_NATIONAL = 5;
 
-/** Только 9 цифр после +375 (код оператора + номер). */
+/** Только 9 цифр после +375 (код оператора + номер); при вставке с 375 префикс отбрасывается. */
 function clampNationalDigits(s: string): string {
-  return digitsOnly(s).slice(0, 9);
+  return clampBelarusNationalDigits(s);
 }
 
 function fullPhoneFromNational(national: string): string {
@@ -111,6 +115,15 @@ function emptyLine(): OrderLine {
   };
 }
 
+function isCompleteOrderLine(l: OrderLine): boolean {
+  return Boolean(l.product_id && l.variant_id && l.product_name.trim());
+}
+
+/** Строка «Позиция N», в которую ничего не ввели — не валидируем и не отправляем. */
+function isBlankOrderLine(l: OrderLine): boolean {
+  return !l.product_id && !l.variant_id && !l.product_name.trim();
+}
+
 function nationalFromStoredPhone(phone: string): string {
   const d = digitsOnly(phone);
   if (d.startsWith(PHONE_PREFIX)) return d.slice(PHONE_PREFIX.length).slice(0, 9);
@@ -150,6 +163,15 @@ function normalizePayment(v: string | null | undefined): PaymentValue {
 function variantsInStock(detail: ProductAdminDetail | undefined) {
   const variants = detail?.variants ?? [];
   return variants.filter((variant) => variant.is_available || variant.is_preorder);
+}
+
+/** Все варианты товара для ручного заказа; сначала с наличием / предзаказом. */
+function orderableProductVariants(detail: ProductAdminDetail | undefined) {
+  const list = detail?.variants ?? [];
+  return [...list].sort((a, b) => {
+    const score = (v: (typeof list)[number]) => (v.is_available || v.is_preorder ? 1 : 0);
+    return score(b) - score(a);
+  });
 }
 
 /** Подсветка вхождения запроса (без regex по юникоду). */
@@ -232,7 +254,11 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   const [customerName, setCustomerName] = useState(() => initialOrder?.customer_name ?? "");
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
-  const [deliveryCity, setDeliveryCity] = useState(() => initialOrder?.delivery_city ?? "");
+  const [deliveryCity, setDeliveryCity] = useState(() => {
+    const method = normalizeDelivery(initialOrder?.delivery_method);
+    if (method === "minsk_courier") return MINSK_COURIER_CITY;
+    return initialOrder?.delivery_city ?? "";
+  });
   const [citySelect, setCitySelect] = useState<string>("");
   const [deliveryAddress, setDeliveryAddress] = useState(() => initialOrder?.delivery_address ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
@@ -322,6 +348,10 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
   const handleDeliveryMethodChange = useCallback((value: DeliveryValue) => {
     setDeliveryMethod(value);
+    if (value === "minsk_courier") {
+      setDeliveryCity(MINSK_COURIER_CITY);
+      setCitySelect("");
+    }
     if (value === "belarus_courier") {
       setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
     }
@@ -503,6 +533,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
   const openProductPicker = (lineIdx: number) => {
     if (itemsLocked) return;
+    setError("");
     setActiveLine(lineIdx);
     setPickerProductId(null);
     const row = lines[lineIdx];
@@ -515,6 +546,13 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     setProductHits([]);
     try {
       const detail = await loadProductDetail(hit.id);
+      if (!detail.variants?.length) {
+        setError("У этого товара нет вариантов — в заказ добавить нельзя. Выберите другой товар.");
+        setPickerProductId(null);
+        setProductQuery(hit.name);
+        return;
+      }
+      setError("");
       setPickerProductId(hit.id);
       setProductQuery(detail.name);
       setLines((prev) =>
@@ -578,10 +616,11 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   };
 
   const resolvedCity = useMemo(() => {
+    if (deliveryMethod === "minsk_courier") return MINSK_COURIER_CITY;
     if (citySelect === "__new__") return deliveryCity.trim();
     if (citySelect) return citySelect;
     return deliveryCity.trim();
-  }, [citySelect, deliveryCity]);
+  }, [deliveryMethod, citySelect, deliveryCity]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -591,8 +630,14 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       setError("Введите 9 цифр после +375 (код 25, 29, 33 или 44)");
       return;
     }
-    if (lines.some((l) => !l.product_id || !l.variant_id || !l.product_name.trim())) {
-      setError("У каждой позиции выберите товар и вариант с наличием");
+    const hasIncompleteLine = lines.some((l) => !isBlankOrderLine(l) && !isCompleteOrderLine(l));
+    if (hasIncompleteLine) {
+      setError("У каждой позиции выберите товар и вариант");
+      return;
+    }
+    const filledLines = lines.filter(isCompleteOrderLine);
+    if (filledLines.length === 0) {
+      setError("Добавьте хотя бы одну позицию: выберите товар и вариант");
       return;
     }
     if (deliveryMethod !== "pickup") {
@@ -618,7 +663,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       delivery_address: addr,
       delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       payment_method: paymentMethod,
-      items: lines.map((item) => ({
+      items: filledLines.map((item) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
         product_name: item.product_name.trim(),
@@ -889,7 +934,20 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
         {deliveryMethod !== "pickup" ? (
           <>
-            {showCitySelect ? (
+            {deliveryMethod === "minsk_courier" ? (
+              <div>
+                <label className="block text-sm text-gray-600">Населённый пункт</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={MINSK_COURIER_CITY}
+                  tabIndex={-1}
+                  className="mt-1 w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900"
+                  aria-readonly="true"
+                />
+                <p className="mt-1 text-xs text-gray-500">Для курьера по Минску всегда указывается {MINSK_COURIER_CITY}.</p>
+              </div>
+            ) : showCitySelect ? (
               <div className="space-y-2">
                 <label className="block text-sm text-gray-600">Населённый пункт</label>
                 <select
@@ -922,17 +980,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                 <div className="text-sm text-gray-600">Населённый пункт</div>
                 <div className="mt-1">{belarusCitySearch}</div>
               </div>
-            ) : (
-              <label className="block text-sm text-gray-600">
-                Населённый пункт
-                <input
-                  value={deliveryCity}
-                  onChange={(e) => setDeliveryCity(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                  placeholder="Город"
-                />
-              </label>
-            )}
+            ) : null}
 
             <label className="block text-sm text-gray-600">
               Адрес доставки *
@@ -1005,6 +1053,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
         {lines.map((line, idx) => {
           const detail = line.product_id ? detailsByProductId[line.product_id] : undefined;
           const inStock = variantsInStock(detail);
+          const variantChoices = orderableProductVariants(detail);
           const showPicker = activeLine === idx;
           /** Сразу после выбора товара из выпадающего списка — прячем результаты поиска, пока не выбран вариант (или не сбросили picker фокусом). */
           const variantSelectionFromHit = Boolean(
@@ -1153,48 +1202,71 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                   </div>
 
                   {pickerProductId && line.product_id === pickerProductId && detail ? (
-                    <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-2">
-                      <div className="mb-1 text-xs font-medium text-gray-600">Вариант с наличием</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(inStock.length ? inStock : detail.variants ?? []).map((v) => {
-                          const tipLine2 = v.fulfillment_tooltip?.trim() ?? "";
-                          return (
-                            <button
-                              key={v.id}
-                              type="button"
-                              onMouseEnter={(e) => {
-                                const r = e.currentTarget.getBoundingClientRect();
-                                setVariantTooltip({
-                                  x: r.left + r.width / 2,
-                                  y: r.top,
-                                  product: detail.name,
-                                  line2: tipLine2 || "Канал отгрузки не указан",
-                                });
-                              }}
-                              onMouseLeave={() => setVariantTooltip(null)}
-                              onFocus={(e) => {
-                                const r = e.currentTarget.getBoundingClientRect();
-                                setVariantTooltip({
-                                  x: r.left + r.width / 2,
-                                  y: r.top,
-                                  product: detail.name,
-                                  line2: tipLine2 || "Канал отгрузки не указан",
-                                });
-                              }}
-                              onBlur={() => setVariantTooltip(null)}
-                              onClick={() => pickVariantForLine(idx, detail, v.id)}
-                              className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-left text-xs hover:border-gray-400"
-                            >
-                              <div className="font-medium text-gray-900">{v.title || v.display_name}</div>
-                              <div className="text-gray-500">
-                                {v.price != null ? `${v.price} руб.` : "нет в наличии"}
-                                {typeof v.available_stock === "number" ? ` · ост. ${v.available_stock}` : ""}
-                              </div>
-                            </button>
-                          );
-                        })}
+                    variantChoices.length === 0 ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-sm text-gray-900">
+                        <div className="font-medium">У товара нет вариантов</div>
+                        <p className="mt-1 text-xs text-gray-700">Такой товар в заказ добавить нельзя. Выберите другой в поле поиска выше.</p>
+                        <button
+                          type="button"
+                          className="mt-2 text-xs font-medium text-gray-700 underline decoration-gray-400 underline-offset-2 hover:text-gray-900"
+                          onClick={() => openProductPicker(idx)}
+                        >
+                          Сменить товар
+                        </button>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="rounded-lg border border-gray-100 bg-gray-50/60 p-2">
+                        <div className="mb-1 text-xs font-medium text-gray-600">Выберите вариант</div>
+                        {inStock.length === 0 ? (
+                          <p className="mb-2 text-xs text-amber-900/90">
+                            Сейчас ни у одного варианта нет в наличии — для ручного заказа можно выбрать любой вариант.
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap gap-1.5">
+                          {variantChoices.map((v) => {
+                            const tipLine2 = v.fulfillment_tooltip?.trim() ?? "";
+                            const available = Boolean(v.is_available || v.is_preorder);
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onMouseEnter={(e) => {
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  setVariantTooltip({
+                                    x: r.left + r.width / 2,
+                                    y: r.top,
+                                    product: detail.name,
+                                    line2: tipLine2 || "Канал отгрузки не указан",
+                                  });
+                                }}
+                                onMouseLeave={() => setVariantTooltip(null)}
+                                onFocus={(e) => {
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  setVariantTooltip({
+                                    x: r.left + r.width / 2,
+                                    y: r.top,
+                                    product: detail.name,
+                                    line2: tipLine2 || "Канал отгрузки не указан",
+                                  });
+                                }}
+                                onBlur={() => setVariantTooltip(null)}
+                                onClick={() => pickVariantForLine(idx, detail, v.id)}
+                                className={`rounded-lg border bg-white px-2 py-1 text-left text-xs hover:border-gray-400 ${available ? "border-gray-200" : "border-amber-200/80 bg-amber-50/40"}`}
+                              >
+                                <div className="font-medium text-gray-900">{v.title || v.display_name}</div>
+                                <div className="text-gray-500">
+                                  {v.price != null ? `${v.price} руб.` : "нет в наличии"}
+                                  {typeof v.available_stock === "number" ? ` · ост. ${v.available_stock}` : ""}
+                                  {!available ? (
+                                    <span className="block text-[10px] text-amber-900/90">Нет в наличии</span>
+                                  ) : null}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )
                   ) : null}
                 </div>
               )}

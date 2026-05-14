@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     fetchAdminStockNotifications,
     updateAdminStockNotificationStatus,
@@ -33,8 +33,8 @@ const STATUS_LABEL: Record<string, string> = STATUS_OPTIONS.reduce(
 );
 
 const KIND_OPTIONS: { value: CustomerRequestKind; label: string }[] = [
-    { value: "back_in_stock", label: "Сообщить о появлении" },
-    { value: "callback", label: "Заказать звонок" },
+    { value: "back_in_stock", label: "Наличие" },
+    { value: "callback", label: "Звонок" },
 ];
 
 const KIND_LABEL: Record<string, string> = KIND_OPTIONS.reduce(
@@ -46,28 +46,33 @@ const KIND_BADGE_CLASS: Record<string, string> = {
     back_in_stock: "bg-amber-50 text-amber-800 border border-amber-200",
     callback: "bg-emerald-50 text-emerald-800 border border-emerald-200",
 };
-const STATUS_DROPDOWN_WIDTH_CLASS = "w-[176px]";
-const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
+const STATUS_DROPDOWN_WIDTH_CLASS = "w-[124px]";
+const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[188px]";
 
-function formatDate(iso: string | null): string {
-    if (!iso) return "—";
+function splitDateTimeForTable(iso: string | null): { date: string; time: string } | null {
+    if (!iso) return null;
     try {
         const date = new Date(iso);
-        return date.toLocaleString("ru-RU", {
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        const datePart = date.toLocaleDateString("ru-RU", {
             day: "2-digit",
             month: "2-digit",
-            year: "numeric",
+            year: "2-digit",
+        });
+        const timePart = date.toLocaleTimeString("ru-RU", {
             hour: "2-digit",
             minute: "2-digit",
         });
+        return { date: datePart, time: timePart };
     } catch {
-        return iso;
+        return null;
     }
 }
 
 export default function AdminStockNotificationsPage() {
     const searchParams = useSearchParams();
-    const kindFromUrl = searchParams.get("kind") || "";
 
     const [items, setItems] = useState<StockNotificationRequestData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -78,19 +83,9 @@ export default function AdminStockNotificationsPage() {
         () => searchParams.get("search") ?? "",
     );
     const [statusFilter, setStatusFilter] = useState("");
-    const [kindFilter, setKindFilter] = useState<string>(kindFromUrl);
-
-    useEffect(() => {
-        setKindFilter(kindFromUrl);
-    }, [kindFromUrl]);
+    const [kindFilter, setKindFilter] = useState("");
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
-
-    const pageTitle = useMemo(() => {
-        if (kindFilter === "callback") return "Заказы звонков";
-        if (kindFilter === "back_in_stock") return "Запросы на поступление";
-        return "Запросы клиентов";
-    }, [kindFilter]);
 
     const load = useCallback(async () => {
         try {
@@ -138,8 +133,8 @@ export default function AdminStockNotificationsPage() {
     return (
         <AdminPageCard>
             <AdminTableToolbar
-                title={pageTitle}
-                description="Обращения клиентов: «Сообщить о появлении» и «Заказать звонок». Свяжитесь с клиентом и переведите запрос в статус «Обработан»."
+                title="Запросы товаров"
+                description="Заявки «Сообщить о появлении» и «Заказать звонок» в одном списке. Отфильтруйте по типу при необходимости. Свяжитесь с клиентом и переведите запрос в «Обработан»."
             >
                 <AdminSearchInput
                     value={searchInput}
@@ -177,23 +172,35 @@ export default function AdminStockNotificationsPage() {
             {!loading && items.length === 0 && (
                 <AdminEmptyState
                     title="Запросов пока нет"
-                    description="Когда клиенты будут оставлять заявки «Сообщить о появлении», они появятся здесь."
+                    description="Когда клиенты оставят заявку «Сообщить о появлении» или «Заказать звонок», она появится в этой таблице."
                 />
             )}
 
             {!loading && items.length > 0 && (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
+                <div className="min-w-0 overflow-x-auto lg:overflow-x-visible">
+                    <table className="w-full min-w-[680px] border-collapse text-left text-sm lg:min-w-0 lg:table-fixed">
+                        {/*
+                          Явные доли колонок + overflow-hidden в ячейках (кроме статуса),
+                          иначе при table-fixed кнопки/бейджи визуально «наезжают» на соседние колонки.
+                        */}
+                        <colgroup>
+                            <col style={{ width: "8%" }} />
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "20%" }} />
+                            <col style={{ width: "18%" }} />
+                            <col style={{ width: "17%" }} />
+                            <col style={{ width: "14%" }} />
+                        </colgroup>
                         <thead>
                             <tr className="border-b text-left text-gray-500">
-                                <th className="px-4 py-3">#</th>
-                                <th className="px-4 py-3">Дата</th>
-                                <th className="px-4 py-3">Тип</th>
-                                <th className="px-4 py-3">Товар</th>
-                                <th className="px-4 py-3">Вариант</th>
-                                <th className="px-4 py-3">Телефон</th>
-                                <th className="px-4 py-3">Комментарий</th>
-                                <th className="w-[200px] px-4 py-3">Статус</th>
+                                <th className="overflow-hidden px-2 py-2">#</th>
+                                <th className="overflow-hidden px-2 py-2">Дата</th>
+                                <th className="overflow-hidden px-2 py-2">Тип</th>
+                                <th className="overflow-hidden px-2 py-2">Товар / вариант</th>
+                                <th className="overflow-hidden px-2 py-2">Телефон</th>
+                                <th className="overflow-hidden px-2 py-2">Комментарий</th>
+                                <th className="px-2 py-2">Статус</th>
                             </tr>
                         </thead>
                         <tbody className="align-top">
@@ -202,70 +209,99 @@ export default function AdminStockNotificationsPage() {
                                     item.product?.slug != null
                                         ? `/product/${item.product.slug}`
                                         : null;
+                                const kindFull = KIND_LABEL[item.kind] ?? item.kind;
+
+                                const dateParts = splitDateTimeForTable(item.created_at);
 
                                 return (
                                     <tr key={item.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3 font-medium">
+                                        <td className="max-w-0 overflow-hidden px-2 py-2 font-medium">
                                             <CopyText
                                                 value={String(item.id)}
                                                 label={`#${item.id}`}
                                                 title="Скопировать номер запроса"
+                                                className="max-w-full min-w-0"
                                             />
                                         </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                                            {formatDate(item.created_at)}
+                                        <td className="max-w-0 overflow-hidden px-2 py-2 leading-tight text-gray-900">
+                                            {dateParts ? (
+                                                <>
+                                                    <div className="whitespace-nowrap text-xs tabular-nums lg:text-sm">
+                                                        {dateParts.date}
+                                                    </div>
+                                                    <div className="mt-0.5 whitespace-nowrap text-[10px] tabular-nums text-gray-500 lg:text-[11px]">
+                                                        {dateParts.time}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">—</span>
+                                            )}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2">
                                             <span
-                                                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                                    KIND_BADGE_CLASS[item.kind] ??
-                                                    "bg-gray-50 text-gray-700 border border-gray-200"
-                                                }`}
+                                                title={kindFull}
+                                                className={`box-border block w-full max-w-full overflow-hidden rounded-full px-1.5 py-0.5 text-center text-[10px] font-medium leading-snug break-words line-clamp-2 ${KIND_BADGE_CLASS[item.kind] ??
+                                                    "border border-gray-200 bg-gray-50 text-gray-700"
+                                                    }`}
                                             >
-                                                {KIND_LABEL[item.kind] ?? item.kind}
+                                                {kindFull}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2">
+                                            <div className="min-w-0 truncate font-medium">
                                                 {productHref ? (
                                                     <Link
                                                         href={productHref}
                                                         target="_blank"
                                                         className="hover:underline"
+                                                        title={item.product_name ?? undefined}
                                                     >
                                                         {item.product_name || "—"}
                                                     </Link>
                                                 ) : (
-                                                    item.product_name || "—"
+                                                    <span title={item.product_name ?? undefined}>
+                                                        {item.product_name || "—"}
+                                                    </span>
                                                 )}
                                             </div>
-                                            {item.product_id && (
-                                                <div className="mt-0.5 text-xs text-gray-400">
-                                                    ID: {item.product_id}
+                                            {item.variant_title ? (
+                                                <div
+                                                    className="mt-0.5 truncate text-xs text-gray-600"
+                                                    title={item.variant_title}
+                                                >
+                                                    {item.variant_title}
                                                 </div>
+                                            ) : (
+                                                <div className="mt-0.5 text-xs text-gray-400">—</div>
                                             )}
+                                            {item.product_id ? (
+                                                <div className="mt-0.5 text-[11px] text-gray-400">
+                                                    ID {item.product_id}
+                                                </div>
+                                            ) : null}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-700">
-                                            {item.variant_title || "—"}
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-xs text-gray-800">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 font-mono text-[11px] text-gray-800 lg:text-xs">
                                             <CopyText
                                                 value={item.phone}
                                                 label={item.phone}
                                                 title="Скопировать номер"
                                                 iconSize={12}
+                                                className="flex w-full min-w-0 max-w-full justify-start overflow-hidden [&>span.tabular-nums]:min-w-0 [&>span.tabular-nums]:truncate"
                                             />
                                         </td>
-                                        <td className="max-w-xs px-4 py-3 text-gray-700">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 text-gray-700">
                                             {item.comment ? (
-                                                <div className="whitespace-pre-line break-words text-sm">
+                                                <div
+                                                    className="line-clamp-3 whitespace-pre-line break-words text-xs lg:text-sm"
+                                                    title={item.comment}
+                                                >
                                                     {item.comment}
                                                 </div>
                                             ) : (
                                                 <span className="text-gray-400">—</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="min-w-0 overflow-visible px-2 py-2">
                                             <AdminStatusDropdown
                                                 value={item.status}
                                                 options={[

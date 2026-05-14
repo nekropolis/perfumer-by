@@ -23,6 +23,10 @@ class CheckoutQuoteController extends Controller
                 CheckoutDeliveryService::METHOD_BELARUS,
                 CheckoutDeliveryService::METHOD_PICKUP,
             ])],
+            'cart_item_ids' => ['sometimes', 'array'],
+            'cart_item_ids.*' => ['integer', 'min:1'],
+            'gift_certificate_cart_item_ids' => ['sometimes', 'array'],
+            'gift_certificate_cart_item_ids.*' => ['integer', 'min:1'],
         ]);
 
         $cartToken = $request->header('X-Cart-Token') ?: $request->input('cart_token') ?: ($validated['cart_token'] ?? null);
@@ -35,8 +39,35 @@ class CheckoutQuoteController extends Controller
 
         abort_if(!$cart, 422, 'Cart not found');
 
+        $subsetMode = $request->has('cart_item_ids') || $request->has('gift_certificate_cart_item_ids');
+        $cartItemIds = $subsetMode
+            ? array_values(array_map('intval', $validated['cart_item_ids'] ?? []))
+            : null;
+        $giftItemIds = $subsetMode
+            ? array_values(array_map('intval', $validated['gift_certificate_cart_item_ids'] ?? []))
+            : null;
+
+        if ($subsetMode) {
+            abort_if($cartItemIds === [] && $giftItemIds === [], 422, 'Выберите хотя бы одну позицию для оформления');
+            $allowedProduct = $cart->items->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($cartItemIds as $id) {
+                abort_if(!in_array($id, $allowedProduct, true), 422, 'Некорректная позиция корзины');
+            }
+            $allowedGift = $cart->giftCertificateItems->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($giftItemIds as $id) {
+                abort_if(!in_array($id, $allowedGift, true), 422, 'Некорректная позиция подарочного сертификата');
+            }
+        }
+
         $user = $request->user() ?? Auth::guard('sanctum')->user();
-        $quote = $quoteService->quote($cart, $user, $validated['payment_method'], $validated['delivery_method']);
+        $quote = $quoteService->quote(
+            $cart,
+            $user,
+            $validated['payment_method'],
+            $validated['delivery_method'],
+            $cartItemIds,
+            $giftItemIds,
+        );
 
         return response()->json([
             'data' => [

@@ -15,14 +15,14 @@ class LoyaltyPricingService
     ) {}
 
     /**
-     * @param  array{payment_method?: string}  $options
+     * @param  array{payment_method?: string, checkout_cart_item_ids?: int[]|null}  $options
      */
     public function syncGiftCertificateReserveForCart(Cart $cart, ?CustomerUser $user = null, array $options = []): void
     {
         $paymentMethod = (string) ($options['payment_method'] ?? 'cash');
         $applyCardDiscount = $paymentMethod !== 'card';
 
-        $subtotal = $this->cartSubtotal($cart);
+        $subtotal = $this->cartSubtotal($cart, $options['checkout_cart_item_ids'] ?? null);
         $loyaltyDiscount = $this->loyaltyDiscountAmount($cart, $user, $subtotal, $applyCardDiscount);
         $payableBeforeCert = max(0, round($subtotal - $loyaltyDiscount, 2));
 
@@ -47,9 +47,14 @@ class LoyaltyPricingService
     }
 
     /**
-     * @param  array{payment_method?: string}  $options
+     * @param  array{
+     *     payment_method?: string,
+     *     checkout_cart_item_ids?: int[]|null,
+     * }  $options
      *                         payment_method: cash|card — при card скидка по карте не начисляется,
      *                         но карта из корзины/аккаунта всё равно возвращается в discount_card для снимка заказа и лояльности при completed.
+     *                         checkout_cart_item_ids: при непустом массиве — только эти строки корзины (id cart_items) в сумме и в резерве сертификата;
+     *                         при null — все строки (поведение по умолчанию).
      */
     public function calculateForCart(Cart $cart, ?CustomerUser $user = null, array $options = []): array
     {
@@ -59,7 +64,7 @@ class LoyaltyPricingService
         $this->syncGiftCertificateReserveForCart($cart, $user, $options);
         $cart->refresh();
 
-        $subtotal = $this->cartSubtotal($cart);
+        $subtotal = $this->cartSubtotal($cart, $options['checkout_cart_item_ids'] ?? null);
         $resolvedCard = $this->resolveDiscountCard($cart, $user);
         $cardForDiscount = $applyCardDiscount ? $resolvedCard : null;
         $cardPercent = $cardForDiscount
@@ -147,9 +152,21 @@ class LoyaltyPricingService
             ->first();
     }
 
-    private function cartSubtotal(Cart $cart): float
+    /**
+     * @param  int[]|null  $onlyCartItemIds  null — все позиции; [] — сумма товаров 0; иначе только id строк корзины.
+     */
+    private function cartSubtotal(Cart $cart, ?array $onlyCartItemIds = null): float
     {
-        return (float) $cart->items->sum(function ($item) {
+        $rows = $cart->items;
+        if ($onlyCartItemIds !== null) {
+            if ($onlyCartItemIds === []) {
+                return 0.0;
+            }
+            $allowed = array_fill_keys(array_map('intval', $onlyCartItemIds), true);
+            $rows = $rows->filter(fn ($item) => isset($allowed[(int) $item->id]));
+        }
+
+        return (float) $rows->sum(function ($item) {
             return ((float) ($item->variant?->price ?? 0)) * (int) $item->qty;
         });
     }

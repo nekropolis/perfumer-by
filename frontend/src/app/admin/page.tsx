@@ -129,27 +129,20 @@ export default function AdminPage() {
             })),
         [activeOrderStatusRows]
     );
-    const backInStockStatusLines = useMemo<StatusLine[]>(
-        () =>
-            Object.entries(stats?.active.back_in_stock_by_status ?? {})
-                .sort((a, b) => b[1] - a[1])
-                .map(([status, count]) => ({
-                    key: status,
-                    label: STATUS_LABEL[status] ?? status,
-                    count,
-                })),
-        [stats]
-    );
-    const callbackStatusLines = useMemo<StatusLine[]>(
-        () =>
-            Object.entries(stats?.active.callback_by_status ?? {})
-                .sort((a, b) => b[1] - a[1])
-                .map(([status, count]) => ({
-                    key: status,
-                    label: STATUS_LABEL[status] ?? status,
-                    count,
-                })),
-        [stats]
+    const productRequestLines = useMemo<StatusLine[]>(
+        () => [
+            {
+                key: "back_in_stock",
+                label: "Наличие",
+                count: stats?.active.back_in_stock_requests ?? 0,
+            },
+            {
+                key: "callback",
+                label: "Звонок",
+                count: stats?.active.callback_requests ?? 0,
+            },
+        ],
+        [stats],
     );
 
     const timelineRows = useMemo(() => {
@@ -257,7 +250,7 @@ export default function AdminPage() {
             <div className="space-y-8">
                 <section className="rounded-2xl border bg-gray-50 p-5">
                     <div className="mb-4 text-lg font-semibold">Активные задачи</div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <MetricCard
                             title="Заказы"
                             value={stats?.active.orders ?? null}
@@ -266,18 +259,16 @@ export default function AdminPage() {
                             lines={orderStatusLines}
                         />
                         <MetricCard
-                            title="Запросы на поступление"
-                            value={stats?.active.back_in_stock_requests ?? null}
+                            title="Запросы товаров"
+                            value={
+                                stats == null
+                                    ? null
+                                    : (stats.active.back_in_stock_requests ?? 0) +
+                                    (stats.active.callback_requests ?? 0)
+                            }
                             loading={loadingStats}
-                            href="/admin/stock-notifications?kind=back_in_stock"
-                            lines={backInStockStatusLines}
-                        />
-                        <MetricCard
-                            title="Заказы звонков"
-                            value={stats?.active.callback_requests ?? null}
-                            loading={loadingStats}
-                            href="/admin/stock-notifications?kind=callback"
-                            lines={callbackStatusLines}
+                            href="/admin/stock-notifications"
+                            lines={productRequestLines}
                         />
                     </div>
                 </section>

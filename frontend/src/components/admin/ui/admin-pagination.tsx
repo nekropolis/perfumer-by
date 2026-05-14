@@ -28,7 +28,7 @@ export default function AdminPagination({
                 Назад
             </button>
 
-            <div className="text-sm text-gray-500">
+            <div className="text-sm p-2 text-gray-500">
                 Страница {currentPage} из {lastPage}
             </div>
 

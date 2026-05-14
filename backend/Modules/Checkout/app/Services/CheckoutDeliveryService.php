@@ -17,12 +17,15 @@ final class CheckoutDeliveryService
         private readonly ShopSettingService $shopSettings,
     ) {}
 
-    public function deliveryFee(Cart $cart, string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount): float
+    /**
+     * @param  int[]|null  $checkoutCartItemIds  null — все строки товаров в корзине; иначе только id cart_items для подсчёта «наименований» по РБ.
+     */
+    public function deliveryFee(Cart $cart, string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount, ?array $checkoutCartItemIds = null): float
     {
         return match ($deliveryMethod) {
             self::METHOD_PICKUP => 0.0,
             self::METHOD_MINSK => $this->minskCourierFee($merchandiseAfterLoyaltyDiscount),
-            self::METHOD_BELARUS => $this->belarusCourierFee($cart),
+            self::METHOD_BELARUS => $this->belarusCourierFee($cart, $checkoutCartItemIds),
             default => 0.0,
         };
     }
@@ -38,13 +41,23 @@ final class CheckoutDeliveryService
         return $fee;
     }
 
-    private function belarusCourierFee(Cart $cart): float
+    private function belarusCourierFee(Cart $cart, ?array $checkoutCartItemIds = null): float
     {
         $minLines = max(1, $this->shopSettings->getInt('delivery_belarus_free_min_lines', 2));
         $fee = $this->shopSettings->getDecimal('delivery_belarus_fee', 6);
 
+        $rows = $cart->items;
+        if ($checkoutCartItemIds !== null) {
+            if ($checkoutCartItemIds === []) {
+                $rows = collect();
+            } else {
+                $allowed = array_fill_keys(array_map('intval', $checkoutCartItemIds), true);
+                $rows = $rows->filter(fn ($item) => isset($allowed[(int) $item->id]));
+            }
+        }
+
         $eligibleLines = 0;
-        foreach ($cart->items as $item) {
+        foreach ($rows as $item) {
             $variant = $item->variant;
             if (!$variant) {
                 continue;

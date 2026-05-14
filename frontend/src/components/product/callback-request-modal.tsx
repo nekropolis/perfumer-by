@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PhoneCall, X } from "lucide-react";
-import PhoneInput, { isBelarusPhoneComplete, isPhoneDigitsComplete } from "@/components/ui/phone-input";
+import PhoneInput, {
+    isBelarusPhoneComplete,
+    isPlainByPhoneComplete,
+    normalizePlainByDigitsInput,
+} from "@/components/ui/phone-input";
 import { createCallbackRequest } from "@/lib/stock-notifications-api";
 
 type Props = {
@@ -70,7 +74,7 @@ export default function CallbackRequestModal({
         return null;
     }
 
-    const phoneIsValid = allowPlainPhone ? isPhoneDigitsComplete(phone) : isBelarusPhoneComplete(phone);
+    const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -82,7 +86,7 @@ export default function CallbackRequestModal({
         if (!phoneIsValid) {
             setErrorMessage(
                 allowPlainPhone
-                    ? "Введите номер только цифрами (минимум 5 цифр)"
+                    ? "Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после кода страны)."
                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
             );
             return;
@@ -95,6 +99,7 @@ export default function CallbackRequestModal({
                 product_id: productId ?? null,
                 variant_id: variantId ?? null,
                 phone,
+                phone_plain_digits: allowPlainPhone,
             });
 
             setSuccessMessage(
@@ -213,7 +218,9 @@ export default function CallbackRequestModal({
                                         checked={allowPlainPhone}
                                         onChange={(e) => {
                                             setAllowPlainPhone(e.target.checked);
-                                            setPhone((prev) => prev.replace(/\D/g, ""));
+                                            setPhone((prev) =>
+                                                e.target.checked ? normalizePlainByDigitsInput(prev) : prev,
+                                            );
                                         }}
                                         className="peer sr-only"
                                     />
@@ -234,11 +241,6 @@ export default function CallbackRequestModal({
                                 </label>
                             </div>
                             <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
-                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                {allowPlainPhone
-                                    ? "Только цифры, минимум 5 символов"
-                                    : "Формат: +375 (25/29/33/44) XXX-XX-XX"}
-                            </p>
                         </div>
 
                         {errorMessage && (

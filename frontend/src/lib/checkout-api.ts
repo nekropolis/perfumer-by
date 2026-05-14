@@ -15,11 +15,24 @@ export type CheckoutPaymentMethod = "cash" | "card";
 export type CheckoutPayload = {
     customer_name?: string;
     phone: string;
+    /** Режим «нет мобильного»: номер только цифрами, 375 + любые 5–14 цифр, без проверки кода оператора. */
+    phone_plain_digits?: boolean;
     comment?: string;
     delivery_method: CheckoutDeliveryMethod;
     delivery_city?: string | null;
     delivery_address: string;
     payment_method: CheckoutPaymentMethod;
+    /** Частичное оформление: id строк `cart_items` в корзине; вместе с `gift_certificate_cart_item_ids` заменяет полную корзину. */
+    cart_item_ids?: number[];
+    gift_certificate_cart_item_ids?: number[];
+};
+
+/** Выбор строк на корзине для частичного чекаута (sessionStorage). */
+export const CHECKOUT_LINE_SELECTION_STORAGE_KEY = "perfumer:checkout:lineSelection";
+
+export type CheckoutLineSelectionStored = {
+    cart_item_ids: number[];
+    gift_certificate_cart_item_ids: number[];
 };
 
 export type CheckoutShopSettings = {
@@ -121,6 +134,8 @@ export async function searchCheckoutCities(query: string): Promise<{ data: Check
 export async function fetchCheckoutQuote(payload: {
     payment_method: CheckoutPaymentMethod;
     delivery_method: CheckoutDeliveryMethod;
+    cart_item_ids?: number[];
+    gift_certificate_cart_item_ids?: number[];
 }): Promise<{ data: CheckoutQuote }> {
     const cartToken = typeof window !== "undefined" ? getCartToken() : "";
     const authToken = typeof window !== "undefined" ? getAuthToken() : "";

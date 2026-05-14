@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
     addGiftCertificateTemplateToCart,
     applyDiscountCard,
@@ -18,10 +18,64 @@ import {
     updateGiftCertificateTemplateCartItem,
     updateCartItem,
 } from "@/lib/cart-api";
+import { CHECKOUT_LINE_SELECTION_STORAGE_KEY } from "@/lib/checkout-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import { formatMoneyRub } from "@/lib/format-money-display";
+
+function sumMoneyStrings(values: string[]): string {
+    let cents = 0;
+    for (const raw of values) {
+        const normalized = String(raw ?? "")
+            .trim()
+            .replace(",", ".")
+            .replace(/\s/g, "");
+        const n = Number.parseFloat(normalized);
+        if (!Number.isFinite(n)) continue;
+        cents += Math.round(n * 100);
+    }
+    if (cents < 0) cents = 0;
+    const int = Math.floor(cents / 100);
+    const frac = cents % 100;
+    return `${int}.${frac.toString().padStart(2, "0")}`;
+}
+
+type CartLineSelectControlProps = {
+    checked: boolean;
+    onToggle: () => void;
+    ariaLabel: string;
+};
+
+function CartLineSelectControl({ checked, onToggle, ariaLabel }: CartLineSelectControlProps) {
+    return (
+        <label className="relative flex h-5 w-5 shrink-0 cursor-pointer select-none items-center justify-center self-start pt-0.5">
+            <input type="checkbox" checked={checked} onChange={() => onToggle()} className="peer sr-only" aria-label={ariaLabel} />
+            <span
+                aria-hidden
+                className={[
+                    "pointer-events-none flex h-5 w-5 items-center justify-center rounded-md border-2 bg-white shadow-sm transition-all duration-200 ease-out",
+                    "border-[var(--line)]",
+                    "peer-hover:border-[var(--accent-soft)] peer-hover:shadow-md",
+                    "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent-soft)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--surface)]",
+                    "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:shadow-[0_2px_8px_rgba(111,74,126,0.28)]",
+                    "peer-checked:[&>svg]:scale-100 peer-checked:[&>svg]:opacity-100",
+                    "[&>svg]:scale-90 [&>svg]:opacity-0",
+                ].join(" ")}
+            >
+                <svg viewBox="0 0 12 10" fill="none" className="h-2.5 w-2.5 text-white transition-[opacity,transform] duration-200 ease-out" aria-hidden>
+                    <path
+                        d="M1 5l3.5 3.5L11 1.5"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            </span>
+        </label>
+    );
+}
 
 export default function CartPage() {
     const { cart, loading, setCartState } = useCart();
@@ -36,6 +90,96 @@ export default function CartPage() {
     const [giftCertificateApplyError, setGiftCertificateApplyError] = useState("");
     const [templates, setTemplates] = useState<GiftCertificateTemplatePublic[]>([]);
     const [giftCertQuickAddOpen, setGiftCertQuickAddOpen] = useState(false);
+
+    const cartLineKey = useMemo(() => {
+        if (!cart) return "";
+        const p = cart.items.map((i) => i.id).join(",");
+        const g = (cart.gift_certificate_items ?? []).map((i) => i.id).join(",");
+        return `${p}|${g}`;
+    }, [cart]);
+
+    const [selectedCartItemIds, setSelectedCartItemIds] = useState<Set<number>>(() => new Set());
+    const [selectedGiftLineIds, setSelectedGiftLineIds] = useState<Set<number>>(() => new Set());
+
+    useEffect(() => {
+        if (!cart || cartLineKey === "") return;
+        queueMicrotask(() => {
+            setSelectedCartItemIds(new Set(cart.items.map((i) => i.id)));
+            setSelectedGiftLineIds(new Set((cart.gift_certificate_items ?? []).map((i) => i.id)));
+        });
+    }, [cart, cartLineKey]);
+
+    const toggleCartItemSelected = useCallback((itemId: number) => {
+        setSelectedCartItemIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(itemId)) next.delete(itemId);
+            else next.add(itemId);
+            return next;
+        });
+    }, []);
+
+    const toggleGiftLineSelected = useCallback((lineId: number) => {
+        setSelectedGiftLineIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(lineId)) next.delete(lineId);
+            else next.add(lineId);
+            return next;
+        });
+    }, []);
+
+    const persistCheckoutSelection = useCallback(() => {
+        if (!cart) return;
+        const allProductsSelected = cart.items.every((i) => selectedCartItemIds.has(i.id));
+        const gifts = cart.gift_certificate_items ?? [];
+        const allGiftsSelected = gifts.length === 0 || gifts.every((i) => selectedGiftLineIds.has(i.id));
+        if (allProductsSelected && allGiftsSelected) {
+            sessionStorage.removeItem(CHECKOUT_LINE_SELECTION_STORAGE_KEY);
+            return;
+        }
+        sessionStorage.setItem(
+            CHECKOUT_LINE_SELECTION_STORAGE_KEY,
+            JSON.stringify({
+                cart_item_ids: cart.items.filter((i) => selectedCartItemIds.has(i.id)).map((i) => i.id),
+                gift_certificate_cart_item_ids: gifts.filter((i) => selectedGiftLineIds.has(i.id)).map((i) => i.id),
+            }),
+        );
+    }, [cart, selectedCartItemIds, selectedGiftLineIds]);
+
+    const hasCheckoutSelection = Boolean(
+        cart &&
+            (cart.items.some((i) => selectedCartItemIds.has(i.id)) ||
+                (cart.gift_certificate_items ?? []).some((i) => selectedGiftLineIds.has(i.id))),
+    );
+
+    const partialLineSelection = Boolean(
+        cart &&
+            (cart.items.some((i) => !selectedCartItemIds.has(i.id)) ||
+                (cart.gift_certificate_items ?? []).some((i) => !selectedGiftLineIds.has(i.id))),
+    );
+
+    const selectedLinesSubtotalStr = useMemo(() => {
+        if (!cart) return "0.00";
+        const totals: string[] = [];
+        for (const item of cart.items) {
+            if (selectedCartItemIds.has(item.id)) totals.push(item.total);
+        }
+        for (const row of cart.gift_certificate_items ?? []) {
+            if (selectedGiftLineIds.has(row.id)) totals.push(row.total);
+        }
+        return sumMoneyStrings(totals);
+    }, [cart, selectedCartItemIds, selectedGiftLineIds]);
+
+    const selectedLinesQty = useMemo(() => {
+        if (!cart) return 0;
+        let n = 0;
+        for (const item of cart.items) {
+            if (selectedCartItemIds.has(item.id)) n += item.qty;
+        }
+        for (const row of cart.gift_certificate_items ?? []) {
+            if (selectedGiftLineIds.has(row.id)) n += row.qty;
+        }
+        return n;
+    }, [cart, selectedCartItemIds, selectedGiftLineIds]);
 
     const cardInCart = cart?.discount_card ?? null;
     const canRemoveDiscountCard = Boolean(cardInCart);
@@ -132,7 +276,14 @@ export default function CartPage() {
                 <div>
                     <h1 className="text-3xl font-semibold sm:text-4xl">Корзина</h1>
                     <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                        {cart.qty} {cart.qty === 1 ? "товар" : cart.qty < 5 ? "товара" : "товаров"} в заказе
+                        {cart.qty} {cart.qty === 1 ? "товар" : cart.qty < 5 ? "товара" : "товаров"} в корзине
+                        {partialLineSelection ? (
+                            <>
+                                {" "}
+                                · к оформлению: {selectedLinesQty}{" "}
+                                {selectedLinesQty === 1 ? "позиция" : selectedLinesQty < 5 ? "позиции" : "позиций"}
+                            </>
+                        ) : null}
                     </p>
                 </div>
 
@@ -151,6 +302,13 @@ export default function CartPage() {
                             key={`gift-template-${item.id}`}
                             className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5"
                         >
+                            <div className="flex gap-3 sm:gap-4">
+                                <CartLineSelectControl
+                                    checked={selectedGiftLineIds.has(item.id)}
+                                    onToggle={() => toggleGiftLineSelected(item.id)}
+                                    ariaLabel="Включить подарочный сертификат в оформление заказа"
+                                />
+                                <div className="min-w-0 flex-1">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">Сертификат</div>
@@ -190,6 +348,8 @@ export default function CartPage() {
                                     </div>
                                 </div>
                             </div>
+                                </div>
+                            </div>
                         </article>
                     ))}
 
@@ -198,6 +358,13 @@ export default function CartPage() {
                             key={item.id}
                             className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5"
                         >
+                            <div className="flex gap-3 sm:gap-4">
+                                <CartLineSelectControl
+                                    checked={selectedCartItemIds.has(item.id)}
+                                    onToggle={() => toggleCartItemSelected(item.id)}
+                                    ariaLabel="Включить товар в оформление заказа"
+                                />
+                                <div className="min-w-0 flex-1">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">
@@ -286,6 +453,8 @@ export default function CartPage() {
                                     </div>
                                 </div>
                             </div>
+                                </div>
+                            </div>
                         </article>
                     ))}
 
@@ -334,12 +503,19 @@ export default function CartPage() {
                         <div className="mb-5 text-xl font-semibold">Ваш заказ</div>
 
                         <CartPricingBreakdown
-                            itemsQty={cart.qty}
-                            subtotal={cart.subtotal}
-                            total={cart.total ?? cart.subtotal}
-                            discountCard={cart.discount_card}
-                            giftCertificate={cart.gift_certificate}
+                            itemsQty={partialLineSelection ? selectedLinesQty : cart.qty}
+                            subtotal={partialLineSelection ? selectedLinesSubtotalStr : cart.subtotal}
+                            total={partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal}
+                            discountCard={partialLineSelection ? null : cart.discount_card}
+                            giftCertificate={partialLineSelection ? null : cart.gift_certificate}
                         />
+
+                        {partialLineSelection ? (
+                            <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
+                                Сумма только по отмеченным позициям. Скидка по карте и списание подарочного сертификата
+                                пересчитываются на шаге оформления.
+                            </p>
+                        ) : null}
 
                         <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
                             <div>
@@ -555,20 +731,34 @@ export default function CartPage() {
                         <div className="mt-5 border-t border-[var(--line)] pt-4">
                             <div className="flex items-end justify-between gap-4">
                                 <div>
-                                    <div className="text-sm text-[var(--text-secondary)]">Итого</div>
+                                    <div className="text-sm text-[var(--text-secondary)]">
+                                        {partialLineSelection ? "К оформлению (выбрано)" : "Итого"}
+                                    </div>
                                     <div className="mt-1 text-3xl font-semibold leading-none">
-                                        {formatMoneyRub(cart.total ?? cart.subtotal)}
+                                        {formatMoneyRub(
+                                            partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal,
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <Link
-                            href="/checkout"
-                            className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99]"
-                        >
-                            Перейти к оформлению
-                        </Link>
+                        {hasCheckoutSelection ? (
+                            <Link
+                                href="/checkout"
+                                onClick={persistCheckoutSelection}
+                                className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99]"
+                            >
+                                Перейти к оформлению
+                            </Link>
+                        ) : (
+                            <span
+                                className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white opacity-45"
+                                aria-disabled
+                            >
+                                Выберите позиции для оформления
+                            </span>
+                        )}
 
                         <div className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
                             После оформления заказа мы свяжемся с вами для подтверждения деталей доставки и оплаты.
@@ -580,18 +770,32 @@ export default function CartPage() {
             <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur md:hidden">
                 <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                        <div className="text-xs text-[var(--text-secondary)]">Итого</div>
+                        <div className="text-xs text-[var(--text-secondary)]">
+                            {partialLineSelection ? "К оформлению" : "Итого"}
+                        </div>
                         <div className="truncate text-lg font-semibold">
-                            {formatMoneyRub(cart.total ?? cart.subtotal)}
+                            {formatMoneyRub(
+                                partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal,
+                            )}
                         </div>
                     </div>
 
-                    <Link
-                        href="/checkout"
-                        className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white"
-                    >
-                        Оформить
-                    </Link>
+                    {hasCheckoutSelection ? (
+                        <Link
+                            href="/checkout"
+                            onClick={persistCheckoutSelection}
+                            className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white"
+                        >
+                            Оформить
+                        </Link>
+                    ) : (
+                        <span
+                            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white opacity-45"
+                            aria-disabled
+                        >
+                            Оформить
+                        </span>
+                    )}
                 </div>
             </div>
         </main>
