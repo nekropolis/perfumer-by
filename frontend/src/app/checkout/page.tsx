@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -36,12 +37,17 @@ import PhoneInput, {
     normalizePlainByDigitsInput,
 } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
-import type { CartData } from "@/types/cart";
-
-function parseMoney(s: string): number {
-    const n = Number.parseFloat(s.replace(",", "."));
-    return Number.isFinite(n) ? n : 0;
-}
+import {
+    breakdownSubtotalFromQuote,
+    countCheckoutLinesQty,
+    discountCardForBreakdownFromQuote,
+    filterCartLinesForCheckout,
+    giftForBreakdownFromQuote,
+    merchandisePayFromQuote,
+    parseCheckoutMoney,
+    sanitizeCheckoutLineSelectionForCart,
+    selectionSignature,
+} from "@/lib/checkout-line-selection";
 
 const DELIVERY_HINTS: Record<CheckoutDeliveryMethod, string> = {
     minsk_courier:
@@ -56,31 +62,6 @@ const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
     cash: "Оплата наличными курьеру при получении.",
     card: "Оплата картой при получении (при доставке по Минску или самовывозе). При оплате картой скидка по накопительной карте не применяется.",
 };
-
-/** Убирает id строк, которых уже нет в корзине (после частичного оформления и т.п.), чтобы quote не слал 422. */
-function sanitizeCheckoutLineSelectionForCart(
-    cart: CartData | null,
-    selection: CheckoutLineSelectionStored | null,
-): CheckoutLineSelectionStored | null {
-    if (!cart || !selection) {
-        return null;
-    }
-    const productIds = new Set(cart.items.map((item) => item.id));
-    const giftLineIds = new Set((cart.gift_certificate_items ?? []).map((row) => row.id));
-    const cartIds = selection.cart_item_ids.filter((id) => productIds.has(id));
-    const giftIds = selection.gift_certificate_cart_item_ids.filter((id) => giftLineIds.has(id));
-    if (cartIds.length === 0 && giftIds.length === 0) {
-        return null;
-    }
-    return { cart_item_ids: cartIds, gift_certificate_cart_item_ids: giftIds };
-}
-
-function selectionSignature(selection: CheckoutLineSelectionStored): string {
-    return JSON.stringify({
-        p: [...selection.cart_item_ids].sort((a, b) => a - b),
-        g: [...selection.gift_certificate_cart_item_ids].sort((a, b) => a - b),
-    });
-}
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -170,6 +151,16 @@ export default function CheckoutPage() {
     const effectiveCheckoutLineSelection = useMemo(
         () => sanitizeCheckoutLineSelectionForCart(cart, checkoutLineFilter),
         [cart, checkoutLineFilter],
+    );
+
+    const checkoutCartLines = useMemo(
+        () => (cart ? filterCartLinesForCheckout(cart, effectiveCheckoutLineSelection) : { items: [], giftItems: [] }),
+        [cart, effectiveCheckoutLineSelection],
+    );
+
+    const checkoutLinesQty = useMemo(
+        () => countCheckoutLinesQty(checkoutCartLines.items, checkoutCartLines.giftItems),
+        [checkoutCartLines],
     );
 
     const checkoutQuotePayload = useMemo(() => {
@@ -328,7 +319,16 @@ export default function CheckoutPage() {
     ) {
         return (
             <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-                <h1 className="mb-6 text-3xl font-semibold">Оформление заказа</h1>
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="text-3xl font-semibold">Оформление заказа</h1>
+                    <Link
+                        href="/cart"
+                        className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                    >
+                        <ChevronLeft className="h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
+                        В корзину
+                    </Link>
+                </div>
                 <p className="mb-6 text-[var(--text-secondary)]">Корзина пуста.</p>
                 <Link href="/catalog" className="inline-block rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2">
                     Перейти в каталог
@@ -340,52 +340,26 @@ export default function CheckoutPage() {
     const cardInCheckout = cart.discount_card ?? null;
     const canRemoveDiscountCard = Boolean(cardInCheckout);
 
-    const discountCardForBreakdown =
-        quote == null
-            ? cart.discount_card ?? null
-            : parseMoney(quote.loyalty_discount_amount) > 0 && cart.discount_card
-              ? {
-                    number: cart.discount_card.number,
-                    discount_percent: quote.loyalty_discount_percent,
-                    discount_amount: quote.loyalty_discount_amount,
-                    session_only: cart.discount_card.session_only,
-                }
-              : null;
+    const discountCardForBreakdown = discountCardForBreakdownFromQuote(cart, quote);
 
-    const giftForBreakdown =
-        quote == null
-            ? cart.gift_certificate ?? null
-            : parseMoney(quote.gift_certificate_amount) > 0 && cart.gift_certificate
-              ? {
-                    code: cart.gift_certificate.code,
-                    number: cart.gift_certificate.number,
-                    amount: quote.gift_certificate_amount,
-                }
-              : null;
+    const giftForBreakdown = giftForBreakdownFromQuote(cart, quote);
 
-    const quoteGiftPurchaseSubtotal = quote?.gift_certificates_purchase_subtotal
-        ? parseMoney(quote.gift_certificates_purchase_subtotal)
-        : 0;
+    const breakdownSubtotal = quote != null ? breakdownSubtotalFromQuote(quote) : cart.subtotal;
 
-    const breakdownSubtotal =
-        quote != null
-            ? Math.max(0, parseMoney(quote.subtotal) + quoteGiftPurchaseSubtotal).toFixed(2)
-            : cart.subtotal;
-
-    const merchandisePayStr =
-        quote != null
-            ? Math.max(
-                  0,
-                  parseMoney(quote.subtotal) -
-                      parseMoney(quote.loyalty_discount_amount) -
-                      parseMoney(quote.gift_certificate_amount) +
-                      quoteGiftPurchaseSubtotal,
-              ).toFixed(2)
-            : (cart.total ?? cart.subtotal);
+    const merchandisePayStr = quote != null ? merchandisePayFromQuote(quote) : (cart.total ?? cart.subtotal);
 
     return (
         <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-            <h1 className="mb-8 text-3xl font-semibold">Оформление заказа</h1>
+            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h1 className="text-3xl font-semibold">Оформление заказа</h1>
+                <Link
+                    href="/cart"
+                    className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                >
+                    <ChevronLeft className="h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
+                    В корзину
+                </Link>
+            </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
                 <form onSubmit={handleSubmit} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -606,7 +580,12 @@ export default function CheckoutPage() {
                     <div className="mb-4 text-lg font-medium">Ваш заказ</div>
 
                     <div className="space-y-4">
-                        {cart.gift_certificate_items?.map((item) => (
+                        {effectiveCheckoutLineSelection ? (
+                            <p className="mb-3 text-xs leading-5 text-[var(--text-secondary)]">
+                                К оформлению выбраны не все позиции из корзины.
+                            </p>
+                        ) : null}
+                        {checkoutCartLines.giftItems.map((item) => (
                             <div
                                 key={`gift-template-${item.id}`}
                                 className="border-b border-[var(--line)] pb-4 last:border-b-0"
@@ -618,7 +597,7 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
                         ))}
-                        {cart.items.map((item) => (
+                        {checkoutCartLines.items.map((item) => (
                             <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
                                 <div className="text-sm text-[var(--text-secondary)]">{item.brand_name || "—"}</div>
                                 <div className="font-medium">{item.product_name}</div>
@@ -635,7 +614,7 @@ export default function CheckoutPage() {
                     <div className="mt-6 border-t border-[var(--line)] pt-4">
                         {quoteError ? <p className="mb-2 text-xs text-amber-700">{quoteError}</p> : null}
                         <CartPricingBreakdown
-                            itemsQty={cart.qty}
+                            itemsQty={checkoutLinesQty}
                             subtotal={breakdownSubtotal}
                             total={merchandisePayStr}
                             discountCard={discountCardForBreakdown}
@@ -863,7 +842,7 @@ export default function CheckoutPage() {
                             Карта <span className="font-mono text-[var(--foreground)]">{cardInCheckout.number}</span> в корзине.
                             {paymentMethod === "card"
                                 ? " При оплате картой процент скидки к заказу не применяется."
-                                : parseMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
+                                : parseCheckoutMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
                                   ? ` Скидка: ${quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−${
                                         formatMoneyDisplay(
                                             quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount,

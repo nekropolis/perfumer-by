@@ -18,7 +18,14 @@ import {
     updateGiftCertificateTemplateCartItem,
     updateCartItem,
 } from "@/lib/cart-api";
-import { CHECKOUT_LINE_SELECTION_STORAGE_KEY } from "@/lib/checkout-api";
+import { CHECKOUT_LINE_SELECTION_STORAGE_KEY, fetchCheckoutQuote, type CheckoutQuote } from "@/lib/checkout-api";
+import {
+    breakdownSubtotalFromQuote,
+    buildPartialCheckoutSelection,
+    discountCardForBreakdownFromQuote,
+    giftForBreakdownFromQuote,
+    merchandisePayFromQuote,
+} from "@/lib/checkout-line-selection";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
@@ -180,6 +187,87 @@ export default function CartPage() {
         }
         return n;
     }, [cart, selectedCartItemIds, selectedGiftLineIds]);
+
+    const partialCheckoutSelection = useMemo(() => {
+        if (!cart || !partialLineSelection) {
+            return null;
+        }
+        return buildPartialCheckoutSelection(cart, selectedCartItemIds, selectedGiftLineIds);
+    }, [cart, partialLineSelection, selectedCartItemIds, selectedGiftLineIds]);
+
+    const [partialQuote, setPartialQuote] = useState<CheckoutQuote | null>(null);
+
+    useEffect(() => {
+        if (!cart?.token || !partialCheckoutSelection) {
+            queueMicrotask(() => {
+                setPartialQuote(null);
+            });
+            return;
+        }
+        let cancelled = false;
+        void fetchCheckoutQuote({
+            payment_method: "cash",
+            delivery_method: "minsk_courier",
+            cart_item_ids: partialCheckoutSelection.cart_item_ids,
+            gift_certificate_cart_item_ids: partialCheckoutSelection.gift_certificate_cart_item_ids,
+        })
+            .then((response) => {
+                if (!cancelled) {
+                    setPartialQuote(response.data);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setPartialQuote(null);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [cart?.token, partialCheckoutSelection]);
+
+    const pricingBreakdown = useMemo(() => {
+        if (!cart) {
+            return {
+                itemsQty: 0,
+                subtotal: "0.00",
+                total: "0.00",
+                discountCard: null as ReturnType<typeof discountCardForBreakdownFromQuote>,
+                giftCertificate: null as ReturnType<typeof giftForBreakdownFromQuote>,
+            };
+        }
+        if (!partialLineSelection) {
+            return {
+                itemsQty: cart.qty,
+                subtotal: cart.subtotal,
+                total: cart.total ?? cart.subtotal,
+                discountCard: cart.discount_card ?? null,
+                giftCertificate: cart.gift_certificate ?? null,
+            };
+        }
+        if (partialQuote) {
+            return {
+                itemsQty: selectedLinesQty,
+                subtotal: breakdownSubtotalFromQuote(partialQuote),
+                total: merchandisePayFromQuote(partialQuote),
+                discountCard: discountCardForBreakdownFromQuote(cart, partialQuote),
+                giftCertificate: giftForBreakdownFromQuote(cart, partialQuote),
+            };
+        }
+        return {
+            itemsQty: selectedLinesQty,
+            subtotal: selectedLinesSubtotalStr,
+            total: selectedLinesSubtotalStr,
+            discountCard: cart.discount_card ?? null,
+            giftCertificate: cart.gift_certificate ?? null,
+        };
+    }, [cart, partialLineSelection, partialQuote, selectedLinesQty, selectedLinesSubtotalStr]);
+
+    const checkoutTotalStr = partialLineSelection
+        ? partialQuote
+            ? merchandisePayFromQuote(partialQuote)
+            : selectedLinesSubtotalStr
+        : (cart?.total ?? cart?.subtotal ?? "0.00");
 
     const cardInCart = cart?.discount_card ?? null;
     const canRemoveDiscountCard = Boolean(cardInCart);
@@ -503,17 +591,21 @@ export default function CartPage() {
                         <div className="mb-5 text-xl font-semibold">Ваш заказ</div>
 
                         <CartPricingBreakdown
-                            itemsQty={partialLineSelection ? selectedLinesQty : cart.qty}
-                            subtotal={partialLineSelection ? selectedLinesSubtotalStr : cart.subtotal}
-                            total={partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal}
-                            discountCard={partialLineSelection ? null : cart.discount_card}
-                            giftCertificate={partialLineSelection ? null : cart.gift_certificate}
+                            itemsQty={pricingBreakdown.itemsQty}
+                            subtotal={pricingBreakdown.subtotal}
+                            total={pricingBreakdown.total}
+                            discountCard={pricingBreakdown.discountCard}
+                            giftCertificate={pricingBreakdown.giftCertificate}
                         />
 
-                        {partialLineSelection ? (
+                        {partialLineSelection && !partialQuote ? (
                             <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
-                                Сумма только по отмеченным позициям. Скидка по карте и списание подарочного сертификата
-                                пересчитываются на шаге оформления.
+                                Пересчёт скидок по выбранным позициям…
+                            </p>
+                        ) : null}
+                        {partialLineSelection && partialQuote ? (
+                            <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
+                                Сумма и скидки по отмеченным позициям. Доставка — на шаге оформления.
                             </p>
                         ) : null}
 
@@ -735,9 +827,7 @@ export default function CartPage() {
                                         {partialLineSelection ? "К оформлению (выбрано)" : "Итого"}
                                     </div>
                                     <div className="mt-1 text-3xl font-semibold leading-none">
-                                        {formatMoneyRub(
-                                            partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal,
-                                        )}
+                                        {formatMoneyRub(checkoutTotalStr)}
                                     </div>
                                 </div>
                             </div>
@@ -774,9 +864,7 @@ export default function CartPage() {
                             {partialLineSelection ? "К оформлению" : "Итого"}
                         </div>
                         <div className="truncate text-lg font-semibold">
-                            {formatMoneyRub(
-                                partialLineSelection ? selectedLinesSubtotalStr : cart.total ?? cart.subtotal,
-                            )}
+                            {formatMoneyRub(checkoutTotalStr)}
                         </div>
                     </div>
 
