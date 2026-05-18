@@ -15,6 +15,7 @@ const emptyForm: UserFormState = {
     email: "",
     role: "customer",
     password: "",
+    passwordConfirmation: "",
 };
 
 export default function AdminUsersCreatePage() {

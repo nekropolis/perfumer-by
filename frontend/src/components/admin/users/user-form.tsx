@@ -6,6 +6,7 @@ type UserFormState = {
     email: string;
     role: string;
     password: string;
+    passwordConfirmation: string;
 };
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
     submitting: boolean;
     submitLabel: string;
     showRole?: boolean;
+    isEdit?: boolean;
     onChangeAction: (next: UserFormState) => void;
     onSubmitAction: () => void;
 };
@@ -48,6 +50,7 @@ export default function UserForm({
     submitting,
     submitLabel,
     showRole = true,
+    isEdit = false,
     onChangeAction,
     onSubmitAction,
 }: Props) {
@@ -110,14 +113,40 @@ export default function UserForm({
                         </select>
                     </div>
                 ) : null}
-                <div className="md:col-span-2">
-                    <label className="mb-1 block text-sm text-gray-600">Пароль (необязательно)</label>
-                    <input
-                        type="password"
-                        value={form.password}
-                        onChange={(e) => onChangeAction({ ...form, password: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
-                    />
+                <div className={isEdit ? "md:col-span-2 grid gap-4 sm:grid-cols-2" : "md:col-span-2"}>
+                    <div>
+                        <label className="mb-1 block text-sm text-gray-600">
+                            {isEdit ? "Новый пароль" : "Пароль (необязательно)"}
+                        </label>
+                        <input
+                            type="password"
+                            value={form.password}
+                            onChange={(e) => onChangeAction({ ...form, password: e.target.value })}
+                            className="w-full rounded-xl border px-3 py-2 text-sm"
+                            placeholder={isEdit ? "Оставьте пустым, чтобы не менять" : "Минимум 8 символов"}
+                            autoComplete="new-password"
+                        />
+                    </div>
+                    {isEdit ? (
+                        <div>
+                            <label className="mb-1 block text-sm text-gray-600">Повторите пароль</label>
+                            <input
+                                type="password"
+                                value={form.passwordConfirmation}
+                                onChange={(e) =>
+                                    onChangeAction({ ...form, passwordConfirmation: e.target.value })
+                                }
+                                className="w-full rounded-xl border px-3 py-2 text-sm"
+                                placeholder="Если меняете пароль"
+                                autoComplete="new-password"
+                            />
+                        </div>
+                    ) : null}
+                    {isEdit ? (
+                        <p className="sm:col-span-2 text-xs text-gray-500">
+                            Смена пароля без SMS — только для администратора.
+                        </p>
+                    ) : null}
                 </div>
             </div>
 

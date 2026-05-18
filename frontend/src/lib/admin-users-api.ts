@@ -101,6 +101,8 @@ export async function updateAdminUser(
         email: string | null;
         phone: string | null;
         role: string;
+        password?: string | null;
+        password_confirmation?: string | null;
     }
 ) {
     const res = await fetch(`${API_BASE}/admin/users/${id}`, {
@@ -111,7 +113,8 @@ export async function updateAdminUser(
     });
 
     if (!res.ok) {
-        throw new Error(`Update user API error: ${res.status}`);
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message || `Update user API error: ${res.status}`);
     }
 
     return res.json();

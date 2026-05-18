@@ -31,6 +31,7 @@ export default function AdminUsersEditPage() {
                     email: user.email ?? "",
                     role: user.role,
                     password: "",
+                    passwordConfirmation: "",
                 });
             } catch (e: unknown) {
                 setError(e instanceof Error ? e.message : "Ошибка загрузки пользователя");
@@ -45,12 +46,32 @@ export default function AdminUsersEditPage() {
         if (!form) return;
         setSubmitting(true);
         setError("");
+
+        const password = form.password.trim();
+        const passwordConfirmation = form.passwordConfirmation.trim();
+
+        if (password !== "" || passwordConfirmation !== "") {
+            if (password.length < 8) {
+                setError("Пароль должен быть не короче 8 символов");
+                setSubmitting(false);
+                return;
+            }
+            if (password !== passwordConfirmation) {
+                setError("Пароли не совпадают");
+                setSubmitting(false);
+                return;
+            }
+        }
+
         try {
             await updateAdminUser(Number(params.id), {
                 name: form.name.trim(),
                 phone: form.phone.trim() || null,
                 email: form.email.trim() || null,
                 role: form.role,
+                ...(password !== ""
+                    ? { password, password_confirmation: passwordConfirmation }
+                    : {}),
             });
             router.push("/admin/users");
         } catch (e: unknown) {
@@ -92,6 +113,7 @@ export default function AdminUsersEditPage() {
                     form={form}
                     submitting={submitting}
                     submitLabel="Сохранить"
+                    isEdit
                     onChangeAction={setForm}
                     onSubmitAction={handleSubmit}
                 />

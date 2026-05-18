@@ -181,17 +181,25 @@ class AdminUserController extends Controller
                 Rule::unique('users', 'phone')->ignore($user->id),
             ],
             'role' => ['required', 'string', 'in:customer,admin,manager,ceo'],
+            'password' => ['nullable', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
         $phone = $this->normalizePhone((string) ($validated['phone'] ?? ''));
         $email = trim((string) ($validated['email'] ?? ''));
+        $password = trim((string) ($validated['password'] ?? ''));
 
-        $user->update([
+        $payload = [
             'name' => trim((string) $validated['name']),
             'email' => $email !== '' ? mb_strtolower($email, 'UTF-8') : null,
             'phone' => $phone !== '' ? $phone : null,
             'role' => (string) $validated['role'],
-        ]);
+        ];
+
+        if ($password !== '') {
+            $payload['password'] = $password;
+        }
+
+        $user->update($payload);
 
         $user->load(['discountCards:id,card_number,discount_percent,status']);
 
