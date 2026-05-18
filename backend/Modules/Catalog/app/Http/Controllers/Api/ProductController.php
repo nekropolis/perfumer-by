@@ -344,7 +344,15 @@ class ProductController extends Controller
             $row = Brand::query()
                 ->where('slug', $slug)
                 ->where('is_active', true)
-                ->first(['id', 'name', 'slug']);
+                ->first([
+                    'id',
+                    'name',
+                    'slug',
+                    'description',
+                    'seo_title',
+                    'seo_description',
+                    'seo_keyword',
+                ]);
 
             return $row?->toArray() ?? [];
         });

@@ -9,23 +9,10 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { fetchMe } from "@/lib/auth-api";
+import { fetchMe, type AuthUserProfile } from "@/lib/auth-api";
 import { clearAuthToken, getAuthToken, setAuthToken } from "@/lib/auth-token";
 
-type AuthUser = {
-    id: number;
-    name: string | null;
-    email?: string | null;
-    phone: string;
-    phone_verified_at?: string | null;
-    role?: string;
-    discount_cards?: {
-        id: number;
-        number: string;
-        discount_percent: string;
-        is_active: boolean;
-    }[];
-};
+type AuthUser = AuthUserProfile;
 
 type AuthContextType = {
     user: AuthUser | null;

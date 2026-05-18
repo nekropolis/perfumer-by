@@ -14,7 +14,11 @@ class OtpDeliveryService
 
     public function sendCode(string $phone, string $code): OtpDeliveryResult
     {
-        $text = "Код подтверждения: {$code}. Никому не сообщайте этот код.";
+        return $this->sendText($phone, "Код подтверждения: {$code}. Никому не сообщайте этот код.");
+    }
+
+    public function sendText(string $phone, string $text): OtpDeliveryResult
+    {
         $viberFirst = (bool) config('communications.otp.viber_first', true);
 
         if ($viberFirst && (bool) config('communications.viber.enabled', true)) {

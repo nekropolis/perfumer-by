@@ -5,10 +5,17 @@ import { useEffect, useState, startTransition, useCallback } from "react";
 import { fetchMyOrders } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
+import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import type { AuthUserProfile } from "@/lib/auth-api";
 
 type OrdersAccountProps = {
     isAuthenticated: boolean;
+    isProfileEditing?: boolean;
+    user?: AuthUserProfile | null;
+    profileSaveNotice?: string;
+    onProfileSavedAction?: () => void;
+    onProfileCancelAction?: () => void;
 };
 
 function parseMoney(value: string | undefined | null): number {
@@ -18,7 +25,14 @@ function parseMoney(value: string | undefined | null): number {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
+export default function OrdersAccount({
+    isAuthenticated,
+    isProfileEditing = false,
+    user = null,
+    profileSaveNotice = "",
+    onProfileSavedAction,
+    onProfileCancelAction,
+}: OrdersAccountProps) {
     const [orders, setOrders] = useState<OrderData[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(isAuthenticated);
     const [errorMessage, setErrorMessage] = useState("");
@@ -99,6 +113,12 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
         }
     }, [orders, selectedOrderId]);
 
+    useEffect(() => {
+        if (isProfileEditing) {
+            setSelectedOrderId(null);
+        }
+    }, [isProfileEditing]);
+
     const totalOrders = orders.length;
     const totalSpent = orders
         .filter((order) => order.status === "done")
@@ -107,6 +127,23 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
     return (
         <>
             <section className="space-y-6">
+                {profileSaveNotice && !isProfileEditing ? (
+                    <div
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                        role="status"
+                    >
+                        {profileSaveNotice}
+                    </div>
+                ) : null}
+
+                {isProfileEditing && user && onProfileSavedAction && onProfileCancelAction ? (
+                    <AccountProfileEditPanel
+                        user={user}
+                        onSavedAction={onProfileSavedAction}
+                        onCancelAction={onProfileCancelAction}
+                    />
+                ) : (
+                <>
                 <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
                     <div className="text-sm font-medium uppercase tracking-[0.22em] text-[var(--text-secondary)]">
                         Информация
@@ -242,12 +279,16 @@ export default function OrdersAccount({ isAuthenticated }: OrdersAccountProps) {
                         </div>
                     )}
                 </div>
+                </>
+                )}
             </section>
 
+            {!isProfileEditing ? (
             <OrderModal
                 orderId={selectedOrderId}
                 onCloseOrderAction={() => setSelectedOrderId(null)}
             />
+            ) : null}
         </>
     );
 }

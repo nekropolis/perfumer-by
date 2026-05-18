@@ -56,7 +56,7 @@ export default function CartPricingBreakdown({
             {itemsQty !== undefined ? (
                 <div className="flex items-center justify-between">
                     <span>Товаров</span>
-                    <span className="text-[var(--foreground)]">{itemsQty}</span>
+                    <span className="text-[var(--foreground)]">{itemsQty} шт.</span>
                 </div>
             ) : null}
 

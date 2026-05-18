@@ -19,6 +19,10 @@ export type BrandItem = {
     id: number;
     name: string;
     slug: string;
+    description?: string | null;
+    seo_title?: string | null;
+    seo_description?: string | null;
+    seo_keyword?: string | null;
     is_active: boolean;
     products_count: number;
 };
@@ -67,6 +71,10 @@ export async function fetchBrands(params?: {
 export async function createBrand(payload: {
     name: string;
     slug?: string;
+    description?: string | null;
+    seo_title?: string | null;
+    seo_description?: string | null;
+    seo_keyword?: string | null;
     is_active?: boolean;
 }) {
     const res = await fetch(`${API_BASE}/admin/brands`, {
@@ -103,6 +111,10 @@ export async function updateBrand(
     payload: {
         name: string;
         slug?: string;
+        description?: string | null;
+        seo_title?: string | null;
+        seo_description?: string | null;
+        seo_keyword?: string | null;
         is_active?: boolean;
     }
 ) {

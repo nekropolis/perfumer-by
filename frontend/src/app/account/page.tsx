@@ -1,17 +1,44 @@
 "use client";
 
-import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
+import AccountGuestView from "@/components/account/account-guest-view";
 import UserAccount from "@/components/account/user-account";
 import OrdersAccount from "@/components/account/orders-account";
 import {useRouter} from "next/navigation";
-import {useEffect} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {isPrivilegedRole} from "@/constants/admin-roles";
 
 export default function AccountPage() {
     const { user, isAuthenticated, loading, logout, refreshUser } = useAuth();
 
     const router = useRouter();
+    const [isProfileEditing, setIsProfileEditing] = useState(false);
+    const [profileSaveNotice, setProfileSaveNotice] = useState("");
+
+    const handleProfileSaved = useCallback(() => {
+        setIsProfileEditing(false);
+        setProfileSaveNotice("Данные сохранены");
+        void refreshUser();
+    }, [refreshUser]);
+
+    const handleProfileCancel = useCallback(() => {
+        setIsProfileEditing(false);
+    }, []);
+
+    const handleProfileEdit = useCallback(() => {
+        setProfileSaveNotice("");
+        setIsProfileEditing(true);
+    }, []);
+
+    useEffect(() => {
+        if (!profileSaveNotice) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => setProfileSaveNotice(""), 5000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [profileSaveNotice]);
 
     useEffect(() => {
         if (!loading && isAuthenticated && isPrivilegedRole(user?.role)) {
@@ -46,22 +73,14 @@ export default function AccountPage() {
 
     if (loading) {
         return (
-            <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-                Загрузка...
+            <main className="flex min-h-[50vh] items-center justify-center bg-[var(--background)] px-4">
+                <p className="text-sm text-[var(--text-secondary)]">Загрузка…</p>
             </main>
         );
     }
 
     if (!isAuthenticated) {
-        return (
-            <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-                <h1 className="mb-6 text-3xl font-semibold">Аккаунт</h1>
-                <p className="mb-6 text-gray-600">Вы не авторизованы.</p>
-                <Link href="/login" className="inline-block rounded-xl border px-4 py-2">
-                    Войти
-                </Link>
-            </main>
-        );
+        return <AccountGuestView />;
     }
 
     return (
@@ -74,8 +93,19 @@ export default function AccountPage() {
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-                    <UserAccount user={user} logoutAction={logout} />
-                    <OrdersAccount isAuthenticated={isAuthenticated} />
+                    <UserAccount
+                        user={user}
+                        logoutAction={logout}
+                        onEditAction={handleProfileEdit}
+                    />
+                    <OrdersAccount
+                        isAuthenticated={isAuthenticated}
+                        isProfileEditing={isProfileEditing}
+                        user={user}
+                        profileSaveNotice={profileSaveNotice}
+                        onProfileSavedAction={handleProfileSaved}
+                        onProfileCancelAction={handleProfileCancel}
+                    />
                 </div>
             </div>
         </main>

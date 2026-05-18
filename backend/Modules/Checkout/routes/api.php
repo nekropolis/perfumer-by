@@ -31,6 +31,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::get('/', [OrderController::class, 'index']);
     Route::get('/customer-context', [OrderController::class, 'customerContext']);
     Route::get('/stats', [OrderController::class, 'stats']);
+    Route::post('/quote', [OrderController::class, 'quote']);
     Route::post('/', [OrderController::class, 'store']);
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);

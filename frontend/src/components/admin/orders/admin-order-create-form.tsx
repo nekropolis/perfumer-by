@@ -8,9 +8,11 @@ import { useRouter } from "next/navigation";
 import {
   createOrder,
   fetchAdminOrderCustomerContext,
+  fetchAdminOrderQuote,
   updateOrder,
   type AdminOrderCustomerContext,
   type AdminOrderPayload,
+  type AdminOrderQuote,
 } from "@/lib/admin-orders-api";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import type { OrderData } from "@/types/orders";
@@ -24,6 +26,7 @@ import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
+import { formatMoneyRub } from "@/lib/format-money-display";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Курьер по Минску" },
@@ -113,6 +116,10 @@ function emptyLine(): OrderLine {
     qty: 1,
     price: 0,
   };
+}
+
+function orderLineMerchandiseTotal(line: OrderLine): number {
+  return Math.max(0, line.qty) * Math.max(0, line.price);
 }
 
 function isCompleteOrderLine(l: OrderLine): boolean {
@@ -263,6 +270,15 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   const [deliveryAddress, setDeliveryAddress] = useState(() => initialOrder?.delivery_address ?? "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(initialOrder?.delivery_fee ?? 0) || 0));
+  const [discountCardInput, setDiscountCardInput] = useState(() => initialOrder?.discount_card_number?.trim() ?? "");
+  const [appliedDiscountCardNumber, setAppliedDiscountCardNumber] = useState(
+    () => initialOrder?.discount_card_number?.trim() ?? "",
+  );
+  /** Пользователь явно убрал карту — не подставлять снова, пока не сменится телефон. */
+  const [discountCardManuallyCleared, setDiscountCardManuallyCleared] = useState(false);
+  const [discountCardError, setDiscountCardError] = useState("");
+  const [orderQuote, setOrderQuote] = useState<AdminOrderQuote | null>(null);
+  const [orderQuoteLoading, setOrderQuoteLoading] = useState(false);
   const [lines, setLines] = useState<OrderLine[]>(() => (initialOrder ? linesFromOrderItems(initialOrder) : [emptyLine()]));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -424,6 +440,18 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   }, [context?.matched_user?.name, customerName]);
 
   useEffect(() => {
+    setDiscountCardManuallyCleared(false);
+    const nat = clampNationalDigits(debouncedNational);
+    const initialNat = initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : "";
+    if (initialOrder && nat === initialNat) {
+      return;
+    }
+    setAppliedDiscountCardNumber("");
+    setDiscountCardInput("");
+    setDiscountCardError("");
+  }, [debouncedNational, initialOrder]);
+
+  useEffect(() => {
     if (!context?.delivery_cities?.length) {
       setCitySelect("");
       return;
@@ -510,11 +538,151 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     };
   }, [activeLine, debouncedProductQ]);
 
-  const subtotal = useMemo(
-    () => lines.reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0),
-    [lines],
+  const filledLinesForQuote = useMemo(() => lines.filter(isCompleteOrderLine), [lines]);
+
+  const quoteItemsKey = useMemo(
+    () => JSON.stringify(filledLinesForQuote.map((l) => ({ qty: l.qty, price: l.price }))),
+    [filledLinesForQuote],
   );
-  const total = subtotal + Math.max(0, deliveryFee);
+
+  useEffect(() => {
+    if (filledLinesForQuote.length === 0) {
+      queueMicrotask(() => {
+        setOrderQuote(null);
+        setDiscountCardError("");
+        setOrderQuoteLoading(false);
+      });
+      return;
+    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      setOrderQuoteLoading(true);
+    });
+    void fetchAdminOrderQuote({
+      payment_method: paymentMethod,
+      discount_card_number: appliedDiscountCardNumber.trim() || null,
+      delivery_fee: Math.max(0, Number(deliveryFee) || 0),
+      items: filledLinesForQuote.map((l) => ({
+        qty: Math.max(1, l.qty),
+        price: Math.max(0, l.price),
+      })),
+    })
+      .then((response) => {
+        if (!cancelled) {
+          setOrderQuote(response.data);
+          setDiscountCardError("");
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOrderQuote(null);
+          const msg = err instanceof Error ? err.message : "Не удалось пересчитать скидки";
+          setDiscountCardError(msg);
+          setAppliedDiscountCardNumber("");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOrderQuoteLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteItemsKey, paymentMethod, appliedDiscountCardNumber, deliveryFee, filledLinesForQuote]);
+
+  const localSubtotal = useMemo(
+    () => filledLinesForQuote.reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0),
+    [filledLinesForQuote],
+  );
+
+  const parseQuoteMoney = (value: string | undefined | null): number => {
+    const n = Number.parseFloat(String(value ?? "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const subtotalStr = orderQuote?.subtotal ?? localSubtotal.toFixed(2);
+  const loyaltyDiscountStr = orderQuote?.loyalty_discount_amount ?? "0.00";
+  const merchandiseTotalStr = orderQuote?.merchandise_total ?? localSubtotal.toFixed(2);
+  const orderTotalStr =
+    orderQuote?.total ?? (localSubtotal + Math.max(0, Number(deliveryFee) || 0)).toFixed(2);
+  const loyaltyPercentStr = orderQuote?.loyalty_discount_percent ?? "0.00";
+  const hasLoyaltyDiscount = parseQuoteMoney(loyaltyDiscountStr) > 0.004;
+
+  const discountCardConfirmed = Boolean(
+    appliedDiscountCardNumber.trim() &&
+      orderQuote?.discount_card_number?.trim() &&
+      orderQuote.discount_card_number.trim() === appliedDiscountCardNumber.trim(),
+  );
+
+  const applyDiscountCardToOrder = useCallback(
+    async (cardNumber: string) => {
+      const normalized = cardNumber.trim();
+      if (!normalized) {
+        return;
+      }
+      if (filledLinesForQuote.length === 0) {
+        setDiscountCardError("Сначала добавьте хотя бы одну позицию в заказ, чтобы применить карту.");
+        return;
+      }
+
+      setDiscountCardError("");
+      setOrderQuoteLoading(true);
+      try {
+        const response = await fetchAdminOrderQuote({
+          payment_method: paymentMethod,
+          discount_card_number: normalized,
+          delivery_fee: Math.max(0, Number(deliveryFee) || 0),
+          items: filledLinesForQuote.map((l) => ({
+            qty: Math.max(1, l.qty),
+            price: Math.max(0, l.price),
+          })),
+        });
+        const confirmed = response.data.discount_card_number?.trim() ?? "";
+        if (confirmed === "") {
+          setAppliedDiscountCardNumber("");
+          setOrderQuote(null);
+          setDiscountCardError("Скидочная карта не найдена или неактивна.");
+          return;
+        }
+        setAppliedDiscountCardNumber(confirmed);
+        setDiscountCardInput(confirmed);
+        setOrderQuote(response.data);
+        setDiscountCardManuallyCleared(false);
+      } catch (err) {
+        setAppliedDiscountCardNumber("");
+        setOrderQuote(null);
+        setDiscountCardError(
+          err instanceof Error ? err.message : "Скидочная карта не найдена или неактивна.",
+        );
+      } finally {
+        setOrderQuoteLoading(false);
+      }
+    },
+    [deliveryFee, filledLinesForQuote, paymentMethod],
+  );
+
+  useEffect(() => {
+    if (itemsLocked || discountCardManuallyCleared) {
+      return;
+    }
+    if (appliedDiscountCardNumber.trim() !== "") {
+      return;
+    }
+    const cards = context?.discount_cards ?? [];
+    if (cards.length === 0) {
+      return;
+    }
+    const best = cards[0];
+    if (!best?.number?.trim()) {
+      return;
+    }
+    setDiscountCardInput(best.number);
+    setDiscountCardError("");
+    if (filledLinesForQuote.length > 0) {
+      void applyDiscountCardToOrder(best.number);
+    }
+  }, [applyDiscountCardToOrder, context, filledLinesForQuote.length, itemsLocked, discountCardManuallyCleared, appliedDiscountCardNumber]);
 
   const selectPhoneHit = (u: AdminUser) => {
     const d = digitsOnly(u.phone ?? "");
@@ -663,6 +831,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       delivery_address: addr,
       delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       payment_method: paymentMethod,
+      discount_card_number: appliedDiscountCardNumber.trim() || null,
       items: filledLines.map((item) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
@@ -914,135 +1083,6 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       </SectionCard>
 
       <SectionCard>
-        <h2 className="text-sm font-semibold text-gray-900">Доставка и оплата</h2>
-        <fieldset>
-          <legend className="mb-2 text-sm text-gray-600">Способ доставки *</legend>
-          <div className="space-y-2 text-sm">
-            {DELIVERY_OPTIONS.map(({ value, label }) => (
-              <label key={value} className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="delivery_method"
-                  checked={deliveryMethod === value}
-                  onChange={() => handleDeliveryMethodChange(value)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        {deliveryMethod !== "pickup" ? (
-          <>
-            {deliveryMethod === "minsk_courier" ? (
-              <div>
-                <label className="block text-sm text-gray-600">Населённый пункт</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={MINSK_COURIER_CITY}
-                  tabIndex={-1}
-                  className="mt-1 w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900"
-                  aria-readonly="true"
-                />
-                <p className="mt-1 text-xs text-gray-500">Для курьера по Минску всегда указывается {MINSK_COURIER_CITY}.</p>
-              </div>
-            ) : showCitySelect ? (
-              <div className="space-y-2">
-                <label className="block text-sm text-gray-600">Населённый пункт</label>
-                <select
-                  value={citySelect}
-                  onChange={(e) => setCitySelect(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                >
-                  <option value="">Выберите город из заказов или другой</option>
-                  {savedCities.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                  <option value="__new__">Другой (ввести вручную)</option>
-                </select>
-                {(citySelect === "__new__" || !citySelect) &&
-                  (deliveryMethod === "belarus_courier" ? (
-                    belarusCitySearch
-                  ) : (
-                    <input
-                      value={deliveryCity}
-                      onChange={(e) => setDeliveryCity(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                      placeholder="Город (если не из списка)"
-                    />
-                  ))}
-              </div>
-            ) : deliveryMethod === "belarus_courier" ? (
-              <div>
-                <div className="text-sm text-gray-600">Населённый пункт</div>
-                <div className="mt-1">{belarusCitySearch}</div>
-              </div>
-            ) : null}
-
-            <label className="block text-sm text-gray-600">
-              Адрес доставки *
-              <textarea
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-                placeholder="Улица, дом, подъезд…"
-              />
-            </label>
-          </>
-        ) : (
-          <p className="text-xs text-gray-500">Самовывоз — адрес в заказе будет «нет - самовывоз».</p>
-        )}
-
-        <fieldset>
-          <legend className="mb-2 text-sm text-gray-600">Способ оплаты *</legend>
-          <div className="space-y-2 text-sm">
-            {PAYMENT_OPTIONS.map(({ value, label }) => (
-              <label
-                key={value}
-                className={`flex cursor-pointer items-center gap-2 ${value === "card" && deliveryMethod === "belarus_courier" ? "opacity-40" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="payment_method"
-                  value={value}
-                  checked={paymentMethod === value}
-                  disabled={value === "card" && deliveryMethod === "belarus_courier"}
-                  onChange={() => setPaymentMethod(value)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <label className="block text-sm text-gray-600">
-          Доставка (руб.)
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={deliveryFee}
-            onChange={(e) => setDeliveryFee(Number(e.target.value))}
-            className="mt-1 w-full max-w-xs rounded-xl border border-gray-200 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="block text-sm text-gray-600">
-          Комментарий
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={2}
-            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-          />
-        </label>
-      </SectionCard>
-
-      <SectionCard>
         <h2 className="text-sm font-semibold text-gray-900">Товары *</h2>
         {itemsLocked ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -1071,36 +1111,41 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
           return (
             <div key={`line-${idx}`} className="rounded-xl border border-gray-100 p-3">
               {line.product_id && line.variant_id ? (
-                itemsLocked ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <div>
-                      <div className="font-medium text-gray-900">{line.product_name}</div>
-                      <div className="text-xs text-gray-600">
-                        {line.brand_name ? `${line.brand_name} · ` : ""}
-                        {line.variant_title} · {line.price} руб. ×{" "}
+                <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-gray-900">{line.product_name}</div>
+                    <div className="mt-0.5 text-xs text-gray-600">
+                      {line.brand_name ? `${line.brand_name} · ` : ""}
+                      {line.variant_title}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                      <span>Кол-во:</span>
+                      {itemsLocked ? (
                         <span className="inline-block min-w-[2.5rem] rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-center tabular-nums">
                           {line.qty}
                         </span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <div>
-                      <div className="font-medium text-gray-900">{line.product_name}</div>
-                      <div className="text-xs text-gray-600">
-                        {line.brand_name ? `${line.brand_name} · ` : ""}
-                        {line.variant_title} · {line.price} руб. ×{" "}
+                      ) : (
                         <input
                           type="number"
                           min={1}
-                          className="w-14 rounded border px-1 py-0.5 text-center"
+                          className="w-14 rounded border px-1 py-0.5 text-center tabular-nums"
                           value={line.qty}
                           onChange={(e) => setLineQty(idx, Number(e.target.value))}
                         />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">
+                        Цена:{" "}
+                        <span className="tabular-nums text-gray-800">{formatMoneyRub(line.price)}</span>
+                      </div>
+                      <div className="mt-0.5 text-sm font-medium tabular-nums text-gray-900">
+                        Итого: {formatMoneyRub(orderLineMerchandiseTotal(line))}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    {!itemsLocked ? (
                       <button
                         type="button"
                         className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700"
@@ -1108,9 +1153,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                       >
                         Удалить
                       </button>
-                    </div>
+                    ) : null}
                   </div>
-                )
+                </div>
               ) : itemsLocked ? (
                 <div className="text-xs text-gray-500">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
               ) : (
@@ -1284,6 +1329,244 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
         </button>
       </SectionCard>
 
+      <SectionCard>
+        <h2 className="text-sm font-semibold text-gray-900">Доставка и оплата</h2>
+
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium text-gray-800">Способ доставки *</legend>
+              <div className="space-y-2 text-sm">
+                {DELIVERY_OPTIONS.map(({ value, label }) => (
+                  <label key={value} className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="delivery_method"
+                      checked={deliveryMethod === value}
+                      onChange={() => handleDeliveryMethodChange(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {deliveryMethod !== "pickup" ? (
+              <>
+                {deliveryMethod === "minsk_courier" ? (
+                  <div>
+                    <label className="block text-sm text-gray-600">Населённый пункт</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={MINSK_COURIER_CITY}
+                      tabIndex={-1}
+                      className="mt-1 w-full cursor-not-allowed rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+                      aria-readonly="true"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Для курьера по Минску всегда указывается {MINSK_COURIER_CITY}.
+                    </p>
+                  </div>
+                ) : showCitySelect ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">Населённый пункт</label>
+                    <select
+                      value={citySelect}
+                      onChange={(e) => setCitySelect(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Выберите город из заказов или другой</option>
+                      {savedCities.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                      <option value="__new__">Другой (ввести вручную)</option>
+                    </select>
+                    {(citySelect === "__new__" || !citySelect) &&
+                      (deliveryMethod === "belarus_courier" ? (
+                        belarusCitySearch
+                      ) : (
+                        <input
+                          value={deliveryCity}
+                          onChange={(e) => setDeliveryCity(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                          placeholder="Город (если не из списка)"
+                        />
+                      ))}
+                  </div>
+                ) : deliveryMethod === "belarus_courier" ? (
+                  <div>
+                    <div className="text-sm text-gray-600">Населённый пункт</div>
+                    <div className="mt-1">{belarusCitySearch}</div>
+                  </div>
+                ) : null}
+
+                <label className="block text-sm text-gray-600">
+                  Адрес доставки *
+                  <textarea
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                    placeholder="Улица, дом, подъезд…"
+                  />
+                </label>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500">Самовывоз — адрес в заказе будет «нет - самовывоз».</p>
+            )}
+          </div>
+
+          <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium text-gray-800">Способ оплаты *</legend>
+              <div className="space-y-2 text-sm">
+                {PAYMENT_OPTIONS.map(({ value, label }) => (
+                  <label
+                    key={value}
+                    className={`flex cursor-pointer items-center gap-2 ${value === "card" && deliveryMethod === "belarus_courier" ? "opacity-40" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value={value}
+                      checked={paymentMethod === value}
+                      disabled={value === "card" && deliveryMethod === "belarus_courier"}
+                      onChange={() => setPaymentMethod(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <label className="block text-sm text-gray-600">
+              Доставка (руб.)
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={deliveryFee}
+                onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+              />
+            </label>
+
+            <div className="space-y-3 border-t border-gray-200/80 pt-4">
+              <h3 className="text-sm font-medium text-gray-800">Скидочная карта</h3>
+              {itemsLocked ? (
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  {initialOrder?.discount_card_number ? (
+                    <>
+                      Карта{" "}
+                      <span className="font-mono font-medium text-gray-900">{initialOrder.discount_card_number}</span>
+                      {parseQuoteMoney(initialOrder.discount_amount) > 0.004 ? (
+                        <>
+                          {" "}
+                          · скидка {initialOrder.discount_percent_snapshot}% (−{initialOrder.discount_amount} руб.)
+                        </>
+                      ) : (
+                        <span className="text-gray-500"> · скидка не применялась</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-gray-500">Карта не применялась</span>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs leading-relaxed text-gray-500">
+                    Карта клиента подставляется автоматически. При оплате картой скидка по накопительной карте не
+                    начисляется.
+                  </p>
+                    {discountCardConfirmed ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
+                        <span>
+                          Применена{" "}
+                          <span className="font-mono font-medium text-gray-900">{appliedDiscountCardNumber}</span>
+                          {hasLoyaltyDiscount ? (
+                            <span className="text-emerald-800">
+                              {" "}
+                              · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
+                            </span>
+                          ) : paymentMethod === "card" ? (
+                            <span className="text-gray-600"> · при оплате картой скидка не действует</span>
+                          ) : null}
+                        </span>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-emerald-50"
+                          onClick={() => {
+                            setDiscountCardInput("");
+                            setAppliedDiscountCardNumber("");
+                            setDiscountCardError("");
+                            setDiscountCardManuallyCleared(true);
+                          }}
+                        >
+                          Убрать
+                        </button>
+                      </div>
+                    ) : <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={discountCardInput}
+                        onChange={(e) => {
+                          setDiscountCardInput(e.target.value);
+                          setDiscountCardError("");
+                          if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
+                            setAppliedDiscountCardNumber("");
+                          }
+                        }}
+                        placeholder="Номер скидочной карты"
+                        className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        disabled={!discountCardInput.trim() || orderQuoteLoading}
+                        onClick={() => void applyDiscountCardToOrder(discountCardInput)}
+                        className="shrink-0 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium disabled:opacity-40"
+                      >
+                        {orderQuoteLoading ? "Проверка…" : "Применить"}
+                      </button>
+                    </div>
+                    }
+                  {context?.discount_cards.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {context.discount_cards.map((card) => (
+                        <button
+                          key={card.number}
+                          type="button"
+                          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100"
+                          onClick={() => {
+                            setDiscountCardManuallyCleared(false);
+                            void applyDiscountCardToOrder(card.number);
+                          }}
+                        >
+                          {card.number} ({card.discount_percent}%)
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {discountCardError ? <p className="text-xs text-red-600">{discountCardError}</p> : null}
+                  {orderQuoteLoading ? <p className="text-xs text-gray-500">Пересчёт скидки…</p> : null}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <label className="block border-t border-gray-100 pt-4 text-sm text-gray-600">
+          Комментарий
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+          />
+        </label>
+      </SectionCard>
+
       {isEdit && initialOrder?.gift_certificate_purchases ? (
         <CertificatesPanel
           title="Купленные подарочные сертификаты"
@@ -1330,9 +1613,17 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
         />
       ) : null}
 
-      <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
-        <div>Сумма товаров: {subtotal.toFixed(2)} руб.</div>
-        <div>Итого: {total.toFixed(2)} руб.</div>
+      <div className="space-y-1 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        <div>Сумма товаров: {subtotalStr} руб.</div>
+        {hasLoyaltyDiscount ? (
+          <div>
+            Скидка по карте{appliedDiscountCardNumber ? ` ${appliedDiscountCardNumber}` : ""}: −{loyaltyDiscountStr}{" "}
+            руб.
+          </div>
+        ) : null}
+        <div>Товары со скидкой: {merchandiseTotalStr} руб.</div>
+        <div>Доставка: {Math.max(0, Number(deliveryFee) || 0).toFixed(2)} руб.</div>
+        <div className="font-semibold text-gray-900">Итого: {orderTotalStr} руб.</div>
       </div>
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}

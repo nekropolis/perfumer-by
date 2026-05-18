@@ -22,6 +22,10 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'first_name',
+        'last_name',
+        'patronymic',
+        'birth_date',
         'email',
         'password',
         'phone',
@@ -37,8 +41,38 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
+        'birth_date' => 'date',
         'password' => 'hashed',
     ];
+
+    public function displayName(): string
+    {
+        $fromParts = trim(implode(' ', array_filter([
+            trim((string) ($this->first_name ?? '')),
+            trim((string) ($this->patronymic ?? '')),
+            trim((string) ($this->last_name ?? '')),
+        ])));
+
+        if ($fromParts !== '') {
+            return $fromParts;
+        }
+
+        $name = trim((string) ($this->name ?? ''));
+
+        return $name !== '' ? $name : 'Пользователь';
+    }
+
+    public function isPlaceholderEmail(): bool
+    {
+        $email = mb_strtolower(trim((string) ($this->email ?? '')), 'UTF-8');
+
+        return $email !== '' && str_ends_with($email, '@phone.local');
+    }
+
+    public function profileEmail(): ?string
+    {
+        return $this->isPlaceholderEmail() ? null : ($this->email ?: null);
+    }
 
     public function hasRole(Role|string $role): bool
     {

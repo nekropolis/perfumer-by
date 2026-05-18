@@ -185,5 +185,9 @@ export type CatalogBrandDetailResponse = {
         id: number;
         name: string;
         slug: string;
+        description?: string | null;
+        seo_title?: string | null;
+        seo_description?: string | null;
+        seo_keyword?: string | null;
     };
 };

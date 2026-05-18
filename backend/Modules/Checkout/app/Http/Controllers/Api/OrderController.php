@@ -16,6 +16,7 @@ use Modules\Loyalty\Models\DiscountCardTransaction;
 use Modules\Loyalty\Models\UserDiscountCard;
 use Modules\Users\Models\User;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
+use Modules\Checkout\Services\AdminOrderPricingService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Services\StockInventoryService;
@@ -37,6 +38,7 @@ class OrderController extends Controller
             'delivery_address' => ['nullable', 'string'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'max:32'],
+            'discount_card_number' => ['nullable', 'string', 'max:64'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
@@ -206,8 +208,6 @@ class OrderController extends Controller
             $perPage = 25;
         }
 
-        $page = max(1, (int) $request->input('page', 1));
-
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
@@ -258,7 +258,7 @@ class OrderController extends Controller
                 ]);
             })
             ->latest('id')
-            ->paginate($perPage, ['*'], 'page', $page);
+            ->paginate($perPage);
 
         return response()->json([
             'data' => OrderResource::collection($orders->getCollection()),
@@ -288,12 +288,53 @@ class OrderController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function quote(Request $request, AdminOrderPricingService $pricing): JsonResponse
+    {
+        $validated = $request->validate([
+            'payment_method' => ['nullable', 'string', 'max:32'],
+            'discount_card_number' => ['nullable', 'string', 'max:64'],
+            'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
+        if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
+            return response()->json([
+                'message' => 'Скидочная карта не найдена или неактивна.',
+            ], 422);
+        }
+
+        $paymentMethod = (string) ($validated['payment_method'] ?? 'cash');
+        $quote = $pricing->quote($validated['items'], $paymentMethod, $discountCardNumber !== '' ? $discountCardNumber : null);
+        $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
+
+        return response()->json([
+            'data' => [
+                'subtotal' => number_format($quote['subtotal'], 2, '.', ''),
+                'loyalty_discount_percent' => number_format($quote['loyalty_discount_percent'], 2, '.', ''),
+                'loyalty_discount_amount' => number_format($quote['loyalty_discount_amount'], 2, '.', ''),
+                'discount_card_number' => $quote['discount_card_number'],
+                'delivery_fee' => number_format($deliveryFee, 2, '.', ''),
+                'merchandise_total' => number_format($quote['merchandise_total'], 2, '.', ''),
+                'total' => number_format($quote['merchandise_total'] + $deliveryFee, 2, '.', ''),
+            ],
+        ]);
+    }
+
+    public function store(Request $request, AdminOrderPricingService $pricing): JsonResponse
     {
         $validated = $request->validate($this->orderValidationRules());
+        $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
+        if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
+            return response()->json([
+                'message' => 'Скидочная карта не найдена или неактивна.',
+            ], 422);
+        }
 
         /** @var Order $order */
-        $order = DB::transaction(function () use ($validated) {
+        $order = DB::transaction(function () use ($validated, $discountCardNumber) {
             $order = Order::query()->create([
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => (string) $validated['phone'],
@@ -306,7 +347,10 @@ class OrderController extends Controller
                 'payment_method' => $validated['payment_method'] ?? null,
             ]);
 
-            $this->syncOrderItemsAndTotals($order, $validated['items']);
+            $this->syncOrderItemsAndTotals($order, $validated['items'], [
+                'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
+                'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
+            ]);
             $this->applyStatusTransitionEffects($order, null, (string) $order->status);
 
             return $order;
@@ -326,9 +370,15 @@ class OrderController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, AdminOrderPricingService $pricing): JsonResponse
     {
         $validated = $request->validate($this->orderValidationRules());
+        $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
+        if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
+            return response()->json([
+                'message' => 'Скидочная карта не найдена или неактивна.',
+            ], 422);
+        }
 
         $order = Order::query()->with('items')->findOrFail($id);
         $previousStatus = (string) $order->status;
@@ -340,7 +390,7 @@ class OrderController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal) {
+        DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber) {
             $order->update([
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => (string) $validated['phone'],
@@ -356,7 +406,10 @@ class OrderController extends Controller
             if ($isTerminal) {
                 $this->recalculateOrderTotalsFromExistingItems($order);
             } else {
-                $this->syncOrderItemsAndTotals($order, $validated['items']);
+                $this->syncOrderItemsAndTotals($order, $validated['items'], [
+                    'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
+                    'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
+                ]);
             }
             $nextStatus = (string) $order->status;
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
@@ -538,18 +591,20 @@ class OrderController extends Controller
 
         $subtotal = round($subtotal, 2);
         $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
+        $discountAmount = round((float) ($order->discount_amount ?? 0), 2);
 
         $order->update([
             'items_qty' => $itemsQty,
             'subtotal' => $subtotal,
-            'total' => round($subtotal + $deliveryFee, 2),
+            'total' => round(max(0, $subtotal - $discountAmount) + $deliveryFee, 2),
         ]);
     }
 
     /**
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array{payment_method?: string, discount_card_number?: string|null}  $pricingContext
      */
-    private function syncOrderItemsAndTotals(Order $order, array $items): void
+    private function syncOrderItemsAndTotals(Order $order, array $items, array $pricingContext = []): void
     {
         OrderItem::query()->where('order_id', $order->id)->delete();
 
@@ -579,11 +634,30 @@ class OrderController extends Controller
         }
 
         $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
+        $paymentMethod = (string) ($pricingContext['payment_method'] ?? $order->payment_method ?? 'cash');
+        $discountCardNumber = array_key_exists('discount_card_number', $pricingContext)
+            ? $pricingContext['discount_card_number']
+            : $order->discount_card_number;
+
+        $pricing = app(AdminOrderPricingService::class)->quote(
+            array_map(static fn (array $item): array => [
+                'qty' => (int) $item['qty'],
+                'price' => (float) $item['price'],
+            ], $items),
+            $paymentMethod,
+            $discountCardNumber !== null && trim((string) $discountCardNumber) !== ''
+                ? trim((string) $discountCardNumber)
+                : null,
+        );
 
         $order->update([
             'items_qty' => $itemsQty,
             'subtotal' => round($subtotal, 2),
-            'total' => round($subtotal + $deliveryFee, 2),
+            'discount_card_id' => $pricing['discount_card_id'],
+            'discount_card_number' => $pricing['discount_card_number'],
+            'discount_percent_snapshot' => $pricing['loyalty_discount_percent'],
+            'discount_amount' => $pricing['loyalty_discount_amount'],
+            'total' => round($pricing['merchandise_total'] + $deliveryFee, 2),
         ]);
     }
 
@@ -622,7 +696,7 @@ class OrderController extends Controller
     private function orderPayloadWithInventoryFlag(Order $order): array
     {
         return array_merge(
-            (new OrderResource($order))->toArray(request()),
+            (new OrderResource($order))->resolve(),
             [
                 'can_sync_inventory_writeoff' => $this->orderNeedsInventoryWriteoffSync($order),
             ],

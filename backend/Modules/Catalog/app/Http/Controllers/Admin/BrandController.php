@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Support\VanilleHelper;
 use Throwable;
@@ -40,6 +41,10 @@ class BrandController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'unique:brands,slug'],
+            'description' => ['nullable', 'string'],
+            'seo_title' => ['nullable', 'string', 'max:255'],
+            'seo_description' => ['nullable', 'string'],
+            'seo_keyword' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -53,11 +58,14 @@ class BrandController extends Controller
         $brand = Brand::create([
             'name' => $validated['name'],
             'slug' => $slug,
-            'seo_title' => $validated['name'],
-            'seo_description' => null,
-            'description' => null,
+            'description' => $validated['description'] ?? null,
+            'seo_title' => $validated['seo_title'] ?? $validated['name'],
+            'seo_description' => $validated['seo_description'] ?? null,
+            'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
         ]);
+
+        app(CatalogApiCacheService::class)->bumpVersion();
 
         return response()->json([
             'message' => 'Бренд создан',
@@ -77,6 +85,10 @@ class BrandController extends Controller
                 'max:255',
                 Rule::unique('brands', 'slug')->ignore($brand->id),
             ],
+            'description' => ['nullable', 'string'],
+            'seo_title' => ['nullable', 'string', 'max:255'],
+            'seo_description' => ['nullable', 'string'],
+            'seo_keyword' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -90,9 +102,14 @@ class BrandController extends Controller
         $brand->update([
             'name' => $validated['name'],
             'slug' => $slug,
-            'seo_title' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'seo_title' => ($validated['seo_title'] ?? null) ?: $validated['name'],
+            'seo_description' => $validated['seo_description'] ?? null,
+            'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? $brand->is_active,
         ]);
+
+        app(CatalogApiCacheService::class)->bumpVersion();
 
         return response()->json([
             'message' => 'Бренд обновлён',

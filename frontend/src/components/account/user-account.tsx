@@ -1,9 +1,11 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import AttachLoyaltyCardModal from "@/components/account/attach-loyalty-card-modal";
 import { resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import { formatBelarusPhoneSpaced } from "@/lib/site-contact";
 
 type UserAccountProps = {
     user: {
@@ -17,6 +19,7 @@ type UserAccountProps = {
         }[];
     } | null;
     logoutAction: () => void;
+    onEditAction?: () => void;
 };
 
 function formatDiscountPercent(value: string) {
@@ -27,7 +30,7 @@ function formatDiscountPercent(value: string) {
     return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
 }
 
-export default function UserAccount({ user, logoutAction }: UserAccountProps) {
+export default function UserAccount({ user, logoutAction, onEditAction }: UserAccountProps) {
     const { refreshUser } = useAuth();
     const [attachModalOpen, setAttachModalOpen] = useState(false);
 
@@ -48,8 +51,19 @@ export default function UserAccount({ user, logoutAction }: UserAccountProps) {
                         </div>
 
                         <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                            {user?.phone || "Телефон не указан"}
+                            {user?.phone ? formatBelarusPhoneSpaced(user.phone) : "Телефон не указан"}
                         </div>
+
+                        {onEditAction ? (
+                            <button
+                                type="button"
+                                onClick={onEditAction}
+                                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent)] underline decoration-[var(--accent)] underline-offset-[3px] transition hover:opacity-80"
+                            >
+                                <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                                Редактировать
+                            </button>
+                        ) : null}
                     </div>
                 </div>
 

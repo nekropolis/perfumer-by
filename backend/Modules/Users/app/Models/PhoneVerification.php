@@ -8,8 +8,16 @@ class PhoneVerification extends Model
 {
     protected $table = 'phone_verifications';
 
+    public const PURPOSE_LEGACY = 'legacy';
+
+    public const PURPOSE_REGISTER = 'register';
+
+    public const PURPOSE_PASSWORD_RESET = 'password_reset';
+
     protected $fillable = [
         'phone',
+        'purpose',
+        'meta',
         'code',
         'delivery_channel',
         'delivery_status',

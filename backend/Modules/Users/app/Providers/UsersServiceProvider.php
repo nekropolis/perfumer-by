@@ -22,7 +22,9 @@ class UsersServiceProvider extends ModuleServiceProvider
      *
      * @var string[]
      */
-    // protected array $commands = [];
+    protected array $commands = [
+        \Modules\Users\Console\Commands\MigrateUserNameToFirstNameCommand::class,
+    ];
 
     /**
      * Provider classes to register.

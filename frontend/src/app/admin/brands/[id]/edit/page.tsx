@@ -8,12 +8,14 @@ import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import BrandForm, { type BrandFormState } from "@/components/admin/brands/brand-form";
+import BrandEditorTabs, { type BrandEditorTab } from "@/components/admin/brands/brand-editor-tabs";
 import { fetchBrand, updateBrand } from "@/lib/admin-brands-api";
 
 export default function AdminBrandEditPage() {
     const router = useRouter();
     const params = useParams<{ id: string }>();
 
+    const [activeTab, setActiveTab] = useState<BrandEditorTab>("main");
     const [form, setForm] = useState<BrandFormState | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -32,6 +34,10 @@ export default function AdminBrandEditPage() {
                     id: item.id,
                     name: item.name,
                     slug: item.slug,
+                    description: item.description || "",
+                    seo_title: item.seo_title || item.name,
+                    seo_description: item.seo_description || "",
+                    seo_keyword: item.seo_keyword || "",
                     is_active: item.is_active,
                 });
             } catch (e: unknown) {
@@ -64,6 +70,10 @@ export default function AdminBrandEditPage() {
             await updateBrand(form.id!, {
                 name: form.name,
                 slug: form.slug,
+                description: form.description || null,
+                seo_title: form.seo_title || form.name,
+                seo_description: form.seo_description || null,
+                seo_keyword: form.seo_keyword || null,
                 is_active: form.is_active,
             });
 
@@ -117,12 +127,16 @@ export default function AdminBrandEditPage() {
             {loading ? (
                 <AdminLoadingState text="Загрузка бренда..." />
             ) : form ? (
-                <BrandForm
-                    form={form}
-                    submitting={submitting}
-                    onChangeAction={setForm}
-                    onSubmitAction={handleSubmit}
-                />
+                <>
+                    <BrandEditorTabs activeTab={activeTab} onChangeAction={setActiveTab} />
+                    <BrandForm
+                        form={form}
+                        activeTab={activeTab}
+                        submitting={submitting}
+                        onChangeAction={setForm}
+                        onSubmitAction={handleSubmit}
+                    />
+                </>
             ) : null}
         </AdminPageCard>
     );

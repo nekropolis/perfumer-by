@@ -24,6 +24,29 @@ export function formatBelarusDisplay(e164: string): string {
     return e164.trim();
 }
 
+/** Отображение вида +375 (25) 111 11 11 */
+export function formatBelarusPhoneSpaced(phone: string): string {
+    const d = digitsOnly(phone);
+    let op: string;
+    let national: string;
+
+    if (d.length === 12 && d.startsWith("375")) {
+        op = d.slice(3, 5);
+        national = d.slice(5);
+    } else if (d.length === 9) {
+        op = d.slice(0, 2);
+        national = d.slice(2);
+    } else {
+        return phone.trim();
+    }
+
+    if (national.length !== 7) {
+        return phone.trim();
+    }
+
+    return `+375 (${op}) ${national.slice(0, 3)} ${national.slice(3, 5)} ${national.slice(5)}`;
+}
+
 /** Короткий суффикс «640-88-33» из национальной части (после кода страны). */
 export function phoneNationalShortSuffix(e164: string): string {
     const d = digitsOnly(e164);

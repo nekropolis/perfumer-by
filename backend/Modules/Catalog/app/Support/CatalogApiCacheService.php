@@ -9,7 +9,7 @@ class CatalogApiCacheService
 {
     public const VERSION_KEY = 'catalog:api:version';
     public const TTL_SECONDS = 900;
-    private const SCHEMA_VERSION = 8;
+    private const SCHEMA_VERSION = 9;
 
     public function rememberProducts(array $queryParams, Closure $resolver): array
     {

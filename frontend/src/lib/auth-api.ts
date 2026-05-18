@@ -13,7 +13,7 @@ export type RequestCodeResponse = {
     fallback_used?: boolean;
 };
 
-export type VerifyCodeResponse = {
+export type AuthSuccessResponse = {
     message: string;
     token: string;
     user: {
@@ -24,21 +24,44 @@ export type VerifyCodeResponse = {
     };
 };
 
-export type MeResponse = {
-    data: {
+export type VerifyCodeResponse = AuthSuccessResponse;
+
+export type OtpSentResponse = {
+    message: string;
+    phone: string;
+    dev_code?: string;
+    dev_password?: string;
+};
+
+export type AuthUserProfile = {
+    id: number;
+    name: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    patronymic?: string | null;
+    email?: string | null;
+    birth_date?: string | null;
+    phone: string;
+    phone_verified_at?: string | null;
+    role?: string;
+    discount_cards?: {
         id: number;
-        name: string | null;
-        email?: string | null;
-        phone: string;
-        phone_verified_at?: string | null;
-        role?: string;
-        discount_cards?: {
-            id: number;
-            number: string;
-            discount_percent: string;
-            is_active: boolean;
-        }[];
-    } | null;
+        number: string;
+        discount_percent: string;
+        is_active: boolean;
+    }[];
+};
+
+export type MeResponse = {
+    data: AuthUserProfile | null;
+};
+
+export type UpdateProfilePayload = {
+    first_name?: string | null;
+    last_name?: string | null;
+    patronymic?: string | null;
+    email?: string | null;
+    birth_date?: string | null;
 };
 
 export class ApiRequestError extends Error {
@@ -118,6 +141,146 @@ export async function fetchMe(token: string): Promise<MeResponse> {
 
     if (!res.ok) {
         return { data: null };
+    }
+
+    return res.json();
+}
+
+export async function registerAccount(
+    name: string,
+    phone: string,
+    password: string,
+    passwordConfirmation: string,
+    captchaToken?: string
+): Promise<OtpSentResponse> {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            name,
+            phone,
+            password,
+            password_confirmation: passwordConfirmation,
+            captcha_token: captchaToken || undefined,
+        }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Register API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function verifyRegistration(phone: string, code: string): Promise<AuthSuccessResponse> {
+    const res = await fetch(`${API_BASE}/auth/register/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Register verify API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function loginWithPassword(
+    phone: string,
+    password: string,
+    captchaToken?: string
+): Promise<AuthSuccessResponse> {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, password, captcha_token: captchaToken || undefined }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Login API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function forgotPassword(phone: string, captchaToken?: string): Promise<OtpSentResponse> {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, captcha_token: captchaToken || undefined }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Forgot password API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function requestPasswordChange(
+    token: string,
+    password: string,
+    passwordConfirmation: string
+): Promise<OtpSentResponse> {
+    const res = await fetch(`${API_BASE}/auth/password/change-request`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            password,
+            password_confirmation: passwordConfirmation,
+        }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Password change request API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function verifyPasswordChange(token: string, code: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/auth/password/change-verify`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Password change verify API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function updateProfile(
+    token: string,
+    payload: UpdateProfilePayload
+): Promise<MeResponse & { message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: "PATCH",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        return throwApiError(res, `Update profile API error: ${res.status}`);
     }
 
     return res.json();

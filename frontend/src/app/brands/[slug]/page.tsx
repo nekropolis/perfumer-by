@@ -62,13 +62,24 @@ export async function generateMetadata({
         pagination = undefined;
     }
 
-    return buildSeoMetadata({
-        title: `${brand.data.name} - каталог парфюмерии`,
-        description: `Парфюмерия бренда ${brand.data.name}. Актуальные варианты, цены и наличие.`,
-        canonicalPath: brandCanonicalPath(brand.data.slug, sp),
-        robots: listingFilterRobots(filtered),
-        pagination,
-    });
+    const seoTitle =
+        brand.data.seo_title?.trim() ||
+        `${brand.data.name} - каталог парфюмерии`;
+    const seoDescription =
+        brand.data.seo_description?.trim() ||
+        `Парфюмерия бренда ${brand.data.name}. Актуальные варианты, цены и наличие.`;
+    const seoKeywords = brand.data.seo_keyword?.trim();
+
+    return {
+        ...buildSeoMetadata({
+            title: seoTitle,
+            description: seoDescription,
+            canonicalPath: brandCanonicalPath(brand.data.slug, sp),
+            robots: listingFilterRobots(filtered),
+            pagination,
+        }),
+        ...(seoKeywords ? { keywords: seoKeywords } : {}),
+    };
 }
 
 export default async function BrandPage({
@@ -135,6 +146,7 @@ export default async function BrandPage({
                 queryString={paginationQuery.toString()}
                 currentPage={currentPage}
                 basePath={`/brands/${slug}`}
+                footerDescriptionHtml={brand.data.description}
             />
         </>
     );

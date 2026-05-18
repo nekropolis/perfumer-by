@@ -148,6 +148,30 @@ textarea:focus {
   outline: none;
 }
 
+/* Native date input — calendar popup and controls match storefront palette */
+.site-date-input {
+  accent-color: var(--accent);
+  color-scheme: light;
+}
+
+.site-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  filter: invert(28%) sepia(18%) saturate(1200%) hue-rotate(250deg) brightness(0.85);
+}
+
+.site-date-input:focus {
+  border-color: var(--accent-soft);
+}
+
+.site-date-wheel-scroll {
+  scrollbar-width: none;
+}
+
+.site-date-wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* reCAPTCHA v3 badge may be hidden if required branding text is shown in UI. */
 .grecaptcha-badge {
   visibility: hidden;

@@ -10,8 +10,10 @@ class Brand extends Model
     protected $fillable = [
         'name',
         'slug',
+        'description',
         'seo_title',
         'seo_description',
+        'seo_keyword',
         'is_active',
     ];
 

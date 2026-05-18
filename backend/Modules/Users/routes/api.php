@@ -8,7 +8,16 @@ use Modules\Users\Http\Controllers\Api\AuditLogController;
 Route::prefix('auth')->group(function () {
     Route::post('/request-code', [AuthController::class, 'requestCode']);
     Route::post('/verify-code', [AuthController::class, 'verifyCode']);
-    Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/register/verify', [AuthController::class, 'registerVerify']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [AuthController::class, 'me']);
+        Route::patch('/profile', [AuthController::class, 'updateProfile']);
+        Route::post('/password/change-request', [AuthController::class, 'passwordChangeRequest']);
+        Route::post('/password/change-verify', [AuthController::class, 'passwordChangeVerify']);
+    });
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/users')->group(function () {

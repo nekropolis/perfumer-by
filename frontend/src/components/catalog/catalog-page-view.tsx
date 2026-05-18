@@ -31,6 +31,7 @@ type Props = {
     queryString: string;
     currentPage: number;
     basePath: string;
+    footerDescriptionHtml?: string | null;
 };
 
 export default function CatalogPageView({
@@ -42,6 +43,7 @@ export default function CatalogPageView({
                                             queryString,
                                             currentPage,
                                             basePath,
+                                            footerDescriptionHtml,
                                         }: Props) {
     const total = products.meta?.total ?? products.data.length;
     const lastPage = products.meta?.last_page ?? 1;
@@ -131,6 +133,15 @@ export default function CatalogPageView({
                     )}
                 </section>
             </div>
+
+            {footerDescriptionHtml?.trim() ? (
+                <section className="mt-10 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
+                    <div
+                        className="prose prose-sm max-w-none text-[var(--foreground)] sm:prose-base"
+                        dangerouslySetInnerHTML={{ __html: footerDescriptionHtml }}
+                    />
+                </section>
+            ) : null}
         </main>
     );
 }

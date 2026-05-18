@@ -187,7 +187,26 @@ export type AdminOrderPayload = {
   delivery_address?: string | null;
   delivery_fee?: number;
   payment_method?: string | null;
+  /** Номер активной скидочной карты; пусто — без скидки по карте. */
+  discount_card_number?: string | null;
   items: AdminOrderPayloadItem[];
+};
+
+export type AdminOrderQuote = {
+  subtotal: string;
+  loyalty_discount_percent: string;
+  loyalty_discount_amount: string;
+  discount_card_number: string | null;
+  delivery_fee: string;
+  merchandise_total: string;
+  total: string;
+};
+
+export type AdminOrderQuotePayload = {
+  payment_method?: string | null;
+  discount_card_number?: string | null;
+  delivery_fee?: number;
+  items: { qty: number; price: number }[];
 };
 
 export type AdminOrderCustomerContext = {
@@ -211,6 +230,19 @@ export type AdminOrderCustomerContext = {
     }[];
   }[];
 };
+
+export async function fetchAdminOrderQuote(payload: AdminOrderQuotePayload): Promise<{ data: AdminOrderQuote }> {
+  const res = await fetch(`${API_BASE}/admin/orders/quote`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw await parseOrderError(res, `Admin order quote API error: ${res.status}`);
+  }
+  return res.json();
+}
 
 export async function fetchAdminOrderCustomerContext(phone: string): Promise<{ data: AdminOrderCustomerContext }> {
   const q = phone.trim() ? `?phone=${encodeURIComponent(phone.trim())}` : "";
