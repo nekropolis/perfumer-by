@@ -3,7 +3,6 @@
 namespace Modules\Catalog\Services;
 
 use Illuminate\Http\UploadedFile;
-use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -11,9 +10,14 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductImage;
+use Modules\Catalog\Support\ProductImagePathResolver;
 
 class ProductImageAdminService
 {
+    public function __construct(
+        private readonly ProductImageVariantService $variantService
+    ) {
+    }
     private static function hasExtendedProductImageColumns(): bool
     {
         return Schema::hasColumn('product_images', 'usage_type');
@@ -55,22 +59,28 @@ class ProductImageAdminService
             $nextNumber = (int) $product->images()->count() + 1;
 
             foreach ($files as $index => $file) {
-                $extension = strtolower((string) $file->getClientOriginalExtension());
-                if ($extension === '') {
-                    $extension = 'webp';
-                }
-
-                $filename = $this->buildSeoFilename($disk, $directory, $slugBase, $nextNumber, $extension);
-                $storedPath = $file->storeAs($directory, $filename, 'public');
+                $variantPaths = $this->variantService->generateFromUploadedFile(
+                    $file,
+                    $disk,
+                    $directory,
+                    $slugBase,
+                    $nextNumber
+                );
                 $nextNumber++;
 
                 $row = [
                     'product_id' => $product->id,
-                    'path' => 'storage/' . ltrim($storedPath, '/'),
+                    'path' => $variantPaths['path'],
                     'alt' => $this->buildAltText((string) $product->name, $nextNumber - 1),
                     'sort_order' => $currentMaxSortOrder + $index + 1,
                     'is_main' => false,
                 ];
+                if (ProductImagePathResolver::hasVariantColumns()) {
+                    $row['path_full'] = $variantPaths['path_full'];
+                    $row['path_card'] = $variantPaths['path_card'];
+                    $row['path_listing'] = $variantPaths['path_listing'];
+                    $row['path_thumb'] = $variantPaths['path_thumb'];
+                }
                 if (self::hasExtendedProductImageColumns()) {
                     $row['usage_type'] = $usageType;
                     $row['source_url'] = null;
@@ -221,10 +231,7 @@ class ProductImageAdminService
             ->firstOrFail();
 
         DB::transaction(function () use ($product, $image): void {
-            $storagePath = ltrim((string) preg_replace('#^storage/#', '', (string) $image->path), '/');
-            if ($storagePath !== '') {
-                Storage::disk('public')->delete($storagePath);
-            }
+            $this->variantService->deleteAllVariants($image);
 
             $image->delete();
 
@@ -258,7 +265,7 @@ class ProductImageAdminService
             ->orderBy('id')
             ->get()
             ->map(function (ProductImage $image) {
-                return [
+                $item = [
                     'id' => (int) $image->id,
                     'path' => $image->path,
                     'alt' => $image->alt,
@@ -271,6 +278,15 @@ class ProductImageAdminService
                         ? (string) ($image->watermark_status ?? ProductImage::WATERMARK_NONE)
                         : ProductImage::WATERMARK_NONE,
                 ];
+
+                if (ProductImagePathResolver::hasVariantColumns()) {
+                    $item['path_full'] = ProductImagePathResolver::resolve($image, 'full');
+                    $item['path_card'] = ProductImagePathResolver::resolve($image, 'card');
+                    $item['path_listing'] = ProductImagePathResolver::resolve($image, 'listing');
+                    $item['path_thumb'] = ProductImagePathResolver::resolve($image, 'thumb');
+                }
+
+                return $item;
             })
             ->values()
             ->all();
@@ -299,25 +315,5 @@ class ProductImageAdminService
         }
 
         return sprintf('%s — фото %d', $name, max(1, $number));
-    }
-
-    private function buildSeoFilename(
-        FilesystemAdapter $disk,
-        string $directory,
-        string $baseSlug,
-        int $startNumber,
-        string $extension
-    ): string
-    {
-        $currentNumber = max(1, $startNumber);
-
-        while (true) {
-            $candidate = sprintf('%s-%d.%s', $baseSlug, $currentNumber, $extension);
-            $path = $directory . '/' . $candidate;
-            if (!$disk->exists($path)) {
-                return $candidate;
-            }
-            $currentNumber++;
-        }
     }
 }

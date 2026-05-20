@@ -16,6 +16,7 @@ use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
 use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
+use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -64,6 +65,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         ImportVanilleSampleCommand::class,
         ParseVanilleProductsCommand::class,
         PruneBrandsWithoutProductsCommand::class,
+        RegenerateProductImageVariantsCommand::class,
         ReindexProductSearchCommand::class,
         VanilleImportQueueCommand::class,
     ];

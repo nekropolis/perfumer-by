@@ -5,6 +5,10 @@ const WEBP_QUALITY = 0.86;
 export type ProductImageItem = {
     id: number;
     path: string;
+    path_full?: string | null;
+    path_card?: string | null;
+    path_listing?: string | null;
+    path_thumb?: string | null;
     alt?: string | null;
     is_main?: boolean;
     sort_order?: number;

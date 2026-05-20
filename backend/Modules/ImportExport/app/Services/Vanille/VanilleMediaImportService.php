@@ -11,6 +11,8 @@ use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
+use Modules\Catalog\Services\ProductImageVariantService;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
@@ -39,6 +41,7 @@ class VanilleMediaImportService
         protected VanilleProductParser $productParser,
         protected ImportRetryQueue $importRetryQueue,
         protected LegacyProductDetector $legacyDetector,
+        protected ProductImageVariantService $imageVariantService,
     ) {
     }
 
@@ -713,22 +716,19 @@ class VanilleMediaImportService
 
         $binary = $this->downloadBinary($imageUrl);
         $hash = sha1($binary);
-        $pathFromUrl = parse_url($imageUrl, PHP_URL_PATH);
-        $ext = strtolower((string) pathinfo((string) $pathFromUrl, PATHINFO_EXTENSION));
-        if (! in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
-            $ext = 'jpg';
-        }
 
         $disk = Storage::disk('public');
         $directory = 'products/'.$productId.'/catalog';
-        $disk->makeDirectory($directory);
-        $filename = 'catalog-'.$hash.'.'.$ext;
-        $storedPath = $directory.'/'.$filename;
-        if (! $disk->exists($storedPath)) {
-            $disk->put($storedPath, $binary);
-        }
+        $variantPaths = $this->imageVariantService->generateFromBinary(
+            $binary,
+            $disk,
+            $directory,
+            'catalog',
+            1,
+            'catalog-'.$hash
+        );
 
-        $dbPath = 'storage/'.$storedPath;
+        $dbPath = $variantPaths['path'];
         if (ProductImage::query()->where('product_id', $productId)->where('path', $dbPath)->exists()) {
             return;
         }
@@ -742,11 +742,17 @@ class VanilleMediaImportService
         }
         $row = [
             'product_id' => $productId,
-            'path' => $dbPath,
+            'path' => $variantPaths['path'],
             'alt' => null,
             'sort_order' => $maxSort + 1,
             'is_main' => $isFirstCatalogImage,
         ];
+        if (ProductImagePathResolver::hasVariantColumns()) {
+            $row['path_full'] = $variantPaths['path_full'];
+            $row['path_card'] = $variantPaths['path_card'];
+            $row['path_listing'] = $variantPaths['path_listing'];
+            $row['path_thumb'] = $variantPaths['path_thumb'];
+        }
         if (self::hasProductImagesExtendedSchema()) {
             $row['usage_type'] = ProductImage::USAGE_CATALOG;
             $row['source_url'] = $imageUrl;
@@ -762,22 +768,19 @@ class VanilleMediaImportService
         [$processed, $wmStatus, $meta] = $this->processWatermarkBinary($binary);
 
         $hash = sha1($processed);
-        $pathFromUrl = parse_url($imageUrl, PHP_URL_PATH);
-        $ext = strtolower((string) pathinfo((string) $pathFromUrl, PATHINFO_EXTENSION));
-        if (! in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
-            $ext = 'png';
-        }
 
         $disk = Storage::disk('public');
         $directory = 'products/'.$productId;
-        $disk->makeDirectory($directory);
-        $filename = 'vanille-'.$hash.'.'.$ext;
-        $storedPath = $directory.'/'.$filename;
-        if (! $disk->exists($storedPath)) {
-            $disk->put($storedPath, $processed);
-        }
+        $variantPaths = $this->imageVariantService->generateFromBinary(
+            $processed,
+            $disk,
+            $directory,
+            'vanille',
+            1,
+            'vanille-'.$hash
+        );
 
-        $dbPath = 'storage/'.$storedPath;
+        $dbPath = $variantPaths['path'];
         if (ProductImage::query()->where('product_id', $productId)->where('path', $dbPath)->exists()) {
             return;
         }
@@ -787,11 +790,17 @@ class VanilleMediaImportService
 
         $row = [
             'product_id' => $productId,
-            'path' => $dbPath,
+            'path' => $variantPaths['path'],
             'alt' => null,
             'sort_order' => $maxSort + 1,
             'is_main' => ! $hasMain,
         ];
+        if (ProductImagePathResolver::hasVariantColumns()) {
+            $row['path_full'] = $variantPaths['path_full'];
+            $row['path_card'] = $variantPaths['path_card'];
+            $row['path_listing'] = $variantPaths['path_listing'];
+            $row['path_thumb'] = $variantPaths['path_thumb'];
+        }
         if (self::hasProductImagesExtendedSchema()) {
             $row['usage_type'] = ProductImage::USAGE_GALLERY;
             $row['source_url'] = $imageUrl;

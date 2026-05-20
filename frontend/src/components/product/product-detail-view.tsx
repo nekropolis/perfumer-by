@@ -17,7 +17,11 @@ import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo from "@/components/product/product-service-info";
 import ProductReviewsTab from "@/components/product/product-reviews-tab";
-import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import {
+    normalizeProductImageUrl,
+    productImageLoader,
+    productImagePathForContext,
+} from "@/lib/product-image-url";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import ProductCard from "@/components/product/product-card";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
@@ -280,7 +284,11 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
     const mainImageUrl =
         mainImage == null
             ? null
-            : normalizeProductImageUrl(mainImage.path);
+            : normalizeProductImageUrl(productImagePathForContext(mainImage, "card"));
+    const mainImageFullUrl =
+        mainImage == null
+            ? null
+            : normalizeProductImageUrl(productImagePathForContext(mainImage, "full"));
     const lightboxImageIndex = useMemo(() => {
         if (!mainImage) {
             return 0;
@@ -472,7 +480,9 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     {images.length > 1 ? (
                         <div className="mt-3 grid grid-cols-5 gap-2">
                             {images.map((image, index) => {
-                                const thumbUrl = normalizeProductImageUrl(image.path);
+                                const thumbUrl = normalizeProductImageUrl(
+                                    productImagePathForContext(image, "thumb")
+                                );
                                 const isActive = image.id === (mainImage?.id ?? null);
 
                                 return (
@@ -777,7 +787,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     </div>
                 </div>
             ) : null}
-            {isImageLightboxOpen && mainImageUrl ? (
+            {isImageLightboxOpen && mainImageFullUrl ? (
                 <div
                     className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 p-3 sm:p-6"
                     role="presentation"
@@ -816,7 +826,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 ) : null}
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                    src={mainImageUrl}
+                                    src={mainImageFullUrl}
                                     alt={mainImage?.alt?.trim() || product.name}
                                     className="block h-auto w-auto max-h-[min(92vh,720px)] max-w-[92vw] object-contain"
                                 />
@@ -841,7 +851,9 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                         aria-label="Миниатюры изображений"
                                     >
                                         {images.map((image, index) => {
-                                            const thumbUrl = normalizeProductImageUrl(image.path);
+                                            const thumbUrl = normalizeProductImageUrl(
+                                                productImagePathForContext(image, "thumb")
+                                            );
                                             const isActive = image.id === (mainImage?.id ?? null);
                                             return (
                                                 <button

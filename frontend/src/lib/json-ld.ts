@@ -67,7 +67,7 @@ function productImagesForJsonLd(images: ProductImageData[]): string[] {
         return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
     return sorted
-        .map((img) => normalizeProductImageUrl(img.path))
+        .map((img) => normalizeProductImageUrl(img.path_full ?? img.path))
         .filter(Boolean);
 }
 

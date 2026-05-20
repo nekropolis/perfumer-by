@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -96,15 +97,31 @@ class ProductDetailResource extends JsonResource
                     $images = $images->filter(fn ($image) => (string) ($image->usage_type ?? 'gallery') !== 'catalog');
                 }
 
-                return $images->map(fn ($image) => [
-                    'id' => $image->id,
-                    'path' => $image->path,
-                    'alt' => $image->alt,
-                    'is_main' => (bool) $image->is_main,
-                    'sort_order' => $image->sort_order,
-                    'usage_type' => (string) ($image->usage_type ?? 'gallery'),
-                    'watermark_status' => (string) ($image->watermark_status ?? 'none'),
-                ])->values()->all();
+                return $images->map(function ($image) use ($isAdminRoute) {
+                    $item = [
+                        'id' => $image->id,
+                        'path' => $isAdminRoute
+                            ? (string) $image->path
+                            : ProductImagePathResolver::resolve($image, 'card'),
+                        'alt' => $image->alt,
+                        'is_main' => (bool) $image->is_main,
+                        'sort_order' => $image->sort_order,
+                        'usage_type' => (string) ($image->usage_type ?? 'gallery'),
+                        'watermark_status' => (string) ($image->watermark_status ?? 'none'),
+                    ];
+
+                    if (ProductImagePathResolver::hasVariantColumns()) {
+                        $item['path_full'] = ProductImagePathResolver::resolve($image, 'full');
+                        $item['path_thumb'] = ProductImagePathResolver::resolve($image, 'thumb');
+
+                        if ($isAdminRoute) {
+                            $item['path_card'] = ProductImagePathResolver::resolve($image, 'card');
+                            $item['path_listing'] = ProductImagePathResolver::resolve($image, 'listing');
+                        }
+                    }
+
+                    return $item;
+                })->values()->all();
             }),
 
             'attribute_values' => $this->whenLoaded('attributeValues', function () {

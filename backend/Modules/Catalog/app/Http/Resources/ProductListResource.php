@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -23,6 +24,10 @@ class ProductListResource extends JsonResource
 
             if (self::hasUsageTypeColumn()) {
                 $select[] = 'usage_type';
+            }
+
+            if (ProductImagePathResolver::hasVariantColumns()) {
+                $select[] = 'path_listing';
             }
 
             $q->select($select)
@@ -100,12 +105,14 @@ class ProductListResource extends JsonResource
                 return str_contains((string) ($image->path ?? ''), '/catalog/');
             })
             ->take(2)
-            ->pluck('path')
+            ->map(fn ($image) => ProductImagePathResolver::resolve($image, 'listing'))
             ->filter()
             ->values()
             ->all();
 
-        $listingImagePath = $images->isNotEmpty() ? (string) $images->first()->path : null;
+        $listingImagePath = $images->isNotEmpty()
+            ? ProductImagePathResolver::resolve($images->first(), 'listing')
+            : null;
 
         $discountPercent = null;
         if ($minOldPrice && $minPrice && $minOldPrice > $minPrice) {
