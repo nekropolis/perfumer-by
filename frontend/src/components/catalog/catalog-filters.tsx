@@ -371,7 +371,7 @@ export default function CatalogFilters({
 
             {isBrandModalOpen ? (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
                     onClick={() => setIsBrandModalOpen(false)}
                 >
                     <div
@@ -411,13 +411,13 @@ export default function CatalogFilters({
                             ))}
                         </div>
 
-                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {brandSectionLetters.map((letter) => (
-                                    <div key={`group-${letter}`} id={`brand-letter-${letter}`} className="space-y-1">
-                                        <div className="sticky top-0 z-10 bg-[var(--surface)] py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                                            {letter}
-                                        </div>
+                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                            {brandSectionLetters.map((letter) => (
+                                <div key={`group-${letter}`} id={`brand-letter-${letter}`} className="space-y-1">
+                                    <div className="sticky top-0 z-10 bg-[var(--surface)] py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                                        {letter}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2 lg:grid-cols-3">
                                         {(brandGroups.get(letter) ?? []).map((brand) => (
                                             <label
                                                 key={`brand-modal-${brand.id}`}
@@ -436,8 +436,8 @@ export default function CatalogFilters({
                                             </label>
                                         ))}
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

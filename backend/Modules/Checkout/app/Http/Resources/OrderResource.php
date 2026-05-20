@@ -9,6 +9,8 @@ use Modules\Warehouse\Models\StockReceiptItem;
 
 class OrderResource extends JsonResource
 {
+    private const TRADEMARK_COUNTRY_ATTRIBUTE = 'страна тм';
+
     public function toArray(Request $request): array
     {
         $variantIds = $this->items
@@ -109,6 +111,7 @@ class OrderResource extends JsonResource
                     'qty' => $item->qty,
                     'price' => number_format((float) $item->price, 2, '.', ''),
                     'total' => number_format((float) $item->total, 2, '.', ''),
+                    'product_country' => $this->productCountry($item),
                     'image' => $item->relationLoaded('product')
                         ? ($item->product?->mainImage?->path ?? null)
                         : null,
@@ -242,6 +245,33 @@ class OrderResource extends JsonResource
             '' => null,
             default => $method,
         };
+    }
+
+    private function productCountry($item): ?string
+    {
+        if (! $item->relationLoaded('product') || ! $item->product?->relationLoaded('attributeValues')) {
+            return null;
+        }
+
+        foreach ($item->product->attributeValues as $value) {
+            $attributeName = mb_strtolower(trim((string) ($value->productAttribute?->name ?? '')));
+            if ($attributeName !== self::TRADEMARK_COUNTRY_ATTRIBUTE) {
+                continue;
+            }
+
+            if ($value->relationLoaded('selectedOptions')) {
+                $option = $value->selectedOptions->first(fn ($selected) => $selected->productAttributeOption !== null);
+                $optionName = trim((string) ($option?->productAttributeOption?->name ?? ''));
+                if ($optionName !== '') {
+                    return $optionName;
+                }
+            }
+
+            $customValue = trim((string) ($value->custom_value ?? ''));
+            return $customValue !== '' ? $customValue : null;
+        }
+
+        return null;
     }
 
     private function paymentMethodLabel(string $method): ?string

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import type { ReactNode } from "react";
@@ -20,6 +20,8 @@ type Props = {
     dateFilterSummary?: string;
     /** Открыть тот же попап фильтра по датам (вызывается с родителя). */
     onDateFilterHeaderClickAction?: () => void;
+    selectedOrderIds?: number[];
+    onSelectedOrderIdsChangeAction?: (ids: number[]) => void;
 };
 
 const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
@@ -101,6 +103,8 @@ export default function AdminOrdersTable({
     onErrorMessageAction,
     dateFilterSummary,
     onDateFilterHeaderClickAction,
+    selectedOrderIds = [],
+    onSelectedOrderIdsChangeAction,
 }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
@@ -113,6 +117,38 @@ export default function AdminOrdersTable({
     useEffect(() => {
         setOrders(initialOrders);
     }, [initialOrders]);
+
+    const selectedOrderIdsSet = useMemo(() => new Set(selectedOrderIds), [selectedOrderIds]);
+    const allVisibleSelected = orders.length > 0 && orders.every((order) => selectedOrderIdsSet.has(order.id));
+
+    const toggleOrderSelection = (orderId: number) => {
+        if (!onSelectedOrderIdsChangeAction) {
+            return;
+        }
+
+        const next = new Set(selectedOrderIds);
+        if (next.has(orderId)) {
+            next.delete(orderId);
+        } else {
+            next.add(orderId);
+        }
+        onSelectedOrderIdsChangeAction(Array.from(next));
+    };
+
+    const toggleVisibleSelection = () => {
+        if (!onSelectedOrderIdsChangeAction) {
+            return;
+        }
+
+        const visibleIds = orders.map((order) => order.id);
+        const next = new Set(selectedOrderIds);
+        if (allVisibleSelected) {
+            visibleIds.forEach((id) => next.delete(id));
+        } else {
+            visibleIds.forEach((id) => next.add(id));
+        }
+        onSelectedOrderIdsChangeAction(Array.from(next));
+    };
 
     const handleStatusChange = (orderId: number, status: string) => {
         startStatusTransition(async () => {
@@ -178,6 +214,15 @@ export default function AdminOrdersTable({
                 <table className="min-w-full text-sm">
                     <thead>
                         <tr className="border-b text-left text-gray-500">
+                            <th className="w-10 px-4 py-4">
+                                <input
+                                    type="checkbox"
+                                    checked={allVisibleSelected}
+                                    onChange={toggleVisibleSelection}
+                                    aria-label="Выбрать все заказы на странице"
+                                    className="h-4 w-4 rounded border-gray-300"
+                                />
+                            </th>
                             <th className="px-4 py-4">Заказ</th>
                             <th className="px-4 py-4">Клиент</th>
                             <th className="px-4 py-4">Телефон</th>
@@ -208,6 +253,15 @@ export default function AdminOrdersTable({
                     <tbody className="align-middle">
                         {orders.map((order) => (
                             <tr key={order.id} className="border-b last:border-b-0">
+                                <td className="px-4 py-4">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedOrderIdsSet.has(order.id)}
+                                        onChange={() => toggleOrderSelection(order.id)}
+                                        aria-label={`Выбрать заказ #${order.id}`}
+                                        className="h-4 w-4 rounded border-gray-300"
+                                    />
+                                </td>
                                 <td className="px-4 py-4">
                                     <button
                                         type="button"

@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ListOrdered, ShoppingCart } from "lucide-react";
+import { ListOrdered, Printer, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
 import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
+import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
 import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
@@ -24,6 +25,7 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admin-rich-tabs";
+import AdminOrderReceiptsModal from "@/components/admin/orders/admin-order-receipts-modal";
 import {AdminToast} from "@/types/admin";
 
 type OrdersTab = "orders" | "order_products";
@@ -63,6 +65,10 @@ export default function AdminOrdersPage() {
     const [orderProducts, setOrderProducts] = useState<SupplierOrderReservationRow[]>([]);
     const [products, setProducts] = useState<ProductAdminItem[]>([]);
     const [productFilter, setProductFilter] = useState<number | "">("");
+    const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+    const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+    const [receiptCountryOptions, setReceiptCountryOptions] = useState<string[]>([]);
+    const [receiptOptionsLoading, setReceiptOptionsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<AdminToast | null>(null);
 
@@ -85,6 +91,11 @@ export default function AdminOrdersPage() {
     );
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
+
+    const selectedOrders = useMemo(
+        () => orders.filter((order) => selectedOrderIds.includes(order.id)),
+        [orders, selectedOrderIds],
+    );
 
     const ordersListKey = useMemo(
         () =>
@@ -180,6 +191,11 @@ export default function AdminOrdersPage() {
     }, [searchParamsFromUrl]);
 
     useEffect(() => {
+        const visibleOrderIds = new Set(orders.map((order) => order.id));
+        setSelectedOrderIds((prev) => prev.filter((id) => visibleOrderIds.has(id)));
+    }, [orders]);
+
+    useEffect(() => {
         if (activeTab !== "order_products") {
             return;
         }
@@ -223,8 +239,32 @@ export default function AdminOrdersPage() {
         setDateFrom("");
         setDateTo("");
         setProductFilter("");
+        setSelectedOrderIds([]);
         setOrdersPage(1);
         setToast(null);
+    };
+
+    const handleOpenReceiptModal = async () => {
+        if (selectedOrders.length === 0) {
+            setToast({ type: "error", message: "Выберите заказы для печати" });
+            return;
+        }
+
+        try {
+            setReceiptOptionsLoading(true);
+            setToast(null);
+            const response = await fetchAttributeBindingOptions();
+            const countryAttribute = response.data.find(
+                (attribute) => attribute.name.trim().toLocaleLowerCase("ru-RU") === "страна тм",
+            );
+            setReceiptCountryOptions(countryAttribute?.options.map((option) => option.name) ?? []);
+            setReceiptModalOpen(true);
+        } catch (error) {
+            console.error(error);
+            setToast({ type: "error", message: "Не удалось загрузить справочник стран" });
+        } finally {
+            setReceiptOptionsLoading(false);
+        }
     };
 
     return (
@@ -272,13 +312,26 @@ export default function AdminOrdersPage() {
                                 />
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={handleReset}
-                                className="shrink-0 self-start rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 sm:self-end"
-                            >
-                                Сбросить
-                            </button>
+                            <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-end">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenReceiptModal}
+                                    disabled={selectedOrders.length === 0 || receiptOptionsLoading}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    title="Печать товарных чеков"
+                                >
+                                    <Printer size={16} />
+                                    {receiptOptionsLoading ? "Загрузка..." : "Печать"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleReset}
+                                    className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50"
+                                >
+                                    Сбросить
+                                </button>
+                            </div>
                         </div>
 
                         <AdminOrdersDateRangeButton
@@ -339,6 +392,8 @@ export default function AdminOrdersPage() {
                         onErrorMessageAction={(message) => setToast({ type: "error", message })}
                         dateFilterSummary={dateFilterSummary}
                         onDateFilterHeaderClickAction={() => dateFilterRef.current?.open()}
+                        selectedOrderIds={selectedOrderIds}
+                        onSelectedOrderIdsChangeAction={setSelectedOrderIds}
                     />
                     <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                         <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -425,6 +480,14 @@ export default function AdminOrdersPage() {
                     onCloseAction={() => setToast(null)}
                 />
             )}
+
+            {receiptModalOpen && selectedOrders.length > 0 ? (
+                <AdminOrderReceiptsModal
+                    orders={selectedOrders}
+                    countryOptions={receiptCountryOptions}
+                    onCloseAction={() => setReceiptModalOpen(false)}
+                />
+            ) : null}
         </AdminPageCard>
     );
 }

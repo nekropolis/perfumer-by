@@ -211,6 +211,8 @@ class OrderController extends Controller
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
+                'items.product.attributeValues.productAttribute',
+                'items.product.attributeValues.selectedOptions.productAttributeOption',
                 'discountCard:id,card_number',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
@@ -276,6 +278,8 @@ class OrderController extends Controller
         $order = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
+                'items.product.attributeValues.productAttribute',
+                'items.product.attributeValues.selectedOptions.productAttributeOption',
                 'discountCard:id,card_number',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
@@ -357,7 +361,8 @@ class OrderController extends Controller
         });
 
         $order->refresh()->load([
-            'items',
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
             'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
@@ -416,7 +421,8 @@ class OrderController extends Controller
         });
 
         $order->refresh()->load([
-            'items',
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
             'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
@@ -448,7 +454,8 @@ class OrderController extends Controller
         });
 
         $order->refresh()->load([
-            'items',
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
             'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
@@ -496,6 +503,8 @@ class OrderController extends Controller
 
         $order->refresh()->load([
             'items.variant.supplierOffers.supplier',
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
             'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
         ]);
@@ -524,7 +533,8 @@ class OrderController extends Controller
         });
 
         $order->load([
-            'items',
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
             'discountCard:id,card_number',
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
