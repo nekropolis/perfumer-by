@@ -24,7 +24,6 @@ export default function AdminOrderCreatePage() {
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Создать заказ</h1>
-          <p className="mt-1 text-sm text-admin-text-secondary">Новый заказ вручную из админки</p>
         </div>
         <Link href="/admin/orders" className="rounded-xl border px-4 py-2 text-sm">
           Назад

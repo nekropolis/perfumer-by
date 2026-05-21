@@ -27,6 +27,7 @@ import useDebouncedValue from "@/hooks/use-debounced-value";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { Plus, Trash2 } from "lucide-react";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Курьер по Минску" },
@@ -41,6 +42,12 @@ const PAYMENT_OPTIONS = [
   { value: "cash", label: "Наличными" },
   { value: "card", label: "Картой (Visa и MasterCard)" },
 ] as const;
+
+const clientFieldClass =
+  "w-full rounded-lg border border-admin-border bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20";
+
+const orderLineTableGrid =
+  "grid grid-cols-[minmax(0,1fr)_2.75rem_5.75rem_6.5rem_2rem] items-center gap-x-3";
 
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]["value"];
@@ -227,7 +234,11 @@ type SectionCardProps = {
 };
 
 function SectionCard({ children }: SectionCardProps) {
-  return <section className="space-y-4 rounded-2xl border border-admin-border bg-white p-5">{children}</section>;
+  return (
+    <section className="space-y-4 rounded-2xl border border-admin-border bg-admin-surface p-5 shadow-admin-card">
+      {children}
+    </section>
+  );
 }
 
 function CertificatesPanel<T>({
@@ -323,6 +334,10 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     window.addEventListener("scroll", hide, true);
     return () => window.removeEventListener("scroll", hide, true);
   }, [variantTooltip]);
+
+  useEffect(() => {
+    if (!pickerProductId) setVariantTooltip(null);
+  }, [pickerProductId]);
 
   useEffect(() => {
     if (!itemsLocked) return;
@@ -759,6 +774,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
   const pickVariantForLine = (lineIdx: number, detail: ProductAdminDetail, variantId: number) => {
     if (itemsLocked) return;
+    setVariantTooltip(null);
     const v = detail.variants?.find((x) => x.id === variantId);
     if (!v) return;
     setLines((prev) =>
@@ -930,7 +946,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
             placeholder="Поиск по Беларуси"
           />
           {belarusCityOpen && belarusCityHits.length > 0 ? (
-            <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-admin-border bg-white text-sm shadow-lg">
+            <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface text-sm shadow-lg">
               {belarusCityHits.map((h) => (
                 <li key={h.id}>
                   <button
@@ -990,114 +1006,144 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="relative">
-            <label className="block text-sm text-admin-text-secondary">Телефон *</label>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
+          <div className="flex w-full shrink-0 flex-col gap-2.5 sm:max-w-[14.5rem]">
+            <div className="relative">
+              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Телефон *</label>
 
-            <div className="mt-1 flex w-full items-stretch overflow-hidden rounded-xl border border-admin-border bg-white">
-              <span className="flex shrink-0 items-center border-r border-admin-border bg-admin-muted px-3 text-sm text-admin-text-secondary">
-                +375
-              </span>
+              <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
+                <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
+                  +375
+                </span>
+                <input
+                  value={formatNationalDisplay(nationalNumber)}
+                  onChange={(e) => {
+                    setNationalNumber(clampNationalDigits(e.target.value));
+                    setPhoneHitsOpen(true);
+                  }}
+                  onFocus={() => setPhoneHitsOpen(true)}
+                  onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
+                  placeholder="29 123-45-67"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+              </div>
+
+              {showPhoneClientPanel ? (
+                <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[14.5rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
+                  {phoneHitsLoading || nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL ? (
+                    <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
+                  ) : phoneHits.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-admin-text-secondary">
+                      {hasOrderHistoryByPhone
+                        ? `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`
+                        : "Клиенты не найдены"}
+                    </div>
+                  ) : (
+                    phoneHits.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
+                        onMouseDown={(ev) => ev.preventDefault()}
+                        onClick={() => selectPhoneHit(u)}
+                      >
+                        <span className="font-medium text-admin-text">{u.phone}</span>
+
+                        {u.name ? <span className="text-xs text-admin-text-secondary">{u.name}</span> : null}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Имя</label>
               <input
-                value={formatNationalDisplay(nationalNumber)}
-                onChange={(e) => {
-                  setNationalNumber(clampNationalDigits(e.target.value));
-                  setPhoneHitsOpen(true);
-                }}
-                onFocus={() => setPhoneHitsOpen(true)}
-                onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
-                className="min-w-0 flex-1 border-0 px-3 py-2 text-sm outline-none ring-0 focus:ring-0"
-                placeholder="29 123-45-67"
-                inputMode="numeric"
-                autoComplete="new-password"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className={clientFieldClass}
+                placeholder={
+                  context?.matched_user
+                    ? "Из профиля или вручную"
+                    : "Для нового номера — вручную"
+                }
               />
             </div>
-
-            {showPhoneClientPanel ? (
-              <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-admin-border bg-white py-1 shadow-lg">
-                {phoneHitsLoading || nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL ? (
-                  <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
-                ) : phoneHits.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-admin-text-secondary">
-                    {hasOrderHistoryByPhone
-                      ? `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`
-                      : "Клиенты не найдены"}
-                  </div>
-                ) : (
-                  phoneHits.map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
-                      onMouseDown={(ev) => ev.preventDefault()}
-                      onClick={() => selectPhoneHit(u)}
-                    >
-                      <span className="font-medium text-admin-text">{u.phone}</span>
-
-                      {u.name ? <span className="text-xs text-admin-text-secondary">{u.name}</span> : null}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
-          <label className="block text-sm text-admin-text-secondary">
-            Имя
-
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
-              placeholder={
-                context?.matched_user
-                  ? "Из профиля или вручную"
-                  : "Для нового номера — введите вручную"
-              }
-            />
-          </label>
-        </div>
-
-        <div className="rounded-xl border border-admin-border bg-admin-muted/80 p-3 text-xs text-admin-text">
-          {contextLoading ? (
-            <span>Загрузка данных…</span>
-          ) : context ? (
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setCompletedOrdersOpen(true)}
-                  disabled={context.orders.completed <= 0}
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-admin-border disabled:bg-gray-100 disabled:text-gray-400"
-                >
-                  Выполнено: {context.orders.completed}
-                </button>
-              </div>
-              <div>
-                Отменено: <span className="font-medium text-admin-text">{context.orders.cancelled}</span>
-              </div>
-              <div>
-                Активные: <span className="font-medium text-admin-text">{context.orders.active}</span>
-              </div>
-              <div>
-                {context.discount_cards.length ? (
-                  <>
-                    Карта:{" "}
-                    <span className="font-mono font-medium text-admin-text">
-                      {context.discount_cards.map((c) => `${c.number} (${c.discount_percent}%)`).join(", ")}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-admin-text-secondary">Скидочная карта не привязана</span>
-                )}
-              </div>
+          <div className="flex min-h-[6.5rem] min-w-0 flex-1 flex-col rounded-xl bg-admin-muted/55 px-4 py-3.5">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-admin-border/70 pb-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-admin-text-secondary">
+                Заказы и скидочная карта
+              </span>
+              {context?.matched_user ? (
+                <span className="rounded-md bg-admin-primary/12 px-2 py-0.5 text-[11px] font-medium text-admin-primary">
+                  В базе
+                </span>
+              ) : context && totalOrdersCount(context) > 0 ? (
+                <span className="rounded-md bg-amber-100/80 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                  Гость
+                </span>
+              ) : null}
             </div>
-          ) : (
-            <span className="text-admin-text-secondary">Информация о заказах и скидочной карте по клиенту.</span>
-          )}
+
+            {contextLoading ? (
+              <p className="text-sm text-admin-text-secondary">Загрузка…</p>
+            ) : context ? (
+              <div className="flex flex-1 flex-col justify-center gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompletedOrdersOpen(true)}
+                    disabled={context.orders.completed <= 0}
+                    className="group inline-flex items-baseline gap-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="text-xs text-admin-text-secondary">Выполнено</span>
+                    <span className="text-xl font-semibold tabular-nums text-emerald-700 underline-offset-2 group-enabled:hover:underline">
+                      {context.orders.completed}
+                    </span>
+                  </button>
+                  <div className="inline-flex items-baseline gap-1.5">
+                    <span className="text-xs text-admin-text-secondary">Активные</span>
+                    <span className="text-xl font-semibold tabular-nums text-admin-text">{context.orders.active}</span>
+                  </div>
+                  <div className="inline-flex items-baseline gap-1.5">
+                    <span className="text-xs text-admin-text-secondary">Отменено</span>
+                    <span className="text-xl font-semibold tabular-nums text-admin-text">{context.orders.cancelled}</span>
+                  </div>
+                </div>
+
+                <div className="sm:border-l sm:border-admin-border/70 sm:pl-6">
+                  {context.discount_cards.length ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-admin-text-secondary">Карта</span>
+                      {context.discount_cards.map((c) => (
+                        <span
+                          key={c.number}
+                          className="inline-flex items-center gap-1 rounded-md bg-admin-surface px-2 py-1 font-mono text-xs text-admin-text shadow-sm ring-1 ring-admin-border/80"
+                        >
+                          {c.number}
+                          <span className="font-sans text-[11px] font-semibold text-admin-primary">−{c.discount_percent}%</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-admin-text-secondary">Скидочная карта не привязана</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-snug text-admin-text-secondary">
+                Введите номер — появятся заказы и скидочная карта клиента.
+              </p>
+            )}
+          </div>
         </div>
       </SectionCard>
 
@@ -1109,7 +1155,72 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
             и комментарий.
           </p>
         ) : null}
+        <div className="space-y-2">
+        {lines.some(isCompleteOrderLine) ? (
+          <div className="overflow-x-auto rounded-xl ring-1 ring-inset ring-admin-border/60">
+            <div className="min-w-[28rem]">
+            <div
+              className={`${orderLineTableGrid} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
+            >
+              <span>Наименование</span>
+              <span className="text-center">Кол-во</span>
+              <span className="text-right">Цена</span>
+              <span className="text-right">Итого</span>
+              <span className="sr-only">Действия</span>
+            </div>
+            <div className="divide-y divide-admin-border/70">
+              {lines.map((line, idx) => {
+                if (!isCompleteOrderLine(line)) return null;
+                return (
+                  <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
+                    <p className="min-w-0 truncate text-sm leading-snug text-admin-text">
+                      <span className="font-medium">{line.product_name}</span>
+                      {line.variant_title ? (
+                        <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                      ) : null}
+                    </p>
+                    <div className="justify-self-center">
+                      {itemsLocked ? (
+                        <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
+                          {line.qty}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min={1}
+                          aria-label={`Количество: ${line.product_name}`}
+                          className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                          value={line.qty}
+                          onChange={(e) => setLineQty(idx, Number(e.target.value))}
+                        />
+                      )}
+                    </div>
+                    <p className="text-right text-sm tabular-nums text-admin-text">{formatMoneyRub(line.price)}</p>
+                    <p className="text-right text-sm font-semibold tabular-nums text-admin-text">
+                      {formatMoneyRub(orderLineMerchandiseTotal(line))}
+                    </p>
+                    <div className="justify-self-end">
+                      {!itemsLocked ? (
+                        <button
+                          type="button"
+                          onClick={() => removeLine(idx)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Удалить ${line.product_name}`}
+                          title="Удалить"
+                        >
+                          <Trash2 size={16} strokeWidth={1.75} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            </div>
+          </div>
+        ) : null}
         {lines.map((line, idx) => {
+          if (isCompleteOrderLine(line)) return null;
           const detail = line.product_id ? detailsByProductId[line.product_id] : undefined;
           const inStock = variantsInStock(detail);
           const variantChoices = orderableProductVariants(detail);
@@ -1128,54 +1239,11 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
             (productHitsLoading || productHits.length > 0 || debouncedProductQ.trim().length >= 2);
 
           return (
-            <div key={`line-${idx}`} className="rounded-xl border border-admin-border p-3">
-              {line.product_id && line.variant_id ? (
-                <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-admin-text">{line.product_name}</div>
-                    <div className="mt-0.5 text-xs text-admin-text-secondary">
-                      {line.brand_name ? `${line.brand_name} · ` : ""}
-                      {line.variant_title}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-admin-text-secondary">
-                      <span>Кол-во:</span>
-                      {itemsLocked ? (
-                        <span className="inline-block min-w-[2.5rem] rounded border border-admin-border bg-admin-muted px-1 py-0.5 text-center tabular-nums">
-                          {line.qty}
-                        </span>
-                      ) : (
-                        <input
-                          type="number"
-                          min={1}
-                          className="w-14 rounded border px-1 py-0.5 text-center tabular-nums"
-                          value={line.qty}
-                          onChange={(e) => setLineQty(idx, Number(e.target.value))}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <div className="text-right">
-                      <div className="text-xs text-admin-text-secondary">
-                        Цена:{" "}
-                        <span className="tabular-nums text-admin-text">{formatMoneyRub(line.price)}</span>
-                      </div>
-                      <div className="mt-0.5 text-sm font-medium tabular-nums text-admin-text">
-                        Итого: {formatMoneyRub(orderLineMerchandiseTotal(line))}
-                      </div>
-                    </div>
-                    {!itemsLocked ? (
-                      <button
-                        type="button"
-                        className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700"
-                        onClick={() => removeLine(idx)}
-                      >
-                        Удалить
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : itemsLocked ? (
+            <div
+              key={`line-${idx}`}
+              className="rounded-xl border border-dashed border-admin-border/90 bg-admin-muted/25 px-3 py-2.5"
+            >
+              {itemsLocked ? (
                 <div className="text-xs text-admin-text-secondary">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
               ) : (
                 <div className="space-y-2">
@@ -1192,7 +1260,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                       placeholder="Название, артикул или код товара"
                     />
                     {showProductHitList ? (
-                      <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-admin-border bg-white shadow-lg">
+                      <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg">
                         {productHitsLoading ? (
                           <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
                         ) : productHits.length === 0 ? (
@@ -1314,8 +1382,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                                   });
                                 }}
                                 onBlur={() => setVariantTooltip(null)}
+                                onMouseDown={() => setVariantTooltip(null)}
                                 onClick={() => pickVariantForLine(idx, detail, v.id)}
-                                className={`rounded-lg border bg-white px-2 py-1 text-left text-xs hover:border-gray-400 ${available ? "border-admin-border" : "border-amber-200/80 bg-amber-50/40"}`}
+                                className={`rounded-lg border bg-admin-surface px-2 py-1 text-left text-xs hover:border-gray-400 ${available ? "border-admin-border" : "border-amber-200/80 bg-amber-50/40"}`}
                               >
                                 <div className="font-medium text-admin-text">{v.title || v.display_name}</div>
                                 <div className="text-admin-text-secondary">
@@ -1342,10 +1411,12 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
           type="button"
           onClick={addLine}
           disabled={itemsLocked}
-          className="rounded-xl border border-admin-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/20 px-3 py-2.5 text-sm font-medium text-admin-text-secondary transition hover:border-admin-primary/35 hover:bg-admin-muted/50 hover:text-admin-text disabled:cursor-not-allowed disabled:opacity-50"
         >
+          <Plus size={16} strokeWidth={2} />
           Добавить позицию
         </button>
+        </div>
       </SectionCard>
 
       <SectionCard>
@@ -1380,7 +1451,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                       readOnly
                       value={MINSK_COURIER_CITY}
                       tabIndex={-1}
-                      className="mt-1 w-full cursor-not-allowed rounded-xl border border-admin-border bg-white px-3 py-2 text-sm text-admin-text"
+                      className="mt-1 w-full cursor-not-allowed rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
                       aria-readonly="true"
                     />
                   </div>
@@ -1390,7 +1461,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                     <select
                       value={citySelect}
                       onChange={(e) => setCitySelect(e.target.value)}
-                      className="w-full rounded-xl border border-admin-border bg-white px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     >
                       <option value="">Выберите город из заказов или другой</option>
                       {savedCities.map((c) => (
@@ -1407,7 +1478,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                         <input
                           value={deliveryCity}
                           onChange={(e) => setDeliveryCity(e.target.value)}
-                          className="w-full rounded-xl border border-admin-border bg-white px-3 py-2 text-sm"
+                          className="w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                           placeholder="Город (если не из списка)"
                         />
                       ))}
@@ -1425,7 +1496,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
                     rows={3}
-                    className="mt-1 w-full rounded-xl border border-admin-border bg-white px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     placeholder="Улица, дом, подъезд…"
                   />
                 </label>
@@ -1466,14 +1537,14 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                 step="0.01"
                 value={deliveryFee}
                 onChange={(e) => setDeliveryFee(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-admin-border bg-white px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
               />
             </label>
 
             <div className="space-y-3 border-t border-admin-border/80 pt-4">
               <h3 className="text-sm font-medium text-admin-text">Скидочная карта</h3>
               {itemsLocked ? (
-                <div className="rounded-xl border border-admin-border bg-white px-3 py-2 text-sm text-admin-text">
+                <div className="rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
                   {initialOrder?.discount_card_number ? (
                     <>
                       Карта{" "}
@@ -1513,7 +1584,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                         </span>
                         <button
                           type="button"
-                          className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
+                          className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
                           onClick={() => {
                             setDiscountCardInput("");
                             setAppliedDiscountCardNumber("");
@@ -1535,13 +1606,13 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                           }
                         }}
                         placeholder="Номер скидочной карты"
-                        className="min-w-0 flex-1 rounded-xl border border-admin-border bg-white px-3 py-2 text-sm"
+                        className="min-w-0 flex-1 rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                       />
                       <button
                         type="button"
                         disabled={!discountCardInput.trim() || orderQuoteLoading}
                         onClick={() => void applyDiscountCardToOrder(discountCardInput)}
-                        className="shrink-0 rounded-xl border border-admin-border bg-white px-4 py-2 text-sm font-medium disabled:opacity-40"
+                        className="shrink-0 rounded-xl border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
                       >
                         {orderQuoteLoading ? "Проверка…" : "Применить"}
                       </button>
@@ -1553,7 +1624,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                         <button
                           key={card.number}
                           type="button"
-                          className="rounded-full border border-admin-border bg-white px-3 py-1 text-xs font-medium text-admin-text hover:bg-admin-muted"
+                          className="rounded-full border border-admin-border bg-admin-surface px-3 py-1 text-xs font-medium text-admin-text hover:bg-admin-muted"
                           onClick={() => {
                             setDiscountCardManuallyCleared(false);
                             void applyDiscountCardToOrder(card.number);
@@ -1589,7 +1660,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
           wrapperClassName="space-y-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-4"
           items={initialOrder.gift_certificate_purchases}
           renderItem={(row) => (
-            <li key={row.id} className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+            <li key={row.id} className="rounded-xl border border-violet-100 bg-admin-surface px-3 py-2">
               <div className="font-medium text-admin-text">{row.template_title}</div>
               <div className="mt-0.5 text-xs text-admin-text-secondary">
                 Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
@@ -1608,7 +1679,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
           renderItem={(row) => (
             <li
               key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-admin-surface px-3 py-2"
             >
               <div>
                 <div className="font-mono text-xs text-admin-text-secondary">ID {row.id}</div>
@@ -1669,7 +1740,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       {context && completedOrdersOpen && typeof document !== "undefined"
         ? createPortal(
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4">
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-white shadow-2xl">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl">
               <div className="flex items-center justify-between border-b px-4 py-3">
                 <h3 className="text-sm font-semibold text-admin-text">Выполненные заказы по номеру</h3>
                 <button
