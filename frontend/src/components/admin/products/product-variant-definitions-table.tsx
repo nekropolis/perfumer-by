@@ -14,9 +14,9 @@ export default function ProductVariantDefinitionsTable({
     onDeleteAction,
 }: Props) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-                <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                <thead className="bg-admin-muted/80 text-left text-xs font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                     <tr>
                         <th className="px-3 py-2.5">ID</th>
                         <th className="px-3 py-2.5">Название</th>
@@ -25,14 +25,14 @@ export default function ProductVariantDefinitionsTable({
                 </thead>
                 <tbody>
                     {items.map((item) => (
-                        <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
-                            <td className="px-3 py-3 text-gray-500">{item.id}</td>
-                            <td className="px-3 py-3 text-gray-900">{item.title}</td>
+                        <tr key={item.id} className="border-t border-admin-border align-top transition hover:bg-admin-muted/70">
+                            <td className="px-3 py-3 text-admin-text-secondary">{item.id}</td>
+                            <td className="px-3 py-3 text-admin-text">{item.title}</td>
                             <td className="px-3 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link
                                         href={`/admin/products/variants/${item.id}/edit`}
-                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                         aria-label={`Редактировать вариант ${item.title}`}
                                         title="Редактировать"
                                     >

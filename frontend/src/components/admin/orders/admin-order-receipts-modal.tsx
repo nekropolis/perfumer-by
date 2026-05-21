@@ -163,24 +163,24 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
     return createPortal(
         <>
             <div
-                className="fixed inset-0 z-[200] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+                className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/55 p-0 sm:items-center sm:p-4"
                 onClick={onCloseAction}
                 role="presentation"
             >
                 <div
-                    className="flex h-[94dvh] w-[calc(100vw-24px)] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[min(90vh,760px)]"
+                    className="flex h-[94dvh] w-[calc(100vw-24px)] max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:h-[min(90vh,760px)] sm:rounded-xl"
                     onClick={(event) => event.stopPropagation()}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="admin-order-receipts-title"
                 >
-                    <div className="border-b border-gray-100 px-4 py-3">
+                    <div className="border-b border-admin-border px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                             <div>
-                                <h3 id="admin-order-receipts-title" className="text-lg font-semibold text-gray-950">
+                                <h3 id="admin-order-receipts-title" className="text-lg font-semibold text-admin-text">
                                     Печать товарных чеков
                                 </h3>
-                                <p className="mt-0.5 text-xs text-gray-500">
+                                <p className="mt-0.5 text-xs text-admin-text-secondary">
                                     Проверьте страны товаров перед печатью. Страна не сохраняется в заказе.
                                 </p>
                             </div>
@@ -188,7 +188,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-xl leading-none text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-admin-border bg-white text-xl leading-none text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                                 aria-label="Закрыть"
                             >
                                 x
@@ -197,10 +197,10 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                        <div className="overflow-x-auto rounded-xl border border-admin-border">
                             <table className="min-w-full table-fixed text-sm">
                                 <thead>
-                                    <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    <tr className="border-b bg-admin-muted text-left text-xs font-semibold uppercase tracking-wide text-admin-text-secondary">
                                         <th className="w-28 px-3 py-2">Заказ</th>
                                         <th className="px-3 py-2">Товар</th>
                                         <th className="w-56 px-3 py-2">Страна</th>
@@ -210,10 +210,10 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                     {drafts.map((draft) =>
                                         draft.items.map((item) => (
                                             <tr key={item.key} className="border-b last:border-b-0">
-                                                <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">
+                                                <td className="whitespace-nowrap px-3 py-2 font-medium text-admin-text">
                                                     #{draft.orderId}
                                                 </td>
-                                                <td className="px-3 py-2 text-gray-700">
+                                                <td className="px-3 py-2 text-admin-text">
                                                     <div className="line-clamp-2">{item.name || "Товар"}</div>
                                                 </td>
                                                 <td className="px-3 py-2">
@@ -226,7 +226,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                                                 event.target.value,
                                                             )
                                                         }
-                                                        className="w-48 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm"
+                                                        className="w-48 rounded-lg border border-admin-border bg-white px-2.5 py-1.5 text-sm"
                                                     >
                                                         <option value="">Не указана</option>
                                                         {countryList.map((country) => (
@@ -244,18 +244,18 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-3 sm:flex-row sm:justify-end">
+                    <div className="flex flex-col gap-2 border-t border-admin-border px-4 py-3 sm:flex-row sm:justify-end">
                         <button
                             type="button"
                             onClick={onCloseAction}
-                            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm transition hover:bg-gray-50"
+                            className="rounded-xl border border-admin-border px-4 py-2.5 text-sm transition hover:bg-admin-muted"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
                             onClick={handlePrint}
-                            className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                            className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                         >
                             Печать
                         </button>

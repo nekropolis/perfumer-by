@@ -17,58 +17,58 @@ export default async function AdminOrderPage({ params }: Props) {
     const order = response.data;
 
     return (
-        <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-            <div className="mb-8 flex items-center gap-2">
-                <h1 className="text-3xl font-semibold">Заказ</h1>
+        <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-admin-text sm:text-2xl">Заказ</h1>
                 <CopyText
                     value={String(order.id)}
                     label={`#${order.id}`}
                     title="Скопировать номер заказа"
                     iconSize={16}
-                    className="text-2xl font-semibold text-gray-700"
+                    className="text-2xl font-semibold text-admin-text"
                 />
             </div>
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
-                <div className="rounded-2xl border p-5">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+                <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card">
                     <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <div className="text-sm text-gray-500">Имя</div>
+                            <div className="text-sm text-admin-text-secondary">Имя</div>
                             <div>{order.customer_name || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Телефон</div>
+                            <div className="text-sm text-admin-text-secondary">Телефон</div>
                             <div>{order.phone}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Статус</div>
+                            <div className="text-sm text-admin-text-secondary">Статус</div>
                             <div>{getOrderStatusLabel(order.status)}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Товаров</div>
+                            <div className="text-sm text-admin-text-secondary">Товаров</div>
                             <div>{order.items_qty}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Способ доставки</div>
+                            <div className="text-sm text-admin-text-secondary">Способ доставки</div>
                             <div>{order.delivery_method_label || order.delivery_method || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Населённый пункт</div>
+                            <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
                             <div>{order.delivery_city || "—"}</div>
                         </div>
 
                         <div className="md:col-span-2">
-                            <div className="text-sm text-gray-500">Адрес доставки</div>
+                            <div className="text-sm text-admin-text-secondary">Адрес доставки</div>
                             <div className="whitespace-pre-wrap">{order.delivery_address || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Стоимость доставки</div>
+                            <div className="text-sm text-admin-text-secondary">Стоимость доставки</div>
                             <div>
                                 {parseFloat(order.delivery_fee ?? "0") === 0
                                     ? "Бесплатно"
@@ -77,43 +77,43 @@ export default async function AdminOrderPage({ params }: Props) {
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Способ оплаты</div>
+                            <div className="text-sm text-admin-text-secondary">Способ оплаты</div>
                             <div>{order.payment_method_label || order.payment_method || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Скидочная карта</div>
+                            <div className="text-sm text-admin-text-secondary">Скидочная карта</div>
                             <div>{order.discount_card_number || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">% скидки</div>
+                            <div className="text-sm text-admin-text-secondary">% скидки</div>
                             <div>{order.discount_percent_snapshot ?? "0.00"}%</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Сумма скидки</div>
+                            <div className="text-sm text-admin-text-secondary">Сумма скидки</div>
                             <div>{order.discount_amount ?? "0.00"} руб.</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Оплата сертификатом</div>
+                            <div className="text-sm text-admin-text-secondary">Оплата сертификатом</div>
                             <div>{order.gift_certificate_code || order.gift_certificate_number || "—"}</div>
                         </div>
 
                         <div>
-                            <div className="text-sm text-gray-500">Списание сертификата</div>
+                            <div className="text-sm text-admin-text-secondary">Списание сертификата</div>
                             <div>{order.gift_certificate_amount ?? "0.00"} руб.</div>
                         </div>
 
                         {order.gift_certificate_purchases && order.gift_certificate_purchases.length > 0 ? (
                             <div className="md:col-span-2">
-                                <div className="text-sm text-gray-500">Купленные сертификаты</div>
+                                <div className="text-sm text-admin-text-secondary">Купленные сертификаты</div>
                                 <ul className="mt-1 space-y-1 text-sm">
                                     {order.gift_certificate_purchases.map((row) => (
                                         <li key={row.id} className="rounded-lg border border-violet-100 bg-violet-50/50 px-3 py-2">
                                             <span className="font-medium">{row.template_title}</span>
-                                            <span className="text-gray-600">
+                                            <span className="text-admin-text-secondary">
                                                 {" "}
                                                 — {row.amount} руб. × {row.qty} = {row.total} руб.
                                             </span>
@@ -125,7 +125,7 @@ export default async function AdminOrderPage({ params }: Props) {
 
                         {order.sold_gift_certificates && order.sold_gift_certificates.length > 0 ? (
                             <div className="md:col-span-2">
-                                <div className="text-sm text-gray-500">Выпущенные сертификаты (каталог)</div>
+                                <div className="text-sm text-admin-text-secondary">Выпущенные сертификаты (каталог)</div>
                                 <ul className="mt-1 space-y-2 text-sm">
                                     {order.sold_gift_certificates.map((row) => (
                                         <li
@@ -133,9 +133,9 @@ export default async function AdminOrderPage({ params }: Props) {
                                             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2"
                                         >
                                             <div>
-                                                <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
+                                                <div className="font-mono text-xs text-admin-text-secondary">ID {row.id}</div>
                                                 <div className="font-medium">{row.template_title ?? "Сертификат"}</div>
-                                                <div className="text-gray-600">
+                                                <div className="text-admin-text-secondary">
                                                     {row.initial_amount} руб. · {giftCertificateStatusLabel(row.status, row.code)}
                                                     {row.code ? ` · ${row.code}` : ""}
                                                 </div>
@@ -155,7 +155,7 @@ export default async function AdminOrderPage({ params }: Props) {
 
                     {order.comment && (
                         <div className="mb-6">
-                            <div className="text-sm text-gray-500 mb-1">Комментарий</div>
+                            <div className="text-sm text-admin-text-secondary mb-1">Комментарий</div>
                             <div>{order.comment}</div>
                         </div>
                     )}
@@ -166,9 +166,9 @@ export default async function AdminOrderPage({ params }: Props) {
                     />
                 </div>
 
-                <aside className="rounded-2xl border p-5">
+                <aside className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card">
                     <div className="mb-4 text-lg font-medium">Итого к оплате</div>
-                    <div className="mb-2 space-y-1 text-sm text-gray-600">
+                    <div className="mb-2 space-y-1 text-sm text-admin-text-secondary">
                         <div className="flex justify-between gap-2">
                             <span>Сумма товаров</span>
                             <span className="shrink-0">{order.subtotal} руб.</span>
@@ -197,6 +197,6 @@ export default async function AdminOrderPage({ params }: Props) {
                     />
                 </aside>
             </div>
-        </main>
+        </div>
     );
 }

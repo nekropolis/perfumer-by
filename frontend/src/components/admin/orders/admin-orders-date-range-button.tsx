@@ -117,7 +117,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
     const popup =
         open ? (
             <div
-                className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/35 p-4 pt-16 sm:pt-24"
+                className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-16 sm:pt-24"
                 role="presentation"
                 onMouseDown={(e) => {
                     if (e.target === e.currentTarget) {
@@ -132,11 +132,11 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                     {...(hideTrigger
                         ? { "aria-label": "Фильтр по дате создания заказа" }
                         : { "aria-labelledby": `${id}-trigger` })}
-                    className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl"
+                    className="w-full max-w-md rounded-2xl border border-admin-border bg-white shadow-xl"
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <div className="max-h-[min(85vh,560px)] overflow-y-auto p-4 sm:p-5">
-                        <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-gray-500">Быстрый выбор</div>
+                        <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-admin-text-secondary">Быстрый выбор</div>
                         <div className="mb-4 flex flex-wrap gap-1.5">
                             {presets.map((p) => (
                                 <button
@@ -145,8 +145,8 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                     onClick={() => pickPreset(p.value)}
                                     className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                                         value.period === p.value && !value.dateFrom && !value.dateTo
-                                            ? "border-gray-900 bg-gray-900 text-white"
-                                            : "border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300 hover:bg-white"
+                                            ? "border-gray-900 bg-admin-primary text-white"
+                                            : "border-admin-border bg-admin-muted text-admin-text hover:border-gray-300 hover:bg-white"
                                     }`}
                                 >
                                     {p.label}
@@ -157,29 +157,29 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                 onClick={() => pickPreset("")}
                                 className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                                     !value.period && !value.dateFrom && !value.dateTo
-                                        ? "border-gray-900 bg-gray-900 text-white"
-                                        : "border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300 hover:bg-white"
+                                        ? "border-gray-900 bg-admin-primary text-white"
+                                        : "border-admin-border bg-admin-muted text-admin-text hover:border-gray-300 hover:bg-white"
                                 }`}
                             >
                                 Все даты
                             </button>
                         </div>
 
-                        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500">Интервал дат</div>
-                        <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Сегодня</div>
-                            <div className="text-sm font-medium text-gray-900">
+                        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-admin-text-secondary">Интервал дат</div>
+                        <div className="mb-3 rounded-lg border border-admin-border bg-admin-muted px-3 py-2">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-admin-text-secondary">Сегодня</div>
+                            <div className="text-sm font-medium text-admin-text">
                                 {format(new Date(), "EEEE, d MMMM yyyy", { locale: ru })}
                             </div>
                         </div>
-                        <p className="mb-3 text-xs leading-relaxed text-gray-500">
+                        <p className="mb-3 text-xs leading-relaxed text-admin-text-secondary">
                             Достаточно одной границы — только «С» или только «По». Как только меняете дату вручную, быстрый пресет
                             сбрасывается.
                         </p>
 
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                             <label className="flex min-w-0 flex-1 flex-col gap-1">
-                                <span className="text-xs font-medium text-gray-600">С</span>
+                                <span className="text-xs font-medium text-admin-text-secondary">С</span>
                                 <input
                                     type="date"
                                     value={draftFrom}
@@ -187,11 +187,11 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                         setDraftFrom(e.target.value);
                                         setDraftPeriod("");
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                    className="w-full rounded-lg border border-admin-border bg-white px-2 py-2 text-sm text-admin-text outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                                 />
                             </label>
                             <label className="flex min-w-0 flex-1 flex-col gap-1">
-                                <span className="text-xs font-medium text-gray-600">По</span>
+                                <span className="text-xs font-medium text-admin-text-secondary">По</span>
                                 <input
                                     type="date"
                                     value={draftTo}
@@ -199,30 +199,30 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                         setDraftTo(e.target.value);
                                         setDraftPeriod("");
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                    className="w-full rounded-lg border border-admin-border bg-white px-2 py-2 text-sm text-admin-text outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                                 />
                             </label>
                         </div>
 
-                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3">
+                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-admin-border pt-3">
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                className="rounded-md px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                                className="rounded-md px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>
                             <button
                                 type="button"
                                 onClick={clearAllAndClose}
-                                className="rounded-md px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                                className="rounded-md px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
                             >
                                 Сбросить
                             </button>
                             <button
                                 type="button"
                                 onClick={applyDraftDatesAndClose}
-                                className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-gray-800"
+                                className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-admin-primary-hover"
                             >
                                 Применить
                             </button>
@@ -251,9 +251,9 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                         openPopup();
                     }}
                     title="Фильтр по дате создания заказа"
-                    className="inline-flex h-9 max-w-[11rem] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-left text-xs font-medium text-gray-800 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 sm:max-w-[13rem]"
+                    className="inline-flex h-9 max-w-[11rem] items-center gap-1.5 rounded-lg border border-admin-border bg-white px-2.5 py-1.5 text-left text-xs font-medium text-admin-text shadow-sm transition hover:border-gray-300 hover:bg-admin-muted focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 sm:max-w-[13rem]"
                 >
-                    <CalendarRange className="h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden />
+                    <CalendarRange className="h-3.5 w-3.5 shrink-0 text-admin-text-secondary" aria-hidden />
                     <span className="min-w-0 truncate">{getAdminOrdersDateFilterLabel(presets, value)}</span>
                 </button>
             )}

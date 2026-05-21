@@ -26,10 +26,10 @@ export default function AttributeForm({
                                           onSubmitAction,
                                       }: Props) {
     return (
-        <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
-                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <label className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -44,7 +44,7 @@ export default function AttributeForm({
                         Активен
                     </label>
 
-                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <label className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_filterable)}
@@ -61,7 +61,7 @@ export default function AttributeForm({
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Название
                     </label>
                     <input
@@ -73,13 +73,13 @@ export default function AttributeForm({
                                 name: e.target.value,
                             })
                         }
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                         required
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Тип
                     </label>
                     <select
@@ -90,7 +90,7 @@ export default function AttributeForm({
                                 type: e.target.value as AttributeType,
                             })
                         }
-                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     >
                         <option value="text">Текст</option>
                         <option value="select">Один из списка</option>
@@ -99,7 +99,7 @@ export default function AttributeForm({
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Порядок сортировки
                     </label>
                     <input
@@ -111,12 +111,12 @@ export default function AttributeForm({
                                 sort_order: e.target.value,
                             })
                         }
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Порядок в фильтрах
                     </label>
                     <input
@@ -128,18 +128,18 @@ export default function AttributeForm({
                                 filter_sort_order: e.target.value,
                             })
                         }
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                         disabled={!form.is_filterable}
                     />
                 </div>
             </div>
 
-            <div className="flex justify-end border-t border-gray-100 pt-4">
+            <div className="flex justify-end border-t border-admin-border pt-4">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

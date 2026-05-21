@@ -73,19 +73,19 @@ export default function AdminStatusDropdown({
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
             disabled={disabled}
-            className="flex h-10 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+            className="flex h-9 w-full items-center justify-between rounded-lg border border-admin-border bg-admin-surface px-3 text-left text-sm text-admin-text shadow-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted"
             aria-haspopup="listbox"
             aria-expanded={isOpen}
             aria-label="Статус"
         >
             <span className="truncate">{currentLabel}</span>
             <ChevronDown
-                className={`h-4 w-4 shrink-0 text-gray-500 transition ${isOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 shrink-0 text-admin-text-muted transition ${isOpen ? "rotate-180" : ""}`}
             />
         </button>
     );
 
-    const textColorClass = triggerTextClassName?.trim() || "text-gray-800";
+    const textColorClass = triggerTextClassName?.trim() || "text-admin-text";
 
     const textTrigger = disabled ? (
         <span className={`text-sm font-medium ${textColorClass}`}>{currentLabel}</span>
@@ -113,7 +113,7 @@ export default function AdminStatusDropdown({
 
             {isOpen ? (
                 <div
-                    className={`absolute left-0 top-[calc(100%+0.35rem)] z-40 rounded-xl border border-gray-200 bg-white p-1 shadow-xl ${menuWidthClassName}`}
+                    className={`absolute left-0 top-[calc(100%+0.35rem)] z-40 rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName}`}
                     role="listbox"
                     aria-label="Выбор статуса"
                 >
@@ -129,10 +129,10 @@ export default function AdminStatusDropdown({
                                     setIsOpen(false);
                                     onChangeAction(item.value);
                                 }}
-                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${isActive ? "bg-gray-100 text-black" : "text-gray-700 hover:bg-gray-50"}`}
+                                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
                             >
                                 <span>{item.label}</span>
-                                {isActive ? <Check className="h-4 w-4 text-gray-700" /> : null}
+                                {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
                             </button>
                         );
                     })}

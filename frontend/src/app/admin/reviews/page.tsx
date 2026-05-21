@@ -205,7 +205,7 @@ export default function AdminReviewsPage() {
                 ) : (
                     <div className="min-w-[860px]">
                         <table className="w-full border-collapse text-left text-sm">
-                            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
+                            <thead className="border-b border-admin-border bg-admin-muted text-xs font-medium uppercase text-admin-text-secondary">
                                 <tr>
                                     <th className="px-3 py-2">ID</th>
                                     <th className="px-3 py-2">Дата</th>
@@ -219,9 +219,9 @@ export default function AdminReviewsPage() {
                             </thead>
                             <tbody>
                                 {items.map((row) => (
-                                    <tr key={row.id} className="border-b border-gray-100 align-top last:border-0">
-                                        <td className="px-3 py-2 whitespace-nowrap text-gray-600">{row.id}</td>
-                                        <td className="px-3 py-2 whitespace-nowrap text-gray-600">{formatDt(row.created_at)}</td>
+                                    <tr key={row.id} className="border-b border-admin-border align-top last:border-0">
+                                        <td className="px-3 py-2 whitespace-nowrap text-admin-text-secondary">{row.id}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-admin-text-secondary">{formatDt(row.created_at)}</td>
                                         <td className="px-3 py-2 whitespace-nowrap">
                                             {row.type === "store" ? (
                                                 <span className="rounded-md bg-violet-50 px-2 py-0.5 text-xs text-violet-800">Магазин</span>
@@ -230,12 +230,12 @@ export default function AdminReviewsPage() {
                                             )}
                                         </td>
                                         <td className="max-w-[140px] px-3 py-2">
-                                            <div className="truncate font-medium text-gray-900" title={row.name}>
+                                            <div className="truncate font-medium text-admin-text" title={row.name}>
                                                 {row.name}
                                             </div>
                                         </td>
                                         <td className="px-3 py-2 whitespace-nowrap">{row.stars}</td>
-                                        <td className="max-w-[180px] px-3 py-2 text-gray-700">
+                                        <td className="max-w-[180px] px-3 py-2 text-admin-text">
                                             {row.product ? (
                                                 <Link
                                                     href={`/product/${row.product.slug}`}
@@ -249,7 +249,7 @@ export default function AdminReviewsPage() {
                                                 "Магазин"
                                             )}
                                         </td>
-                                        <td className="px-3 py-2 whitespace-nowrap text-gray-700">{STATUS_LABEL[row.status] ?? row.status}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-admin-text">{STATUS_LABEL[row.status] ?? row.status}</td>
                                         <td className="px-3 py-2 text-right">
                                             <div className="flex flex-wrap justify-end gap-1">
                                                 {row.status !== "published" ? (
@@ -293,7 +293,7 @@ export default function AdminReviewsPage() {
                                                     onClick={() => openReply(row)}
                                                     title="Отзыв и ответ магазина"
                                                     aria-label="Открыть отзыв и ответ магазина"
-                                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-800 transition hover:bg-gray-50"
+                                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text transition hover:bg-admin-muted"
                                                 >
                                                     <MessageSquareReply className="h-4 w-4" aria-hidden />
                                                 </button>
@@ -309,7 +309,7 @@ export default function AdminReviewsPage() {
 
             {replyModal ? (
                 <div
-                    className="fixed inset-0 z-[220] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+                    className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
                     onClick={() => setReplyModal(null)}
                 >
                     <div
@@ -317,12 +317,12 @@ export default function AdminReviewsPage() {
                         onClick={(e) => e.stopPropagation()}
                         aria-modal="true"
                         aria-labelledby="reply-modal-title"
-                        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
+                        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-admin-border bg-white p-5 shadow-xl"
                     >
-                        <h2 id="reply-modal-title" className="mb-1 text-lg font-semibold text-gray-900">
+                        <h2 id="reply-modal-title" className="mb-1 text-lg font-semibold text-admin-text">
                             Отзыв и ответ #{replyModal.id}
                         </h2>
-                        <p className="mb-4 text-xs text-gray-500">
+                        <p className="mb-4 text-xs text-admin-text-secondary">
                             {replyModal.name} · {formatDt(replyModal.created_at)} · {STATUS_LABEL[replyModal.status] ?? replyModal.status}
                             {replyModal.type === "store"
                                 ? " · Магазин"
@@ -332,12 +332,12 @@ export default function AdminReviewsPage() {
                             {` · ${replyModal.stars}★`}
                         </p>
                         <div className="mb-4">
-                            <div className="mb-1.5 text-sm font-medium text-gray-700">Текст отзыва</div>
-                            <div className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm leading-relaxed text-gray-900">
+                            <div className="mb-1.5 text-sm font-medium text-admin-text">Текст отзыва</div>
+                            <div className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-admin-border bg-admin-muted p-3 text-sm leading-relaxed text-admin-text">
                                 {replyModal.text}
                             </div>
                         </div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="reply-modal-textarea">
+                        <label className="mb-1 block text-sm font-medium text-admin-text" htmlFor="reply-modal-textarea">
                             Ответ магазина
                         </label>
                         <textarea
@@ -346,14 +346,14 @@ export default function AdminReviewsPage() {
                             onChange={(e) => setReplyDraft(e.target.value)}
                             rows={6}
                             maxLength={4000}
-                            className="mb-4 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="mb-4 w-full rounded-xl border border-admin-border px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                         />
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={() => saveReply()}
                                 disabled={replySaving}
-                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50"
+                                className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {replySaving ? "Сохранение…" : "Сохранить"}
                             </button>
@@ -375,14 +375,14 @@ export default function AdminReviewsPage() {
                                         setReplySaving(false);
                                     }
                                 }}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-800 transition hover:bg-gray-50 disabled:opacity-50"
+                                className="rounded-xl border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-50"
                             >
                                 Удалить ответ
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setReplyModal(null)}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-800 transition hover:bg-gray-50"
+                                className="rounded-xl border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>

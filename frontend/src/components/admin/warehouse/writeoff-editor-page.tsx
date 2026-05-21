@@ -357,7 +357,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         type="button"
                         onClick={() => void submit()}
                         disabled={saving}
-                        className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                     >
                         {saving ? "Сохраняем..." : form.document_kind === "reserve" ? "Сохранить резерв" : "Сохранить списание"}
                     </button>
@@ -371,7 +371,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             ) : null}
 
             <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-3 shadow-sm sm:p-4">
                     <div className="mb-3 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
                         <label className="flex cursor-pointer items-center gap-2">
                             <input
@@ -433,7 +433,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     </label>
                 </div>
 
-                <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-sm">
                     <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                         <div className="text-sm font-semibold text-slate-900">
                             Документ
@@ -444,7 +444,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         <button
                             type="button"
                             onClick={() => setIsAddModalOpen(true)}
-                            className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                            className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                         >
                             Добавить товар
                         </button>
@@ -553,12 +553,12 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             {isAddModalOpen ? (
                 <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
                     onClick={() => setIsAddModalOpen(false)}
                     role="presentation"
                 >
                     <div
-                        className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white shadow-2xl"
+                        className="w-full max-w-3xl rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                         role="dialog"
                         aria-modal="true"
@@ -766,7 +766,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             <button
                                 type="button"
                                 onClick={addDraftItem}
-                                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                             >
                                 Добавить
                             </button>

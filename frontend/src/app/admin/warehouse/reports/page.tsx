@@ -121,7 +121,7 @@ function ReportDetailsModal({
     showWriteoffSourceColumn?: boolean;
 }) {
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onCloseAction} role="presentation">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
             <div
                 className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
@@ -131,9 +131,9 @@ function ReportDetailsModal({
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
                         <h2 className="text-lg font-semibold">{title}</h2>
-                        <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+                        <p className="mt-1 text-sm text-admin-text-secondary">{subtitle}</p>
                     </div>
-                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-gray-600 hover:bg-gray-50">
+                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
                     </button>
                 </div>
@@ -144,7 +144,7 @@ function ReportDetailsModal({
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="border-b text-left text-gray-500">
+                                    <tr className="border-b text-left text-admin-text-secondary">
                                         <th className="px-4 py-3">Товар</th>
                                         <th className="px-4 py-3">Вариант</th>
                                         <th className="px-4 py-3">Кол-во</th>
@@ -157,10 +157,10 @@ function ReportDetailsModal({
                                     {rows.map((row) => (
                                         <tr key={row.id} className="border-b last:border-b-0">
                                             <td className="px-4 py-3">{row.product_name}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-700">{row.variant_title}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text">{row.variant_title}</td>
                                             <td className="px-4 py-3">{row.qty}</td>
                                             {showWriteoffSourceColumn ? (
-                                                <td className="px-4 py-3 text-xs text-gray-600">{row.source ?? "—"}</td>
+                                                <td className="px-4 py-3 text-xs text-admin-text-secondary">{row.source ?? "—"}</td>
                                             ) : null}
                                             <td className="px-4 py-3">{row.price ?? "—"}</td>
                                             <td className="px-4 py-3">{row.line_total ?? "—"}</td>
@@ -590,13 +590,13 @@ export default function WarehouseReportsPage() {
                                         className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
                                     />
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-xs text-gray-500">
+                                        <span className="text-xs text-admin-text-secondary">
                                             Выбрано: {salesProductIds.length}
                                         </span>
                                         <button
                                             type="button"
                                             onClick={() => setSalesProductIds([])}
-                                            className="text-xs text-gray-600 underline"
+                                            className="text-xs text-admin-text-secondary underline"
                                         >
                                             Сбросить
                                         </button>
@@ -605,7 +605,7 @@ export default function WarehouseReportsPage() {
                                         {selectedSalesProducts.length > 0 ? (
                                             <div className="mb-1 border-b pb-2">
                                                 {selectedSalesProducts.map((product) => (
-                                                    <label key={`selected-${product.id}`} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-gray-50">
+                                                    <label key={`selected-${product.id}`} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-admin-muted">
                                                         <input
                                                             type="checkbox"
                                                             checked
@@ -619,7 +619,7 @@ export default function WarehouseReportsPage() {
                                         {filteredSalesProducts.map((product) => {
                                             const checked = salesProductIds.includes(product.id);
                                             return (
-                                                <label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-gray-50">
+                                                <label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-admin-muted">
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
@@ -633,9 +633,9 @@ export default function WarehouseReportsPage() {
                                             );
                                         })}
                                         {salesSmartLoading ? (
-                                            <div className="px-2 py-3 text-xs text-gray-500">Поиск...</div>
+                                            <div className="px-2 py-3 text-xs text-admin-text-secondary">Поиск...</div>
                                         ) : filteredSalesProducts.length === 0 ? (
-                                            <div className="px-2 py-3 text-xs text-gray-500">
+                                            <div className="px-2 py-3 text-xs text-admin-text-secondary">
                                                 {salesProductsQuery.trim().length >= 2 ? "Ничего не найдено" : "Введите минимум 2 символа"}
                                             </div>
                                         ) : null}
@@ -651,31 +651,31 @@ export default function WarehouseReportsPage() {
 
             {activeTab === "receipts" && receiptSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Документов: <span className="font-semibold">{receiptSummary.documents_count}</span></div>
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{receiptSummary.qty_total}</span></div>
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Сумма: <span className="font-semibold">{receiptSummary.amount_total.toFixed(2)}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{receiptSummary.documents_count}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{receiptSummary.qty_total}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Сумма: <span className="font-semibold">{receiptSummary.amount_total.toFixed(2)}</span></div>
                 </div>
             ) : null}
 
             {activeTab === "writeoffs" && writeoffSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Документов: <span className="font-semibold">{writeoffSummary.documents_count}</span></div>
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{writeoffSummary.qty_total}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{writeoffSummary.documents_count}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{writeoffSummary.qty_total}</span></div>
                 </div>
             ) : null}
 
             {activeTab === "sales" && salesSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-3">
                     {salesReportBy === "orders" ? (
-                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
+                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
                     ) : (
-                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Позиций в отчете: <span className="font-semibold">{salesRows.length}</span></div>
+                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Позиций в отчете: <span className="font-semibold">{salesRows.length}</span></div>
                     )}
-                    <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Единиц: <span className="font-semibold">{salesSummary.qty_total}</span></div>
+                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Единиц: <span className="font-semibold">{salesSummary.qty_total}</span></div>
                     {salesReportBy === "orders" ? (
-                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
+                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
                     ) : (
-                        <div className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm">Период: <span className="font-semibold">{dateFrom || "—"} - {dateTo || "—"}</span></div>
+                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Период: <span className="font-semibold">{dateFrom || "—"} - {dateTo || "—"}</span></div>
                     )}
                 </div>
             ) : null}
@@ -690,7 +690,7 @@ export default function WarehouseReportsPage() {
                         {salesReportBy === "orders" ? (
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="border-b text-left text-gray-500">
+                                    <tr className="border-b text-left text-admin-text-secondary">
                                         <th className="px-4 py-3">Период</th>
                                         <th className="px-4 py-3">Заказы</th>
                                         <th className="px-4 py-3">Единицы</th>
@@ -711,7 +711,7 @@ export default function WarehouseReportsPage() {
                         ) : (
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="border-b text-left text-gray-500">
+                                    <tr className="border-b text-left text-admin-text-secondary">
                                         <th className="px-4 py-3">ID товара</th>
                                         <th className="px-4 py-3">Имя товара / вариант</th>
                                         <th className="px-4 py-3">Кол-во</th>
@@ -760,7 +760,7 @@ export default function WarehouseReportsPage() {
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="border-b text-left text-gray-500">
+                                    <tr className="border-b text-left text-admin-text-secondary">
                                         <th className="px-4 py-3">Документ</th>
                                         <th className="px-4 py-3">Поставщик</th>
                                         <th className="px-4 py-3">Дата</th>
@@ -773,14 +773,14 @@ export default function WarehouseReportsPage() {
                                         <tr key={item.id} className="border-b last:border-b-0">
                                             <td className="px-4 py-3 font-medium">{`Приход #${item.document_no ?? item.id}`}</td>
                                             <td className="px-4 py-3">{item.supplier_name}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.received_at)}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.received_at)}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">
                                                 <AdminInfoButton
                                                     count={item.items?.length ?? 0}
                                                     onClickAction={() => setReceiptDetailRow(item)}
                                                 />  
                                                 </td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{item.comment || "—"}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -790,7 +790,7 @@ export default function WarehouseReportsPage() {
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="border-b text-left text-gray-500">
+                                    <tr className="border-b text-left text-admin-text-secondary">
                                         <th className="px-4 py-3">Документ</th>
                                         <th className="px-4 py-3">Тип</th>
                                         <th className="px-4 py-3">Дата</th>
@@ -804,14 +804,14 @@ export default function WarehouseReportsPage() {
                                         <tr key={item.id} className="border-b last:border-b-0">
                                             <td className="px-4 py-3 font-medium">{`Списание #${item.document_no ?? item.id}`}</td>
                                             <td className="px-4 py-3">{item.type}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.written_off_at)}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{item.items?.length ?? 0}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600">{item.comment || "—"}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.written_off_at)}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.items?.length ?? 0}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
                                             <td className="px-4 py-3 text-right">
                                                 <button
                                                     type="button"
                                                     onClick={() => setWriteoffDetailRow(item)}
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                                     aria-label="Просмотр списания"
                                                     title="Просмотр"
                                                 >
@@ -861,7 +861,7 @@ export default function WarehouseReportsPage() {
                                 />
                             ) : null}
                             {writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.REVERSED ? (
-                                <p className="text-sm text-gray-600">Списание отменено, остатки на физических складах восстановлены.</p>
+                                <p className="text-sm text-admin-text-secondary">Списание отменено, остатки на физических складах восстановлены.</p>
                             ) : null}
                             {writeoffCanReverse ? (
                                 <div className="flex flex-wrap items-center gap-3">
@@ -906,7 +906,7 @@ export default function WarehouseReportsPage() {
                                     >
                                         {writeoffReverseBusy ? "Отмена…" : "Отменить списание"}
                                     </button>
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-admin-text-secondary">
                                         Вернёт количество на физические склады. Движения на складе поставщика не меняются.
                                     </span>
                                 </div>
@@ -915,7 +915,7 @@ export default function WarehouseReportsPage() {
                             writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.POSTED &&
                             !writeoffCanReverse &&
                             !writeoffModalError ? (
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-admin-text-secondary">
                                     Отмена недоступна: нет движений для отката вне склада поставщика.
                                 </p>
                             ) : null}

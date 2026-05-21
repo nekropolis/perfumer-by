@@ -19,7 +19,7 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
         <>
             <div className="overflow-x-auto rounded-2xl border">
                 <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <thead className="bg-admin-muted text-xs uppercase tracking-wide text-admin-text-secondary">
                         <tr>
                             <th className="px-3 py-2 text-left">Название</th>
                             <th className="px-3 py-2 text-right">Кол-во</th>
@@ -40,7 +40,7 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                         {item.product_id != null ? (
                                             <Link
                                                 href={`/admin/products/${item.product_id}/edit`}
-                                                className="font-medium underline decoration-gray-300 underline-offset-2 hover:text-gray-900"
+                                                className="font-medium underline decoration-gray-300 underline-offset-2 hover:text-admin-text"
                                             >
                                                 {item.product_name}
                                             </Link>
@@ -48,11 +48,11 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                             <span className="font-medium">{item.product_name}</span>
                                         )}
                                         {item.variant_title && (
-                                            <div className="mt-0.5 text-xs text-gray-600">
+                                            <div className="mt-0.5 text-xs text-admin-text-secondary">
                                                 {item.variant_id != null ? (
                                                     <Link
                                                         href={`/admin/products/variants/${item.variant_id}/edit`}
-                                                        className="underline decoration-gray-300 underline-offset-2 hover:text-gray-900"
+                                                        className="underline decoration-gray-300 underline-offset-2 hover:text-admin-text"
                                                     >
                                                         {item.variant_title}
                                                     </Link>
@@ -62,7 +62,7 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                             </div>
                                         )}
                                         {item.sku && (
-                                            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                                            <div className="mt-0.5 flex items-center gap-1 text-xs text-admin-text-secondary">
                                                 <span>SKU:</span>
                                                 <CopyText
                                                     value={item.sku}
@@ -106,8 +106,8 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                 {certificatePurchases.map((row) => (
                                     <tr key={row.id} className="align-top bg-violet-50/40">
                                         <td className="px-3 py-3">
-                                            <span className="font-medium text-gray-900">{row.template_title}</span>
-                                            <div className="mt-0.5 text-xs text-gray-500">Шаблон #{row.template_id}</div>
+                                            <span className="font-medium text-admin-text">{row.template_title}</span>
+                                            <div className="mt-0.5 text-xs text-admin-text-secondary">Шаблон #{row.template_id}</div>
                                         </td>
                                         <td className="px-3 py-3 text-right">{row.qty}</td>
                                         <td className="px-3 py-3 text-right">{row.amount}</td>

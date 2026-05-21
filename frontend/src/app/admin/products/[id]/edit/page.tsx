@@ -178,7 +178,7 @@ export default function AdminProductEditPage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Редактировать продукт - {productData?.name}</h1>
-                    <p className="mt-1 text-sm text-gray-600">
+                    <p className="mt-1 text-sm text-admin-text-secondary">
                         Редактирование продукта
                     </p>
                 </div>
@@ -266,7 +266,7 @@ export default function AdminProductEditPage() {
                     {activeTab === "seo" && (
                         <div className="space-y-4 rounded-2xl border bg-white p-5">
                             <div>
-                                <label className="mb-1 block text-sm text-gray-600">
+                                <label className="mb-1 block text-sm text-admin-text-secondary">
                                     SEO title
                                 </label>
                                 <input
@@ -283,7 +283,7 @@ export default function AdminProductEditPage() {
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-sm text-gray-600">
+                                <label className="mb-1 block text-sm text-admin-text-secondary">
                                     SEO description
                                 </label>
                                 <textarea
@@ -299,7 +299,7 @@ export default function AdminProductEditPage() {
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-sm text-gray-600">
+                                <label className="mb-1 block text-sm text-admin-text-secondary">
                                     SEO keyword
                                 </label>
                                 <textarea
@@ -319,7 +319,7 @@ export default function AdminProductEditPage() {
                                     type="button"
                                     onClick={handleSubmit}
                                     disabled={submitting}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>

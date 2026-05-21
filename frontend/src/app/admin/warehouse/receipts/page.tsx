@@ -51,7 +51,7 @@ function ReceiptDetailsModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onCloseAction} role="presentation">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
             <div
                 className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
@@ -61,23 +61,23 @@ function ReceiptDetailsModal({
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
                         <h2 className="text-lg font-semibold">Приход #{row.document_no ?? row.id}</h2>
-                        <p className="mt-1 text-sm text-gray-500">
+                        <p className="mt-1 text-sm text-admin-text-secondary">
                             {row.supplier_name} · {formatDate(row.received_at)}
                         </p>
                     </div>
-                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-gray-600 hover:bg-gray-50">
+                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
                     </button>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-                    <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                    <div className="mb-4 rounded-xl bg-admin-muted px-4 py-3 text-sm text-admin-text">
                         {row.comment || "Комментарий не указан"}
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-4 py-3">Товар</th>
                                     <th className="px-4 py-3">Вариант</th>
                                     <th className="px-4 py-3">Кол-во</th>
@@ -90,11 +90,11 @@ function ReceiptDetailsModal({
                                 {(row.items ?? []).map((item) => (
                                     <tr key={item.id} className="border-b last:border-b-0">
                                         <td className="px-4 py-3">{item.product_name}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.variant_title}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text">{item.variant_title}</td>
                                         <td className="px-4 py-3">{item.qty}</td>
                                         <td className="px-4 py-3">{item.supplier_price}</td>
                                         <td className="px-4 py-3">{item.line_total ?? "—"}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">{item.supplier_sku || "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.supplier_sku || "—"}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -208,7 +208,7 @@ export default function AdminWarehouseReceiptsPage() {
                     <div className="flex gap-2">
                         <Link
                             href="/admin/warehouse/receipts/new"
-                            className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+                            className="rounded-lg bg-admin-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-admin-primary-hover"
                         >
                             Создать приход
                         </Link>
@@ -258,7 +258,7 @@ export default function AdminWarehouseReceiptsPage() {
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-4 py-3">Документ</th>
                                     <th className="px-4 py-3">Поставщик</th>
                                     <th className="px-4 py-3">Склад</th>
@@ -273,21 +273,21 @@ export default function AdminWarehouseReceiptsPage() {
                                     <tr key={item.id} className="border-b last:border-b-0">
                                         <td className="px-4 py-3">
                                             <div className="font-medium">#{item.document_no ?? item.id}</div>
-                                            <div className="text-xs text-gray-500">{getStockReceiptStatusLabel(item.status)}</div>
+                                            <div className="text-xs text-admin-text-secondary">{getStockReceiptStatusLabel(item.status)}</div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div>{item.supplier_name}</div>
-                                            {item.supplier_code ? <div className="text-xs text-gray-500">{item.supplier_code}</div> : null}
+                                            {item.supplier_code ? <div className="text-xs text-admin-text-secondary">{item.supplier_code}</div> : null}
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">{item.warehouse?.name ?? "—"}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">{formatDate(item.received_at)}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">
+                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.warehouse?.name ?? "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.received_at)}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">
                                         <AdminInfoButton
                                             count={item.items?.length ?? 0}
                                             onClickAction={() => setDetailRow(item)}
                                         />
                                             </td>
-                                        <td className="max-w-[320px] px-4 py-3 text-xs text-gray-600">{item.comment || "—"}</td>
+                                        <td className="max-w-[320px] px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-1.5">
                                                 <Link
@@ -296,7 +296,7 @@ export default function AdminWarehouseReceiptsPage() {
                                                             ? `/admin/warehouse/receipts/${item.id}/show`
                                                             : `/admin/warehouse/receipts/${item.id}/edit`
                                                     }
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                                     aria-label={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр документа" : "Редактировать документ"}
                                                     title={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр" : "Изменить"}
                                                 >

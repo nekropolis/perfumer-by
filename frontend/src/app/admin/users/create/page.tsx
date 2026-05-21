@@ -62,7 +62,7 @@ export default function AdminUsersCreatePage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Создать пользователя</h1>
-                    <p className="mt-1 text-sm text-gray-600">Новый пользователь в админской CRUD форме</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Новый пользователь в админской CRUD форме</p>
                 </div>
                 <Link href="/admin/users" className="rounded-xl border px-4 py-2 text-sm">
                     Назад

@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnSecondary } from "@/lib/admin-ui-classes";
+
 type Props = {
     currentPage: number;
     lastPage: number;
@@ -7,36 +9,32 @@ type Props = {
     onNextAction: () => void;
 };
 
-export default function AdminPagination({
-                                            currentPage,
-                                            lastPage,
-                                            onPrevAction,
-                                            onNextAction,
-                                        }: Props) {
+export default function AdminPagination({ currentPage, lastPage, onPrevAction, onNextAction }: Props) {
     if (lastPage <= 1) {
         return null;
     }
 
     return (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-admin-border bg-admin-surface px-4 py-2.5">
             <button
                 type="button"
                 onClick={onPrevAction}
                 disabled={currentPage <= 1}
-                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                className={`${adminBtnSecondary} disabled:opacity-50`}
             >
                 Назад
             </button>
 
-            <div className="text-sm p-2 text-gray-500">
-                Страница {currentPage} из {lastPage}
+            <div className="text-sm text-admin-text-secondary">
+                Страница <span className="font-medium text-admin-text">{currentPage}</span> из{" "}
+                <span className="font-medium text-admin-text">{lastPage}</span>
             </div>
 
             <button
                 type="button"
                 onClick={onNextAction}
                 disabled={currentPage >= lastPage}
-                className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                className={`${adminBtnSecondary} disabled:opacity-50`}
             >
                 Вперёд
             </button>

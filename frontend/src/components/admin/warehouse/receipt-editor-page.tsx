@@ -361,7 +361,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             loading ||
                             (isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED)
                         }
-                        className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                     >
                         {saving ? "Сохраняем..." : "Сохранить черновик"}
                     </button>
@@ -388,7 +388,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 <AdminLoadingState text="Загрузка прихода..." />
             ) : (
                 <div className="space-y-4">
-                    <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                    <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-3 shadow-sm sm:p-4">
                         <div className="flex flex-wrap items-end gap-3 xl:flex-nowrap">
                             <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm">
                                 <span className="text-slate-600">Склад</span>
@@ -456,14 +456,14 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         </label>
                     </div>
 
-                    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-sm">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                             <div className="text-sm font-semibold text-slate-900">Документ</div>
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(true)}
                                 disabled={readOnlyPosted}
-                                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                             >
                                 Добавить товар
                             </button>
@@ -516,12 +516,12 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
 
             {isAddModalOpen ? (
                 <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
                     onClick={() => setIsAddModalOpen(false)}
                     role="presentation"
                 >
                     <div
-                        className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white shadow-2xl"
+                        className="w-full max-w-3xl rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                         role="dialog"
                         aria-modal="true"
@@ -691,7 +691,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <button
                                 type="button"
                                 onClick={addDraftItem}
-                                className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                             >
                                 Добавить
                             </button>

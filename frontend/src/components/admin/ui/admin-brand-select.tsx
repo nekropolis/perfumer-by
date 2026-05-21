@@ -41,12 +41,12 @@ export default function AdminBrandSelect({
 
     return (
         <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
+            <label className="mb-1.5 block text-sm font-medium text-admin-text">{label}</label>
 
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:border-gray-300"
+                className="flex w-full items-center justify-between rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:border-gray-300"
             >
                 <span className={`truncate ${selectedBrand ? "text-black" : "text-gray-400"}`}>
                     {selectedBrand ? selectedBrand.name : placeholder}
@@ -55,23 +55,23 @@ export default function AdminBrandSelect({
             </button>
 
             {open && (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                        <div className="flex items-center justify-between border-b border-admin-border px-5 py-4">
                             <div>
-                                <div className="text-base font-semibold text-gray-950">Выбор бренда</div>
-                                <div className="text-sm text-gray-500">Найдите и выберите нужный бренд</div>
+                                <div className="text-base font-semibold text-admin-text">Выбор бренда</div>
+                                <div className="text-sm text-admin-text-secondary">Найдите и выберите нужный бренд</div>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                className="rounded-xl border border-gray-200 px-3 py-2 text-sm transition hover:bg-gray-50"
+                                className="rounded-xl border border-admin-border px-3 py-2 text-sm transition hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>
                         </div>
 
-                        <div className="border-b border-gray-100 p-4">
+                        <div className="border-b border-admin-border p-4">
                             <div className="relative">
                                 <Search
                                     size={16}
@@ -82,7 +82,7 @@ export default function AdminBrandSelect({
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder="Поиск бренда..."
-                                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 pl-9 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                    className="w-full rounded-xl border border-admin-border px-4 py-2.5 pl-9 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                                 />
                             </div>
                         </div>
@@ -103,8 +103,8 @@ export default function AdminBrandSelect({
                                                 }}
                                                 className={`block w-full rounded-xl px-4 py-3 text-left text-sm transition ${
                                                     isActive
-                                                        ? "bg-black text-white"
-                                                        : "text-gray-700 hover:bg-gray-100"
+                                                        ? "bg-admin-primary text-white"
+                                                        : "text-admin-text hover:bg-admin-muted"
                                                 }`}
                                             >
                                                 {brand.name}
@@ -112,7 +112,7 @@ export default function AdminBrandSelect({
                                         );
                                     })
                                 ) : (
-                                    <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+                                    <div className="rounded-xl border border-dashed border-admin-border px-4 py-6 text-center text-sm text-admin-text-secondary">
                                         Ничего не найдено
                                     </div>
                                 )}

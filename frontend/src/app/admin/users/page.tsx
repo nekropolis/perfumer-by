@@ -21,7 +21,7 @@ import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import {AdminToast} from "@/types/admin";
+import { AdminToast } from "@/types/admin";
 
 const ROLES = ["customer", "admin", "manager", "ceo"];
 
@@ -45,7 +45,7 @@ function resolveUserState(user: AdminUser): { label: string; className: string }
 
     return {
         label: "Без активности",
-        className: "bg-gray-50 text-gray-600 border-gray-200",
+        className: "bg-admin-muted text-admin-text-secondary border-admin-border",
     };
 }
 
@@ -140,7 +140,7 @@ export default function AdminUsersPage() {
                 action={(
                     <Link
                         href="/admin/users/create"
-                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                        className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                     >
                         Создать пользователя
                     </Link>
@@ -175,74 +175,74 @@ export default function AdminUsersPage() {
                 ) : (
                     <table className="min-w-full text-sm">
                         <thead>
-                        <tr className="border-b text-left text-gray-500">
-                            <th className="px-3 py-2">ID</th>
-                            <th className="px-3 py-2">Имя</th>
-                            <th className="px-3 py-2">Телефон</th>
-                            <th className="px-3 py-2">Email</th>
-                            <th className="px-3 py-2">Статус</th>
-                            <th className="px-3 py-2">Скидочная карта</th>
-                            <th className="px-3 py-2 text-right">Действия</th>
-                        </tr>
+                            <tr className="border-b text-left text-admin-text-secondary">
+                                <th className="px-3 py-2">ID</th>
+                                <th className="px-3 py-2">Имя</th>
+                                <th className="px-3 py-2">Телефон</th>
+                                <th className="px-3 py-2">Email</th>
+                                <th className="px-3 py-2">Статус</th>
+                                <th className="px-3 py-2">Скидочная карта</th>
+                                <th className="px-3 py-2 text-right">Действия</th>
+                            </tr>
                         </thead>
 
                         <tbody className="align-middle">
-                        {users.map((user) => {
-                            const state = resolveUserState(user);
-                            return (
-                            <tr key={user.id} className="border-b last:border-b-0">
-                                <td className="px-3 py-2 tabular-nums">{user.id}</td>
-                                <td className="px-3 py-2">{user.name || "—"}</td>
-                                <td className="px-3 py-2">{user.phone || "—"}</td>
-                                <td className="max-w-[240px] truncate px-3 py-2" title={user.email || "—"}>{user.email || "—"}</td>
-                                <td className="px-3 py-2">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium ${state.className}`}>
-                                            {state.label}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                                            onClick={() => void handleOpenOrdersHistory(user)}
-                                        >
-                                            Выполнено: {Number(user.orders_count ?? 0)}
-                                        </button>
-                                    </div>
-                                </td>
-                                <td className="max-w-[260px] px-3 py-2">
-                                    {user.discount_cards && user.discount_cards.length > 0
-                                        ? user.discount_cards.map((card) => `${card.number} (${card.discount_percent}%)`).join(", ")
-                                        : "—"}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Link
-                                            href={`/admin/users/${user.id}/edit`}
-                                            title="Редактировать"
-                                            aria-label="Редактировать"
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-800 transition hover:bg-gray-50"
-                                        >
-                                            <Pencil className="h-4 w-4" aria-hidden />
-                                        </Link>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteUser(user.id)}
-                                            disabled={deletingUserId === user.id}
-                                            title="Удалить"
-                                            aria-label="Удалить"
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
-                                        >
-                                            {deletingUserId === user.id ? (
-                                                <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                            ) : (
-                                                <Trash2 className="h-4 w-4" aria-hidden />
-                                            )}
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            );
-                        })}
+                            {users.map((user) => {
+                                const state = resolveUserState(user);
+                                return (
+                                    <tr key={user.id} className="border-b last:border-b-0">
+                                        <td className="px-3 py-2 tabular-nums">{user.id}</td>
+                                        <td className="px-3 py-2">{user.name || "—"}</td>
+                                        <td className="px-3 py-2">{user.phone || "—"}</td>
+                                        <td className="max-w-[240px] truncate px-3 py-2" title={user.email || "—"}>{user.email || "—"}</td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium ${state.className}`}>
+                                                    {state.label}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                                    onClick={() => void handleOpenOrdersHistory(user)}
+                                                >
+                                                    Выполнено: {Number(user.orders_count ?? 0)}
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td className="max-w-[260px] px-3 py-2">
+                                            {user.discount_cards && user.discount_cards.length > 0
+                                                ? user.discount_cards.map((card) => `${card.number} (${card.discount_percent}%)`).join(", ")
+                                                : "—"}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Link
+                                                    href={`/admin/users/${user.id}/edit`}
+                                                    title="Редактировать"
+                                                    aria-label="Редактировать"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text transition hover:bg-admin-muted"
+                                                >
+                                                    <Pencil className="h-4 w-4" aria-hidden />
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteUser(user.id)}
+                                                    disabled={deletingUserId === user.id}
+                                                    title="Удалить"
+                                                    aria-label="Удалить"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
+                                                >
+                                                    {deletingUserId === user.id ? (
+                                                        <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4" aria-hidden />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}
@@ -257,19 +257,19 @@ export default function AdminUsersPage() {
             )}
 
             {historyUser && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
                     <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
                         <div className="flex items-center justify-between border-b px-4 py-3">
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-900">История заказов</h3>
-                                <p className="text-xs text-gray-500">
+                                <h3 className="text-sm font-semibold text-admin-text">История заказов</h3>
+                                <p className="text-xs text-admin-text-secondary">
                                     {historyUser.name || "Пользователь"} · {historyUser.phone || "—"}
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setHistoryUser(null)}
-                                className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                                className="rounded-lg border border-admin-border px-2.5 py-1.5 text-xs text-admin-text hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>
@@ -282,22 +282,22 @@ export default function AdminUsersPage() {
                             ) : (
                                 <table className="min-w-full text-sm">
                                     <thead>
-                                    <tr className="border-b text-left text-gray-500">
-                                        <th className="px-3 py-2">№ заказа</th>
-                                        <th className="px-3 py-2">Дата</th>
-                                        <th className="px-3 py-2 text-right">Кол-во</th>
-                                        <th className="px-3 py-2 text-right">Сумма</th>
-                                    </tr>
+                                        <tr className="border-b text-left text-admin-text-secondary">
+                                            <th className="px-3 py-2">№ заказа</th>
+                                            <th className="px-3 py-2">Дата</th>
+                                            <th className="px-3 py-2 text-right">Кол-во</th>
+                                            <th className="px-3 py-2 text-right">Сумма</th>
+                                        </tr>
                                     </thead>
                                     <tbody>
-                                    {historyRows.map((row) => (
-                                        <tr key={row.id} className="border-b last:border-b-0">
-                                            <td className="px-3 py-2 font-medium text-gray-900">#{row.id}</td>
-                                            <td className="px-3 py-2">{formatDateTime(row.created_at)}</td>
-                                            <td className="px-3 py-2 text-right tabular-nums">{row.items_qty}</td>
-                                            <td className="px-3 py-2 text-right tabular-nums">{row.total}</td>
-                                        </tr>
-                                    ))}
+                                        {historyRows.map((row) => (
+                                            <tr key={row.id} className="border-b last:border-b-0">
+                                                <td className="px-3 py-2 font-medium text-admin-text">#{row.id}</td>
+                                                <td className="px-3 py-2">{formatDateTime(row.created_at)}</td>
+                                                <td className="px-3 py-2 text-right tabular-nums">{row.items_qty}</td>
+                                                <td className="px-3 py-2 text-right tabular-nums">{row.total}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             )}

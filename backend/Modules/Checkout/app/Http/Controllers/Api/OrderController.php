@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
+use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\DiscountCardTransaction;
 use Modules\Loyalty\Models\UserDiscountCard;
@@ -50,6 +51,21 @@ class OrderController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function normalizeDeliveryFields(array $validated): array
+    {
+        if (($validated['delivery_method'] ?? null) === CheckoutDeliveryService::METHOD_PICKUP) {
+            $validated['delivery_city'] = null;
+        } elseif (($validated['delivery_method'] ?? null) === CheckoutDeliveryService::METHOD_MINSK) {
+            $validated['delivery_city'] = CheckoutDeliveryService::MINSK_CITY;
+        }
+
+        return $validated;
     }
 
     public function stats(): JsonResponse
@@ -329,7 +345,7 @@ class OrderController extends Controller
 
     public function store(Request $request, AdminOrderPricingService $pricing): JsonResponse
     {
-        $validated = $request->validate($this->orderValidationRules());
+        $validated = $this->normalizeDeliveryFields($request->validate($this->orderValidationRules()));
         $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
         if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
             return response()->json([
@@ -377,7 +393,7 @@ class OrderController extends Controller
 
     public function update(Request $request, int $id, AdminOrderPricingService $pricing): JsonResponse
     {
-        $validated = $request->validate($this->orderValidationRules());
+        $validated = $this->normalizeDeliveryFields($request->validate($this->orderValidationRules()));
         $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
         if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
             return response()->json([

@@ -193,7 +193,7 @@ export default function AdminStockNotificationsPage() {
                             <col style={{ width: "14%" }} />
                         </colgroup>
                         <thead>
-                            <tr className="border-b text-left text-gray-500">
+                            <tr className="border-b text-left text-admin-text-secondary">
                                 <th className="overflow-hidden px-2 py-2">#</th>
                                 <th className="overflow-hidden px-2 py-2">Дата</th>
                                 <th className="overflow-hidden px-2 py-2">Тип</th>
@@ -223,13 +223,13 @@ export default function AdminStockNotificationsPage() {
                                                 className="max-w-full min-w-0"
                                             />
                                         </td>
-                                        <td className="max-w-0 overflow-hidden px-2 py-2 leading-tight text-gray-900">
+                                        <td className="max-w-0 overflow-hidden px-2 py-2 leading-tight text-admin-text">
                                             {dateParts ? (
                                                 <>
                                                     <div className="whitespace-nowrap text-xs tabular-nums lg:text-sm">
                                                         {dateParts.date}
                                                     </div>
-                                                    <div className="mt-0.5 whitespace-nowrap text-[10px] tabular-nums text-gray-500 lg:text-[11px]">
+                                                    <div className="mt-0.5 whitespace-nowrap text-[10px] tabular-nums text-admin-text-secondary lg:text-[11px]">
                                                         {dateParts.time}
                                                     </div>
                                                 </>
@@ -241,7 +241,7 @@ export default function AdminStockNotificationsPage() {
                                             <span
                                                 title={kindFull}
                                                 className={`box-border block w-full max-w-full overflow-hidden rounded-full px-1.5 py-0.5 text-center text-[10px] font-medium leading-snug break-words line-clamp-2 ${KIND_BADGE_CLASS[item.kind] ??
-                                                    "border border-gray-200 bg-gray-50 text-gray-700"
+                                                    "border border-admin-border bg-admin-muted text-admin-text"
                                                     }`}
                                             >
                                                 {kindFull}
@@ -266,7 +266,7 @@ export default function AdminStockNotificationsPage() {
                                             </div>
                                             {item.variant_title ? (
                                                 <div
-                                                    className="mt-0.5 truncate text-xs text-gray-600"
+                                                    className="mt-0.5 truncate text-xs text-admin-text-secondary"
                                                     title={item.variant_title}
                                                 >
                                                     {item.variant_title}
@@ -280,7 +280,7 @@ export default function AdminStockNotificationsPage() {
                                                 </div>
                                             ) : null}
                                         </td>
-                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 font-mono text-[11px] text-gray-800 lg:text-xs">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 font-mono text-[11px] text-admin-text lg:text-xs">
                                             <CopyText
                                                 value={item.phone}
                                                 label={item.phone}
@@ -289,7 +289,7 @@ export default function AdminStockNotificationsPage() {
                                                 className="flex w-full min-w-0 max-w-full justify-start overflow-hidden [&>span.tabular-nums]:min-w-0 [&>span.tabular-nums]:truncate"
                                             />
                                         </td>
-                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 text-gray-700">
+                                        <td className="max-w-0 min-w-0 overflow-hidden px-2 py-2 text-admin-text">
                                             {item.comment ? (
                                                 <div
                                                     className="line-clamp-3 whitespace-pre-line break-words text-xs lg:text-sm"

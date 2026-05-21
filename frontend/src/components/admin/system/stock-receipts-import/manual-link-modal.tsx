@@ -20,20 +20,20 @@ export function StockReceiptManualLinkModal({
     onConfirmAction: (variantId: number) => void;
 }) {
     return (
-        <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <div className="text-sm font-medium">
                             Ручная связка строки прихода: <strong>{manualLink.rowTitle}</strong>
                         </div>
-                        <button type="button" onClick={onCloseAction} className="text-xs text-gray-500">
+                        <button type="button" onClick={onCloseAction} className="text-xs text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
                     <div className="space-y-3 overflow-y-auto px-5 py-4">
                         <div>
-                            <label className="mb-1 block text-xs font-medium text-gray-600">
+                            <label className="mb-1 block text-xs font-medium text-admin-text-secondary">
                                 Локальный товар (поиск по мере ввода)
                             </label>
                             <input
@@ -49,7 +49,7 @@ export function StockReceiptManualLinkModal({
                             />
                         </div>
                         {manualLink.productsLoading ? (
-                            <div className="text-xs text-gray-500">Поиск товаров…</div>
+                            <div className="text-xs text-admin-text-secondary">Поиск товаров…</div>
                         ) : null}
                         {!manualLink.productsLoading && manualLink.products.length === 0 ? (
                             <div className="rounded-xl border bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -58,7 +58,7 @@ export function StockReceiptManualLinkModal({
                         ) : null}
                         {manualLink.products.length > 0 && !manualLink.selectedProductId ? (
                             <>
-                                <div className="text-xs font-medium text-gray-700">
+                                <div className="text-xs font-medium text-admin-text">
                                     Кандидаты (нажми строку — загрузятся варианты)
                                 </div>
                                 <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
@@ -70,7 +70,7 @@ export function StockReceiptManualLinkModal({
                                                 type="button"
                                                 onClick={() => void onPickProductAction(product.id)}
                                                 className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                                                    active ? "bg-gray-900 text-white" : "hover:bg-gray-100"
+                                                    active ? "bg-admin-primary text-white" : "hover:bg-admin-muted"
                                                 }`}
                                             >
                                                 {product.name}
@@ -81,7 +81,7 @@ export function StockReceiptManualLinkModal({
                             </>
                         ) : null}
                         {manualLink.selectedProductId ? (
-                            <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
                                 {(() => {
                                     const selectedProduct = manualLink.products.find(
                                         (product) => product.id === manualLink.selectedProductId
@@ -98,11 +98,11 @@ export function StockReceiptManualLinkModal({
                             </div>
                         ) : null}
                         {manualLink.variantsLoading ? (
-                            <div className="text-xs text-gray-500">Загрузка вариантов…</div>
+                            <div className="text-xs text-admin-text-secondary">Загрузка вариантов…</div>
                         ) : null}
                         {manualLink.selectedProductId && !manualLink.variantsLoading && manualLink.variants.length > 1 ? (
                             <div>
-                                <label className="mb-1 block text-xs font-medium text-gray-600">Вариант</label>
+                                <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Вариант</label>
                                 <select
                                     value={manualLink.selectedVariantId ?? ""}
                                     onChange={(e) => {
@@ -121,8 +121,8 @@ export function StockReceiptManualLinkModal({
                             </div>
                         ) : null}
                         {manualLink.selectedProductId ? (
-                            <div className="space-y-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 p-3">
-                                <div className="text-xs font-medium text-gray-700">
+                            <div className="space-y-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/80 p-3">
+                                <div className="text-xs font-medium text-admin-text">
                                     Справочник формулировок (поиск по мере ввода)
                                 </div>
                                 <input
@@ -137,10 +137,10 @@ export function StockReceiptManualLinkModal({
                                     placeholder="Объём, концентрация или часть названия"
                                 />
                                 {manualLink.definitionsLoading ? (
-                                    <div className="text-xs text-gray-500">Поиск в справочнике…</div>
+                                    <div className="text-xs text-admin-text-secondary">Поиск в справочнике…</div>
                                 ) : null}
                                 {!manualLink.definitionsLoading && manualLink.definitionSearch.trim() === "" ? (
-                                    <div className="text-[11px] text-gray-500">Введи запрос — список обновится сам.</div>
+                                    <div className="text-[11px] text-admin-text-secondary">Введи запрос — список обновится сам.</div>
                                 ) : null}
                                 {!manualLink.definitionsLoading &&
                                 manualLink.definitionSearch.trim() !== "" &&
@@ -155,14 +155,14 @@ export function StockReceiptManualLinkModal({
                                                 type="button"
                                                 disabled={manualLink.attachingDefinition}
                                                 onClick={() => void onPickDefinitionAction(def.id)}
-                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50"
+                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-admin-muted disabled:opacity-50"
                                             >
                                                 {def.title}
                                             </button>
                                         ))}
                                     </div>
                                 ) : null}
-                                <p className="text-[11px] text-gray-500">
+                                <p className="text-[11px] text-admin-text-secondary">
                                     Если формулировка уже есть у товара, дубликат не создаётся — будет выбран
                                     существующий вариант.
                                 </p>
@@ -182,7 +182,7 @@ export function StockReceiptManualLinkModal({
                                 <button
                                     type="button"
                                     onClick={() => onConfirmAction(manualLink.selectedVariantId!)}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white"
                                 >
                                     Применить к строке прихода
                                 </button>

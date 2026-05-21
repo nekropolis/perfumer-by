@@ -56,6 +56,9 @@ class OrderResource extends JsonResource
 
         $deliveryMethod = (string) ($this->delivery_method ?? '');
         $paymentMethod = (string) ($this->payment_method ?? '');
+        $deliveryCity = $deliveryMethod === CheckoutDeliveryService::METHOD_MINSK
+            ? CheckoutDeliveryService::MINSK_CITY
+            : $this->delivery_city;
 
         return [
             'id' => $this->id,
@@ -68,7 +71,7 @@ class OrderResource extends JsonResource
             'subtotal' => number_format((float) $this->subtotal, 2, '.', ''),
             'delivery_method' => $deliveryMethod !== '' ? $deliveryMethod : null,
             'delivery_method_label' => $this->deliveryMethodLabel($deliveryMethod),
-            'delivery_city' => $this->delivery_city,
+            'delivery_city' => $deliveryCity,
             'delivery_address' => $this->delivery_address,
             'delivery_fee' => number_format((float) ($this->delivery_fee ?? 0), 2, '.', ''),
             'payment_method' => $paymentMethod !== '' ? $paymentMethod : null,

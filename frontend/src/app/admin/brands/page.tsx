@@ -127,13 +127,13 @@ export default function AdminBrandsPage() {
                             type="button"
                             onClick={() => void syncFromVanille()}
                             disabled={syncing}
-                            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {syncing ? "Добавляем..." : "Добавить новые бренды"}
                         </button>
                         <Link
                             href="/admin/brands/create"
-                            className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                            className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                         >
                             Создать бренд
                         </Link>

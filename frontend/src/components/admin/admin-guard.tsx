@@ -22,25 +22,25 @@ export default function AdminGuard({ children }: Props) {
 
     if (loading) {
         return (
-            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <div className="flex min-h-[40vh] items-center justify-center text-admin-text-secondary">
                 Загрузка...
-            </main>
+            </div>
         );
     }
 
     if (!isAuthenticated) {
         return (
-            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <div className="flex min-h-[40vh] items-center justify-center text-admin-text-secondary">
                 Перенаправление...
-            </main>
+            </div>
         );
     }
 
     if (!isAdminRole(user?.role)) {
         return (
-            <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-                <h1 className="mb-6 text-3xl font-semibold">Недостаточно прав</h1>
-                <p className="mb-6 text-gray-600">
+            <div className="mx-auto max-w-lg rounded-xl border border-admin-border bg-admin-surface p-6 shadow-admin-card">
+                <h1 className="mb-4 text-xl font-semibold text-admin-text">Недостаточно прав</h1>
+                <p className="mb-6 text-admin-text-secondary">
                     У вас нет доступа к панели администратора.
                 </p>
 
@@ -49,11 +49,11 @@ export default function AdminGuard({ children }: Props) {
                         На главную
                     </Link>
 
-                    <Link href="/account" className="rounded-xl bg-black px-4 py-2 text-white">
+                    <Link href="/account" className="rounded-full bg-admin-primary px-4 py-2 text-white">
                         В аккаунт
                     </Link>
                 </div>
-            </main>
+            </div>
         );
     }
 

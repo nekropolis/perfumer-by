@@ -75,18 +75,18 @@ export function ManualLinkModal({
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
 }) {
     return (
-        <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <div className="text-sm font-medium">Принудительная связка для товара: <strong>{manualLink.rowName}</strong></div>
-                        <button type="button" onClick={onCloseAction} className="text-xs text-gray-500">
+                        <button type="button" onClick={onCloseAction} className="text-xs text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
                     <div className="space-y-3 overflow-y-auto px-5 py-4">
                         <div>
-                            <label className="mb-1 block text-xs font-medium text-gray-600">Локальный товар (поиск
+                            <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Локальный товар (поиск
                                 по мере ввода)</label>
                             <input
                                 type="text"
@@ -101,7 +101,7 @@ export function ManualLinkModal({
                             />
                         </div>
                         {manualLink.productsLoading ? (
-                            <div className="text-xs text-gray-500">Поиск товаров…</div>
+                            <div className="text-xs text-admin-text-secondary">Поиск товаров…</div>
                         ) : null}
                         {!manualLink.productsLoading && manualLink.products.length === 0 ? (
                             <div className="rounded-xl border bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -111,7 +111,7 @@ export function ManualLinkModal({
                         ) : null}
                         {manualLink.products.length > 0 && !manualLink.selectedProductId ? (
                             <>
-                                <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
+                                <div className="text-xs font-medium text-admin-text">Формулировка (поиск по мере ввода,
                                     нажми строку — добавится к товару)</div>
                                 <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
                                     {manualLink.products.map((product: ProductAdminItem) => {
@@ -121,7 +121,7 @@ export function ManualLinkModal({
                                                 key={product.id}
                                                 type="button"
                                                 onClick={() => void onPickProductAction(product.id)}
-                                                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-gray-900 text-white" : "hover:bg-gray-100"
+                                                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-admin-primary text-white" : "hover:bg-admin-muted"
                                                     }`}
                                             >
                                                 {product.name}
@@ -132,7 +132,7 @@ export function ManualLinkModal({
                             </>
                         ) : null}
                         {manualLink.selectedProductId ? (
-                            <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
                                 {(() => {
                                     const selectedProduct = manualLink.products.find(
                                         (product) => product.id === manualLink.selectedProductId
@@ -151,8 +151,8 @@ export function ManualLinkModal({
                             </div>
                         ) : null}
                         {manualLink.selectedProductId ? (
-                            <div className="space-y-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 p-3">
-                                <div className="text-xs font-medium text-gray-700">Формулировка (поиск по мере ввода,
+                            <div className="space-y-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/80 p-3">
+                                <div className="text-xs font-medium text-admin-text">Формулировка (поиск по мере ввода,
                                     нажми строку — добавится к товару)</div>
                                 <input
                                     type="text"
@@ -166,10 +166,10 @@ export function ManualLinkModal({
                                     placeholder="Объём, концентрация или часть названия"
                                 />
                                 {manualLink.definitionsLoading ? (
-                                    <div className="text-xs text-gray-500">Поиск в справочнике…</div>
+                                    <div className="text-xs text-admin-text-secondary">Поиск в справочнике…</div>
                                 ) : null}
                                 {!manualLink.definitionsLoading && manualLink.definitionSearch.trim() === "" ? (
-                                    <div className="text-[11px] text-gray-500">Введи запрос — список обновится сам.</div>
+                                    <div className="text-[11px] text-admin-text-secondary">Введи запрос — список обновится сам.</div>
                                 ) : null}
                                 {!manualLink.definitionsLoading
                                     && manualLink.definitionSearch.trim() !== ""
@@ -184,14 +184,14 @@ export function ManualLinkModal({
                                                 type="button"
                                                 disabled={manualLink.attachingDefinition}
                                                 onClick={() => void onPickDefinitionAction(def.id)}
-                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50"
+                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-admin-muted disabled:opacity-50"
                                             >
                                                 {def.title}
                                             </button>
                                         ))}
                                     </div>
                                 ) : null}
-                                <p className="text-[11px] text-gray-500">
+                                <p className="text-[11px] text-admin-text-secondary">
                                     Если формулировка уже есть у товара, дубликат не создаётся — будет выбран
                                     существующий вариант.
                                 </p>
@@ -214,7 +214,7 @@ export function ManualLinkModal({
                                     onClick={() =>
                                         void onConfirmAction(manualLink.rowId, manualLink.selectedVariantId!)
                                     }
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     Связать со строкой прайса
                                 </button>
@@ -257,12 +257,12 @@ export function RulesModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <h2 className="text-lg font-semibold">Правила поиска Seller One</h2>
-                        <button type="button" onClick={onCloseAction} className="text-sm text-gray-500">
+                        <button type="button" onClick={onCloseAction} className="text-sm text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
@@ -284,7 +284,7 @@ export function RulesModal({
                                 type="button"
                                 onClick={() => void onCreateAction()}
                                 disabled={ruleSaving}
-                                className="rounded-xl bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+                                className="rounded-full bg-admin-primary px-3 py-2 text-sm text-white disabled:opacity-50"
                             >
                                 {ruleSaving ? "..." : "Добавить"}
                             </button>
@@ -299,7 +299,7 @@ export function RulesModal({
                                         <div className="font-medium">
                                             {rule.pattern} {"->"} {rule.replacement}
                                         </div>
-                                        <div className="text-xs text-gray-500">
+                                        <div className="text-xs text-admin-text-secondary">
                                             sort: {rule.sort_order} / {rule.is_active ? "active" : "off"}
                                         </div>
                                     </div>
@@ -349,22 +349,22 @@ export function PricingSettingsModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <h2 className="text-lg font-semibold">Формула цены Seller One</h2>
-                        <button type="button" onClick={onCloseAction} className="text-sm text-gray-500">
+                        <button type="button" onClick={onCloseAction} className="text-sm text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
                     <div className="space-y-4 overflow-y-auto px-5 py-4">
-                        <div className="rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text-secondary">
                             C = цена прайса, Цена=ОКРУГЛ((C*1,28+7)*3,15;0)
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Коэффициент на умножение (1.28)</span>
+                                <span className="text-admin-text-secondary">Коэффициент на умножение (1.28)</span>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -374,7 +374,7 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Курс RUB (3.15)</span>
+                                <span className="text-admin-text-secondary">Курс RUB (3.15)</span>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -384,7 +384,7 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Коэффициент на сложение</span>
+                                <span className="text-admin-text-secondary">Коэффициент на сложение</span>
                                 <input
                                     type="number"
                                     step="0.1"
@@ -394,7 +394,7 @@ export function PricingSettingsModal({
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-gray-600">Округление до (1)</span>
+                                <span className="text-admin-text-secondary">Округление до (1)</span>
                                 <input
                                     type="number"
                                     min={0}
@@ -409,7 +409,7 @@ export function PricingSettingsModal({
                             type="button"
                             onClick={() => void onSaveAction()}
                             disabled={saving}
-                            className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                            className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                         >
                             {saving ? "Сохраняю..." : "Сохранить формулу"}
                         </button>

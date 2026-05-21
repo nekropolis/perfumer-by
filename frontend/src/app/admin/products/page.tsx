@@ -238,21 +238,21 @@ export default function AdminProductsPage() {
 
     return (
         <AdminPageCard>
-            <ProductCatalogTabs />
-
             <AdminTableToolbar
                 title="Продукты"
                 description="Просмотр, создание, редактирование и удаление продуктов"
                 action={
                     <Link
                         href="/admin/products/create"
-                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                        className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                     >
                         Создать продукт
                     </Link>
                 }
             >
             </AdminTableToolbar>
+
+            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage
@@ -345,17 +345,16 @@ export default function AdminProductsPage() {
                     suppliersLoading={variantsLoading}
                     suppliersError={error}
                     renderVariantToolbarAction={(variant) => (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900">
-                            <span className="shrink-0 tabular-nums text-gray-500">{variant.id}</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-admin-text">
+                            <span className="shrink-0 tabular-nums text-admin-text-secondary">{variant.id}</span>
                             <span className="shrink-0 text-gray-300" aria-hidden>
                                 ·
                             </span>
                             <span
-                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                    variant.is_active !== false
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${variant.is_active !== false
                                         ? "bg-green-50 text-green-700"
-                                        : "bg-gray-100 text-gray-600"
-                                }`}
+                                        : "bg-gray-100 text-admin-text-secondary"
+                                    }`}
                             >
                                 {variant.is_active !== false ? "Активен" : "Выкл"}
                             </span>
@@ -373,7 +372,7 @@ export default function AdminProductsPage() {
                             <span className="shrink-0 text-gray-300" aria-hidden>
                                 ·
                             </span>
-                            <span className="shrink-0 tabular-nums text-gray-700">{variant.stock} шт</span>
+                            <span className="shrink-0 tabular-nums text-admin-text">{variant.stock} шт</span>
                             <span className="shrink-0 text-gray-300" aria-hidden>
                                 ·
                             </span>

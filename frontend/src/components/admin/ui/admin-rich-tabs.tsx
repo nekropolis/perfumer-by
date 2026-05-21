@@ -22,12 +22,11 @@ export default function AdminRichTabs<T extends string>({
     items,
     activeTab,
     onChangeAction,
-    className = "mb-2 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm",
-    columnsClassName = "grid gap-2 md:grid-cols-3",
-    showDescription = true,
+    className = "mb-5 border-b border-admin-border",
+    columnsClassName = "flex max-w-full overflow-x-auto",
 }: Props<T>) {
     return (
-        <div className={`${className} min-w-0 overflow-x-hidden`}>
+        <div className={className}>
             <div className={columnsClassName}>
                 {items.map((tab) => {
                     const Icon = tab.icon;
@@ -38,31 +37,33 @@ export default function AdminRichTabs<T extends string>({
                             key={tab.id}
                             type="button"
                             onClick={() => onChangeAction(tab.id)}
-                            className={`flex w-full min-w-0 items-center ${showDescription ? "gap-3 px-4 py-3 rounded-[18px]" : "gap-2 px-3 py-2 rounded-xl border"} text-left transition-all duration-200 ${
+                            className={`group relative flex shrink-0 items-center gap-2.5 px-4 py-3 text-left transition-colors ${
                                 isActive
-                                    ? `${showDescription ? "" : "border-slate-900/25"} bg-slate-900 text-white shadow-[0_10px_25px_rgba(15,23,42,0.18)]`
-                                    : `${showDescription ? "" : "border-slate-200"} bg-transparent text-slate-700 hover:bg-white hover:shadow-sm`
+                                    ? "text-admin-primary"
+                                    : "text-admin-text-secondary hover:text-admin-text"
                             }`}
                         >
                             <span
-                                className={`flex ${showDescription ? "h-10 w-10 rounded-2xl" : "h-8 w-8 rounded-xl"} shrink-0 items-center justify-center border ${
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
                                     isActive
-                                        ? "border-white/10 bg-white/10 text-white"
-                                        : "border-slate-200 bg-slate-50 text-slate-500"
+                                        ? "bg-admin-accent/55 text-admin-primary"
+                                        : "bg-transparent text-admin-text-muted group-hover:bg-admin-muted/80 group-hover:text-admin-text"
                                 }`}
                             >
-                                <Icon size={showDescription ? 18 : 16} />
+                                <Icon size={15} />
                             </span>
-                            <span className="min-w-0 flex-1">
-                                <span className={`block truncate text-sm ${isActive ? "font-semibold" : "font-semibold text-slate-900"}`}>
-                                    {tab.label}
-                                </span>
-                                {showDescription ? (
-                                    <span className={`mt-0.5 block truncate text-xs ${isActive ? "text-slate-300" : "text-slate-500"}`}>
-                                        {tab.description}
-                                    </span>
-                                ) : null}
+                            <span
+                                className={`whitespace-nowrap text-sm ${isActive ? "font-semibold" : "font-medium"}`}
+                            >
+                                {tab.label}
                             </span>
+                            <span
+                                className={`absolute inset-x-4 bottom-0 h-[3px] rounded-t-full transition-all ${
+                                    isActive
+                                        ? "bg-admin-primary opacity-100"
+                                        : "bg-transparent opacity-0 group-hover:bg-admin-accent group-hover:opacity-100"
+                                }`}
+                            />
                         </button>
                     );
                 })}

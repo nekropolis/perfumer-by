@@ -44,7 +44,7 @@ export default function LoyaltyCardUserSearchPanel({
             </div>
 
             {foundUsers.length > 0 ? (
-                <ul className="mt-3 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <ul className="mt-3 divide-y divide-gray-200 overflow-hidden rounded-xl border border-admin-border bg-white">
                     {foundUsers.map((user) => {
                         const linked = alreadyLinkedIds.includes(user.id);
                         const selected = selectedUserIds.includes(user.id);
@@ -58,8 +58,8 @@ export default function LoyaltyCardUserSearchPanel({
                                     onChange={(e) => onToggleUserAction(user, e.target.checked)}
                                 />
                                 <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-gray-900">{formatAdminUserPrimary(user)}</div>
-                                    <div className="mt-0.5 text-xs text-gray-500">
+                                    <div className="font-medium text-admin-text">{formatAdminUserPrimary(user)}</div>
+                                    <div className="mt-0.5 text-xs text-admin-text-secondary">
                                         ID {user.id}
                                         {user.email ? ` · ${user.email}` : null}
                                         {linked ? <span className="ml-2 text-emerald-700">уже привязан</span> : null}
@@ -87,13 +87,13 @@ export function LoyaltyUserSelectionChips({
             {users.map((u) => (
                 <span
                     key={u.id}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-800"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text"
                 >
                     <span className="max-w-[200px] truncate">{formatAdminUserPrimary(u)}</span>
                     <span className="text-gray-400">#{u.id}</span>
                     <button
                         type="button"
-                        className="ml-0.5 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                        className="ml-0.5 rounded-full p-0.5 text-admin-text-secondary hover:bg-gray-200 hover:text-admin-text"
                         aria-label="Убрать из списка"
                         onClick={() => onRemoveAction(u.id)}
                     >

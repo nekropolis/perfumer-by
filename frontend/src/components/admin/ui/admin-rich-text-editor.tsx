@@ -32,8 +32,8 @@ function ToolbarButton({
             disabled={disabled}
             className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                 active
-                    ? "border-black bg-black text-white"
-                    : "bg-white hover:bg-gray-50"
+                    ? "border-black bg-admin-primary text-white"
+                    : "bg-white hover:bg-admin-muted"
             } disabled:cursor-not-allowed disabled:opacity-40`}
         >
             {label}
@@ -95,7 +95,7 @@ export default function AdminRichTextEditor({
 
     if (!editor) {
         return (
-            <div className="rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">
+            <div className="rounded-2xl border bg-white px-4 py-3 text-sm text-admin-text-secondary">
                 Загрузка редактора...
             </div>
         );

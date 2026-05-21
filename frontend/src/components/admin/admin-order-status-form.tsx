@@ -88,19 +88,19 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
                 type="button"
                 onClick={handleSave}
                 disabled={isPending || isTerminal || status === savedStatus}
-                className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-50"
+                className="w-full rounded-full bg-admin-primary px-4 py-2.5 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
             >
                 {isPending ? "Сохранение..." : "Сохранить"}
             </button>
 
             {isTerminal ? (
-                <p className="mt-3 text-xs text-gray-500">
+                <p className="mt-3 text-xs text-admin-text-secondary">
                     Статус финальный — изменить нельзя. Списание и резервы уже отражены по складу (для «Выполнен»).
                 </p>
             ) : null}
 
             {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
-            {message && !error ? <div className="mt-3 text-sm text-gray-600">{message}</div> : null}
+            {message && !error ? <div className="mt-3 text-sm text-admin-text-secondary">{message}</div> : null}
 
             <AdminConfirmDialog
                 open={confirmTerminal !== null}

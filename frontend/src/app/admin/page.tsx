@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AdminGuard from "@/components/admin/admin-guard";
+import AdminPageHeader from "@/components/admin/ui/admin-page-header";
+import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
 import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
 
 type DashboardStats = AdminDashboardStatsResponse["data"] | null;
@@ -48,17 +50,19 @@ function MetricCard({
     lines?: StatusLine[];
 }) {
     const content = (
-        <div className="rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow min-h-[132px]">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums text-gray-900">
+        <div
+            className={`${adminCard} ${adminCardPadding} min-h-[120px] transition hover:border-admin-primary/30 hover:shadow-md`}
+        >
+            <div className="text-xs font-semibold uppercase tracking-wide text-admin-text-secondary">{title}</div>
+            <div className="mt-2 text-2xl font-bold tabular-nums text-admin-text sm:text-3xl">
                 {loading ? "..." : (value ?? 0).toLocaleString("ru-RU")}
             </div>
             {lines && lines.length > 0 ? (
-                <div className="mt-2 space-y-1 border-t border-gray-100 pt-2 text-xs text-gray-600">
+                <div className="mt-2 space-y-1 border-t border-admin-border pt-2 text-xs text-admin-text-secondary">
                     {lines.map((line) => (
                         <div key={line.key} className="flex items-center justify-between gap-2">
                             <span className="truncate">{line.label}</span>
-                            <span className="font-semibold tabular-nums text-gray-800">{line.count}</span>
+                            <span className="font-semibold tabular-nums text-admin-text">{line.count}</span>
                         </div>
                     ))}
                 </div>
@@ -246,145 +250,148 @@ export default function AdminPage() {
     }, [chartRows, timelineMax]);
 
     return (
-        <AdminGuard>
-            <div className="space-y-8">
-                <section className="rounded-2xl border bg-gray-50 p-5">
-                    <div className="mb-4 text-lg font-semibold">Активные задачи</div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <MetricCard
-                            title="Заказы"
-                            value={stats?.active.orders ?? null}
-                            loading={loadingStats}
-                            href="/admin/orders"
-                            lines={orderStatusLines}
-                        />
-                        <MetricCard
-                            title="Запросы товаров"
-                            value={
-                                stats == null
-                                    ? null
-                                    : (stats.active.back_in_stock_requests ?? 0) +
-                                    (stats.active.callback_requests ?? 0)
-                            }
-                            loading={loadingStats}
-                            href="/admin/stock-notifications"
-                            lines={productRequestLines}
-                        />
-                    </div>
-                </section>
+        <div className="m-5 space-y-6">
+            <AdminPageHeader
+                title="Дашборд"
+                description="Обзор заказов, запросов и статистики магазина"
+            />
 
-                <section className="rounded-2xl border bg-gray-50 p-5">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <div className="text-lg font-semibold">Статистика за период</div>
-                            <div className="text-sm text-gray-500">
-                                Количество единиц товаров в заказах выбранного периода.
-                            </div>
-                        </div>
-                        <div className="inline-flex rounded-xl border bg-white p-1">
-                            {PERIOD_OPTIONS.map((option) => (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    onClick={() => setPeriod(option.id)}
-                                    className={`rounded-lg px-3 py-1.5 text-sm transition ${period === option.id ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"}`}
-                                >
-                                    {option.label}
-                                </button>
-                            ))}
+            <AdminPageCard>
+                <div className="mb-4 text-base font-semibold text-admin-text">Активные задачи</div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <MetricCard
+                        title="Заказы"
+                        value={stats?.active.orders ?? null}
+                        loading={loadingStats}
+                        href="/admin/orders"
+                        lines={orderStatusLines}
+                    />
+                    <MetricCard
+                        title="Запросы товаров"
+                        value={
+                            stats == null
+                                ? null
+                                : (stats.active.back_in_stock_requests ?? 0) +
+                                (stats.active.callback_requests ?? 0)
+                        }
+                        loading={loadingStats}
+                        href="/admin/stock-notifications"
+                        lines={productRequestLines}
+                    />
+                </div>
+            </AdminPageCard>
+
+            <AdminPageCard>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <div className="text-base font-semibold text-admin-text">Статистика за период</div>
+                        <div className="text-sm text-admin-text-secondary">
+                            Количество единиц товаров в заказах выбранного периода.
                         </div>
                     </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <MetricCard
-                            title="Заказано"
-                            value={stats?.month.ordered_products_qty ?? null}
-                            loading={loadingStats}
-                        />
-                        <MetricCard
-                            title="Отменено"
-                            value={stats?.month.cancelled_products_qty ?? null}
-                            loading={loadingStats}
-                        />
-                        <MetricCard
-                            title="Продано"
-                            value={stats?.month.sold_products_qty ?? null}
-                            loading={loadingStats}
-                        />
+                    <div className="inline-flex rounded-lg border border-admin-border bg-admin-muted p-1">
+                        {PERIOD_OPTIONS.map((option) => (
+                            <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setPeriod(option.id)}
+                                className={`rounded-md px-3 py-1.5 text-sm transition ${period === option.id ? "bg-admin-primary text-white shadow-sm" : "text-admin-text-secondary hover:bg-admin-surface hover:text-admin-text"}`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
                     </div>
+                </div>
 
-                    <div className="mt-3 rounded-2xl border bg-white p-3">
-                        <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-600">
-                            {SERIES_CONFIG.map((series) => (
-                                <span key={series.key} className="inline-flex items-center gap-2">
-                                    <span className={`h-2.5 w-2.5 rounded-full ${series.colorClassName}`} />
-                                    {series.label}
-                                </span>
-                            ))}
-                        </div>
-                        <div className="mx-auto h-[400px] w-full max-w-[600px]">
-                            <svg viewBox="0 0 600 400" className="h-full w-full">
-                                <line x1="56" y1="346" x2="580" y2="346" stroke="#e5e7eb" strokeWidth="1" />
-                                <line x1="56" y1="24" x2="56" y2="346" stroke="#e5e7eb" strokeWidth="1" />
-                                <text x="318" y="388" textAnchor="middle" fontSize="12" fill="#6b7280">Дата</text>
-                                <text x="18" y="200" textAnchor="middle" fontSize="12" fill="#6b7280" transform="rotate(-90,18,200)">
-                                    Кол-во заказов
-                                </text>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <MetricCard
+                        title="Заказано"
+                        value={stats?.month.ordered_products_qty ?? null}
+                        loading={loadingStats}
+                    />
+                    <MetricCard
+                        title="Отменено"
+                        value={stats?.month.cancelled_products_qty ?? null}
+                        loading={loadingStats}
+                    />
+                    <MetricCard
+                        title="Продано"
+                        value={stats?.month.sold_products_qty ?? null}
+                        loading={loadingStats}
+                    />
+                </div>
 
-                                <polyline fill="none" stroke="#6366f1" strokeWidth="2.2" points={chartPoints.ordered} />
-                                <polyline fill="none" stroke="#f43f5e" strokeWidth="2.2" points={chartPoints.cancelled} />
-                                <polyline fill="none" stroke="#10b981" strokeWidth="2.2" points={chartPoints.sold} />
+                <div className="mt-3 rounded-lg border border-admin-border bg-admin-muted/40 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-admin-text-secondary">
+                        {SERIES_CONFIG.map((series) => (
+                            <span key={series.key} className="inline-flex items-center gap-2">
+                                <span className={`h-2.5 w-2.5 rounded-full ${series.colorClassName}`} />
+                                {series.label}
+                            </span>
+                        ))}
+                    </div>
+                    <div className="mx-auto h-[400px] w-full max-w-[600px]">
+                        <svg viewBox="0 0 600 400" className="h-full w-full">
+                            <line x1="56" y1="346" x2="580" y2="346" stroke="#e5e7eb" strokeWidth="1" />
+                            <line x1="56" y1="24" x2="56" y2="346" stroke="#e5e7eb" strokeWidth="1" />
+                            <text x="318" y="388" textAnchor="middle" fontSize="12" fill="#6b7280">Дата</text>
+                            <text x="18" y="200" textAnchor="middle" fontSize="12" fill="#6b7280" transform="rotate(-90,18,200)">
+                                Кол-во заказов
+                            </text>
 
-                                {chartPoints.points.map((point, index) => (
-                                    <g key={`p-${point.label}-${index}`}>
-                                        <circle cx={point.x} cy={point.yOrdered} r="3" fill="#6366f1" />
-                                        <circle cx={point.x} cy={point.yCancelled} r="3" fill="#f43f5e" />
-                                        <circle cx={point.x} cy={point.ySold} r="3" fill="#10b981" />
+                            <polyline fill="none" stroke="#6366f1" strokeWidth="2.2" points={chartPoints.ordered} />
+                            <polyline fill="none" stroke="#f43f5e" strokeWidth="2.2" points={chartPoints.cancelled} />
+                            <polyline fill="none" stroke="#10b981" strokeWidth="2.2" points={chartPoints.sold} />
 
-                                        {index === chartRows.length - 1 ? (
-                                            <>
-                                                <text x={point.x + 8} y={point.yOrdered - 8} textAnchor="start" fontSize="12" fill="#4f46e5">
-                                                    {chartRows[index]?.ordered ?? 0}
-                                                </text>
-                                                <text x={point.x + 8} y={point.yCancelled - 8} textAnchor="start" fontSize="12" fill="#e11d48">
-                                                    {chartRows[index]?.cancelled ?? 0}
-                                                </text>
-                                                <text x={point.x + 8} y={point.ySold - 8} textAnchor="start" fontSize="12" fill="#059669">
-                                                    {chartRows[index]?.sold ?? 0}
-                                                </text>
-                                            </>
-                                        ) : null}
+                            {chartPoints.points.map((point, index) => (
+                                <g key={`p-${point.label}-${index}`}>
+                                    <circle cx={point.x} cy={point.yOrdered} r="3" fill="#6366f1" />
+                                    <circle cx={point.x} cy={point.yCancelled} r="3" fill="#f43f5e" />
+                                    <circle cx={point.x} cy={point.ySold} r="3" fill="#10b981" />
 
-                                        {index % xLabelStep === 0 || index === chartRows.length - 1 ? (
-                                            <text x={point.x} y="360" textAnchor="middle" fontSize="10" fill="#6b7280">
-                                                {point.label}
+                                    {index === chartRows.length - 1 ? (
+                                        <>
+                                            <text x={point.x + 8} y={point.yOrdered - 8} textAnchor="start" fontSize="12" fill="#4f46e5">
+                                                {chartRows[index]?.ordered ?? 0}
                                             </text>
-                                        ) : null}
-                                    </g>
-                                ))}
-                            </svg>
-                        </div>
-                    </div>
-                </section>
-                <section className="rounded-2xl border bg-gray-50 p-5">
-                    <div className="mb-4 text-lg font-semibold">Товары в наличии</div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <MetricCard
-                            title="Активные товары"
-                            value={stats?.stock.products_in_stock ?? null}
-                            loading={loadingStats}
-                            href="/admin/products"
-                        />
-                        <MetricCard
-                            title="Активные варианты"
-                            value={stats?.stock.variants_in_stock ?? null}
-                            loading={loadingStats}
-                            href="/admin/products/variants"
-                        />
-                    </div>
-                </section>
-            </div>
+                                            <text x={point.x + 8} y={point.yCancelled - 8} textAnchor="start" fontSize="12" fill="#e11d48">
+                                                {chartRows[index]?.cancelled ?? 0}
+                                            </text>
+                                            <text x={point.x + 8} y={point.ySold - 8} textAnchor="start" fontSize="12" fill="#059669">
+                                                {chartRows[index]?.sold ?? 0}
+                                            </text>
+                                        </>
+                                    ) : null}
 
-        </AdminGuard>
+                                    {index % xLabelStep === 0 || index === chartRows.length - 1 ? (
+                                        <text x={point.x} y="360" textAnchor="middle" fontSize="10" fill="#6b7280">
+                                            {point.label}
+                                        </text>
+                                    ) : null}
+                                </g>
+                            ))}
+                        </svg>
+                    </div>
+                </div>
+            </AdminPageCard>
+
+            <AdminPageCard>
+                <div className="mb-4 text-base font-semibold text-admin-text">Товары в наличии</div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <MetricCard
+                        title="Активные товары"
+                        value={stats?.stock.products_in_stock ?? null}
+                        loading={loadingStats}
+                        href="/admin/products"
+                    />
+                    <MetricCard
+                        title="Активные варианты"
+                        value={stats?.stock.variants_in_stock ?? null}
+                        loading={loadingStats}
+                        href="/admin/products/variants"
+                    />
+                </div>
+            </AdminPageCard>
+        </div>
     );
 }

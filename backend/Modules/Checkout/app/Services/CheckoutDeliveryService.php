@@ -13,6 +13,8 @@ final class CheckoutDeliveryService
 
     public const METHOD_PICKUP = 'pickup';
 
+    public const MINSK_CITY = 'Минск';
+
     public function __construct(
         private readonly ShopSettingService $shopSettings,
     ) {}

@@ -11,9 +11,9 @@ type Props = {
 
 export default function GiftCertificatesTable({ items, onToggleActiveAction }: Props) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-                <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                <thead className="bg-admin-muted/80 text-left text-xs font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                     <tr>
                         <th className="px-3 py-2.5">ID</th>
                         <th className="px-3 py-2.5">Код</th>
@@ -27,21 +27,21 @@ export default function GiftCertificatesTable({ items, onToggleActiveAction }: P
                 </thead>
                 <tbody>
                     {items.map((item) => (
-                        <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
-                            <td className="px-3 py-3 text-gray-500">{item.id}</td>
-                            <td className="px-3 py-3 font-medium text-gray-900">
+                        <tr key={item.id} className="border-t border-admin-border align-top transition hover:bg-admin-muted/70">
+                            <td className="px-3 py-3 text-admin-text-secondary">{item.id}</td>
+                            <td className="px-3 py-3 font-medium text-admin-text">
                                 {item.code?.trim() ? item.code : <span className="text-gray-400">не задан</span>}
                             </td>
-                            <td className="px-3 py-3 text-gray-700">{item.initial_amount}</td>
-                            <td className="px-3 py-3 text-gray-700">{item.balance_amount}</td>
-                            <td className="px-3 py-3 text-gray-700">{item.reserved_amount}</td>
+                            <td className="px-3 py-3 text-admin-text">{item.initial_amount}</td>
+                            <td className="px-3 py-3 text-admin-text">{item.balance_amount}</td>
+                            <td className="px-3 py-3 text-admin-text">{item.reserved_amount}</td>
                             <td className="px-3 py-3">{giftCertificateStatusLabel(item.status, item.code)}</td>
-                            <td className="px-3 py-3 text-xs text-gray-600">{item.expires_at || "—"}</td>
+                            <td className="px-3 py-3 text-xs text-admin-text-secondary">{item.expires_at || "—"}</td>
                             <td className="px-3 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link
                                         href={`/admin/loyalty/certificates/${item.id}/edit`}
-                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                         aria-label={`Редактировать сертификат ${item.code ?? `#${item.id}`}`}
                                         title="Редактировать"
                                     >
@@ -51,7 +51,7 @@ export default function GiftCertificatesTable({ items, onToggleActiveAction }: P
                                         <button
                                             type="button"
                                             onClick={() => onToggleActiveAction(item)}
-                                            className="inline-flex rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50"
+                                            className="inline-flex rounded-lg border border-admin-border px-2 py-1 text-xs text-admin-text transition hover:bg-admin-muted"
                                         >
                                             {item.status === "active" ? "Аннулировать" : "Активировать"}
                                         </button>

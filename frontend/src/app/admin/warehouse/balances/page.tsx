@@ -144,7 +144,7 @@ export default function AdminWarehouseBalancesPage() {
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-4 py-3">ID</th>
                                     <th className="px-4 py-3">Склад</th>
                                     <th className="px-4 py-3">Бренд</th>
@@ -161,25 +161,25 @@ export default function AdminWarehouseBalancesPage() {
                                 {items.map((item) => (
                                     <tr key={item.id} className="border-b last:border-b-0">
                                         <td className="px-4 py-3 font-medium text-slate-900">{item.id}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.warehouse_name || "—"}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.brand_name || "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text">{item.warehouse_name || "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text">{item.brand_name || "—"}</td>
                                         <td className="px-4 py-3">
                                             <div className="font-medium">{item.product_name || "—"}</div>
-                                            <div className="text-xs text-gray-500">{item.product_slug || "—"}</div>
+                                            <div className="text-xs text-admin-text-secondary">{item.product_slug || "—"}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.variant_title}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text">{item.variant_title}</td>
                                         <td className="px-4 py-3 font-medium text-slate-900">{item.stock}</td>
                                         <td className="px-4 py-3">
-                                            <span className={item.reserved_stock > 0 ? "font-medium text-amber-700" : "text-gray-500"}>
+                                            <span className={item.reserved_stock > 0 ? "font-medium text-amber-700" : "text-admin-text-secondary"}>
                                                 {item.reserved_stock}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className={item.available_stock > 0 ? "font-medium text-emerald-700" : "text-gray-500"}>
+                                            <span className={item.available_stock > 0 ? "font-medium text-emerald-700" : "text-admin-text-secondary"}>
                                                 {item.available_stock}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{item.price ?? "—"}</td>
+                                        <td className="px-4 py-3 text-xs text-admin-text">{item.price ?? "—"}</td>
                                         <td className="px-4 py-3 text-right">
                                             {item.available_stock > 0 || item.reserved_stock > 0 ? (
                                                 <Link

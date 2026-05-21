@@ -73,7 +73,7 @@ function OptionBadges({
     emptyLabel?: string;
 }) {
     if (values.length === 0) {
-        return <div className="text-sm text-gray-500">{emptyLabel}</div>;
+        return <div className="text-sm text-admin-text-secondary">{emptyLabel}</div>;
     }
 
     const visibleValues = values.slice(0, 3);
@@ -84,7 +84,7 @@ function OptionBadges({
             {visibleValues.map((value) => (
                 <span
                     key={value.key}
-                    className="max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                    className="max-w-full truncate rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-admin-text"
                     title={value.label}
                 >
                     {value.label}
@@ -93,7 +93,7 @@ function OptionBadges({
 
             {hiddenCount > 0 ? (
                 <span
-                    className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500"
+                    className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-admin-text-secondary"
                     title={values.slice(3).map((value) => value.label).join(", ")}
                 >
                     +{hiddenCount}
@@ -205,7 +205,7 @@ function OptionPicker({
                                 {selectedNames.map((name) => (
                                     <span
                                         key={name.key}
-                                        className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700"
+                                        className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-admin-text"
                                     >
                                         <span>{name.label}</span>
                                         <button
@@ -214,7 +214,7 @@ function OptionPicker({
                                                 e.stopPropagation();
                                                 removeOption(name.id);
                                             }}
-                                            className="rounded-full px-1 text-gray-500 transition hover:bg-gray-200 hover:text-gray-800"
+                                            className="rounded-full px-1 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
                                             aria-label={`Удалить ${name.label}`}
                                         >
                                             ×
@@ -223,7 +223,7 @@ function OptionPicker({
                                 ))}
                             </div>
                         ) : (
-                            <div className="pt-1 text-sm text-gray-500">
+                            <div className="pt-1 text-sm text-admin-text-secondary">
                                 {placeholder || "Выбери значения"}
                             </div>
                         )}
@@ -242,7 +242,7 @@ function OptionPicker({
             {open ? (
                 <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-2xl border bg-white p-3 shadow-xl">
                     {attribute.options.length === 0 ? (
-                        <div className="px-2 py-3 text-sm text-gray-500">
+                        <div className="px-2 py-3 text-sm text-admin-text-secondary">
                             У этого атрибута ещё нет опций
                         </div>
                     ) : (
@@ -260,7 +260,7 @@ function OptionPicker({
 
                             <div className="max-h-64 overflow-y-auto">
                                 {filteredOptions.length === 0 ? (
-                                    <div className="px-2 py-3 text-sm text-gray-500">
+                                    <div className="px-2 py-3 text-sm text-admin-text-secondary">
                                         Ничего не найдено
                                     </div>
                                 ) : (
@@ -275,8 +275,8 @@ function OptionPicker({
                                                     onClick={() => toggleOption(option.id)}
                                                     className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition ${
                                                         checked
-                                                            ? "bg-black text-white"
-                                                            : "hover:bg-gray-50"
+                                                            ? "bg-admin-primary text-white"
+                                                            : "hover:bg-admin-muted"
                                                     }`}
                                                 >
                                                     <span className="min-w-0 flex-1 truncate">
@@ -488,7 +488,7 @@ export default function ProductAttributeValuesEditor({
                 </div>
 
                 {items.length === 0 ? (
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-admin-text-secondary">
                         У товара пока нет привязанных атрибутов
                     </div>
                 ) : (
@@ -499,15 +499,15 @@ export default function ProductAttributeValuesEditor({
                             return (
                                 <div
                                     key={item.id}
-                                    className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-gray-50/60"
+                                    className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
                                 >
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                         <div className="flex items-start justify-between gap-3 sm:block sm:min-w-0 sm:w-40 sm:shrink-0">
                                             <div className="min-w-0">
-                                                <div className="truncate text-sm font-medium text-gray-900">
+                                                <div className="truncate text-sm font-medium text-admin-text">
                                                     {item.attribute?.name || "Атрибут"}
                                                 </div>
-                                                <div className="mt-0.5 text-[11px] text-gray-500">
+                                                <div className="mt-0.5 text-[11px] text-admin-text-secondary">
                                                     {item.attribute?.type === "text"
                                                         ? "Текст"
                                                         : item.attribute?.type === "select"
@@ -520,7 +520,7 @@ export default function ProductAttributeValuesEditor({
                                                 <button
                                                     type="button"
                                                     onClick={() => openEdit(item)}
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-gray-700 transition hover:bg-white"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-admin-text transition hover:bg-white"
                                                     title="Редактировать"
                                                     aria-label="Редактировать"
                                                 >
@@ -578,7 +578,7 @@ export default function ProductAttributeValuesEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] text-gray-700 transition hover:bg-white"
+                                                className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] text-admin-text transition hover:bg-white"
                                                 title="Редактировать"
                                                 aria-label="Редактировать"
                                             >
@@ -646,7 +646,7 @@ export default function ProductAttributeValuesEditor({
             />
 
             {createModalOpen ? (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
@@ -655,7 +655,7 @@ export default function ProductAttributeValuesEditor({
 
                             <div className="space-y-4 overflow-y-auto px-5 py-4">
                                 <div>
-                                    <label className="mb-1 block text-sm text-gray-600">
+                                    <label className="mb-1 block text-sm text-admin-text-secondary">
                                         Атрибут
                                     </label>
                                     <select
@@ -681,7 +681,7 @@ export default function ProductAttributeValuesEditor({
 
                                 {selectedCreateAttribute?.type === "text" ? (
                                     <div>
-                                        <label className="mb-1 block text-sm text-gray-600">
+                                        <label className="mb-1 block text-sm text-admin-text-secondary">
                                             Значение
                                         </label>
                                         <textarea
@@ -701,7 +701,7 @@ export default function ProductAttributeValuesEditor({
                                     selectedCreateAttribute?.type === "multiselect") &&
                                 selectedCreateAttribute ? (
                                     <div className="space-y-2">
-                                        <label className="block text-sm text-gray-600">
+                                        <label className="block text-sm text-admin-text-secondary">
                                             Выбранные значения
                                         </label>
                                         <OptionPicker
@@ -718,7 +718,7 @@ export default function ProductAttributeValuesEditor({
                                 ) : null}
 
                                 <div>
-                                    <label className="mb-1 block text-sm text-gray-600">
+                                    <label className="mb-1 block text-sm text-admin-text-secondary">
                                         Порядок сортировки
                                     </label>
                                     <input
@@ -748,7 +748,7 @@ export default function ProductAttributeValuesEditor({
                                     type="button"
                                     onClick={handleCreate}
                                     disabled={submitting}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>
@@ -759,7 +759,7 @@ export default function ProductAttributeValuesEditor({
             ) : null}
 
             {editForm ? (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
@@ -768,20 +768,20 @@ export default function ProductAttributeValuesEditor({
 
                             <div className="space-y-4 overflow-y-auto px-5 py-4">
                                 <div>
-                                    <label className="mb-1 block text-sm text-gray-600">
+                                    <label className="mb-1 block text-sm text-admin-text-secondary">
                                         Атрибут
                                     </label>
                                     <input
                                         type="text"
                                         value={selectedEditAttribute?.name || ""}
                                         disabled
-                                        className="w-full rounded-xl border bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                                        className="w-full rounded-xl border bg-admin-muted px-3 py-2 text-sm text-admin-text-secondary"
                                     />
                                 </div>
 
                                 {selectedEditAttribute?.type === "text" ? (
                                     <div>
-                                        <label className="mb-1 block text-sm text-gray-600">
+                                        <label className="mb-1 block text-sm text-admin-text-secondary">
                                             Значение
                                         </label>
                                         <textarea
@@ -801,7 +801,7 @@ export default function ProductAttributeValuesEditor({
                                     selectedEditAttribute?.type === "multiselect") &&
                                 selectedEditAttribute ? (
                                     <div className="space-y-2">
-                                        <label className="block text-sm text-gray-600">
+                                        <label className="block text-sm text-admin-text-secondary">
                                             Выбранные значения
                                         </label>
                                         <OptionPicker
@@ -818,7 +818,7 @@ export default function ProductAttributeValuesEditor({
                                 ) : null}
 
                                 <div>
-                                    <label className="mb-1 block text-sm text-gray-600">
+                                    <label className="mb-1 block text-sm text-admin-text-secondary">
                                         Порядок сортировки
                                     </label>
                                     <input
@@ -848,7 +848,7 @@ export default function ProductAttributeValuesEditor({
                                     type="button"
                                     onClick={handleUpdate}
                                     disabled={submitting}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>

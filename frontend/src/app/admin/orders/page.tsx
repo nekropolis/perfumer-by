@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { ListOrdered, Printer, ShoppingCart } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
 import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
@@ -55,6 +54,7 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
 ];
 
 export default function AdminOrdersPage() {
+    const router = useRouter();
     const searchParamsFromUrl = useSearchParams();
     const [activeTab, setActiveTab] = useState<OrdersTab>("orders");
 
@@ -191,6 +191,18 @@ export default function AdminOrdersPage() {
     }, [searchParamsFromUrl]);
 
     useEffect(() => {
+        if (searchParamsFromUrl.get("created") === "1") {
+            setToast({ type: "success", message: "Заказ создан" });
+            router.replace("/admin/orders");
+            return;
+        }
+        if (searchParamsFromUrl.get("updated") === "1") {
+            setToast({ type: "success", message: "Заказ сохранён" });
+            router.replace("/admin/orders");
+        }
+    }, [searchParamsFromUrl, router]);
+
+    useEffect(() => {
         const visibleOrderIds = new Set(orders.map((order) => order.id));
         setSelectedOrderIds((prev) => prev.filter((id) => visibleOrderIds.has(id)));
     }, [orders]);
@@ -269,31 +281,26 @@ export default function AdminOrdersPage() {
 
     return (
         <AdminPageCard>
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 className="text-xl font-semibold tracking-tight text-admin-text sm:text-2xl">
+                        {activeTab === "orders" ? "Заказы" : "Товары для заказов"}
+                    </h2>
+                    <p className="mt-0.5 text-sm text-admin-text-secondary">
+                        {activeTab === "orders"
+                            ? "Поиск по номеру заказа, имени клиента или телефону"
+                            : "Резервы по новым заказам только для склада Поставщик"}
+                    </p>
+                </div>
+            </div>
+
             <AdminRichTabs
                 items={ORDER_TABS}
                 activeTab={activeTab}
                 onChangeAction={setActiveTab}
-                columnsClassName="grid gap-2 md:grid-cols-2"
             />
 
-            <AdminTableToolbar
-                title={activeTab === "orders" ? "Заказы" : "Товары для заказов"}
-                description={
-                    activeTab === "orders"
-                        ? "Поиск по номеру заказа, имени клиента или телефону"
-                        : "Резервы по новым заказам только для склада Поставщик"
-                }
-                action={
-                    activeTab === "orders" ? (
-                        <Link
-                            href="/admin/orders/create"
-                            className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
-                        >
-                            Создать заказ
-                        </Link>
-                    ) : null
-                }
-            >
+            <AdminTableToolbar>
                 {activeTab === "orders" ? (
                     <div className="flex w-full min-w-0 flex-col gap-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
@@ -317,7 +324,7 @@ export default function AdminOrdersPage() {
                                     type="button"
                                     onClick={handleOpenReceiptModal}
                                     disabled={selectedOrders.length === 0 || receiptOptionsLoading}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50"
                                     title="Печать товарных чеков"
                                 >
                                     <Printer size={16} />
@@ -327,7 +334,7 @@ export default function AdminOrdersPage() {
                                 <button
                                     type="button"
                                     onClick={handleReset}
-                                    className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50"
+                                    className="rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted"
                                 >
                                     Сбросить
                                 </button>
@@ -351,7 +358,7 @@ export default function AdminOrdersPage() {
                         <select
                             value={productFilter}
                             onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                            className="rounded-xl border border-admin-border bg-white px-3 py-2.5 text-sm"
                         >
                             <option value="">Все товары</option>
                             {products.map((product) => (
@@ -364,7 +371,7 @@ export default function AdminOrdersPage() {
                         <button
                             type="button"
                             onClick={handleReset}
-                            className="shrink-0 self-start rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition hover:bg-gray-50 sm:self-end"
+                            className="shrink-0 self-start rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted sm:self-end"
                         >
                             Сбросить
                         </button>
@@ -395,8 +402,8 @@ export default function AdminOrdersPage() {
                         selectedOrderIds={selectedOrderIds}
                         onSelectedOrderIdsChangeAction={setSelectedOrderIds}
                     />
-                    <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                        <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="mt-4 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                        <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
                             На странице
                             <select
                                 value={ordersPerPage}
@@ -406,7 +413,7 @@ export default function AdminOrdersPage() {
                                         setOrdersPerPage(v as (typeof ORDERS_PER_PAGE_OPTIONS)[number]);
                                     }
                                 }}
-                                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm"
+                                className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
                             >
                                 {ORDERS_PER_PAGE_OPTIONS.map((n) => (
                                     <option key={n} value={n}>
@@ -427,7 +434,7 @@ export default function AdminOrdersPage() {
                                 }
                             />
                         </div>
-                        <div className="text-sm text-gray-500 sm:text-right">Всего заказов: {ordersMeta.total}</div>
+                        <div className="text-sm text-admin-text-secondary sm:text-right">Всего заказов: {ordersMeta.total}</div>
                     </div>
                 </>
             )}
@@ -443,7 +450,7 @@ export default function AdminOrdersPage() {
                 <div className="overflow-x-auto rounded-2xl border">
                     <table className="min-w-full text-sm">
                         <thead>
-                            <tr className="border-b text-left text-gray-500">
+                            <tr className="border-b text-left text-admin-text-secondary">
                                 <th className="px-4 py-3">Заказ</th>
                                 <th className="px-4 py-3">Товар</th>
                                 <th className="px-4 py-3">Поставщик</th>
@@ -459,7 +466,7 @@ export default function AdminOrdersPage() {
                                     <td className="px-4 py-3 font-medium">#{row.order_id}</td>
                                     <td className="px-4 py-3">
                                         <div>{row.product_name ?? "—"}</div>
-                                        <div className="text-xs text-gray-500">{row.variant_title ?? "—"}</div>
+                                        <div className="text-xs text-admin-text-secondary">{row.variant_title ?? "—"}</div>
                                     </td>
                                     <td className="px-4 py-3">{row.supplier_name ?? "—"}</td>
                                     <td className="px-4 py-3">{row.supplier_product_name ?? "—"}</td>

@@ -30,10 +30,10 @@ export default function BrandForm({
     onSubmitAction,
 }: Props) {
     return (
-        <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
             {activeTab === "main" ? (
                 <div className="grid gap-5">
-                    <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    <label className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -49,7 +49,7 @@ export default function BrandForm({
                     </label>
 
                     <div>
-                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <label className="mb-1.5 block text-sm font-medium text-admin-text">
                             Название
                         </label>
                         <input
@@ -65,13 +65,13 @@ export default function BrandForm({
                                     seo_title: form.id ? form.seo_title : nextName,
                                 });
                             }}
-                            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                             required
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <label className="mb-1.5 block text-sm font-medium text-admin-text">
                             Slug
                         </label>
                         <input
@@ -86,13 +86,13 @@ export default function BrandForm({
                                     slug: form.id ? form.slug : slugify(slug),
                                 });
                             }}
-                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600 outline-none"
+                            className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary outline-none"
                             required
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <label className="mb-1.5 block text-sm font-medium text-admin-text">
                             Описание
                         </label>
                         <AdminRichTextEditor
@@ -106,7 +106,7 @@ export default function BrandForm({
             ) : (
                 <div className="space-y-4">
                     <div>
-                        <label className="mb-1 block text-sm text-gray-600">
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
                             SEO title
                         </label>
                         <input
@@ -123,7 +123,7 @@ export default function BrandForm({
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-sm text-gray-600">
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
                             SEO description
                         </label>
                         <textarea
@@ -139,7 +139,7 @@ export default function BrandForm({
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-sm text-gray-600">
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
                             SEO keyword
                         </label>
                         <textarea
@@ -156,12 +156,12 @@ export default function BrandForm({
                 </div>
             )}
 
-            <div className="flex justify-end border-t border-gray-100 pt-4">
+            <div className="flex justify-end border-t border-admin-border pt-4">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

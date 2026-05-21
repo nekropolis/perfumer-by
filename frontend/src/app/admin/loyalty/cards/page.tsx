@@ -69,7 +69,7 @@ export default function AdminLoyaltyCardsPage() {
                 action={
                     <Link
                         href="/admin/loyalty/cards/create"
-                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                        className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                     >
                         Создать карту
                     </Link>

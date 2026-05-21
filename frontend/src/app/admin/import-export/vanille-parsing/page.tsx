@@ -478,25 +478,25 @@ export default function VanilleProductsPage() {
 
                                 <Link
                                     href="/admin/import-export/retry-queue"
-                                    className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                    className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-admin-text hover:bg-admin-muted"
                                 >
                                     Очередь ошибок
                                 </Link>
                             </div>
 
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-admin-text-secondary">
                                 «Парсинг нового товара» и «Спарсить все товары заново» только скачивает карточки в JSON. Чтобы товары появились в каталоге,
                                 после завершения нажмите «Импортировать спарсенные товары».
                             </p>
 
-                            <div className="flex flex-col gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-3">
+                            <div className="flex flex-col gap-3 rounded-xl border border-dashed border-gray-300 bg-admin-muted/80 p-3">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                     <input
                                         type="text"
                                         value={singleUrlInput}
                                         onChange={(e) => setSingleUrlInput(e.target.value)}
                                         placeholder="https://vanille.by/slug или только slug"
-                                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                                        className="min-w-0 flex-1 rounded-lg border border-admin-border bg-white px-3 py-2 text-sm"
                                         disabled={singleUrlBusy || hasActiveParse}
                                     />
                                     <button
@@ -513,11 +513,11 @@ export default function VanilleProductsPage() {
                                     </button>
                                 </div>
 
-                                <p className="text-[11px] leading-snug text-gray-500">
+                                <p className="text-[11px] leading-snug text-admin-text-secondary">
                                     Введите URL или slug товара vanille.by и нажмите «Спарсить и импортировать товар». Перед парсингом можно выбрать опциональные действия для этого товара.
                                 </p>
 
-                                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-700">
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-admin-text">
                                     <label className="inline-flex cursor-pointer items-center gap-2">
                                         <input
                                             type="checkbox"
@@ -552,17 +552,17 @@ export default function VanilleProductsPage() {
                             </div>
 
                             {parseStatusLoading ? null : parseJob ? (
-                                <div className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                                <div className="rounded-xl border bg-admin-muted px-4 py-3 text-sm text-admin-text">
                                     <div className="font-medium">
                                         Статус: {parseJob.message || "Задача парсинга"}
                                     </div>
-                                    <div className="mt-1 text-xs text-gray-500">
+                                    <div className="mt-1 text-xs text-admin-text-secondary">
                                         Состояние: {parseJob.status} · Прогресс: {parseJob.progress ?? 0}%
                                     </div>
                                     {hasActiveParse ? (
                                         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
                                             <div
-                                                className="h-full rounded-full bg-black transition-all"
+                                                className="h-full rounded-full bg-admin-primary transition-all"
                                                 style={{ width: `${Math.max(0, Math.min(100, parseJob.progress ?? 0))}%` }}
                                             />
                                         </div>
@@ -621,13 +621,13 @@ export default function VanilleProductsPage() {
                 {!loading && items.length > 0 &&
                     (
                         <div className="space-y-4">
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-admin-text-secondary">
                                 Всего: {meta?.total ?? items.length}
                             </div>
 
                             <div className="overflow-x-auto rounded-xl border">
                                 <table className="min-w-full text-sm">
-                                    <thead className="bg-gray-50">
+                                    <thead className="bg-admin-muted">
                                         <tr className="text-left">
                                             <th className="px-4 py-3">ID</th>
                                             <th className="px-4 py-3">Внешний товар</th>
@@ -644,7 +644,7 @@ export default function VanilleProductsPage() {
                                                 <td className="px-4 py-3">{item.id}</td>
                                                 <td className="px-4 py-3">
                                                     <div className="font-medium">{item.external_name}</div>
-                                                    <div className="text-xs text-gray-500">{item.external_slug}</div>
+                                                    <div className="text-xs text-admin-text-secondary">{item.external_slug}</div>
                                                     <a
                                                         href={item.external_url}
                                                         target="_blank"
@@ -661,7 +661,7 @@ export default function VanilleProductsPage() {
                                                     {item.product ? (
                                                         <div>
                                                             <div className="font-medium">{item.product.name}</div>
-                                                            <div className="text-xs text-gray-500">{item.product.slug}</div>
+                                                            <div className="text-xs text-admin-text-secondary">{item.product.slug}</div>
                                                         </div>
                                                     ) : (
                                                         "—"
@@ -688,7 +688,7 @@ export default function VanilleProductsPage() {
                                                         </span>
                                                     ) : (
                                                         <span
-                                                            className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                                                            className="rounded-full bg-gray-100 px-2 py-1 text-xs text-admin-text">
                                                             inactive
                                                         </span>
                                                     )}

@@ -172,7 +172,7 @@ function FloatingTooltip({ tooltip }: { tooltip: TooltipState }) {
 
     return createPortal(
         <span
-            className="pointer-events-none fixed z-[9999] -translate-y-1/2 rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-lg"
+            className="pointer-events-none fixed z-[9999] -translate-y-1/2 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-lg ring-1 ring-slate-600"
             style={{ left: tooltip.x, top: tooltip.y }}
         >
             {tooltip.label}
@@ -205,14 +205,6 @@ function isItemActive(
     }
 
     return targetPath !== "/admin" && pathname.startsWith(targetPath) && currentQuery === "";
-}
-
-function sectionHasActiveItem(
-    section: SidebarSection,
-    pathname: string,
-    currentQuery: string,
-): boolean {
-    return section.items.some((item) => isItemActive(pathname, currentQuery, item.href));
 }
 
 export default function AdminSidebar({ onNavigateAction, collapsed = false }: Props) {
@@ -285,30 +277,21 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     };
 
     return (
-        <aside className="w-full overflow-visible rounded-[24px] border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-            <nav className="space-y-2.5 overflow-visible">
+        <aside className="w-full overflow-visible">
+            <nav className="space-y-4 overflow-visible">
                 {sections
                     .filter((section) => section.items.length > 0)
                     .map((section) => (
-                        <div key={section.key} className="mt-2 space-y-2 overflow-visible">
+                        <div key={section.key} className="space-y-1 overflow-visible">
                             {!collapsed ? (
-                                <div className="flex items-center gap-2 px-2 pt-0.5">
-                                    <span className="h-px flex-1 bg-slate-200/90" />
-                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                                        {section.label}
-                                    </div>
-                                    <span className="h-px flex-1 bg-slate-200/90" />
+                                <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-admin-text-muted">
+                                    {section.label}
                                 </div>
                             ) : (
-                                <div className="mx-auto h-px w-8 bg-slate-200" />
+                                <div className="mx-auto my-2 h-px w-6 bg-admin-border" />
                             )}
 
-                            <div
-                                className={`space-y-1 rounded-[20px] p-1.5 ring-1 transition-colors ${sectionHasActiveItem(section, pathname, currentQuery)
-                                        ? "bg-white ring-slate-200 shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
-                                        : "bg-white/70 ring-slate-200/70"
-                                    }`}
-                            >
+                            <div className="space-y-0.5">
                                 {section.items.map((item) => {
                                     const isActive = isItemActive(pathname, currentQuery, item.href);
                                     const Icon = item.icon;
@@ -345,18 +328,20 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 });
                                             }}
                                             onBlur={() => setTooltip(null)}
-                                            className={`group relative flex items-center gap-2.5 rounded-[18px] px-2.5 py-2 text-[13px] transition-all duration-200 ${isActive
-                                                    ? "bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]"
-                                                    : "text-slate-700 hover:bg-slate-100/90 hover:text-slate-950"
-                                                } ${collapsed ? "justify-center px-2" : ""}`}
+                                            className={`group relative flex items-center gap-2 rounded-lg py-1.5 pl-4 pr-2.5 text-[13px] transition-colors ${
+                                                isActive
+                                                    ? "bg-admin-primary-hover text-white shadow-sm"
+                                                    : "text-admin-text-secondary hover:bg-admin-surface hover:text-admin-text"
+                                            } ${collapsed ? "justify-center px-2" : ""}`}
                                         >
                                             <span
-                                                className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${isActive
-                                                        ? "border-white/10 bg-white/10 text-white"
-                                                        : "border-slate-200 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:bg-white group-hover:text-slate-900"
-                                                    }`}
+                                                className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+                                                    isActive
+                                                        ? "bg-white/15 text-white"
+                                                        : "text-admin-text-muted group-hover:bg-admin-muted group-hover:text-admin-text"
+                                                }`}
                                             >
-                                                <Icon size={16} className="transition-transform duration-200 group-hover:scale-105" />
+                                                <Icon size={17} />
                                                 {collapsed ? (
                                                     <SidebarBadge count={badgeCount} compact />
                                                 ) : null}
@@ -364,17 +349,21 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
                                             {!collapsed ? (
                                                 <div className="flex min-w-0 flex-1 items-center">
-                                                    <div className={`truncate leading-5 ${isActive ? "font-semibold" : "font-medium"}`}>
+                                                    <div
+                                                        className={`truncate leading-5 ${isActive ? "font-semibold" : "font-medium"}`}
+                                                    >
                                                         {item.label}
                                                     </div>
                                                     <SidebarBadge count={badgeCount} compact={false} />
                                                 </div>
                                             ) : null}
 
-                                            {!collapsed && isActive && badgeCount === 0 ? (
-                                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-300" />
+                                            {isActive ? (
+                                                <span
+                                                    className="absolute left-1 top-1/2 h-4 w-1 -translate-y-1/2 rounded-full bg-white/85"
+                                                    aria-hidden
+                                                />
                                             ) : null}
-
                                         </Link>
                                     );
                                 })}

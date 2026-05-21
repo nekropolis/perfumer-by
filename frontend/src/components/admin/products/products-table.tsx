@@ -38,7 +38,7 @@ function highlightQueryInText(text: string, query: string): ReactNode {
         parts.push(
             <mark
                 key={`hl-${idx}-${i}`}
-                className="rounded-sm bg-amber-200 px-0.5 text-gray-900"
+                className="rounded-sm bg-amber-200 px-0.5 text-admin-text"
             >
                 {text.slice(idx, idx + q.length)}
             </mark>,
@@ -56,7 +56,7 @@ function StatusBadge({ active }: { active: boolean }) {
             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                 active
                     ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600"
+                    : "bg-gray-100 text-admin-text-secondary"
             }`}
         >
             {active ? "Активен" : "Неактивен"}
@@ -100,9 +100,9 @@ export default function ProductsTable({
     onVariantsAction,
 }: Props) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-                <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                <thead className="bg-admin-muted/80 text-left text-xs font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                 <tr>
                     <th className="px-3 py-2.5">ID</th>
                     <th className="px-3 py-2.5">Название</th>
@@ -116,11 +116,11 @@ export default function ProductsTable({
                 </thead>
                 <tbody>
                 {items.map((item) => (
-                    <tr key={item.id} className="border-t border-gray-100 align-center transition hover:bg-gray-50/70">
-                        <td className="px-3 py-3 text-gray-500">
+                    <tr key={item.id} className="border-t border-admin-border align-center transition hover:bg-admin-muted/70">
+                        <td className="px-3 py-3 text-admin-text-secondary">
                             {highlightQueryInText(String(item.id), searchQuery)}
                         </td>
-                        <td className="px-3 py-3 font-medium text-gray-900">
+                        <td className="px-3 py-3 font-medium text-admin-text">
                             <div>{highlightQueryInText(item.name, searchQuery)}</div>
                             {item.matched_variant_ids && item.matched_variant_ids.length > 0 ? (
                                 <div className="mt-1 flex flex-wrap gap-1">
@@ -135,10 +135,10 @@ export default function ProductsTable({
                                 </div>
                             ) : null}
                         </td>
-                        <td className="px-3 py-3 text-gray-700">
+                        <td className="px-3 py-3 text-admin-text">
                             {highlightQueryInText(item.brand?.name ?? "—", searchQuery)}
                         </td>
-                        <td className="px-3 py-3 text-gray-500">
+                        <td className="px-3 py-3 text-admin-text-secondary">
                             {highlightQueryInText(item.slug, searchQuery)}
                         </td>
                         <td className="px-3 py-3">
@@ -151,12 +151,12 @@ export default function ProductsTable({
                                 hasDiscount={Boolean((item.discounted_variants_count ?? 0) > 0)}
                             />
                         </td>
-                        <td className="px-3 py-3 text-gray-700">
+                        <td className="px-3 py-3 text-admin-text">
                             <button
                                 type="button"
                                 onClick={() => onVariantsAction(item)}
                                 disabled={item.variants_count <= 0}
-                                className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-gray-200 px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-admin-border px-2 text-xs font-medium text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label={`Открыть варианты товара ${item.name}`}
                                 title="Открыть варианты"
                             >
@@ -169,7 +169,7 @@ export default function ProductsTable({
                             <div className="flex justify-end gap-1.5">
                                 <Link
                                     href={`/admin/products/${item.id}/edit`}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                     aria-label={`Редактировать товар ${item.name}`}
                                     title="Редактировать"
                                 >

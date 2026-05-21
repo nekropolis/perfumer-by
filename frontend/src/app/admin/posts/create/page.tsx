@@ -52,15 +52,16 @@ export default function AdminPostCreatePage() {
 
     return (
         <AdminPageCard>
-            <ContentCatalogTabs />
             <Breadcrumbs className="mb-4" items={[{ label: "Админка", href: "/admin" }, { label: "Новости/Статьи", href: "/admin/posts" }, { label: "Создание" }]} />
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Создать публикацию</h1>
-                    <p className="mt-1 text-sm text-gray-600">Новость или статья</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Новость или статья</p>
                 </div>
                 <Link href="/admin/posts" className="rounded-xl border px-4 py-2 text-sm">Назад</Link>
             </div>
+
+            <ContentCatalogTabs />
 
             {error ? (
                 <div className="mb-4">

@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnDanger, adminBtnSecondary, adminModalOverlay } from "@/lib/admin-ui-classes";
+
 type Props = {
     open: boolean;
     title?: string;
@@ -13,33 +15,38 @@ type Props = {
 };
 
 export default function AdminConfirmDialog({
-                                               open,
-                                               title = "Подтверждение",
-                                               message,
-                                               confirmText = "Удалить",
-                                               cancelText = "Отмена",
-                                               confirmLoadingText,
-                                               loading = false,
-                                               onConfirmAction,
-                                               onCloseAction,
-                                           }: Props) {
+    open,
+    title = "Подтверждение",
+    message,
+    confirmText = "Удалить",
+    cancelText = "Отмена",
+    confirmLoadingText,
+    loading = false,
+    onConfirmAction,
+    onCloseAction,
+}: Props) {
     if (!open) {
         return null;
     }
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-                <div className="mb-2 text-lg font-semibold">{title}</div>
+        <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
+            <div
+                className="w-full max-w-md rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+            >
+                <div className="mb-2 text-lg font-semibold text-admin-text">{title}</div>
 
-                <div className="text-sm text-gray-600">{message}</div>
+                <div className="text-sm text-admin-text-secondary">{message}</div>
 
-                <div className="mt-6 flex justify-end gap-2">
+                <div className="mt-5 flex justify-end gap-2">
                     <button
                         type="button"
                         onClick={onCloseAction}
                         disabled={loading}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                        className={`${adminBtnSecondary} disabled:opacity-50`}
                     >
                         {cancelText}
                     </button>
@@ -48,7 +55,7 @@ export default function AdminConfirmDialog({
                         type="button"
                         onClick={onConfirmAction}
                         disabled={loading}
-                        className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+                        className={`${adminBtnDanger} disabled:opacity-50`}
                     >
                         {loading ? (confirmLoadingText ?? "Удаление...") : confirmText}
                     </button>

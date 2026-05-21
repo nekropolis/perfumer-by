@@ -11,11 +11,11 @@ type Props = {
 };
 
 export default function AdminFeedbackMessage({
-                                                 type,
-                                                 message,
-                                                 onCloseAction,
-                                                 duration = 5000,
-                                             }: Props) {
+    type,
+    message,
+    onCloseAction,
+    duration = 5000,
+}: Props) {
     useEffect(() => {
         const timeout = setTimeout(onCloseAction, duration);
         return () => clearTimeout(timeout);
@@ -23,13 +23,13 @@ export default function AdminFeedbackMessage({
 
     const isSuccess = type === "success";
     const styles = isSuccess
-        ? "border-green-200 bg-green-50 text-green-800"
-        : "border-red-200 bg-red-50 text-red-800";
+        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+        : "border-red-200 bg-red-50 text-red-900";
 
     return (
-        <div className="fixed right-4 top-20 z-[100]">
+        <div className="fixed right-4 top-[4.5rem] z-[100]">
             <div
-                className={`min-w-[300px] max-w-md rounded-2xl border px-4 py-3 text-sm shadow-lg ${styles}`}
+                className={`min-w-[280px] max-w-md rounded-xl border px-4 py-3 text-sm shadow-lg ${styles}`}
             >
                 <div className="flex items-start gap-3">
                     <div className="mt-0.5 shrink-0">

@@ -80,10 +80,10 @@ function InfoItem({
 }) {
     return (
         <div className="min-w-0">
-            <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+            <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
                 {label}
             </div>
-            <div className="break-words whitespace-normal text-[13px] font-medium text-gray-900" title={value}>
+            <div className="break-words whitespace-normal text-[13px] font-medium text-admin-text" title={value}>
                 {value}
             </div>
         </div>
@@ -109,12 +109,12 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
     if (orderDetailLoading && !order) {
         return createPortal(
             <div
-                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4"
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/55 p-4"
                 onClick={onCloseAction}
                 role="presentation"
             >
                 <div
-                    className="rounded-2xl bg-white px-6 py-5 text-sm text-gray-700 shadow-xl"
+                    className="rounded-2xl bg-white px-6 py-5 text-sm text-admin-text shadow-xl"
                     onClick={(e) => e.stopPropagation()}
                     role="status"
                 >
@@ -202,31 +202,23 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+            className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/55 p-0 sm:items-center sm:p-4"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="
-
-                flex h-[94dvh] w-[calc(100vw-24px)] max-w-[1024px] flex-col overflow-hidden
-        
-                rounded-3xl bg-white shadow-2xl
-        
-                sm:h-[min(90vh,920px)]
-        
-            "
+                className="flex h-[94dvh] w-[calc(100vw-24px)] max-w-[1024px] flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:h-[min(90vh,920px)] sm:rounded-xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="admin-order-items-title"
             >
-                <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+                <div className="border-b border-admin-border px-4 py-3 sm:px-5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <h3
                                 id="admin-order-items-title"
-                                className="truncate text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"
+                                className="truncate text-xl font-semibold leading-tight text-admin-text sm:text-2xl"
                             >
                                 Заказ #{order.id} - {formatDate(order.created_at)}
                             </h3>
@@ -237,8 +229,8 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                             onClick={onCloseAction}
                             className="
                                 inline-flex h-9 w-9 shrink-0 items-center justify-center
-                                rounded-xl border border-gray-200 bg-white text-xl leading-none
-                                text-gray-500 transition hover:bg-gray-50 hover:text-gray-900
+                                rounded-xl border border-admin-border bg-white text-xl leading-none
+                                text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text
                             "
                             aria-label="Закрыть"
                         >
@@ -249,8 +241,8 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5">
                     <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
-                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="rounded-2xl border border-admin-border bg-admin-muted/70 p-3">
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                                 Клиент
                             </div>
 
@@ -260,8 +252,8 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
-                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="rounded-2xl border border-admin-border bg-admin-muted/70 p-3">
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                                 Доставка и оплата
                             </div>
 
@@ -290,10 +282,10 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                         <div
                             className={`rounded-2xl border p-3 ${hasGiftPayment
                                 ? "border-amber-200 bg-amber-50"
-                                : "border-gray-100 bg-gray-50/70"
+                                : "border-admin-border bg-admin-muted/70"
                                 }`}
                         >
-                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                                 Оплата сертификатом
                             </div>
 
@@ -311,14 +303,14 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                     />
                                 </div>
                             ) : (
-                                <div className="text-[13px] text-gray-500">
+                                <div className="text-[13px] text-admin-text-secondary">
                                     Не применялся
                                 </div>
                             )}
                         </div>
 
-                        <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
-                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="rounded-2xl border border-admin-border bg-admin-muted/70 p-3">
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                                 Скидочная карта
                             </div>
 
@@ -341,7 +333,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                     />
                                 </div>
                             ) : (
-                                <div className="text-[13px] text-gray-500">
+                                <div className="text-[13px] text-admin-text-secondary">
                                     Не применялась
                                 </div>
                             )}
@@ -354,7 +346,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                 </div>
                                 {hasSoldGiftCerts ? (
                                     <div>
-                                        <div className="mb-1 text-xs font-medium text-gray-700">
+                                        <div className="mb-1 text-xs font-medium text-admin-text">
                                             Выпущенные сертификаты (запись в каталоге)
                                         </div>
                                         <ul className="space-y-2 text-sm">
@@ -363,11 +355,11 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                                     <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-100 bg-white px-2 py-2"
                                                     >
                                                         <div className="min-w-0">
-                                                            <div className="font-mono text-xs text-gray-500">ID {row.id}</div>
-                                                            <div className="truncate font-medium text-gray-900">
+                                                            <div className="font-mono text-xs text-admin-text-secondary">ID {row.id}</div>
+                                                            <div className="truncate font-medium text-admin-text">
                                                                 {row.template_title ?? "Сертификат"}
                                                             </div>
-                                                            <div className="text-xs text-gray-600">
+                                                            <div className="text-xs text-admin-text-secondary">
                                                                 Номинал {row.initial_amount} руб. ·{" "}
                                                                 {giftCertificateStatusLabel(row.status, row.code)}
                                                                 {row.code ? ` · код ${row.code}` : ""}
@@ -383,7 +375,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                                     {row.code
                                                         ? ""
                                                         :
-                                                        <p className="mt-2 text-xs text-gray-600">
+                                                        <p className="mt-2 text-xs text-admin-text-secondary">
                                                             Нужно добавить код сертификата — тогда его можно применить в корзине, после активации.
                                                         </p>
                                                     }
@@ -396,7 +388,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                         ) : null}
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                    <div className="overflow-x-auto">
                         <AdminOrderItemsTable
                             items={order.items}
                             certificatePurchases={order.gift_certificate_purchases}

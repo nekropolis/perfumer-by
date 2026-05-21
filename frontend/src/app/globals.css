@@ -38,8 +38,27 @@ body {
 }
 
 body.admin-shell-body {
-  background: #f8fafc;
-  background-image: none;
+  --admin-bg: #F7F3EE;
+  --admin-surface: #FFFCF8;
+  --admin-muted: #FBF7F3;
+  --admin-border: #E8DED4;
+  --admin-text: #1F1722;
+  --admin-text-secondary: #6E6572;
+  --admin-sidebar: #0f172a;
+  --admin-header: #1e293b;
+  --admin-primary: #6F4A7E;
+  --admin-primary-hover: #5C3C68;
+
+  background: var(--admin-bg);
+  background-image: linear-gradient(180deg, #F9F5F1 0%, #F7F3EE 100%);
+  color: var(--admin-text);
+}
+
+body.admin-shell-body input:focus,
+body.admin-shell-body select:focus,
+body.admin-shell-body textarea:focus {
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 3px rgb(216 194 230 / 0.55);
 }
 
 * {

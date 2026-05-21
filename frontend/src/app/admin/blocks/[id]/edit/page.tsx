@@ -67,7 +67,7 @@ export default function AdminBlockEditPage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Редактировать блок</h1>
-                    <p className="mt-1 text-sm text-gray-600">Обновление содержимого блока</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Обновление содержимого блока</p>
                 </div>
                 <Link href="/admin/blocks" className="rounded-xl border px-4 py-2 text-sm">Назад</Link>
             </div>

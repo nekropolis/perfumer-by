@@ -59,10 +59,10 @@ function actionBadgeClass(action: string): string {
     }
 
     if (action === "deleted") {
-        return "bg-gray-100 text-gray-800 ring-gray-200";
+        return "bg-gray-100 text-admin-text ring-gray-200";
     }
 
-    return "bg-gray-50 text-gray-700 ring-gray-100";
+    return "bg-admin-muted text-admin-text ring-gray-100";
 }
 
 function formatWhen(iso: string): string {
@@ -107,7 +107,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
 
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
             onClick={onCloseAction}
             role="presentation"
         >
@@ -123,7 +123,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                         <h2 id="audit-detail-title" className="text-lg font-semibold">
                             Запись аудита #{row.id}
                         </h2>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="mt-1 text-xs text-admin-text-secondary">
                             {entityLabel(row.entity_type)}
                             {row.entity_id != null ? ` · ID сущности ${row.entity_id}` : ""}
                         </p>
@@ -132,7 +132,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-lg leading-none text-gray-600 hover:bg-gray-50"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-lg leading-none text-admin-text-secondary hover:bg-admin-muted"
                         aria-label="Закрыть"
                     >
                         ×
@@ -140,11 +140,11 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                 </div>
 
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-                    <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                    <div className="rounded-xl bg-admin-muted px-3 py-2 text-sm text-admin-text">
                         {row.summary}
                     </div>
 
-                    <pre className="max-h-[480px] overflow-auto rounded-xl border border-gray-200 bg-gray-900/95 p-3 text-[11px] leading-relaxed text-gray-100">
+                    <pre className="max-h-[480px] overflow-auto rounded-xl border border-admin-border bg-gray-900/95 p-3 text-[11px] leading-relaxed text-gray-100">
                         {json}
                     </pre>
                 </div>
@@ -153,7 +153,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50"
+                        className="rounded-xl border border-admin-border px-4 py-2 text-sm hover:bg-admin-muted"
                     >
                         Закрыть
                     </button>
@@ -239,7 +239,7 @@ export default function AdminAuditLogPage() {
                 description="События по импорту и другим сущностям (будет расширяться)"
             >
                 <div className="flex flex-wrap items-end gap-3">
-                    <label className="flex flex-col gap-1 text-xs text-gray-600">
+                    <label className="flex flex-col gap-1 text-xs text-admin-text-secondary">
                         <span>Сущность</span>
                         <select
                             value={entityFilter}
@@ -257,7 +257,7 @@ export default function AdminAuditLogPage() {
                         </select>
                     </label>
 
-                    <label className="flex flex-col gap-1 text-xs text-gray-600">
+                    <label className="flex flex-col gap-1 text-xs text-admin-text-secondary">
                         <span>Действие</span>
                         <select
                             value={actionFilter}
@@ -291,7 +291,7 @@ export default function AdminAuditLogPage() {
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-4 py-3">ID</th>
                                     <th className="px-4 py-3">Сущность</th>
                                     <th className="px-4 py-3">Статус / действие</th>
@@ -302,11 +302,11 @@ export default function AdminAuditLogPage() {
                             <tbody className="align-middle">
                                 {rows.map((row) => (
                                     <tr key={row.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3 font-mono text-xs text-gray-700">{row.id}</td>
+                                        <td className="px-4 py-3 font-mono text-xs text-admin-text">{row.id}</td>
                                         <td className="px-4 py-3">
                                             <div className="font-medium">{entityLabel(row.entity_type)}</div>
                                             {row.entity_id != null ? (
-                                                <div className="text-xs text-gray-500">#{row.entity_id}</div>
+                                                <div className="text-xs text-admin-text-secondary">#{row.entity_id}</div>
                                             ) : null}
                                         </td>
                                         <td className="px-4 py-3">
@@ -315,16 +315,16 @@ export default function AdminAuditLogPage() {
                                             >
                                                 {actionLabel(row.action)}
                                             </span>
-                                            <div className="mt-1 line-clamp-2 text-xs text-gray-600">{row.summary}</div>
+                                            <div className="mt-1 line-clamp-2 text-xs text-admin-text-secondary">{row.summary}</div>
                                         </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600">
+                                        <td className="whitespace-nowrap px-4 py-3 text-xs text-admin-text-secondary">
                                             {formatWhen(row.created_at)}
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <button
                                                 type="button"
                                                 onClick={() => setDetailRow(row)}
-                                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
+                                                className="rounded-lg border border-admin-border px-3 py-1.5 text-xs font-medium hover:bg-admin-muted"
                                             >
                                                 Открыть
                                             </button>
@@ -336,7 +336,7 @@ export default function AdminAuditLogPage() {
                     </div>
 
                     {meta && meta.last_page > 1 ? (
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm text-gray-600">
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm text-admin-text-secondary">
                             <span>{paginationLabel}</span>
                             <div className="flex gap-2">
                                 <button

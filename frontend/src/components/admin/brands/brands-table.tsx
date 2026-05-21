@@ -15,7 +15,7 @@ function StatusBadge({ active }: { active: boolean }) {
             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
                 active
                     ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600"
+                    : "bg-gray-100 text-admin-text-secondary"
             }`}
         >
             {active ? "Активен" : "Неактивен"}
@@ -25,9 +25,9 @@ function StatusBadge({ active }: { active: boolean }) {
 
 export default function BrandsTable({ items, onDeleteAction }: Props) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-                <thead className="bg-gray-50/90 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                <thead className="bg-admin-muted/80 text-left text-xs font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                 <tr>
                     <th className="px-3 py-2.5">ID</th>
                     <th className="px-3 py-2.5">Название</th>
@@ -39,19 +39,19 @@ export default function BrandsTable({ items, onDeleteAction }: Props) {
                 </thead>
                 <tbody>
                 {items.map((item) => (
-                    <tr key={item.id} className="border-t border-gray-100 align-top transition hover:bg-gray-50/70">
-                        <td className="px-3 py-3 text-gray-500">{item.id}</td>
-                        <td className="px-3 py-3 font-medium text-gray-900">{item.name}</td>
-                        <td className="px-3 py-3 text-gray-500">{item.slug}</td>
+                    <tr key={item.id} className="border-t border-admin-border align-top transition hover:bg-admin-muted/70">
+                        <td className="px-3 py-3 text-admin-text-secondary">{item.id}</td>
+                        <td className="px-3 py-3 font-medium text-admin-text">{item.name}</td>
+                        <td className="px-3 py-3 text-admin-text-secondary">{item.slug}</td>
                         <td className="px-3 py-3">
                             <StatusBadge active={item.is_active} />
                         </td>
-                        <td className="px-3 py-3 text-gray-700">{item.products_count}</td>
+                        <td className="px-3 py-3 text-admin-text">{item.products_count}</td>
                         <td className="px-3 py-3">
                             <div className="flex justify-end gap-1.5">
                                 <Link
                                     href={`/admin/brands/${item.id}/edit`}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                     aria-label={`Редактировать бренд ${item.name}`}
                                     title="Редактировать"
                                 >

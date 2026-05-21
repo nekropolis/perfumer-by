@@ -1,38 +1,34 @@
 import type { ReactNode } from "react";
+import { adminPageSubtitle, adminPageTitle } from "@/lib/admin-ui-classes";
 
 type Props = {
-    title: string;
+    title?: string;
     description?: string;
     action?: ReactNode;
     children?: ReactNode;
 };
 
-export default function AdminTableToolbar({
-                                              title,
-                                              description,
-                                              action,
-                                              children,
-                                          }: Props) {
+export default function AdminTableToolbar({ title, description, action, children }: Props) {
+    const hasHeader = Boolean(title || description || action);
+
     return (
-        <div className="mb-2 rounded-2xl border border-gray-100 bg-gray-50/70 p-3 sm:p-3">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
-                        {title}
-                    </h2>
+        <div className="mb-4">
+            {hasHeader ? (
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        {title ? <h2 className={adminPageTitle}>{title}</h2> : null}
 
-                    {description ? (
-                        <p className="mt-1 text-sm leading-6 text-gray-600">
-                            {description}
-                        </p>
-                    ) : null}
+                        {description ? <p className={adminPageSubtitle}>{description}</p> : null}
+                    </div>
+
+                    {action ? <div className="shrink-0">{action}</div> : null}
                 </div>
-
-                {action ? <div className="shrink-0">{action}</div> : null}
-            </div>
+            ) : null}
 
             {children ? (
-                <div className="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                <div
+                    className={`${hasHeader ? "mt-4" : ""} flex flex-col gap-3 rounded-lg border border-admin-border bg-admin-muted/80 p-3 md:flex-row md:flex-wrap md:items-end md:justify-between`}
+                >
                     {children}
                 </div>
             ) : null}

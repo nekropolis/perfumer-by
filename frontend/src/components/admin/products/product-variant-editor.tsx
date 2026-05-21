@@ -142,7 +142,7 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             }
             : {
                 label: "Выкл",
-                className: "bg-gray-100 text-gray-600",
+                className: "bg-gray-100 text-admin-text-secondary",
                 title:
                     "Витрина: «Активен» выключен — вариант не отдаётся в публичный API каталога. Остаток/поставщик ниже — только подготовка канала.",
             };
@@ -204,7 +204,7 @@ function VariantFormFields({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Цена</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Цена</label>
                     <input
                         type="number"
                         step="0.01"
@@ -215,7 +215,7 @@ function VariantFormFields({
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Старая цена</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Старая цена</label>
                     <input
                         type="number"
                         step="0.01"
@@ -226,7 +226,7 @@ function VariantFormFields({
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Остаток</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Остаток</label>
                     <input
                         type="number"
                         value={form.stock}
@@ -236,7 +236,7 @@ function VariantFormFields({
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Порядок сортировки</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Порядок сортировки</label>
                     <input
                         type="number"
                         value={form.sort_order}
@@ -249,7 +249,7 @@ function VariantFormFields({
             </div>
 
             <div className="flex flex-wrap gap-6 pt-2">
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
                     <input
                         type="checkbox"
                         checked={form.is_preorder}
@@ -260,7 +260,7 @@ function VariantFormFields({
                     <span>Предзаказ</span>
                 </label>
 
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
                     <input
                         type="checkbox"
                         checked={form.is_active}
@@ -497,7 +497,7 @@ export default function ProductVariantsEditor({
                 </div>
 
                 {sortedItems.length === 0 ? (
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-admin-text-secondary">
                         У товара пока нет вариантов
                     </div>
                 ) : (
@@ -505,7 +505,7 @@ export default function ProductVariantsEditor({
                         {sortedItems.map((item) => (
                             <div
                                 key={item.id}
-                                className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-gray-50/60"
+                                className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
                             >
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
                                     <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_56px] sm:items-center sm:gap-3">
@@ -513,17 +513,17 @@ export default function ProductVariantsEditor({
                                             <VariantBadges item={item} />
                                         </div>
 
-                                        <div className="min-w-0 text-sm font-medium leading-5 text-gray-900 break-words">
+                                        <div className="min-w-0 text-sm font-medium leading-5 text-admin-text break-words">
                                             {buildDisplayName(item)}
                                         </div>
 
-                                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                                        <div className="text-sm font-medium text-admin-text whitespace-nowrap">
                                             {item.catalog_list_price != null
                                                 ? formatMoney(String(item.catalog_list_price))
                                                 : "—"}
                                         </div>
 
-                                        <div className="text-sm text-gray-600 whitespace-nowrap">
+                                        <div className="text-sm text-admin-text-secondary whitespace-nowrap">
                                             {item.main_available_stock ?? 0} шт.
                                         </div>
                                     </div>
@@ -552,7 +552,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-gray-700 transition hover:bg-white"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-admin-text transition hover:bg-white"
                                                 title="Редактировать"
                                                 aria-label="Редактировать"
                                             >
@@ -619,7 +619,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-gray-700 transition hover:bg-white"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-admin-text transition hover:bg-white"
                                                 title="Редактировать"
                                                 aria-label="Редактировать"
                                             >
@@ -695,7 +695,7 @@ export default function ProductVariantsEditor({
             />
 
             {createModalOpen ? (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
@@ -703,8 +703,8 @@ export default function ProductVariantsEditor({
                             </div>
 
                             <div className="overflow-y-auto px-5 py-4">
-                                <div className="mb-4 space-y-2 rounded-xl border bg-gray-50 p-3">
-                                    <label className="block text-sm text-gray-600">Поиск варианта в справочнике</label>
+                                <div className="mb-4 space-y-2 rounded-xl border bg-admin-muted p-3">
+                                    <label className="block text-sm text-admin-text-secondary">Поиск варианта в справочнике</label>
                                     <div className="flex flex-wrap gap-2">
                                         <input
                                             type="text"
@@ -713,16 +713,16 @@ export default function ProductVariantsEditor({
                                             className="w-full max-w-md rounded-xl border px-3 py-2 text-sm"
                                             placeholder="Например: 100"
                                         />
-                                        <span className="inline-flex items-center text-xs text-gray-500">
+                                        <span className="inline-flex items-center text-xs text-admin-text-secondary">
                                             Живой поиск по мл
                                         </span>
                                     </div>
                                     {variantDefinitionsLoading ? (
-                                        <div className="text-xs text-gray-500">Поиск...</div>
+                                        <div className="text-xs text-admin-text-secondary">Поиск...</div>
                                     ) : null}
                                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border bg-white p-2">
                                         {variantDefinitions.length === 0 ? (
-                                            <div className="px-2 py-2 text-xs text-gray-500">
+                                            <div className="px-2 py-2 text-xs text-admin-text-secondary">
                                                 Ничего не найдено по объему
                                             </div>
                                         ) : (
@@ -738,8 +738,8 @@ export default function ProductVariantsEditor({
                                                         }))
                                                     }
                                                     className={`block w-full rounded-lg px-2 py-2 text-left text-sm ${createForm.variant_definition_id === String(item.id)
-                                                        ? "bg-black text-white"
-                                                        : "hover:bg-gray-50"
+                                                        ? "bg-admin-primary text-white"
+                                                        : "hover:bg-admin-muted"
                                                         }`}
                                                 >
                                                     {item.title}
@@ -747,7 +747,7 @@ export default function ProductVariantsEditor({
                                             ))
                                         )}
                                     </div>
-                                    <div className="text-xs text-gray-600">
+                                    <div className="text-xs text-admin-text-secondary">
                                         Выбрано: {createForm.variant_definition_title || "—"}
                                     </div>
                                 </div>
@@ -767,7 +767,7 @@ export default function ProductVariantsEditor({
                                     type="button"
                                     onClick={handleCreate}
                                     disabled={submitting}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>
@@ -778,15 +778,15 @@ export default function ProductVariantsEditor({
             ) : null}
 
             {editForm ? (
-                <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
                     <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
                         <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold leading-snug text-gray-900">
+                                <h2 className="text-lg font-semibold leading-snug text-admin-text">
                                     Редактировать вариант
                                 </h2>
                                 {editModalVariantTitle ? (
-                                    <p className="mt-1 text-base font-medium text-gray-700">
+                                    <p className="mt-1 text-base font-medium text-admin-text">
                                         {editModalVariantTitle}
                                     </p>
                                 ) : null}
@@ -819,7 +819,7 @@ export default function ProductVariantsEditor({
                                     type="button"
                                     onClick={handleUpdate}
                                     disabled={submitting}
-                                    className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>

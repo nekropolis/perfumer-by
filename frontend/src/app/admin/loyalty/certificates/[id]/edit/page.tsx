@@ -97,7 +97,7 @@ export default function AdminGiftCertificateEditPage() {
                         Редактировать сертификат
                         {form?.code?.trim() ? ` — ${form.code}` : form?.id ? ` #${form.id}` : ""}
                     </h1>
-                    <p className="mt-1 text-sm text-gray-600">Редактирование сертификата</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Редактирование сертификата</p>
                 </div>
                 <Link href="/admin/loyalty/certificates" className="rounded-xl border px-4 py-2 text-sm">
                     Назад

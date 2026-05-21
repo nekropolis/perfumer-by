@@ -124,7 +124,7 @@ export default function ImportRetryQueuePage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold">Очередь ошибок импорта</h1>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-admin-text-secondary">
                         Повтор и снятие с очереди по задачам Vanille / описаниям.{" "}
                         <Link href="/admin/import-export/vanille-parsing" className="underline">
                             ← Vanille
@@ -159,7 +159,7 @@ export default function ImportRetryQueuePage() {
             </div>
 
             {counts?.pending_total != null ? (
-                <div className="mb-4 rounded-xl border bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                <div className="mb-4 rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
                     <span className="font-medium">В очереди (pending):</span> {counts.pending_total}
                     {counts.pending_by_task && Object.keys(counts.pending_by_task).length > 0 ? (
                         <span className="ml-2 font-mono text-[11px]">
@@ -182,7 +182,7 @@ export default function ImportRetryQueuePage() {
             ) : (
                 <div className="overflow-x-auto rounded-xl border bg-white">
                     <table className="min-w-full text-left text-sm">
-                        <thead className="border-b bg-gray-50 text-xs uppercase text-gray-600">
+                        <thead className="border-b bg-admin-muted text-xs uppercase text-admin-text-secondary">
                             <tr>
                                 <th className="px-3 py-2">ID</th>
                                 <th className="px-3 py-2">Тип</th>
@@ -208,11 +208,11 @@ export default function ImportRetryQueuePage() {
                                                 {row.product.name}
                                             </Link>
                                         ) : (
-                                            <span className="text-gray-500">#{row.product_id}</span>
+                                            <span className="text-admin-text-secondary">#{row.product_id}</span>
                                         )}
                                     </td>
                                     <td className="px-3 py-2">{row.attempts}</td>
-                                    <td className="max-w-md truncate px-3 py-2 text-xs text-gray-700" title={row.last_error || ""}>
+                                    <td className="max-w-md truncate px-3 py-2 text-xs text-admin-text" title={row.last_error || ""}>
                                         {row.last_error || "—"}
                                     </td>
                                     <td className="space-x-2 px-3 py-2 text-right whitespace-nowrap">
@@ -228,7 +228,7 @@ export default function ImportRetryQueuePage() {
                                             type="button"
                                             disabled={busyId !== null || row.status !== "pending"}
                                             onClick={() => void handleDismiss(row)}
-                                            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 disabled:opacity-50"
+                                            className="rounded border border-gray-300 px-2 py-1 text-xs text-admin-text disabled:opacity-50"
                                         >
                                             {busyId === `d-${row.id}` ? "…" : "Снять"}
                                         </button>

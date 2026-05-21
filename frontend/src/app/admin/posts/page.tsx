@@ -88,17 +88,17 @@ export default function AdminPostsPage() {
 
     return (
         <AdminPageCard>
-            <ContentCatalogTabs />
-
             <AdminTableToolbar
                 title="Новости и статьи"
                 description="Единый каталог публикаций"
                 action={
-                    <Link href="/admin/posts/create" className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800">
+                    <Link href="/admin/posts/create" className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover">
                         Создать публикацию
                     </Link>
                 }
             />
+
+            <ContentCatalogTabs />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

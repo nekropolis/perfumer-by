@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 import type { OrderData } from "@/types/orders";
@@ -28,6 +29,12 @@ const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
+type AddressTooltipState = {
+    lines: string[];
+    x: number;
+    y: number;
+} | null;
+
 function highlightQueryInText(text: string, query: string): ReactNode {
     const q = query.trim();
     if (!q) {
@@ -53,7 +60,7 @@ function highlightQueryInText(text: string, query: string): ReactNode {
         parts.push(
             <mark
                 key={`ord-hl-${idx}-${i}`}
-                className="rounded-sm bg-amber-200 px-0.5 text-gray-900"
+                className="rounded-sm bg-amber-200 px-0.5 text-admin-text"
             >
                 {text.slice(idx, idx + q.length)}
             </mark>,
@@ -91,7 +98,164 @@ function AdminOrderCreatedAtCell({ createdAt }: { createdAt?: string | null }) {
     return (
         <div className="flex flex-col gap-0.5 leading-tight">
             <span className="whitespace-nowrap">{parts.date}</span>
-            <span className="whitespace-nowrap text-[11px] text-gray-500">{parts.time}</span>
+            <span className="whitespace-nowrap text-[11px] text-admin-text-secondary">{parts.time}</span>
+        </div>
+    );
+}
+
+function normalizeAddressLine(value?: string | null): string {
+    return value?.trim() || "—";
+}
+
+/** В таблице показываем короткое имя населённого пункта (без области из full_name). */
+function formatOrderCityDisplay(city?: string | null): string {
+    const raw = city?.trim() || "";
+    if (!raw) {
+        return "—";
+    }
+    const commaIdx = raw.indexOf(",");
+    return commaIdx === -1 ? raw : raw.slice(0, commaIdx).trim() || "—";
+}
+
+function AdminOrderCellTooltip({
+    tooltip,
+    onMouseEnterAction,
+    onMouseLeaveAction,
+}: {
+    tooltip: AddressTooltipState;
+    onMouseEnterAction: () => void;
+    onMouseLeaveAction: () => void;
+}) {
+    if (!tooltip || typeof document === "undefined") {
+        return null;
+    }
+
+    return createPortal(
+        <div
+            className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
+            style={{ left: tooltip.x, top: tooltip.y }}
+            onMouseEnter={onMouseEnterAction}
+            onMouseLeave={onMouseLeaveAction}
+        >
+            {tooltip.lines.map((line, index) => (
+                <div
+                    key={`${line}-${index}`}
+                    className={index === 0 ? "select-text font-semibold" : "mt-1.5 select-text whitespace-pre-wrap text-admin-text-secondary"}
+                >
+                    {line}
+                </div>
+            ))}
+        </div>,
+        document.body,
+    );
+}
+
+function getTooltipPosition(element: HTMLElement): { x: number; y: number } {
+    const rect = element.getBoundingClientRect();
+    const viewportPadding = 16;
+    const tooltipHalfWidth = Math.min(192, Math.max(0, window.innerWidth / 2 - viewportPadding));
+
+    return {
+        x: Math.min(
+            Math.max(rect.left + rect.width / 2, tooltipHalfWidth + viewportPadding),
+            window.innerWidth - tooltipHalfWidth - viewportPadding,
+        ),
+        y: rect.bottom + 8,
+    };
+}
+
+function isTextOverflowing(element: HTMLElement): boolean {
+    return element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight;
+}
+
+function AdminOrderClientCell({
+    name,
+    searchQuery,
+    onShowAction,
+    onHideAction,
+}: {
+    name?: string | null;
+    searchQuery: string;
+    onShowAction: (tooltip: AddressTooltipState) => void;
+    onHideAction: () => void;
+}) {
+    const clientName = name?.trim() || "—";
+    const hasClient = clientName !== "—";
+
+    const showTooltip = (element: HTMLElement) => {
+        if (!hasClient || !isTextOverflowing(element)) {
+            onHideAction();
+            return;
+        }
+
+        onShowAction({
+            lines: [clientName],
+            ...getTooltipPosition(element),
+        });
+    };
+
+    return (
+        <div
+            className="min-w-0 truncate"
+            tabIndex={hasClient ? 0 : undefined}
+            onMouseEnter={(event) => showTooltip(event.currentTarget)}
+            onMouseLeave={onHideAction}
+            onFocus={(event) => showTooltip(event.currentTarget)}
+            onBlur={onHideAction}
+        >
+            {highlightQueryInText(clientName, searchQuery)}
+        </div>
+    );
+}
+
+function AdminOrderAddressCell({
+    city,
+    address,
+    onShowAction,
+    onHideAction,
+}: {
+    city?: string | null;
+    address?: string | null;
+    onShowAction: (tooltip: AddressTooltipState) => void;
+    onHideAction: () => void;
+}) {
+    const cityRaw = city?.trim() || "";
+    const cityLine = formatOrderCityDisplay(city);
+    const addressLine = normalizeAddressLine(address);
+    const hasAddress = cityLine !== "—" || addressLine !== "—";
+    const tooltipCity = cityRaw || cityLine;
+
+    const showTooltip = (element: HTMLElement) => {
+        const truncatedLine = Array.from(
+            element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
+        ).some(isTextOverflowing);
+
+        if (!hasAddress || !truncatedLine) {
+            onHideAction();
+            return;
+        }
+
+        onShowAction({
+            lines: [tooltipCity, addressLine],
+            ...getTooltipPosition(element),
+        });
+    };
+
+    return (
+        <div
+            className="min-w-0 leading-tight"
+            tabIndex={hasAddress ? 0 : undefined}
+            onMouseEnter={(event) => showTooltip(event.currentTarget)}
+            onMouseLeave={onHideAction}
+            onFocus={(event) => showTooltip(event.currentTarget)}
+            onBlur={onHideAction}
+        >
+            <div className="truncate font-medium text-admin-text" data-truncate-check>
+                {cityLine}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] text-admin-text-secondary" data-truncate-check>
+                {addressLine}
+            </div>
         </div>
     );
 }
@@ -112,11 +276,47 @@ export default function AdminOrdersTable({
     const [terminalConfirm, setTerminalConfirm] = useState<{ orderId: number; nextStatus: "done" | "cancelled" } | null>(
         null,
     );
+    const [addressTooltip, setAddressTooltip] = useState<AddressTooltipState>(null);
+    const tooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isStatusPending, startStatusTransition] = useTransition();
+
+    const clearTooltipHideTimer = useCallback(() => {
+        if (tooltipHideTimerRef.current) {
+            clearTimeout(tooltipHideTimerRef.current);
+            tooltipHideTimerRef.current = null;
+        }
+    }, []);
+
+    const showAddressTooltip = useCallback((tooltip: AddressTooltipState) => {
+        clearTooltipHideTimer();
+        setAddressTooltip(tooltip);
+    }, [clearTooltipHideTimer]);
+
+    const hideAddressTooltip = useCallback(() => {
+        clearTooltipHideTimer();
+        setAddressTooltip(null);
+    }, [clearTooltipHideTimer]);
+
+    const hideAddressTooltipWithDelay = useCallback(() => {
+        clearTooltipHideTimer();
+        tooltipHideTimerRef.current = setTimeout(() => {
+            setAddressTooltip(null);
+            tooltipHideTimerRef.current = null;
+        }, 220);
+    }, [clearTooltipHideTimer]);
 
     useEffect(() => {
         setOrders(initialOrders);
     }, [initialOrders]);
+
+    useEffect(() => {
+        if (!addressTooltip) {
+            return;
+        }
+
+        window.addEventListener("scroll", hideAddressTooltip, true);
+        return () => window.removeEventListener("scroll", hideAddressTooltip, true);
+    }, [addressTooltip, hideAddressTooltip]);
 
     const selectedOrderIdsSet = useMemo(() => new Set(selectedOrderIds), [selectedOrderIds]);
     const allVisibleSelected = orders.length > 0 && orders.every((order) => selectedOrderIdsSet.has(order.id));
@@ -210,11 +410,11 @@ export default function AdminOrdersTable({
 
     return (
         <>
-            <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+            <div className="w-full">
+                <table className="w-full table-fixed text-sm">
                     <thead>
-                        <tr className="border-b text-left text-gray-500">
-                            <th className="w-10 px-4 py-4">
+                        <tr className="border-b text-left text-admin-text-secondary">
+                            <th className="w-[4%] px-1.5 py-3">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -223,22 +423,23 @@ export default function AdminOrdersTable({
                                     className="h-4 w-4 rounded border-gray-300"
                                 />
                             </th>
-                            <th className="px-4 py-4">Заказ</th>
-                            <th className="px-4 py-4">Клиент</th>
-                            <th className="px-4 py-4">Телефон</th>
-                            <th className="px-4 py-4">Статус</th>
-                            <th className="px-4 py-4">Кол-во</th>
-                            <th className="px-4 py-4">Сумма</th>
-                            <th className="px-4 py-4 align-top">
+                            <th className="w-[10%] px-1.5 py-3">Заказ</th>
+                            <th className="w-[16%] px-1.5 py-3">Клиент</th>
+                            <th className="w-[12%] px-1.5 py-3">Телефон</th>
+                            <th className="w-[22%] px-1.5 py-3">Адрес</th>
+                            <th className="w-[13%] px-1.5 py-3">Статус</th>
+                            <th className="w-[6%] px-1.5 py-3">Кол.</th>
+                            <th className="w-[9%] px-1.5 py-3">Сумма</th>
+                            <th className="w-[8%] px-1.5 py-3 align-top">
                                 {onDateFilterHeaderClickAction !== undefined && dateFilterSummary !== undefined ? (
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="flex max-w-[11rem] flex-col items-start gap-0.5 rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-gray-200 hover:bg-gray-50 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                                        title="Фильтр по дате создания заказа"
+                                        className="flex max-w-[11rem] flex-col items-start gap-0.5 rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-muted focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                                        aria-label="Фильтр по дате создания заказа"
                                     >
-                                        <span className="tracking-wide text-gray-500">Дата</span>
-                                        <span className="text-[10px] font-medium leading-snug text-gray-900">
+                                        <span className="tracking-wide text-admin-text-secondary">Дата</span>
+                                        <span className="text-[10px] font-medium leading-snug text-admin-text">
                                             {dateFilterSummary}
                                         </span>
                                     </button>
@@ -246,14 +447,13 @@ export default function AdminOrdersTable({
                                     "Дата"
                                 )}
                             </th>
-                            <th className="px-4 py-4">Действия</th>
                         </tr>
                     </thead>
 
                     <tbody className="align-middle">
                         {orders.map((order) => (
                             <tr key={order.id} className="border-b last:border-b-0">
-                                <td className="px-4 py-4">
+                                <td className="px-1.5 py-3">
                                     <input
                                         type="checkbox"
                                         checked={selectedOrderIdsSet.has(order.id)}
@@ -262,23 +462,44 @@ export default function AdminOrdersTable({
                                         className="h-4 w-4 rounded border-gray-300"
                                     />
                                 </td>
-                                <td className="px-4 py-4">
-                                    <button
-                                        type="button"
-                                        title="Посмотреть заказ"
-                                        className="text-left font-medium text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
-                                        onClick={() => openOrderDetail(order.id)}
-                                    >
-                                        #{highlightQueryInText(String(order.id), searchQuery)}
-                                    </button>
+                                <td className="px-1.5 py-3">
+                                    <div className="flex min-w-0 items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            className="min-w-0 truncate text-left font-medium text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
+                                            onClick={() => openOrderDetail(order.id)}
+                                        >
+                                            #{highlightQueryInText(String(order.id), searchQuery)}
+                                        </button>
+                                        <Link
+                                            href={`/admin/orders/${order.id}/edit`}
+                                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-admin-border text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                            aria-label={`Редактировать заказ #${order.id}`}
+                                        >
+                                            <Pencil size={13} />
+                                        </Link>
+                                    </div>
                                 </td>
-                                <td className="px-4 py-4">
-                                    {highlightQueryInText(order.customer_name || "—", searchQuery)}
+                                <td className="px-1.5 py-3">
+                                    <AdminOrderClientCell
+                                        name={order.customer_name}
+                                        searchQuery={searchQuery}
+                                        onShowAction={showAddressTooltip}
+                                        onHideAction={hideAddressTooltipWithDelay}
+                                    />
                                 </td>
-                                <td className="px-4 py-4">
-                                    {highlightQueryInText(order.phone || "—", searchQuery)}
+                                <td className="px-1.5 py-3">
+                                    <div className="truncate">{highlightQueryInText(order.phone || "—", searchQuery)}</div>
                                 </td>
-                                <td className="px-4 py-4">
+                                <td className="px-1.5 py-3">
+                                    <AdminOrderAddressCell
+                                        city={order.delivery_city}
+                                        address={order.delivery_address}
+                                        onShowAction={showAddressTooltip}
+                                        onHideAction={hideAddressTooltipWithDelay}
+                                    />
+                                </td>
+                                <td className="px-1.5 py-3">
                                     <AdminStatusDropdown
                                         value={order.status}
                                         options={ORDER_STATUS_OPTIONS}
@@ -291,28 +512,22 @@ export default function AdminOrdersTable({
                                         menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
                                     />
                                 </td>
-                                <td className="px-4 py-4">{order.items_qty}</td>
-                                <td className="px-4 py-4 whitespace-nowrap">{order.total} руб.</td>
-                                <td className="px-4 py-4 text-gray-600">
+                                <td className="px-1.5 py-3">{order.items_qty}</td>
+                                <td className="px-1.5 py-3 whitespace-nowrap">{order.total} руб.</td>
+                                <td className="px-1.5 py-3 text-admin-text-secondary">
                                     <AdminOrderCreatedAtCell createdAt={order.created_at} />
-                                </td>
-                                <td className="px-4 py-4">
-                                    <div className="flex items-center gap-1.5">
-                                        <Link
-                                            href={`/admin/orders/${order.id}/edit`}
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50"
-                                            aria-label={`Редактировать заказ #${order.id}`}
-                                            title="Редактировать"
-                                        >
-                                            <Pencil size={16} />
-                                        </Link>
-                                    </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
+            <AdminOrderCellTooltip
+                tooltip={addressTooltip}
+                onMouseEnterAction={clearTooltipHideTimer}
+                onMouseLeaveAction={hideAddressTooltipWithDelay}
+            />
 
             <AdminOrderItemsModal
                 order={selectedOrder}

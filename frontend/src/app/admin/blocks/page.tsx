@@ -71,17 +71,17 @@ export default function AdminBlocksPage() {
 
     return (
         <AdminPageCard>
-            <ContentCatalogTabs />
-
             <AdminTableToolbar
                 title="Блоки на странице"
                 description="Переиспользуемые CMS-блоки без отдельного URL"
                 action={
-                    <Link href="/admin/blocks/create" className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800">
+                    <Link href="/admin/blocks/create" className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover">
                         Создать блок
                     </Link>
                 }
             />
+
+            <ContentCatalogTabs />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

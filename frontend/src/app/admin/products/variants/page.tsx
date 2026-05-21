@@ -120,20 +120,20 @@ export default function AdminProductVariantsPage() {
 
     return (
         <AdminPageCard>
-            <ProductCatalogTabs />
-            
             <AdminTableToolbar
                 title="Варианты продукта"
                 description="Справочник вариантов товара: объем, концентрация, тестер"
                 action={
                     <Link
                         href="/admin/products/variants/create"
-                        className="inline-flex items-center justify-center rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+                        className="inline-flex items-center justify-center rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                     >
                         Новый вариант
                     </Link>
                 }
             />
+
+            <ProductCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />
@@ -156,7 +156,7 @@ export default function AdminProductVariantsPage() {
                             <button
                                 type="button"
                                 onClick={resetSearch}
-                                className="rounded-xl border px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                                className="rounded-xl border px-3 py-2 text-sm text-admin-text-secondary hover:bg-admin-muted"
                                 title="Сбросить поиск"
                             >
                                 Сбросить

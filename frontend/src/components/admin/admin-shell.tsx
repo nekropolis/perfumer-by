@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, startTransition } from "react";
 import { X, Store, User } from "lucide-react";
@@ -9,6 +10,7 @@ import AdminSidebar from "@/components/admin/admin-sidebar";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
+import { adminBtnGhost, adminBtnSecondary } from "@/lib/admin-ui-classes";
 
 type Props = {
     children: ReactNode;
@@ -16,52 +18,6 @@ type Props = {
 
 const SIDEBAR_STORAGE_KEY = "admin-sidebar-collapsed";
 
-/**
- * Каркас админки — три зоны: шапка, сайдбар, контент.
- *
- * Как устроен скролл (и почему это надёжно):
- *
- *   ┌─────────────────────────────────────────────────────┐
- *   │ outer: height: 100dvh; flex-col; overflow-hidden    │ ← окно НЕ скроллится
- *   │ ┌─────────────────────────────────────────────────┐ │
- *   │ │ <AdminHeader>   flex-none  h-16                 │ │ ← шапка всегда на месте
- *   │ └─────────────────────────────────────────────────┘ │
- *   │ ┌─────────────────────────────────────────────────┐ │
- *   │ │ <main>  flex-1  min-h-0  overflow-hidden        │ │
- *   │ │ ┌──────────┬───────────────────────────────────┐│ │
- *   │ │ │ sidebar  │ content                           ││ │
- *   │ │ │ h-full   │ h-full                            ││ │
- *   │ │ │ overflow │ overflow-y-auto                   ││ │ ← у каждого свой скролл
- *   │ │ │  -y-auto │                                   ││ │
- *   │ │ └──────────┴───────────────────────────────────┘│ │
- *   │ └─────────────────────────────────────────────────┘ │
- *   └─────────────────────────────────────────────────────┘
- *
- *   • Внешний контейнер фиксирован по высоте вьюпорта (inline-стиль
- *     `height: 100dvh` надёжнее любых Tailwind-классов — не зависит
- *     от того, что у клиента в кэше). `overflow-hidden` физически
- *     запрещает скролл самого окна: шапка никогда не «уезжает».
- *   • `<main>` имеет `flex-1 min-h-0 overflow-hidden` — это ровно остаток
- *     после шапки. `min-h-0` обязателен: без него flex-child не может быть
- *     меньше своего content-size, и `overflow-y-auto` у внуков не сработает.
- *   • Внутри main — grid на 2 колонки (sidebar + content). У каждой
- *     колонки свой `overflow-y-auto`, что и даёт независимый скролл.
- *
- * Мобилка (< lg):
- *   • Сайдбар колонки нет (`hidden lg:block`), сетка становится
- *     одноколоночной, секция занимает всю ширину и скроллится внутри main.
- *   • Сайдбар доступен через overlay по кнопке «Меню» (fixed z-[200]).
- *
- * Модалки:
- *   • Любой компонент внутри `{children}` может рендерить модалки через
- *     портал в `document.body` (обычный паттерн) с `z-[200]`. Они окажутся
- *     выше шапки, потому что шапка рендерится в потоке и z-index у неё
- *     не задан (у contents внутри grid никаких stacking context'ов).
- *   • Важно: на сайдбаре и секции НЕ должно быть `relative z-*` —
- *     любой такой z-index порождает свой stacking context, из-за чего
- *     модалки, отрендеренные изнутри секции без портала, не смогут
- *     перекрыть внешнюю шапку.
- */
 export default function AdminShell({ children }: Props) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -123,62 +79,79 @@ export default function AdminShell({ children }: Props) {
 
     return (
         <div
-            className="flex h-screen flex-col overflow-hidden bg-gray-50"
+            className="flex h-screen overflow-hidden bg-admin-bg"
             style={{ height: "100dvh" }}
         >
-            <AdminHeader
-                sidebarCollapsed={sidebarCollapsed}
-                onToggleSidebarAction={() => setSidebarCollapsed((prev) => !prev)}
-                onOpenMobileMenuAction={() => setMobileMenuOpen(true)}
-            />
-
-            <main className="min-h-0 flex-1 overflow-hidden">
-                <div className="mx-auto flex h-full max-w-7xl flex-col px-4 py-6 sm:px-6">
+            <div
+                className={`hidden min-h-0 shrink-0 overflow-hidden border-r border-admin-border bg-admin-muted shadow-[8px_0_30px_-28px_rgba(31,23,34,0.35)] lg:block ${sidebarCollapsed ? "w-[72px]" : "w-[260px]"
+                    }`}
+            >
+                <div className="flex h-full min-h-0 flex-col">
                     <div
-                        className={`grid min-h-0 flex-1 grid-cols-1 gap-8 ${
-                            sidebarCollapsed
-                                ? "lg:grid-cols-[92px_minmax(0,1fr)]"
-                                : "lg:grid-cols-[280px_minmax(0,1fr)]"
-                        }`}
+                        className={`flex h-14 flex-none items-center border-b border-admin-border bg-admin-muted ${sidebarCollapsed ? "justify-center px-2" : "px-5"
+                            }`}
                     >
-                        {/*
-                          Сайдбар. Скрыт на мобилке (там открывается через оверлей).
-                          На lg+ — своя overflow-y-auto колонка.
-                        */}
-                        <div className="hidden min-h-0 overflow-y-auto pr-1 lg:block">
-                            <AdminSidebar collapsed={sidebarCollapsed} />
-                        </div>
-
-                        {/*
-                          Основной контент. На мобилке — единственная колонка,
-                          на lg+ — вторая. Всегда со своим скроллом.
-                        */}
-                        <section className="min-h-0 min-w-0 overflow-y-auto pr-1">
-                            {children}
-                        </section>
+                        {sidebarCollapsed ? (
+                            <Image
+                                src="/logo.svg"
+                                alt="Perfumer"
+                                width={934}
+                                height={356}
+                                className="h-auto w-10 object-contain"
+                                unoptimized
+                            />
+                        ) : (
+                            <div className="min-w-0">
+                                <Image
+                                    src="/logo.svg"
+                                    alt="Perfumer"
+                                    width={934}
+                                    height={356}
+                                    className="h-auto w-[128px] object-contain"
+                                    unoptimized
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? "px-2 py-4" : "px-3 py-4"}`}>
+                        <AdminSidebar collapsed={sidebarCollapsed} />
                     </div>
                 </div>
-            </main>
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <AdminHeader
+                    sidebarCollapsed={sidebarCollapsed}
+                    onToggleSidebarAction={() => setSidebarCollapsed((prev) => !prev)}
+                    onOpenMobileMenuAction={() => setMobileMenuOpen(true)}
+                />
+
+                <main className="min-h-0 flex-1 overflow-hidden">
+                    <section className="h-full min-h-0 min-w-0 overflow-y-auto">
+                        {children}
+                    </section>
+                </main>
+            </div>
 
             {mobileMenuOpen && (
                 <div className="fixed inset-0 z-[200] lg:hidden">
                     <div
-                        className="absolute inset-0 bg-black/40"
+                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"
                         onClick={() => {
                             setMobileActionsOpen(false);
                             setMobileMenuOpen(false);
                         }}
                     />
 
-                    <div className="absolute left-0 top-0 flex h-full w-[88%] max-w-sm flex-col bg-white shadow-2xl">
-                        <div className="relative flex flex-none items-center justify-between gap-2 border-b p-4">
-                            <div className="text-lg font-semibold">Меню</div>
+                    <div className="absolute left-0 top-0 flex h-full w-[min(88vw,300px)] flex-col border-r border-admin-border bg-admin-muted shadow-2xl">
+                        <div className="relative flex flex-none items-center justify-between gap-2 border-b border-admin-border px-4 py-3">
+                            <div className="text-base font-semibold text-admin-text">Меню</div>
 
                             <div className="flex items-center gap-2">
                                 <AdminActiveTasksWidget compact className="flex items-center gap-2" />
                                 <button
                                     type="button"
-                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border"
+                                    className={adminBtnGhost}
                                     onClick={() => setMobileActionsOpen((prev) => !prev)}
                                     aria-label="Действия"
                                     title="Действия"
@@ -187,7 +160,7 @@ export default function AdminShell({ children }: Props) {
                                 </button>
                                 <button
                                     type="button"
-                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border"
+                                    className={adminBtnGhost}
                                     onClick={() => {
                                         setMobileActionsOpen(false);
                                         setMobileMenuOpen(false);
@@ -198,13 +171,13 @@ export default function AdminShell({ children }: Props) {
                             </div>
 
                             {mobileActionsOpen ? (
-                                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-[210] w-[min(88vw,22rem)] rounded-2xl border bg-white p-2 shadow-xl">
-                                    <div className="flex flex-col gap-2">
+                                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-[210] w-[min(88vw,22rem)] rounded-xl border border-admin-border bg-admin-surface p-2 shadow-xl">
+                                    <div className="flex flex-col gap-1">
                                         <button
                                             type="button"
                                             onClick={() => void handleResetCatalogCache()}
                                             disabled={cacheResetBusy}
-                                            className="rounded-xl border px-4 py-3 text-left text-sm transition hover:bg-gray-50 disabled:opacity-60"
+                                            className={`${adminBtnSecondary} w-full disabled:opacity-60`}
                                         >
                                             {cacheResetBusy ? "Сбрасываем кеш..." : "Сбросить кеш"}
                                         </button>
@@ -213,7 +186,7 @@ export default function AdminShell({ children }: Props) {
                                             href="/"
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm"
+                                            className={`${adminBtnSecondary} gap-2`}
                                             onClick={() => setMobileMenuOpen(false)}
                                         >
                                             <Store size={18} />
@@ -222,7 +195,7 @@ export default function AdminShell({ children }: Props) {
 
                                         <Link
                                             href="/account"
-                                            className="rounded-xl border px-4 py-3 text-sm"
+                                            className={adminBtnSecondary}
                                             onClick={() => setMobileMenuOpen(false)}
                                         >
                                             Личный кабинет
@@ -230,7 +203,7 @@ export default function AdminShell({ children }: Props) {
 
                                         <button
                                             type="button"
-                                            className="rounded-xl border px-4 py-3 text-left text-sm"
+                                            className={`${adminBtnSecondary} w-full text-left`}
                                             onClick={() => {
                                                 logout();
                                                 setMobileMenuOpen(false);
@@ -243,7 +216,7 @@ export default function AdminShell({ children }: Props) {
                             ) : null}
                         </div>
 
-                        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
                             <AdminSidebar onNavigateAction={() => setMobileMenuOpen(false)} />
                         </div>
                     </div>

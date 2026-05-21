@@ -92,7 +92,7 @@ export default function AdminLoyaltyCardCreatePage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Создать накопительную карту</h1>
-                    <p className="mt-1 text-sm text-gray-600">Создание новой карты лояльности</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Создание новой карты лояльности</p>
                 </div>
                 <Link href="/admin/loyalty/cards" className="rounded-xl border px-4 py-2 text-sm">
                     Назад
@@ -107,9 +107,9 @@ export default function AdminLoyaltyCardCreatePage() {
 
             <LoyaltyCardForm form={form} submitting={submitting} onChangeAction={setForm} onSubmitAction={handleSubmit} />
 
-            <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+            <div className="mt-6 rounded-2xl border border-admin-border bg-white p-5">
                 <div className="mb-3 text-base font-semibold">Привязка пользователей</div>
-                <p className="mb-3 text-sm text-gray-600">
+                <p className="mb-3 text-sm text-admin-text-secondary">
                     Выберите пользователей до сохранения карты — они будут привязаны сразу после создания.
                 </p>
                 <LoyaltyUserSelectionChips users={usersToAttach} onRemoveAction={(id) => setUsersToAttach((p) => p.filter((u) => u.id !== id))} />

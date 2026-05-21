@@ -158,12 +158,12 @@ export default function AdminSeoRedirectsPage() {
 
     return (
         <AdminPageCard>
-            <ContentCatalogTabs />
-
             <AdminTableToolbar
                 title="SEO редиректы"
                 description="Таблица 301/302/410 редиректов"
             />
+
+            <ContentCatalogTabs />
 
             {error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />
@@ -174,7 +174,7 @@ export default function AdminSeoRedirectsPage() {
 
             <div className="mb-4 grid gap-3 rounded-2xl border bg-white p-4 lg:grid-cols-6">
                 <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-gray-600">From path</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">From path</label>
                     <input
                         type="text"
                         value={form.from_path}
@@ -184,7 +184,7 @@ export default function AdminSeoRedirectsPage() {
                     />
                 </div>
                 <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-gray-600">To path</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">To path</label>
                     <input
                         type="text"
                         value={form.to_path}
@@ -194,7 +194,7 @@ export default function AdminSeoRedirectsPage() {
                     />
                 </div>
                 <div>
-                    <label className="mb-1 block text-xs text-gray-600">Код</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">Код</label>
                     <select
                         value={form.http_code}
                         onChange={(e) => setForm((prev) => ({ ...prev, http_code: e.target.value as "301" | "302" | "410" }))}
@@ -206,7 +206,7 @@ export default function AdminSeoRedirectsPage() {
                     </select>
                 </div>
                 <div>
-                    <label className="mb-1 block text-xs text-gray-600">Активен</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">Активен</label>
                     <label className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
                         <input
                             type="checkbox"
@@ -217,7 +217,7 @@ export default function AdminSeoRedirectsPage() {
                     </label>
                 </div>
                 <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-gray-600">Source</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">Source</label>
                     <input
                         type="text"
                         value={form.source}
@@ -226,7 +226,7 @@ export default function AdminSeoRedirectsPage() {
                     />
                 </div>
                 <div className="lg:col-span-3">
-                    <label className="mb-1 block text-xs text-gray-600">Комментарий</label>
+                    <label className="mb-1 block text-xs text-admin-text-secondary">Комментарий</label>
                     <input
                         type="text"
                         value={form.note}
@@ -239,7 +239,7 @@ export default function AdminSeoRedirectsPage() {
                         type="button"
                         onClick={handleSave}
                         disabled={submitting}
-                        className="w-full rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                        className="w-full rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                     >
                         {submitting ? "Сохранение..." : form.id ? "Обновить" : "Создать"}
                     </button>
@@ -304,7 +304,7 @@ export default function AdminSeoRedirectsPage() {
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-3 py-2">ID</th>
                                     <th className="px-3 py-2">From</th>
                                     <th className="px-3 py-2">To</th>

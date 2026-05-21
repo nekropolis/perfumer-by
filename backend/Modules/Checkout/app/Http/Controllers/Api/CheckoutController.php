@@ -107,6 +107,8 @@ class CheckoutController extends Controller
         if ($validated['delivery_method'] === CheckoutDeliveryService::METHOD_PICKUP) {
             $validated['delivery_address'] = 'нет - самовывоз';
             $validated['delivery_city'] = null;
+        } elseif ($validated['delivery_method'] === CheckoutDeliveryService::METHOD_MINSK) {
+            $validated['delivery_city'] = CheckoutDeliveryService::MINSK_CITY;
         }
 
         foreach ($cart->items as $cartItem) {

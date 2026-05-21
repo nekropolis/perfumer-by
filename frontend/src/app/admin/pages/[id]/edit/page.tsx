@@ -72,7 +72,7 @@ export default function AdminPageEditPage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Редактировать страницу</h1>
-                    <p className="mt-1 text-sm text-gray-600">Обновление контента и SEO</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Обновление контента и SEO</p>
                 </div>
                 <Link href="/admin/pages" className="rounded-xl border px-4 py-2 text-sm">Назад</Link>
             </div>

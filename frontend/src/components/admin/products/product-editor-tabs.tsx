@@ -29,8 +29,6 @@ export default function ProductEditorTabs({ activeTab, onChangeAction }: Props) 
             items={tabs}
             activeTab={activeTab}
             onChangeAction={onChangeAction}
-            className="mb-6 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-2 shadow-sm"
-            columnsClassName="grid grid-cols-5 gap-2"
             showDescription={false}
         />
     );

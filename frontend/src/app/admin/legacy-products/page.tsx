@@ -157,11 +157,12 @@ export default function AdminLegacyProductsPage() {
 
     return (
         <AdminPageCard>
-            <ContentCatalogTabs />
             <AdminTableToolbar
                 title="Legacy products"
                 description="Ручная обработка unmatched товаров: связать или пропустить"
             />
+
+            <ContentCatalogTabs />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}
@@ -205,7 +206,7 @@ export default function AdminLegacyProductsPage() {
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-gray-500">
+                                <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-3 py-2">Legacy ID</th>
                                     <th className="px-3 py-2">Slug</th>
                                     <th className="px-3 py-2">Название</th>
@@ -248,7 +249,7 @@ export default function AdminLegacyProductsPage() {
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <span className="text-xs text-gray-500">—</span>
+                                                <span className="text-xs text-admin-text-secondary">—</span>
                                             )}
                                         </td>
                                     </tr>
@@ -260,7 +261,7 @@ export default function AdminLegacyProductsPage() {
             </AdminTableShell>
 
             {linkTarget ? (
-                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40 p-4">
+                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/50 p-4">
                     <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5">
                         <div className="mb-4 flex items-center justify-between">
                             <h2 className="text-lg font-semibold">Связать legacy продукт</h2>
@@ -272,15 +273,15 @@ export default function AdminLegacyProductsPage() {
                         {linkDetail ? (
                             <div className="mb-4 grid gap-4 md:grid-cols-2">
                                 <div className="rounded-xl border p-3">
-                                    <div className="mb-1 text-xs text-gray-500">Legacy</div>
+                                    <div className="mb-1 text-xs text-admin-text-secondary">Legacy</div>
                                     <div className="text-sm"><b>ID:</b> {linkDetail.legacy_product_id}</div>
                                     <div className="text-sm"><b>Slug:</b> {linkDetail.legacy_slug || "—"}</div>
                                     <div className="text-sm"><b>Name:</b> {linkDetail.legacy_name || "—"}</div>
-                                    <div className="mt-2 text-xs text-gray-600 line-clamp-6">{linkDetail.legacy_meta_description || linkDetail.legacy_description || "—"}</div>
+                                    <div className="mt-2 text-xs text-admin-text-secondary line-clamp-6">{linkDetail.legacy_meta_description || linkDetail.legacy_description || "—"}</div>
                                 </div>
 
                                 <div className="rounded-xl border p-3">
-                                    <div className="mb-2 text-xs text-gray-500">Целевой текущий продукт</div>
+                                    <div className="mb-2 text-xs text-admin-text-secondary">Целевой текущий продукт</div>
                                     <input
                                         type="text"
                                         value={targetSearchInput}
@@ -290,10 +291,10 @@ export default function AdminLegacyProductsPage() {
                                     />
                                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-2">
                                         {targetCandidates.length === 0 ? (
-                                            <div className="text-xs text-gray-500">Ничего не найдено</div>
+                                            <div className="text-xs text-admin-text-secondary">Ничего не найдено</div>
                                         ) : (
                                             targetCandidates.map((candidate) => (
-                                                <label key={candidate.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-gray-50">
+                                                <label key={candidate.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
                                                     <input
                                                         type="radio"
                                                         name="target_product"
@@ -302,9 +303,9 @@ export default function AdminLegacyProductsPage() {
                                                     />
                                                     <span className="text-sm">
                                                         <span className="font-medium">{candidate.name}</span>
-                                                        <span className="ml-1 text-xs text-gray-500">({candidate.slug})</span>
+                                                        <span className="ml-1 text-xs text-admin-text-secondary">({candidate.slug})</span>
                                                         {candidate.brand_name ? (
-                                                            <span className="ml-1 text-xs text-gray-500">· {candidate.brand_name}</span>
+                                                            <span className="ml-1 text-xs text-admin-text-secondary">· {candidate.brand_name}</span>
                                                         ) : null}
                                                     </span>
                                                 </label>
@@ -325,7 +326,7 @@ export default function AdminLegacyProductsPage() {
                                 type="button"
                                 onClick={confirmLink}
                                 disabled={!selectedTargetId || linking}
-                                className="rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                                className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {linking ? "Связывание..." : "Подтвердить связь (перезаписать поля + 301)"}
                             </button>
@@ -335,14 +336,14 @@ export default function AdminLegacyProductsPage() {
             ) : null}
 
             {skipTarget ? (
-                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40 p-4">
+                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/50 p-4">
                     <div className="w-full max-w-lg rounded-2xl bg-white p-5">
                         <h2 className="text-lg font-semibold">Пропустить legacy продукт</h2>
-                        <p className="mt-1 text-sm text-gray-600">
+                        <p className="mt-1 text-sm text-admin-text-secondary">
                             ID {skipTarget.legacy_product_id} ({skipTarget.legacy_slug || "без slug"})
                         </p>
                         <div className="mt-4">
-                            <label className="mb-1 block text-xs text-gray-600">Причина пропуска</label>
+                            <label className="mb-1 block text-xs text-admin-text-secondary">Причина пропуска</label>
                             <textarea
                                 value={skipReason}
                                 onChange={(e) => setSkipReason(e.target.value)}

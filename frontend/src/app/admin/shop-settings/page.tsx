@@ -87,13 +87,13 @@ export default function AdminShopSettingsPage() {
             />
 
             <h1 className="mb-2 text-2xl font-semibold">Настройки магазина</h1>
-            <p className="mb-4 text-sm text-gray-600">
+            <p className="mb-4 text-sm text-admin-text-secondary">
                 {tab === "delivery"
                     ? "Пороги и тарифы доставки для витрины (Минск / РБ)."
                     : "Телефоны и мессенджеры для шапки и контактов на витрине."}
             </p>
 
-            <div className="mb-6 flex flex-wrap gap-1 border-b border-gray-200">
+            <div className="mb-6 flex flex-wrap gap-1 border-b border-admin-border">
                 <button type="button" className={tabButtonClass(tab === "delivery")} onClick={() => setTab("delivery")}>
                     Доставка
                 </button>
@@ -109,9 +109,9 @@ export default function AdminShopSettingsPage() {
             ) : (
                 <>
                     {tab === "delivery" ? (
-                        <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
+                        <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Минск: бесплатно от (BYN)</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Минск: бесплатно от (BYN)</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -120,33 +120,33 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) =>
                                         setForm((f) => ({ ...f, delivery_minsk_free_threshold: Number(e.target.value) }))
                                     }
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Минск: платная доставка (BYN)</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Минск: платная доставка (BYN)</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     min={0}
                                     value={form.delivery_minsk_fee}
                                     onChange={(e) => setForm((f) => ({ ...f, delivery_minsk_fee: Number(e.target.value) }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">РБ: платная доставка (BYN)</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">РБ: платная доставка (BYN)</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     min={0}
                                     value={form.delivery_belarus_fee}
                                     onChange={(e) => setForm((f) => ({ ...f, delivery_belarus_fee: Number(e.target.value) }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                <label className="mb-1 block text-sm font-medium text-admin-text">
                                     РБ: бесплатно от числа позиций (наименований)
                                 </label>
                                 <input
@@ -156,62 +156,62 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) =>
                                         setForm((f) => ({ ...f, delivery_belarus_free_min_lines: Number(e.target.value) }))
                                     }
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                         </div>
                     ) : (
-                        <div className="max-w-xl space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
+                        <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">МТС</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">МТС</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_mts}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_mts: e.target.value }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">A1</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">A1</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_a1}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_a1: e.target.value }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Life</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Life</label>
                                 <input
                                     type="text"
                                     value={form.contact_phone_life}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_life: e.target.value }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Telegram (ссылка)</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Telegram (ссылка)</label>
                                 <input
                                     type="url"
                                     value={form.contact_telegram_url}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_telegram_url: e.target.value }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                     placeholder="https://t.me/…"
                                 />
                             </div>
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">Viber (ссылка)</label>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Viber (ссылка)</label>
                                 <input
                                     type="text"
                                     value={form.contact_viber_url}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_viber_url: e.target.value }))}
-                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                     placeholder="viber://chat?number=…"
                                 />
-                                <p className="mt-1 text-xs text-gray-500">Допустимы ссылки вида viber://…</p>
+                                <p className="mt-1 text-xs text-admin-text-secondary">Допустимы ссылки вида viber://…</p>
                             </div>
                         </div>
                     )}
@@ -221,7 +221,7 @@ export default function AdminShopSettingsPage() {
                             type="button"
                             onClick={() => void save()}
                             disabled={saving}
-                            className="rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                            className="rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                         >
                             {saving ? "Сохранение..." : "Сохранить"}
                         </button>

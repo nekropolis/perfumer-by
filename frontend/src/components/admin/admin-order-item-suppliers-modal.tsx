@@ -64,7 +64,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
 
     return (
         <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4"
             onClick={onCloseAction}
             role="presentation"
         >
@@ -83,12 +83,12 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                         >
                             Поставщики товара
                         </h3>
-                        <div className="mt-1 text-sm text-gray-600">
+                        <div className="mt-1 text-sm text-admin-text-secondary">
                             {item.product_name}
                             {item.variant_title ? ` · ${item.variant_title}` : ""}
                         </div>
                         {item.variant_id != null && (
-                            <div className="mt-0.5 text-xs text-gray-500">
+                            <div className="mt-0.5 text-xs text-admin-text-secondary">
                                 Вариант #{item.variant_id}
                             </div>
                         )}
@@ -105,17 +105,17 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                 </div>
 
                 {item.variant_id == null ? (
-                    <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-gray-500">
+                    <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-admin-text-secondary">
                         Позиция не привязана к варианту каталога, поэтому поставщики недоступны.
                     </div>
                 ) : combinedRows.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-gray-500">
+                    <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-admin-text-secondary">
                         Для этого варианта нет привязанных поставщиков.
                     </div>
                 ) : (
                     <div className="max-h-[60vh] overflow-auto rounded-2xl border">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                            <thead className="bg-admin-muted text-xs uppercase tracking-wide text-admin-text-secondary">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Источник</th>
                                     <th className="px-3 py-2 text-left">Поставщик</th>
@@ -142,7 +142,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                                                         href={row.externalUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
-                                                        className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900"
+                                                        className="underline decoration-gray-400 underline-offset-2 hover:text-admin-text"
                                                     >
                                                         {row.supplierName}
                                                     </a>
@@ -150,7 +150,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                                                     <span>{row.supplierName}</span>
                                                 )}
                                             </td>
-                                            <td className="px-3 py-2 font-mono text-xs text-gray-700">
+                                            <td className="px-3 py-2 font-mono text-xs text-admin-text">
                                                 {row.code === "—" ? (
                                                     "—"
                                                 ) : (
@@ -165,7 +165,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                                             <td className="px-3 py-2 text-right">{row.purchasePrice}</td>
                                             <td className="px-3 py-2">{row.warehouseName}</td>
                                             <td className="px-3 py-2 text-right">{row.qtyText}</td>
-                                            <td className="px-3 py-2 text-gray-600">{row.status}</td>
+                                            <td className="px-3 py-2 text-admin-text-secondary">{row.status}</td>
                                         </tr>
                                     );
                                 })}

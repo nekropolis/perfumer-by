@@ -132,16 +132,16 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
             lines.push({
                 key: `warehouse-only-${variant.id}-${idx}`,
                 cells: [
-                    <td key="c1" className={`${cellClassName} text-gray-500`}>
+                    <td key="c1" className={`${cellClassName} text-admin-text-secondary`}>
                         Магазин
                     </td>,
-                    <td key="c2" className={`${cellClassName} text-gray-500`}>
+                    <td key="c2" className={`${cellClassName} text-admin-text-secondary`}>
                         —
                     </td>,
-                    <td key="c3" className={`${cellClassName} text-gray-500`}>
+                    <td key="c3" className={`${cellClassName} text-admin-text-secondary`}>
                         Складской остаток
                     </td>,
-                    <td key="c4" className={`${cellClassName} text-gray-500`}>
+                    <td key="c4" className={`${cellClassName} text-admin-text-secondary`}>
                         —
                     </td>,
                     <td key="c5" className={cellClassName}>
@@ -168,7 +168,7 @@ export default function VariantSuppliersTableRows({ variant, cellClassName }: Pr
     if (lines.length === 0) {
         return (
             <tr className="border-t">
-                <td colSpan={6} className={`${cellClassName} text-gray-500`}>
+                <td colSpan={6} className={`${cellClassName} text-admin-text-secondary`}>
                     {emptyMessage}
                 </td>
             </tr>

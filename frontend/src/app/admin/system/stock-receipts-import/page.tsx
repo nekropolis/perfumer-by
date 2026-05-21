@@ -565,7 +565,7 @@ export default function StockReceiptsImportSystemPage() {
                         type="button"
                         onClick={() => void handleLoadXls()}
                         disabled={loadingXls || committing}
-                        className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                        className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                     >
                         {loadingXls ? importProgress || "Разбор XLS…" : "Загрузить XLS"}
                     </button>
@@ -582,14 +582,14 @@ export default function StockReceiptsImportSystemPage() {
                             type="button"
                             onClick={() => void handleClearReceiptBinding()}
                             disabled={committing || loadingXls}
-                            className="rounded-xl border px-4 py-2 text-sm text-gray-700 disabled:opacity-60"
+                            className="rounded-xl border px-4 py-2 text-sm text-admin-text disabled:opacity-60"
                         >
                             Новый документ (сброс привязки)
                         </button>
                     ) : null}
                 </div>
                 {importSessionId ? (
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-admin-text-secondary">
                         Сессия: <span className="font-mono">{importSessionId}</span>
                         {parsedTotalRows != null ? ` · строк в файле: ${parsedTotalRows}` : null}
                         {linkedDraftReceiptId ? (
@@ -610,7 +610,7 @@ export default function StockReceiptsImportSystemPage() {
             {unresolved.length > 0 ? (
                 <div className="mt-4 overflow-x-auto rounded-xl border">
                     <table className="min-w-full text-xs">
-                        <thead className="bg-gray-50 text-left text-gray-600">
+                        <thead className="bg-admin-muted text-left text-admin-text-secondary">
                             <tr>
                                 <th className="px-3 py-2">Код</th>
                                 <th className="px-3 py-2">Название</th>
@@ -647,7 +647,7 @@ export default function StockReceiptsImportSystemPage() {
                     </table>
                 </div>
             ) : importSessionId && parsedTotalRows != null && parsedTotalRows > 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600">
+                <div className="mt-4 rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-admin-text-secondary">
                     Все строки этого файла сопоставлены автоматически (или уже добавлены в приход). Нажмите «Создать приход», чтобы
                     записать их в черновик документа.
                 </div>

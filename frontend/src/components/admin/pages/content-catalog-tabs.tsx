@@ -76,7 +76,6 @@ export default function ContentCatalogTabs() {
                 }
                 router.push("/admin/pages");
             }}
-            columnsClassName="grid gap-2 md:grid-cols-5"
         />
     );
 }

@@ -11,6 +11,7 @@ import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
+import { adminBtnSecondary } from "@/lib/admin-ui-classes";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -18,26 +19,11 @@ type Props = {
     onOpenMobileMenuAction: () => void;
 };
 
-/**
- * Шапка админки.
- *
- * Позиционирование:
- *   - Шапка — обычный блок (`<header>`), НЕ sticky и НЕ fixed.
- *   - Она всегда наверху страницы, потому что её контейнер — `AdminShell`
- *     зафиксирован по высоте вьюпорта и имеет `overflow-hidden`. Шапка
- *     занимает первую flex-строку (flex-none, h-16), и ниже её физически
- *     не существует скролла window — скроллятся только внутренности
- *     main-зоны (сайдбар и секция).
- *
- * На фон шапки намеренно поставлен solid `bg-white`: если сделать полупрозрачный
- * + backdrop-blur, сквозь него начинает просвечивать контент, что легко принять
- * за баг.
- */
 export default function AdminHeader({
-                                        sidebarCollapsed,
-                                        onToggleSidebarAction,
-                                        onOpenMobileMenuAction,
-                                    }: Props) {
+    sidebarCollapsed,
+    onToggleSidebarAction,
+    onOpenMobileMenuAction,
+}: Props) {
     const { user, logout } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
@@ -64,10 +50,16 @@ export default function AdminHeader({
     const fullPhone = `375${clampNationalDigits(quickPhone)}`;
     const showQuickPhoneHits = quickPhoneFocused && clampNationalDigits(quickPhone).length >= 5;
 
+    const getCreateOrderHref = (phoneDigits: string) => {
+        const national = clampNationalDigits(phoneDigits);
+        if (!national) {
+            return "/admin/orders/create";
+        }
+        return `/admin/orders/create?phone=${encodeURIComponent(`375${national}`)}`;
+    };
+
     const openCreateOrderWithPhone = (phoneDigits: string) => {
-        const normalized = `375${clampNationalDigits(phoneDigits)}`;
-        if (normalized.length < 6) return;
-        router.push(`/admin/orders/create?phone=${encodeURIComponent(normalized)}`);
+        router.push(getCreateOrderHref(phoneDigits));
         setQuickPhoneFocused(false);
     };
 
@@ -122,11 +114,7 @@ export default function AdminHeader({
                         return false;
                     }
                     const after375 = d.startsWith("375") ? d.slice(3) : d;
-                    return (
-                        d === want ||
-                        after375.startsWith(national) ||
-                        d.endsWith(national)
-                    );
+                    return d === want || after375.startsWith(national) || d.endsWith(national);
                 });
                 setQuickPhoneHits(rows.slice(0, 6));
             })
@@ -148,28 +136,21 @@ export default function AdminHeader({
     }, [pathname]);
 
     return (
-        <header className="h-16 flex-none border-b bg-white">
-            <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6">
-                <div className="flex items-center gap-3">
+        <header className="h-14 flex-none border-b border-admin-border bg-admin-surface shadow-[0_12px_28px_-28px_rgba(31,23,34,0.5)]">
+            <div className="flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6">
+                <div className="flex min-w-0 items-center gap-3">
                     <button
                         type="button"
-                        className="hidden items-center justify-center rounded-xl border p-2 text-sm transition hover:bg-gray-50 lg:inline-flex"
+                        className="hidden rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text lg:inline-flex"
                         onClick={onToggleSidebarAction}
                         title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
                     >
                         {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
                     </button>
 
-                    <div className="text-xl font-semibold">Админка</div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden sm:block">
-                        <AdminActiveTasksWidget />
-                    </div>
-                    <div className="relative w-[13.5rem] sm:w-[15.5rem] lg:w-[18rem]" ref={quickPhoneRef}>
-                        <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white">
-                            <span className="flex items-center border-r border-gray-200 bg-gray-50 px-2 text-xs text-gray-600">
+                    <div className="relative w-[calc(100vw-5rem)] max-w-[24rem] sm:w-[24rem] lg:w-[26rem] lg:max-w-none" ref={quickPhoneRef}>
+                        <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-muted shadow-sm">
+                            <span className="flex items-center border-r border-admin-border px-2 text-xs text-admin-text-secondary">
                                 +375
                             </span>
                             <input
@@ -188,24 +169,34 @@ export default function AdminHeader({
                                 autoCorrect="off"
                                 autoCapitalize="off"
                                 spellCheck={false}
-                                className="w-full min-w-0 border-0 px-2 py-2 text-sm outline-none"
+                                className="w-full min-w-0 border-0 bg-transparent px-2 py-1.5 text-sm text-admin-text outline-none placeholder:text-admin-text-muted"
                             />
                             <button
                                 type="button"
                                 onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
-                                className="border-l border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                                className="hidden shrink-0 border-l border-admin-border px-2.5 py-1.5 text-xs font-medium text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-text sm:inline-flex"
                             >
                                 Найти
                             </button>
+                            <Link
+                                href={getCreateOrderHref(quickPhone)}
+                                onClick={() => setQuickPhoneFocused(false)}
+                                className="inline-flex shrink-0 items-center justify-center border-l border-admin-border bg-admin-primary px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-admin-primary-hover sm:px-3"
+                            >
+                                <span className="sm:hidden">+ Заказ</span>
+                                <span className="hidden sm:inline">+ Создать заказ</span>
+                            </Link>
                         </div>
                         {showQuickPhoneHits ? (
-                            <div className="absolute left-0 right-0 z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                            <div className="absolute left-0 right-0 z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
                                 {quickPhoneHitsLoading ? (
-                                    <div className="px-3 py-2 text-xs text-gray-500">Поиск клиентов…</div>
+                                    <div className="px-3 py-2 text-xs text-admin-text-secondary">
+                                        Поиск клиентов…
+                                    </div>
                                 ) : quickPhoneHits.length === 0 ? (
                                     <button
                                         type="button"
-                                        className="w-full px-3 py-2 text-left text-xs text-gray-600 hover:bg-gray-50"
+                                        className="w-full px-3 py-2 text-left text-xs text-admin-text-secondary hover:bg-admin-muted"
                                         onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
                                     >
                                         Клиенты не найдены — создать заказ с этим номером
@@ -215,33 +206,43 @@ export default function AdminHeader({
                                         <button
                                             key={u.id}
                                             type="button"
-                                            className="block w-full px-3 py-2 text-left hover:bg-gray-50"
-                                                onClick={() => openCreateOrderWithPhone(u.phone ?? fullPhone)}
+                                            className="block w-full px-3 py-2 text-left hover:bg-admin-muted"
+                                            onClick={() => openCreateOrderWithPhone(u.phone ?? fullPhone)}
                                         >
-                                            <div className="text-sm font-medium text-gray-900">{u.phone || `+${fullPhone}`}</div>
-                                            <div className="text-xs text-gray-500">{u.name || "Без имени"}</div>
+                                            <div className="text-sm font-medium text-admin-text">
+                                                {u.phone || `+${fullPhone}`}
+                                            </div>
+                                            <div className="text-xs text-admin-text-secondary">
+                                                {u.name || "Без имени"}
+                                            </div>
                                         </button>
                                     ))
                                 )}
                             </div>
                         ) : null}
                     </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                    <div className="hidden sm:block">
+                        <AdminActiveTasksWidget />
+                    </div>
 
                     <button
                         type="button"
                         onClick={() => void handleResetCatalogCache()}
                         disabled={cacheResetBusy}
-                        className="hidden items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 disabled:opacity-60 sm:inline-flex"
+                        className={`${adminBtnSecondary} hidden sm:inline-flex disabled:opacity-60`}
                         title="Сбросить кеш"
                     >
-                        {cacheResetBusy ? "Сбрасываем кеш..." : "Сбросить кеш"}
+                        {cacheResetBusy ? "Сбрасываем..." : "Сбросить кеш"}
                     </button>
 
                     <a
                         href="/"
                         target="_blank"
                         rel="noreferrer"
-                        className="hidden items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 sm:inline-flex"
+                        className={`${adminBtnSecondary} hidden gap-2 sm:inline-flex`}
                     >
                         <Store size={18} />
                         Магазин
@@ -250,27 +251,27 @@ export default function AdminHeader({
                     <div className="relative hidden sm:block" ref={accountRef}>
                         <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50"
+                            className={`${adminBtnSecondary} gap-2`}
                             onClick={() => setAccountOpen((prev) => !prev)}
                         >
                             <User size={18} />
-                            <span>{user?.name || "Пользователь"}</span>
+                            <span className="max-w-[8rem] truncate">{user?.name || "Пользователь"}</span>
                         </button>
 
                         {accountOpen && (
-                            <div className="absolute right-0 mt-2 w-56 rounded-2xl border bg-white p-2 shadow-lg">
+                            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-admin-border bg-admin-surface p-2 shadow-lg">
                                 <div className="px-3 py-2">
-                                    <div className="text-sm font-medium">
-                                        {user?.name || "Пользователь"} - {roleLabel}
+                                    <div className="text-sm font-medium text-admin-text">
+                                        {user?.name || "Пользователь"} — {roleLabel}
                                     </div>
-                                    <div className="text-xs text-gray-500">{user?.phone}</div>
+                                    <div className="text-xs text-admin-text-secondary">{user?.phone}</div>
                                 </div>
 
-                                <div className="my-1 border-t" />
+                                <div className="my-1 border-t border-admin-border" />
 
                                 <Link
                                     href="/account"
-                                    className="block rounded-xl px-3 py-2 text-sm hover:bg-gray-50"
+                                    className="block rounded-lg px-3 py-2 text-sm text-admin-text hover:bg-admin-muted"
                                     onClick={() => setAccountOpen(false)}
                                 >
                                     Личный кабинет
@@ -278,7 +279,7 @@ export default function AdminHeader({
 
                                 <button
                                     type="button"
-                                    className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50"
+                                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-admin-text hover:bg-admin-muted"
                                     onClick={() => {
                                         logout();
                                         setAccountOpen(false);
@@ -292,7 +293,7 @@ export default function AdminHeader({
 
                     <button
                         type="button"
-                        className="inline-flex items-center rounded-xl border p-2 text-sm lg:hidden"
+                        className="inline-flex rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text lg:hidden"
                         onClick={onOpenMobileMenuAction}
                         aria-label="Открыть меню"
                         title="Открыть меню"

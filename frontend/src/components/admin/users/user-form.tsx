@@ -60,7 +60,7 @@ export default function UserForm({
         <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Имя</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Имя</label>
                     <input
                         value={form.name}
                         onChange={(e) => onChangeAction({ ...form, name: e.target.value })}
@@ -68,9 +68,9 @@ export default function UserForm({
                     />
                 </div>
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Телефон</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Телефон</label>
                     <div className="flex w-full items-stretch overflow-hidden rounded-xl border bg-white">
-                        <span className="flex shrink-0 items-center border-r bg-gray-50 px-3 text-sm text-gray-600">
+                        <span className="flex shrink-0 items-center border-r bg-admin-muted px-3 text-sm text-admin-text-secondary">
                             +375
                         </span>
                         <input
@@ -90,7 +90,7 @@ export default function UserForm({
                     </div>
                 </div>
                 <div>
-                    <label className="mb-1 block text-sm text-gray-600">Email</label>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Email</label>
                     <input
                         value={form.email}
                         onChange={(e) => onChangeAction({ ...form, email: e.target.value })}
@@ -99,7 +99,7 @@ export default function UserForm({
                 </div>
                 {showRole ? (
                     <div>
-                        <label className="mb-1 block text-sm text-gray-600">Роль</label>
+                        <label className="mb-1 block text-sm text-admin-text-secondary">Роль</label>
                         <select
                             value={form.role}
                             onChange={(e) => onChangeAction({ ...form, role: e.target.value })}
@@ -115,7 +115,7 @@ export default function UserForm({
                 ) : null}
                 <div className={isEdit ? "md:col-span-2 grid gap-4 sm:grid-cols-2" : "md:col-span-2"}>
                     <div>
-                        <label className="mb-1 block text-sm text-gray-600">
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
                             {isEdit ? "Новый пароль" : "Пароль (необязательно)"}
                         </label>
                         <input
@@ -129,7 +129,7 @@ export default function UserForm({
                     </div>
                     {isEdit ? (
                         <div>
-                            <label className="mb-1 block text-sm text-gray-600">Повторите пароль</label>
+                            <label className="mb-1 block text-sm text-admin-text-secondary">Повторите пароль</label>
                             <input
                                 type="password"
                                 value={form.passwordConfirmation}
@@ -143,7 +143,7 @@ export default function UserForm({
                         </div>
                     ) : null}
                     {isEdit ? (
-                        <p className="sm:col-span-2 text-xs text-gray-500">
+                        <p className="sm:col-span-2 text-xs text-admin-text-secondary">
                             Смена пароля без SMS — только для администратора.
                         </p>
                     ) : null}
@@ -155,7 +155,7 @@ export default function UserForm({
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-60"
+                    className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-60"
                 >
                     {submitting ? "Сохранение..." : submitLabel}
                 </button>

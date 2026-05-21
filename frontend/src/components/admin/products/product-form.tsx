@@ -53,7 +53,7 @@ export default function ProductForm({
         : "";
 
     return (
-        <div className="space-y-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
             {importRetryPendingTasks.length > 0 ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
                     <span className="font-medium">Импорт:</span> есть невыполненные задачи (
@@ -64,7 +64,7 @@ export default function ProductForm({
 
             <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2 grid gap-2 sm:grid-cols-3">
-                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                    <label className="flex items-center gap-2 rounded-xl border border-admin-border bg-admin-muted px-3 py-2 text-xs font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -78,7 +78,7 @@ export default function ProductForm({
                         />
                         Активен
                     </label>
-                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                    <label className="flex items-center gap-2 rounded-xl border border-admin-border bg-admin-muted px-3 py-2 text-xs font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_new)}
@@ -92,7 +92,7 @@ export default function ProductForm({
                         />
                         Новинка
                     </label>
-                    <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                    <label className="flex items-center gap-2 rounded-xl border border-admin-border bg-admin-muted px-3 py-2 text-xs font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_hit)}
@@ -117,7 +117,7 @@ export default function ProductForm({
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Название
                     </label>
                     <input
@@ -134,38 +134,38 @@ export default function ProductForm({
                                 seo_title: form.id ? form.seo_title : nextName,
                             });
                         }}
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                         required
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Slug
                     </label>
                     <input
                         type="text"
                         value={form.slug}
                         readOnly
-                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600 outline-none"
+                        className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary outline-none"
                         required
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         H1
                     </label>
                     <input
                         type="text"
                         value={form.h1}
                         onChange={(e) => onChangeAction({ ...form, h1: e.target.value })}
-                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
                         Краткое описание
                     </label>
                     <textarea
@@ -173,16 +173,16 @@ export default function ProductForm({
                         onChange={(e) =>
                             onChangeAction({ ...form, short_description: e.target.value })
                         }
-                        className="min-h-[110px] w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="min-h-[110px] w-full rounded-xl border border-admin-border px-4 py-3 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
                     />
                 </div>
 
                 <div className="md:col-span-2">
                     <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-admin-text">
                             Описание
                             {descriptionRewrittenAt ? (
-                                <span className="ml-2 font-normal text-xs text-gray-500">
+                                <span className="ml-2 font-normal text-xs text-admin-text-secondary">
                                     (уникализировано: {new Date(descriptionRewrittenAt).toLocaleString()})
                                 </span>
                             ) : null}
@@ -206,7 +206,7 @@ export default function ProductForm({
                         ) : null}
                     </div>
                     {isLegacyForImport ? (
-                        <div className="mb-2 text-xs text-gray-500">
+                        <div className="mb-2 text-xs text-admin-text-secondary">
                             Товар помечен как legacy — описание через LLM не меняется.
                         </div>
                     ) : null}
@@ -218,12 +218,12 @@ export default function ProductForm({
                 </div>
             </div>
 
-            <div className="flex justify-end border-t border-gray-100 pt-4">
+            <div className="flex justify-end border-t border-admin-border pt-4">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

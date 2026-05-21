@@ -87,7 +87,7 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                 <AdminLoadingState text="Загрузка прихода..." />
             ) : receipt ? (
                 <div className="space-y-4">
-                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-4 shadow-sm">
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                             <div className="text-sm">
                                 <div className="text-slate-500">Склад</div>
@@ -108,7 +108,7 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                         </div>
                     </div>
 
-                    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-sm">
                         <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
                             Строки документа
                         </div>

@@ -14,17 +14,17 @@ function defaultVariantToolbarRow(
     const highlighted = highlightVariantId != null && highlightVariantId === variant.id;
     return (
         <div
-            className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900 ${
+            className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-admin-text ${
                 highlighted ? "rounded-md bg-blue-50/70 px-1 py-0.5" : ""
             }`}
         >
-            <span className="shrink-0 tabular-nums text-gray-500">{variant.id}</span>
+            <span className="shrink-0 tabular-nums text-admin-text-secondary">{variant.id}</span>
             <span className="shrink-0 text-gray-300" aria-hidden>
                 ·
             </span>
             <span
                 className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    variant.is_active !== false ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+                    variant.is_active !== false ? "bg-green-50 text-green-700" : "bg-gray-100 text-admin-text-secondary"
                 }`}
             >
                 {variant.is_active !== false ? "Активен" : "Выкл"}
@@ -41,7 +41,7 @@ function defaultVariantToolbarRow(
             <span className="shrink-0 text-gray-300" aria-hidden>
                 ·
             </span>
-            <span className="shrink-0 tabular-nums text-gray-700">{variant.stock}</span>
+            <span className="shrink-0 tabular-nums text-admin-text">{variant.stock}</span>
         </div>
     );
 }
@@ -88,7 +88,7 @@ export function ProductVariantSuppliersGroupedTable({
 
     if (variants.length === 0) {
         return (
-            <div className="rounded-xl border px-3 py-4 text-sm text-gray-500">
+            <div className="rounded-xl border px-3 py-4 text-sm text-admin-text-secondary">
                 Нет данных по вариантам или привязкам.
             </div>
         );
@@ -97,7 +97,7 @@ export function ProductVariantSuppliersGroupedTable({
     return (
         <div className="overflow-x-auto rounded-xl border">
             <table className="min-w-full text-xs">
-                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
                     <tr>
                         <th className={cellClassName}>Поставщик</th>
                         <th className={cellClassName}>Код</th>
@@ -110,7 +110,7 @@ export function ProductVariantSuppliersGroupedTable({
                 <tbody>
                     {variants.map((variant) => (
                         <Fragment key={variant.id}>
-                            <tr className="border-t bg-gray-50/80">
+                            <tr className="border-t bg-admin-muted/80">
                                 <td colSpan={6} className={`${cellClassName} py-2`}>
                                     {toolbarForVariant(variant)}
                                 </td>
@@ -185,14 +185,14 @@ export default function ProductVariantSuppliersModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
                         <div className="min-w-0 pr-3">
                             <h2 className="truncate text-xl font-semibold">{productTitle}</h2>
                             {subtitle ? (
-                                <p className="mt-1 truncate text-sm text-gray-500">{subtitle}</p>
+                                <p className="mt-1 truncate text-sm text-admin-text-secondary">{subtitle}</p>
                             ) : null}
                         </div>
                         <button
@@ -206,7 +206,7 @@ export default function ProductVariantSuppliersModal({
 
                     <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
                         {loading ? (
-                            <div className="text-sm text-gray-500">Загрузка привязок поставщиков...</div>
+                            <div className="text-sm text-admin-text-secondary">Загрузка привязок поставщиков...</div>
                         ) : error ? (
                             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                                 {error}

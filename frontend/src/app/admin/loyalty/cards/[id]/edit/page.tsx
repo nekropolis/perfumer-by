@@ -144,7 +144,7 @@ export default function AdminLoyaltyCardEditPage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Редактировать карту {form?.number ? `- ${form.number}` : ""}</h1>
-                    <p className="mt-1 text-sm text-gray-600">Редактирование карты лояльности</p>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Редактирование карты лояльности</p>
                 </div>
                 <Link href="/admin/loyalty/cards" className="rounded-xl border px-4 py-2 text-sm">
                     Назад
@@ -163,17 +163,17 @@ export default function AdminLoyaltyCardEditPage() {
                 <>
                     <LoyaltyCardForm form={form} submitting={submitting} onChangeAction={setForm} onSubmitAction={handleSubmit} />
 
-                    <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+                    <div className="mt-6 rounded-2xl border border-admin-border bg-white p-5">
                         <div className="mb-3 text-base font-semibold">Привязанные пользователи</div>
                         {attachedUsers.length === 0 ? (
-                            <p className="mb-6 text-sm text-gray-600">Пользователи пока не привязаны.</p>
+                            <p className="mb-6 text-sm text-admin-text-secondary">Пользователи пока не привязаны.</p>
                         ) : (
-                            <ul className="mb-6 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                            <ul className="mb-6 divide-y divide-gray-200 overflow-hidden rounded-xl border border-admin-border bg-white">
                                 {attachedUsers.map((u) => (
                                     <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                                         <div className="min-w-0">
-                                            <div className="font-medium text-gray-900">{formatAdminUserPrimary(u)}</div>
-                                            <div className="mt-0.5 text-xs text-gray-500">ID {u.id}</div>
+                                            <div className="font-medium text-admin-text">{formatAdminUserPrimary(u)}</div>
+                                            <div className="mt-0.5 text-xs text-admin-text-secondary">ID {u.id}</div>
                                         </div>
                                         <button
                                             type="button"

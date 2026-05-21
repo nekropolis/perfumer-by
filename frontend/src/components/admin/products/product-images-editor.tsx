@@ -177,22 +177,22 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                 onDragOver={handleDropZoneDragOver}
                 onDragLeave={handleDropZoneDragLeave}
                 onDrop={handleDropZoneDrop}
-                className={`rounded-2xl border-2 border-dashed p-6 text-center transition ${isDraggingOver ? "border-black bg-gray-50" : "border-gray-300"
+                className={`rounded-2xl border-2 border-dashed p-6 text-center transition ${isDraggingOver ? "border-black bg-admin-muted" : "border-gray-300"
                     }`}
             >
-                <div className="text-sm text-gray-700">
+                <div className="text-sm text-admin-text">
                     Перетащите изображения сюда или загрузите через кнопку
                 </div>
-                <div className="mt-1 text-xs text-gray-500">
+                <div className="mt-1 text-xs text-admin-text-secondary">
                     Перед загрузкой изображения автоматически сжимаются в SEO-friendly WEBP (до 1600px)
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm">
-                    <span className="text-gray-600">Тип загрузки:</span>
+                    <span className="text-admin-text-secondary">Тип загрузки:</span>
                     <select
                         value={uploadUsageType}
                         onChange={(e) => setUploadUsageType(e.target.value as "gallery" | "catalog")}
                         disabled={uploading || processingSeo}
-                        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
+                        className="rounded-lg border border-admin-border bg-white px-2 py-1 text-sm"
                     >
                         <option value="gallery">Галерея</option>
                         <option value="catalog" disabled={catalogCount >= 2}>
@@ -228,7 +228,7 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                 </div>
             ) : null}
 
-            <div className="text-xs text-gray-600">
+            <div className="text-xs text-admin-text-secondary">
                 Каталожные изображения для листинга / hover:{" "}
                 <span className="font-medium">
                     {catalogCount}/2
@@ -236,7 +236,7 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
             </div>
 
             {sortedImages.length === 0 ? (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-600">
+                <div className="rounded-xl border border-admin-border bg-admin-muted px-3 py-4 text-sm text-admin-text-secondary">
                     Картинки пока не загружены.
                 </div>
             ) : (
@@ -256,7 +256,7 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                                 className={`grid cursor-grab grid-cols-[84px_1fr_auto] items-center gap-3 rounded-xl border p-2 active:cursor-grabbing ${draggedImageId === image.id ? "opacity-60" : ""
                                     }`}
                             >
-                                <div className="relative h-20 w-20 overflow-hidden rounded-lg border bg-gray-50">
+                                <div className="relative h-20 w-20 overflow-hidden rounded-lg border bg-admin-muted">
                                     <Image
                                         src={imageUrl}
                                         alt={`Изображение ${index + 1}`}
@@ -268,13 +268,13 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                                 </div>
 
                                 <div className="min-w-0">
-                                    <div className="truncate text-sm font-medium text-gray-800">
+                                    <div className="truncate text-sm font-medium text-admin-text">
                                         #{index + 1} {image.is_main ? "• Главная" : ""}{" "}
                                         {image.usage_type === "catalog" ? "• Каталог" : ""}
                                     </div>
-                                    <div className="truncate text-xs text-gray-500">{image.path}</div>
+                                    <div className="truncate text-xs text-admin-text-secondary">{image.path}</div>
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                                        <span className="text-xs text-gray-600">Тип:</span>
+                                        <span className="text-xs text-admin-text-secondary">Тип:</span>
                                         <select
                                             value={image.usage_type === "catalog" ? "catalog" : "gallery"}
                                             disabled={isBusy}
@@ -293,7 +293,7 @@ export default function ProductImagesEditor({ productId, images, onImagesChanged
                                                 }
                                                 void handleUsageTypeChange(image.id, v);
                                             }}
-                                            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs"
+                                            className="rounded border border-admin-border bg-white px-2 py-1 text-xs"
                                         >
                                             <option value="gallery">Галерея</option>
                                             <option

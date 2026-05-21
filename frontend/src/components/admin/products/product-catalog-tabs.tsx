@@ -36,7 +36,6 @@ export default function ProductCatalogTabs() {
             onChangeAction={(tab) => {
                 router.push(tab === "variants" ? "/admin/products/variants" : "/admin/products");
             }}
-            columnsClassName="grid gap-2 md:grid-cols-2"
         />
     );
 }

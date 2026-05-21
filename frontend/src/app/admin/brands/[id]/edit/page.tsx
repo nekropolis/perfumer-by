@@ -101,7 +101,7 @@ export default function AdminBrandEditPage() {
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-semibold">Редактировать бренд - {form?.name}</h1>
-                    <p className="mt-1 text-sm text-gray-600">
+                    <p className="mt-1 text-sm text-admin-text-secondary">
                         Редактирование бренда
                     </p>
                 </div>
