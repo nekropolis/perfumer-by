@@ -96,9 +96,9 @@ function AdminOrderCreatedAtCell({ createdAt }: { createdAt?: string | null }) {
         return "—";
     }
     return (
-        <div className="flex flex-col gap-0.5 leading-tight">
+        <div className="flex flex-col leading-tight">
             <span className="whitespace-nowrap">{parts.date}</span>
-            <span className="whitespace-nowrap text-[11px] text-admin-text-secondary">{parts.time}</span>
+            <span className="whitespace-nowrap text-[10px] text-admin-text-secondary">{parts.time}</span>
         </div>
     );
 }
@@ -107,14 +107,18 @@ function normalizeAddressLine(value?: string | null): string {
     return value?.trim() || "—";
 }
 
-/** В таблице показываем короткое имя населённого пункта (без области из full_name). */
+/** В таблице показываем короткое имя населённого пункта (без области и случайно попавшего адреса). */
 function formatOrderCityDisplay(city?: string | null): string {
     const raw = city?.trim() || "";
     if (!raw) {
         return "—";
     }
+
     const commaIdx = raw.indexOf(",");
-    return commaIdx === -1 ? raw : raw.slice(0, commaIdx).trim() || "—";
+    const withoutRegion = commaIdx === -1 ? raw : raw.slice(0, commaIdx).trim();
+    const addressMarkerMatch = withoutRegion.match(/\s(?:ул\.?|улица|пр-т|просп\.?|проспект|пер\.?|переулок|д\.?|дом|кв\.?)/iu);
+
+    return (addressMarkerMatch ? withoutRegion.slice(0, addressMarkerMatch.index).trim() : withoutRegion) || "—";
 }
 
 function AdminOrderCellTooltip({
@@ -165,7 +169,7 @@ function getTooltipPosition(element: HTMLElement): { x: number; y: number } {
 }
 
 function isTextOverflowing(element: HTMLElement): boolean {
-    return element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight;
+    return element.scrollWidth > element.clientWidth + 1;
 }
 
 function AdminOrderClientCell({
@@ -224,13 +228,14 @@ function AdminOrderAddressCell({
     const addressLine = normalizeAddressLine(address);
     const hasAddress = cityLine !== "—" || addressLine !== "—";
     const tooltipCity = cityRaw || cityLine;
+    const cityWasShortened = cityRaw !== "" && cityRaw !== cityLine;
 
     const showTooltip = (element: HTMLElement) => {
         const truncatedLine = Array.from(
             element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
         ).some(isTextOverflowing);
 
-        if (!hasAddress || !truncatedLine) {
+        if (!hasAddress || (!truncatedLine && !cityWasShortened)) {
             onHideAction();
             return;
         }
@@ -253,7 +258,7 @@ function AdminOrderAddressCell({
             <div className="truncate font-medium text-admin-text" data-truncate-check>
                 {cityLine}
             </div>
-            <div className="mt-0.5 truncate text-[11px] text-admin-text-secondary" data-truncate-check>
+            <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
                 {addressLine}
             </div>
         </div>
@@ -410,11 +415,11 @@ export default function AdminOrdersTable({
 
     return (
         <>
-            <div className="w-full">
-                <table className="w-full table-fixed text-sm">
-                    <thead>
-                        <tr className="border-b text-left text-admin-text-secondary">
-                            <th className="w-[4%] px-1.5 py-3">
+            <div className="w-full rounded-lg border border-admin-border bg-admin-surface shadow-sm">
+                <table className="w-full table-fixed border-collapse text-[13px]">
+                    <thead className="bg-admin-muted/80">
+                        <tr className="border-b border-admin-border text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
+                            <th className="w-[4%] border-r border-admin-border px-2 py-2">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -423,23 +428,23 @@ export default function AdminOrdersTable({
                                     className="h-4 w-4 rounded border-gray-300"
                                 />
                             </th>
-                            <th className="w-[10%] px-1.5 py-3">Заказ</th>
-                            <th className="w-[16%] px-1.5 py-3">Клиент</th>
-                            <th className="w-[12%] px-1.5 py-3">Телефон</th>
-                            <th className="w-[22%] px-1.5 py-3">Адрес</th>
-                            <th className="w-[13%] px-1.5 py-3">Статус</th>
-                            <th className="w-[6%] px-1.5 py-3">Кол.</th>
-                            <th className="w-[9%] px-1.5 py-3">Сумма</th>
-                            <th className="w-[8%] px-1.5 py-3 align-top">
+                            <th className="w-[10%] border-r border-admin-border px-2 py-2">Заказ</th>
+                            <th className="w-[16%] border-r border-admin-border px-2 py-2">Клиент</th>
+                            <th className="w-[12%] border-r border-admin-border px-2 py-2">Телефон</th>
+                            <th className="w-[22%] border-r border-admin-border px-2 py-2">Адрес</th>
+                            <th className="w-[13%] border-r border-admin-border px-2 py-2">Статус</th>
+                            <th className="w-[6%] border-r border-admin-border px-2 py-2">Кол.</th>
+                            <th className="w-[9%] border-r border-admin-border px-2 py-2">Сумма</th>
+                            <th className="w-[8%] px-2 py-2 align-top">
                                 {onDateFilterHeaderClickAction !== undefined && dateFilterSummary !== undefined ? (
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="flex max-w-[11rem] flex-col items-start gap-0.5 rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-muted focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                                        className="flex max-w-full flex-col items-start rounded-md border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-surface focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
                                         aria-label="Фильтр по дате создания заказа"
                                     >
                                         <span className="tracking-wide text-admin-text-secondary">Дата</span>
-                                        <span className="text-[10px] font-medium leading-snug text-admin-text">
+                                        <span className="max-w-full truncate text-[10px] font-medium normal-case leading-snug text-admin-text">
                                             {dateFilterSummary}
                                         </span>
                                     </button>
@@ -452,8 +457,8 @@ export default function AdminOrdersTable({
 
                     <tbody className="align-middle">
                         {orders.map((order) => (
-                            <tr key={order.id} className="border-b last:border-b-0">
-                                <td className="px-1.5 py-3">
+                            <tr key={order.id} className="border-b border-admin-border/70 transition-colors last:border-b-0 hover:bg-admin-muted/35">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <input
                                         type="checkbox"
                                         checked={selectedOrderIdsSet.has(order.id)}
@@ -462,7 +467,7 @@ export default function AdminOrdersTable({
                                         className="h-4 w-4 rounded border-gray-300"
                                     />
                                 </td>
-                                <td className="px-1.5 py-3">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <div className="flex min-w-0 items-center gap-1.5">
                                         <button
                                             type="button"
@@ -473,14 +478,14 @@ export default function AdminOrdersTable({
                                         </button>
                                         <Link
                                             href={`/admin/orders/${order.id}/edit`}
-                                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-admin-border text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-admin-border text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                                             aria-label={`Редактировать заказ #${order.id}`}
                                         >
-                                            <Pencil size={13} />
+                                            <Pencil size={12} />
                                         </Link>
                                     </div>
                                 </td>
-                                <td className="px-1.5 py-3">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <AdminOrderClientCell
                                         name={order.customer_name}
                                         searchQuery={searchQuery}
@@ -488,10 +493,10 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="px-1.5 py-3">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <div className="truncate">{highlightQueryInText(order.phone || "—", searchQuery)}</div>
                                 </td>
-                                <td className="px-1.5 py-3">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <AdminOrderAddressCell
                                         city={order.delivery_city}
                                         address={order.delivery_address}
@@ -499,7 +504,7 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="px-1.5 py-3">
+                                <td className="border-r border-admin-border/70 px-2 py-2">
                                     <AdminStatusDropdown
                                         value={order.status}
                                         options={ORDER_STATUS_OPTIONS}
@@ -512,9 +517,9 @@ export default function AdminOrdersTable({
                                         menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
                                     />
                                 </td>
-                                <td className="px-1.5 py-3">{order.items_qty}</td>
-                                <td className="px-1.5 py-3 whitespace-nowrap">{order.total} руб.</td>
-                                <td className="px-1.5 py-3 text-admin-text-secondary">
+                                <td className="border-r border-admin-border/70 px-2 py-2 text-right tabular-nums">{order.items_qty}</td>
+                                <td className="border-r border-admin-border/70 px-2 py-2 whitespace-nowrap text-right tabular-nums">{order.total} руб.</td>
+                                <td className="px-2 py-2 text-admin-text-secondary">
                                     <AdminOrderCreatedAtCell createdAt={order.created_at} />
                                 </td>
                             </tr>
