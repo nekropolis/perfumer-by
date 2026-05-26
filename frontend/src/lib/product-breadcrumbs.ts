@@ -1,3 +1,4 @@
+import { productDisplayName } from "@/lib/product-display-name";
 import type { ProductDetailData } from "@/types/catalog";
 
 export type BreadcrumbNavItem = {
@@ -12,6 +13,6 @@ export function getProductBreadcrumbItems(product: ProductDetailData): Breadcrum
         ...(product.brand
             ? [{ label: product.brand.name, href: `/brands/${product.brand.slug}` } satisfies BreadcrumbNavItem]
             : []),
-        { label: product.name, href: `/product/${product.slug}` },
+        { label: productDisplayName(product), href: `/product/${product.slug}` },
     ];
 }

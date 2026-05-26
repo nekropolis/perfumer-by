@@ -1002,7 +1002,7 @@ export default function SellerOneImportPage() {
                                                 {row.is_linked && row.linked_variant ? (
                                                     <div>
                                                         <div className="break-words font-medium">
-                                                            {row.linked_variant.product_name}
+                                                            {row.linked_variant.display_name || row.linked_variant.product_name}
                                                         </div>
                                                         {isExactProductNameMatch(
                                                             row.parsed?.product_name || "",
@@ -1019,7 +1019,7 @@ export default function SellerOneImportPage() {
                                                 ) : row.suggested_variant ? (
                                                     <div>
                                                         <div className="break-words font-medium">
-                                                            {row.suggested_variant.product_name}
+                                                            {row.suggested_variant.display_name || row.suggested_variant.product_name}
                                                         </div>
                                                         {isExactProductNameMatch(
                                                             row.parsed?.product_name || "",
@@ -1036,7 +1036,7 @@ export default function SellerOneImportPage() {
                                                 ) : row.suggested_product ? (
                                                     <div>
                                                         <div className="break-words font-medium">
-                                                            {row.suggested_product.name}
+                                                            {row.suggested_product.display_name || row.suggested_product.name}
                                                         </div>
                                                         <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
                                                             Совпал продукт, вариантов пока нет
@@ -1060,7 +1060,7 @@ export default function SellerOneImportPage() {
                                                 ) : row.linked_variant ? (
                                                     <div>
                                                         <div className="break-words font-medium">
-                                                            {row.linked_variant.product_name}
+                                                            {row.linked_variant.display_name || row.linked_variant.product_name}
                                                         </div>
                                                         <div className="break-words text-admin-text-secondary">
                                                             {row.linked_variant.display || "Вариант без параметров"}

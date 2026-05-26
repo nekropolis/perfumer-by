@@ -5,6 +5,7 @@ namespace Modules\ImportExport\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 
 class MapLegacyProductsBySlugCommand extends Command
@@ -16,7 +17,7 @@ class MapLegacyProductsBySlugCommand extends Command
         {--sync-fields : Sync description/meta fields into matched products}
         {--export-unmatched= : Export full unmatched list to CSV file path}';
 
-    protected $description = 'Map legacy products to current products by slug and optionally sync SEO/content fields';
+    protected $description = 'Map legacy products to current products by slug and optionally sync name/SEO/content fields';
 
     public function handle(): int
     {
@@ -105,21 +106,45 @@ class MapLegacyProductsBySlugCommand extends Command
             $this->syncLegacyUnmatchedProductsTable($unmatchedRows, $dumpPath);
 
             if ($syncFields && $matchedIds !== []) {
+                $productsById = Product::query()
+                    ->with('brand:id,name')
+                    ->whereIn('id', array_values($matchedIds))
+                    ->get()
+                    ->keyBy('id');
+
                 foreach ($matchedIds as $legacyProductId => $productId) {
                     $description = $legacyDescriptions[$legacyProductId] ?? null;
                     if ($description === null) {
                         continue;
                     }
 
+                    /** @var Product|null $product */
+                    $product = $productsById->get($productId);
+                    $legacyTitle = trim((string) ($description['name'] ?? ''));
+                    $brandName = trim((string) ($product?->brand?->name ?? ''));
+                    $normalized = $legacyTitle !== ''
+                        ? ProductDisplayName::normalizeLegacyProductTitle($legacyTitle, $brandName)
+                        : null;
+
+                    $payload = [
+                        'description' => $description['description'] !== '' ? $description['description'] : null,
+                        'seo_title' => $description['meta_title'] !== '' ? $description['meta_title'] : null,
+                        'seo_description' => $description['meta_description'] !== '' ? $description['meta_description'] : null,
+                        'seo_keyword' => $description['meta_keyword'] !== '' ? $description['meta_keyword'] : null,
+                        'updated_at' => now(),
+                    ];
+
+                    if ($normalized !== null) {
+                        $payload['name'] = $normalized['short_name'];
+                        $payload['h1'] = $normalized['display_name'];
+                        if ($payload['seo_title'] === null || $payload['seo_title'] === '') {
+                            $payload['seo_title'] = mb_substr($normalized['display_name'], 0, 255);
+                        }
+                    }
+
                     Product::query()
                         ->whereKey($productId)
-                        ->update([
-                            'description' => $description['description'] !== '' ? $description['description'] : null,
-                            'seo_title' => $description['meta_title'] !== '' ? $description['meta_title'] : null,
-                            'seo_description' => $description['meta_description'] !== '' ? $description['meta_description'] : null,
-                            'seo_keyword' => $description['meta_keyword'] !== '' ? $description['meta_keyword'] : null,
-                            'updated_at' => now(),
-                        ]);
+                        ->update($payload);
 
                     $updatedProducts++;
                 }

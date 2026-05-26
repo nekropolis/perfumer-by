@@ -624,6 +624,7 @@ class ProductController extends Controller
             $payload = [
                 'id' => (int) $product->id,
                 'name' => $name,
+                'display_name' => \Modules\Catalog\Support\ProductDisplayName::format($brandName, $name),
                 'slug' => $slug,
                 'brand_name' => $brandName !== '' ? $brandName : null,
                 'variant_titles' => $variantTitles->take(3)->all(),

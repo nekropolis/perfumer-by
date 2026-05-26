@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductImage;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 
 class ProductImageAdminService
@@ -71,7 +72,7 @@ class ProductImageAdminService
                 $row = [
                     'product_id' => $product->id,
                     'path' => $variantPaths['path'],
-                    'alt' => $this->buildAltText((string) $product->name, $nextNumber - 1),
+                    'alt' => $this->buildAltText(ProductDisplayName::forProduct($product), $nextNumber - 1),
                     'sort_order' => $currentMaxSortOrder + $index + 1,
                     'is_main' => false,
                 ];
@@ -244,7 +245,7 @@ class ProductImageAdminService
             foreach ($remaining as $index => $item) {
                 $item->update([
                     'sort_order' => $index,
-                    'alt' => $this->buildAltText((string) $product->name, $index + 1),
+                    'alt' => $this->buildAltText(ProductDisplayName::forProduct($product), $index + 1),
                 ]);
             }
 
@@ -302,7 +303,7 @@ class ProductImageAdminService
 
         foreach ($images as $index => $image) {
             $image->update([
-                'alt' => $this->buildAltText((string) $product->name, $index + 1),
+                'alt' => $this->buildAltText(ProductDisplayName::forProduct($product), $index + 1),
             ]);
         }
     }

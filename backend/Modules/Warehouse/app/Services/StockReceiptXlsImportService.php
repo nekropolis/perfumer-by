@@ -627,8 +627,19 @@ class StockReceiptXlsImportService
         foreach ($titleCandidates as $normalizedTitle) {
             $variantId = DB::table('product_variant_links as pvl')
                 ->join('products as p', 'p.id', '=', 'pvl.product_id')
+                ->leftJoin('brands as b', 'b.id', '=', 'p.brand_id')
                 ->join('variant_definitions as vd', 'vd.id', '=', 'pvl.variant_definition_id')
-                ->whereRaw('LOWER(TRIM(CONCAT(p.name, " ", vd.title))) = ?', [$normalizedTitle])
+                ->where(function ($query) use ($normalizedTitle): void {
+                    $query
+                        ->whereRaw(
+                            'LOWER(TRIM(CONCAT_WS(" ", NULLIF(TRIM(b.name), ""), TRIM(p.name), TRIM(vd.title)))) = ?',
+                            [$normalizedTitle]
+                        )
+                        ->orWhereRaw(
+                            'LOWER(TRIM(CONCAT(TRIM(p.name), " ", TRIM(vd.title)))) = ?',
+                            [$normalizedTitle]
+                        );
+                })
                 ->value('pvl.id');
             if ($variantId) {
                 break;

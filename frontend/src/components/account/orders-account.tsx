@@ -7,6 +7,7 @@ import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
 import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 import type { AuthUserProfile } from "@/lib/auth-api";
 
 type OrdersAccountProps = {
@@ -199,7 +200,7 @@ export default function OrdersAccount({
                                 const previewRows = [
                                     ...order.items.map((item) => ({
                                         key: `item-${item.id}`,
-                                        title: item.product_name,
+                                        title: lineItemProductTitle(item),
                                         subtitle: item.variant_title,
                                         right: `${item.qty} × ${formatMoneyDisplay(item.price) ?? item.price} BYN`,
                                     })),

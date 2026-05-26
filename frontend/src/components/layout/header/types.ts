@@ -1,6 +1,7 @@
 export type HeaderSearchItem = {
     id: number;
     name: string;
+    display_name?: string | null;
     slug: string;
     brand_name: string | null;
     variant_titles: string[];

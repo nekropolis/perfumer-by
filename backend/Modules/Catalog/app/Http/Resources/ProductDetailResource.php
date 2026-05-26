@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -76,6 +77,7 @@ class ProductDetailResource extends JsonResource
             'is_hit' => (bool) $this->is_hit,
             'is_out_of_stock' => (bool) $this->is_out_of_stock,
             'name' => $this->name,
+            'display_name' => ProductDisplayName::format($this->brand?->name, (string) $this->name),
             'slug' => $this->slug,
             'h1' => $this->h1,
             'short_description' => $this->short_description,
@@ -90,8 +92,8 @@ class ProductDetailResource extends JsonResource
                 'slug' => $this->brand->slug,
             ] : null,
 
-            'images' => $this->whenLoaded('images', function () {
-                $isAdminRoute = request()->is('api/admin/*');
+            'images' => $this->whenLoaded('images', function () use ($request) {
+                $isAdminRoute = $request->is('api/admin/*');
                 $images = $this->images;
                 if (! $isAdminRoute && self::hasUsageTypeColumn()) {
                     $images = $images->filter(fn ($image) => (string) ($image->usage_type ?? 'gallery') !== 'catalog');

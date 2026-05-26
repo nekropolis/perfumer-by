@@ -43,6 +43,40 @@ const ACTIVE_OPTIONS = [
     { value: "false", label: "Только неактивные" },
 ];
 
+function confirmVanilleAction(message: string): boolean {
+    return window.confirm(message);
+}
+
+const VANILLE_CONFIRM = {
+    importParsed: [
+        "Импортировать спарсенные товары в каталог?",
+        "",
+        "Будут созданы новые товары и обновлены существующие (характеристики, недостающие варианты).",
+        "Цены, наличие, описания и SEO у уже созданных товаров не перезаписываются.",
+    ].join("\n"),
+    pipelineNew: [
+        "Запустить «Парсинг нового товара»?",
+        "",
+        "Будут выполнены: бренды → сбор ссылок → парсинг только новых и неуспешных карточек в JSON.",
+        "Импорт в каталог — отдельной кнопкой «Импортировать спарсенные товары».",
+    ].join("\n"),
+    catalogImages: [
+        "Запустить «Каталожные фото (листинг)»?",
+        "",
+        "Фоновая задача для всех связанных товаров Vanille.",
+    ].join("\n"),
+    productImages: [
+        "Запустить «Галерея карточек»?",
+        "",
+        "Фоновая задача для всех связанных товаров Vanille.",
+    ].join("\n"),
+    descriptions: [
+        "Запустить «Уникализация описаний» (LLM)?",
+        "",
+        "Фоновая задача, может занять много времени.",
+    ].join("\n"),
+} as const;
+
 function DismissibleSuccessBanner({
     message,
     onCloseAction,
@@ -212,6 +246,10 @@ export default function VanilleProductsPage() {
 
 
     const handleImportParsedProducts = async () => {
+        if (!confirmVanilleAction(VANILLE_CONFIRM.importParsed)) {
+            return;
+        }
+
         setImportingParsed(true);
         setParsingError("");
         setCompletionNotice("");
@@ -232,6 +270,10 @@ export default function VanilleProductsPage() {
 
 
     const handlePipelineNewProducts = async () => {
+        if (!confirmVanilleAction(VANILLE_CONFIRM.pipelineNew)) {
+            return;
+        }
+
         setParsingError("");
         setCompletionNotice("");
         completionBannerConsumedRef.current = false;
@@ -250,8 +292,13 @@ export default function VanilleProductsPage() {
 
     const enqueueMediaJob = async (
         fn: () => Promise<{ job: VanilleImportQueueJob }>,
-        label: string
+        label: string,
+        confirmMessage: string,
     ) => {
+        if (!confirmVanilleAction(confirmMessage)) {
+            return;
+        }
+
         setParsingError("");
         setCompletionNotice("");
         completionBannerConsumedRef.current = false;
@@ -264,7 +311,7 @@ export default function VanilleProductsPage() {
     };
 
     const handlePipelineRefreshAll = async () => {
-        const confirmed = window.confirm(
+        const confirmed = confirmVanilleAction(
             [
                 "Спарсить все товары заново?",
                 "",
@@ -305,9 +352,34 @@ export default function VanilleProductsPage() {
             setParsingError("Введите URL или slug товара vanille.by");
             return;
         }
+
         const chainCatalog = singleUrlChainCatalog;
         const chainGallery = singleUrlChainGallery;
         const chainDescriptions = singleUrlChainDescriptions;
+
+        const followUp: string[] = [];
+        if (chainCatalog) {
+            followUp.push("каталожные фото (листинг)");
+        }
+        if (chainGallery) {
+            followUp.push("галерея карточек");
+        }
+        if (chainDescriptions) {
+            followUp.push("уникализация описаний");
+        }
+
+        const singleConfirm = [
+            "Спарсить и импортировать один товар?",
+            "",
+            `URL: ${url}`,
+            followUp.length > 0
+                ? `\nДополнительно после импорта: ${followUp.join(", ")}.`
+                : "",
+        ].join("\n");
+
+        if (!confirmVanilleAction(singleConfirm)) {
+            return;
+        }
 
         setSingleUrlBusy(true);
         setParsingError("");
@@ -440,7 +512,11 @@ export default function VanilleProductsPage() {
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        void enqueueMediaJob(parseVanilleCatalogImages, "Каталожные изображения")
+                                        void enqueueMediaJob(
+                                            parseVanilleCatalogImages,
+                                            "Каталожные изображения",
+                                            VANILLE_CONFIRM.catalogImages,
+                                        )
                                     }
                                     disabled={hasActiveParse}
                                     className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
@@ -453,7 +529,11 @@ export default function VanilleProductsPage() {
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        void enqueueMediaJob(parseVanilleProductImages, "Галерея карточек")
+                                        void enqueueMediaJob(
+                                            parseVanilleProductImages,
+                                            "Галерея карточек",
+                                            VANILLE_CONFIRM.productImages,
+                                        )
                                     }
                                     disabled={hasActiveParse}
                                     className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
@@ -466,7 +546,11 @@ export default function VanilleProductsPage() {
                                 <button
                                     type="button"
                                     onClick={() =>
-                                        void enqueueMediaJob(rewriteVanilleDescriptions, "Описания")
+                                        void enqueueMediaJob(
+                                            rewriteVanilleDescriptions,
+                                            "Описания",
+                                            VANILLE_CONFIRM.descriptions,
+                                        )
                                     }
                                     disabled={hasActiveParse}
                                     className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"

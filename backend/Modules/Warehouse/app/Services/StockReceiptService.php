@@ -236,7 +236,7 @@ class StockReceiptService
             'stock_receipt_id' => $receipt->id,
             'product_id' => $product->id,
             'variant_id' => $variant->id,
-            'product_name' => $product->name,
+            'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
             'variant_title' => $variant->title,
             'qty' => $qty,
             'supplier_price' => $supplierPrice,

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -147,6 +148,7 @@ class ProductListResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'display_name' => ProductDisplayName::format($this->brand?->name, (string) $this->name),
             'slug' => $this->slug,
             'h1' => $this->h1,
             'short_description' => $this->short_description,

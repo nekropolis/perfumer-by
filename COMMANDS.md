@@ -120,6 +120,9 @@ Run from `backend/`.
 | `php artisan catalog:regenerate-product-image-variants --product-id=123` | Regenerates variants for one product. | Testing/fixing a specific product. |
 | `php artisan catalog:regenerate-product-image-variants --limit=100` | Processes only first N matching images. | Safe batch processing on production. |
 | `php artisan catalog:regenerate-product-image-variants --force` | Regenerates even existing variants and deletes old variant files. | Only when image sizes/quality rules changed or variants are corrupted. |
+| `php artisan catalog:products:strip-brand-from-names --dry-run` | Preview stripping brand names from `products.name` (report: updated / unchanged / no brand / brand not found). | Before bulk name cleanup after brand split. |
+| `php artisan catalog:products:strip-brand-from-names` | Applies name cleanup in DB. | After reviewing dry-run output. |
+| `php artisan catalog:products:strip-brand-from-names --update-slugs` | Also rebuilds slugs as `{brand_slug}-{product_slug}` (check legacy redirects). | When slugs must match new naming scheme. |
 | `php artisan catalog:search:reindex` | Rebuilds full product index in Meilisearch. | After search mapping/indexing changes or large catalog imports. |
 | `php artisan catalog:search:reindex --chunk=500` | Reindexes with custom batch size. | Tune for server resources; allowed range is clamped in command. |
 | `php artisan catalog:prune-brands-without-products` | Shows brands without products and asks whether to delete them. | Catalog cleanup after imports. |
@@ -127,10 +130,14 @@ Run from `backend/`.
 | `php artisan catalog:parse-vanille-products` | Parses Vanille product pages from existing `product_links.json`. | Running product page parsing manually. |
 | `php artisan catalog:parse-vanille-products --once --limit=20` | Runs one parsing batch. | Debugging parser or running controlled batches. |
 | `php artisan catalog:parse-vanille-products --mode=new_only` | Parses only new products mode. | Incremental Vanille parsing. |
+| `php artisan catalog:parse-vanille-products --mode=errors_only --once --limit=20` | Re-parses only URLs from `storage/app/public/imports/vanille/parse_errors.json`. | After HTTP errors during batch parse. |
 | `php artisan catalog:parse-vanille-products --links-path=/path/file.json` | Uses a custom links file. | Testing or running from an alternate input. |
 | `php artisan catalog:vanille-queue status` | Shows queue/job status for Vanille import. | Diagnosing stuck Vanille import jobs. |
 | `php artisan catalog:vanille-queue run-pending` | Runs pending Vanille import jobs manually. | When queue workers are unavailable or you need a sync run. |
 | `php artisan catalog:vanille-queue resume --job-id=123` | Resumes a specific Vanille job. | Recovering a failed/stuck import job. |
+| `php artisan catalog:vanille-repair-variants --scope=missing` | Re-parses Vanille pages and adds missing product variants (Russian concentration + barcode volumes). | After parser fix when products imported without variants. |
+| `php artisan catalog:vanille-repair-variants --scope=all --limit=20` | Same for all linked Vanille products, in batches. | Full backfill of variant rows from Vanille HTML. |
+| `php artisan catalog:vanille-repair-variants --target=json` | Refreshes `offers` inside `products_*.json` from live pages. | Before re-import when JSON has stale offers. |
 
 ## Legacy Import Commands
 
@@ -142,7 +149,7 @@ Run from `backend/`. These commands are for one-time or occasional legacy migrat
 | `php artisan legacy:map-brands-by-slug --truncate` | Rebuilds `legacy_map_brands`. | During legacy migration after validating dry run. |
 | `php artisan legacy:map-products-by-slug --dry-run` | Matches legacy products to current products by slug without writing. | Before importing product-related legacy data. |
 | `php artisan legacy:map-products-by-slug --truncate` | Rebuilds `legacy_map_products`. | During legacy migration after validating matches. |
-| `php artisan legacy:map-products-by-slug --sync-fields` | Syncs description/meta fields into matched products. | Only when intentionally copying legacy SEO/content fields. |
+| `php artisan legacy:map-products-by-slug --sync-fields` | Syncs legacy description/SEO and normalizes `name`/`h1` (brand stripped from legacy title). | After catalog brands are correct; copies legacy SEO/content. |
 | `php artisan legacy:map-products-by-slug --export-unmatched=storage/app/unmatched.csv` | Exports unmatched legacy products. | Auditing migration gaps. |
 | `php artisan legacy:import-customers --dry-run` | Parses legacy customers without writing users/maps. | Before customer migration. |
 | `php artisan legacy:import-customers --truncate-map` | Imports customers and resets legacy customer map. | Re-running customer migration from scratch. |

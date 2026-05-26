@@ -50,6 +50,7 @@ export type ProductImageData = {
 export type ProductListItem = {
     id: number;
     name: string;
+    display_name?: string;
     slug: string;
     h1: string | null;
     short_description: string | null;
@@ -141,6 +142,7 @@ export type ProductDetailData = {
     is_hit?: boolean;
     is_out_of_stock: boolean;
     name: string;
+    display_name?: string;
     slug: string;
     h1: string | null;
     short_description: string | null;

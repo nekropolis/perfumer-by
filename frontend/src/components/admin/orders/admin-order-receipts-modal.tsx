@@ -51,12 +51,55 @@ function moneyToCents(value?: string | null): number {
     return Number(rubles) * 100 + Number(cents.padEnd(2, "0"));
 }
 
-function itemDisplayName(item: OrderItem): string {
-    const parts = [item.product_name, item.variant_title]
-        .map((part) => String(part ?? "").trim())
-        .filter(Boolean);
+const CONCENTRATION_LABELS: Record<string, string> = {
+    edt: "Туалетная вода",
+    edp: "Парфюмерная вода",
+    edc: "Одеколон",
+    parfum: "Духи",
+    "extrait de parfum": "Духи",
+};
 
-    return parts.join(" ");
+function extractConcentrationLabel(variantTitle: string): string | null {
+    const normalized = variantTitle.trim();
+    if (!normalized) {
+        return null;
+    }
+
+    const lower = normalized.toLocaleLowerCase("ru-RU");
+
+    for (const label of Object.values(CONCENTRATION_LABELS)) {
+        if (lower.includes(label.toLocaleLowerCase("ru-RU"))) {
+            return label;
+        }
+    }
+
+    for (const [code, label] of Object.entries(CONCENTRATION_LABELS)) {
+        const pattern = new RegExp(`\\b${code.replace(/\s+/g, "\\s+")}\\b`, "i");
+        if (pattern.test(normalized)) {
+            return label;
+        }
+    }
+
+    return null;
+}
+
+function stripConcentrationCodeFromVariant(variantTitle: string): string {
+    return variantTitle
+        .replace(/\s*\/\s*(edt|edp|edc|parfum|extrait\s+de\s+parfum)\b/gi, "")
+        .replace(/\s*-\s*(туалетная вода|парфюмерная вода|одеколон|духи)\b/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+}
+
+function receiptItemDisplayName(item: OrderItem): string {
+    const productName = String(item.product_name ?? "").trim();
+    const variantTitle = String(item.variant_title ?? "").trim();
+    const concentrationLabel = extractConcentrationLabel(variantTitle);
+    const variantPart = concentrationLabel
+        ? stripConcentrationCodeFromVariant(variantTitle)
+        : variantTitle;
+
+    return [productName, concentrationLabel, variantPart].filter(Boolean).join(" ");
 }
 
 function deliveryLabel(order: OrderData): string {
@@ -76,7 +119,7 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
         total: order.total,
         items: order.items.map((item) => ({
             key: `${order.id}-${item.id}`,
-            name: itemDisplayName(item),
+            name: receiptItemDisplayName(item),
             qty: item.qty,
             price: item.price,
             total: item.total,
@@ -326,7 +369,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
 
                                         <tr className="admin-order-receipt-total-row">
                                             <td colSpan={4} className="admin-order-receipt-total-empty" />
-                                            <td className="admin-order-receipt-total-label">Всего</td>
+                                            <td className="admin-order-receipt-total-label">ИТОГО:</td>
                                             <td className="admin-order-receipt-total-value">
                                                 {normalizeMoneyForDisplay(draft.total)}
                                             </td>

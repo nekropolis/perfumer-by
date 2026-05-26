@@ -34,9 +34,9 @@ export default function WishlistPageView() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                    {products.map((product, index) => (
+                    {products.map((product) => (
                         <div key={product.id} className="relative">
-                            <ProductCard product={product} showBrand eager={index < 4} />
+                            <ProductCard product={product} />
                             <button
                                 type="button"
                                 onClick={() => void removeFromWishlist(product.id)}

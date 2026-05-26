@@ -2,7 +2,7 @@
 
 import AdminBrandSelect from "@/components/admin/ui/admin-brand-select";
 import AdminRichTextEditor from "@/components/admin/ui/admin-rich-text-editor";
-import { slugify } from "@/lib/slugify";
+import { buildProductSlug } from "@/lib/product-display-name";
 import type { ProductBrandOption } from "@/lib/admin-products-api";
 
 export type ProductFormState = {
@@ -112,7 +112,23 @@ export default function ProductForm({
                     <AdminBrandSelect
                         value={form.brand_id}
                         brands={brands}
-                        onChangeAction={(value) => onChangeAction({ ...form, brand_id: value })}
+                        onChangeAction={(value) => {
+                            const selectedBrand = brands.find((brand) => String(brand.id) === value);
+                            const nextSlug = form.id
+                                ? form.slug
+                                : buildProductSlug(selectedBrand?.slug ?? "", form.name);
+                            const nextDisplay = selectedBrand?.name
+                                ? `${selectedBrand.name} ${form.name}`.trim()
+                                : form.name;
+
+                            onChangeAction({
+                                ...form,
+                                brand_id: value,
+                                slug: nextSlug,
+                                h1: form.id ? form.h1 : nextDisplay,
+                                seo_title: form.id ? form.seo_title : nextDisplay,
+                            });
+                        }}
                     />
                 </div>
 
@@ -125,13 +141,22 @@ export default function ProductForm({
                         value={form.name}
                         onChange={(e) => {
                             const nextName = e.target.value;
+                            const selectedBrand = brands.find(
+                                (brand) => String(brand.id) === String(form.brand_id),
+                            );
+                            const nextSlug = form.id
+                                ? form.slug
+                                : buildProductSlug(selectedBrand?.slug ?? "", nextName);
+                            const nextDisplay = selectedBrand?.name
+                                ? `${selectedBrand.name} ${nextName}`.trim()
+                                : nextName;
 
                             onChangeAction({
                                 ...form,
                                 name: nextName,
-                                slug: form.id ? form.slug : slugify(nextName),
-                                h1: form.id ? form.h1 : nextName,
-                                seo_title: form.id ? form.seo_title : nextName,
+                                slug: nextSlug,
+                                h1: form.id ? form.h1 : nextDisplay,
+                                seo_title: form.id ? form.seo_title : nextDisplay,
                             });
                         }}
                         className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"

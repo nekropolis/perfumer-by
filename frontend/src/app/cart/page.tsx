@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
     addGiftCertificateTemplateToCart,
@@ -455,15 +456,11 @@ export default function CartPage() {
                                 <div className="min-w-0 flex-1">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
-                                    <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                                        {item.brand_name || "—"}
-                                    </div>
-
                                     <Link
                                         href={`/product/${item.product_slug}`}
                                         className="block text-lg font-medium leading-6 text-[var(--foreground)] transition hover:opacity-80"
                                     >
-                                        {item.product_name}
+                                        {lineItemProductTitle(item)}
                                     </Link>
 
                                     <div className="mt-1 text-sm text-[var(--text-secondary)]">

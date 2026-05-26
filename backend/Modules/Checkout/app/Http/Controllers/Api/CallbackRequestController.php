@@ -66,7 +66,9 @@ class CallbackRequestController extends Controller
             'user_id' => $user?->id,
             'product_id' => $product?->id,
             'variant_id' => $variant?->id,
-            'product_name' => $product?->name,
+            'product_name' => $product
+                ? \Modules\Catalog\Support\ProductDisplayName::forProduct($product)
+                : null,
             'variant_title' => $variantTitle,
             'phone' => $phone,
             'comment' => $comment,

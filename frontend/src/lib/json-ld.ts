@@ -7,6 +7,7 @@ import type { SiteContent } from "@/lib/site-content-api";
 import { formatBynAmountDisplay } from "@/lib/format-byn";
 import { stripHtml } from "@/lib/seo-text";
 import { getSiteUrl } from "@/lib/seo";
+import { productDisplayName } from "@/lib/product-display-name";
 
 const SITE_LABEL = "Perfumer";
 
@@ -208,7 +209,7 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
     const descRaw =
         descFromHtml ||
         product.short_description?.trim() ||
-        `Купить ${product.name}`;
+        `Купить ${productDisplayName(product)}`;
     const description = descRaw.slice(0, 5000);
 
     const images = productImagesForJsonLd(product.images || []);
@@ -232,7 +233,7 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
                 availability: variantOfferAvailability(product, variant),
                 itemCondition: "https://schema.org/NewCondition",
                 sku: `${product.id}-${variant.id}`,
-                name: `${product.name} ${variant.display_name}`.replace(/\s+/g, " ").trim(),
+                name: `${productDisplayName(product)} ${variant.display_name}`.replace(/\s+/g, " ").trim(),
             };
             if (variant.price != null && String(variant.price).trim() !== "") {
                 offer.price = formatBynAmountDisplay(variant.price);
@@ -275,7 +276,7 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
     const payload: Record<string, unknown> = {
         "@context": "https://schema.org",
         "@type": "Product",
-        name: product.name,
+        name: productDisplayName(product),
         description,
         url: productUrl,
         sku: String(product.id),

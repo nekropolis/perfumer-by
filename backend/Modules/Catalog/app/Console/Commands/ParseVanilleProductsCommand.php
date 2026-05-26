@@ -11,7 +11,7 @@ class ParseVanilleProductsCommand extends Command
         {--offset=0 : Start offset in product_links.json}
         {--limit=20 : Batch size per iteration}
         {--max-links= : Optional cap for total links}
-        {--mode=full : full|new_only}
+        {--mode=full : full|new_only|errors_only}
         {--links-path= : Optional custom links file path}
         {--once : Run only one batch and exit}';
 
@@ -31,9 +31,16 @@ class ParseVanilleProductsCommand extends Command
         if (!in_array($mode, [
             VanilleImportService::PARSE_PRODUCTS_MODE_FULL,
             VanilleImportService::PARSE_PRODUCTS_MODE_NEW_ONLY,
+            VanilleImportService::PARSE_PRODUCTS_MODE_ERRORS_ONLY,
         ], true)) {
-            $this->error("Invalid --mode={$mode}. Allowed: full, new_only");
+            $this->error("Invalid --mode={$mode}. Allowed: full, new_only, errors_only");
             return self::FAILURE;
+        }
+
+        if ($mode === VanilleImportService::PARSE_PRODUCTS_MODE_ERRORS_ONLY) {
+            $summary = $service->getParseErrorsSummary();
+            $this->line('Parse errors file: ' . (string) ($summary['path'] ?? ''));
+            $this->line('Pending error URLs: ' . (int) ($summary['count'] ?? 0));
         }
 
         $totalCount = 0;

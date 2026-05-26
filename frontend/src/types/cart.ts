@@ -6,6 +6,7 @@ export type CartItemData = {
     product_variant_id: number | null;
 
     product_name: string | null;
+    product_display_name?: string | null;
     product_slug: string | null;
     brand_name: string | null;
 

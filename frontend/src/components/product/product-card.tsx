@@ -9,10 +9,10 @@ import type { ProductListItem } from "@/types/catalog";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import { productDisplayName } from "@/lib/product-display-name";
 
 type Props = {
     product: ProductListItem;
-    showBrand?: boolean;
     eager?: boolean;
 };
 
@@ -52,7 +52,7 @@ function normalizeVariantLabels(value: unknown): string[] {
     return [];
 }
 
-export default function ProductCard({ product, showBrand = true, eager = false }: Props) {
+export default function ProductCard({ product, eager = false }: Props) {
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
 
@@ -83,6 +83,8 @@ export default function ProductCard({ product, showBrand = true, eager = false }
                 : `${loyaltyMinFmt} BYN`
             : null;
 
+    const cardTitle = productDisplayName(product);
+
     return (
         <Link
             href={`/product/${product.slug}`}
@@ -107,11 +109,10 @@ export default function ProductCard({ product, showBrand = true, eager = false }
                         void toggleWishlist(product.id);
                     }}
                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                    className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 ${
-                        inWishlist
-                            ? "border-white/40 bg-[var(--accent)] text-white shadow-sm hover:opacity-95"
-                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
-                    }`}
+                    className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 ${inWishlist
+                        ? "border-white/40 bg-[var(--accent)] text-white shadow-sm hover:opacity-95"
+                        : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                        }`}
                 >
                     <span aria-hidden className="text-[13px] leading-none">
                         {inWishlist ? "♥" : "♡"}
@@ -124,21 +125,20 @@ export default function ProductCard({ product, showBrand = true, eager = false }
                         <Image
                             src={imagePath}
                             loader={productImageLoader}
-                            alt={product.name}
+                            alt={cardTitle}
                             fill
                             loading={eager ? "eager" : "lazy"}
                             sizes="(max-width: 640px) 50vw, 280px"
-                            className={`object-contain transition duration-300 ${
-                                secondaryImagePath
-                                    ? "group-hover:opacity-0 group-hover:scale-[1.03]"
-                                    : "group-hover:scale-[1.03]"
-                            }`}
+                            className={`object-contain transition duration-300 ${secondaryImagePath
+                                ? "group-hover:opacity-0 group-hover:scale-[1.03]"
+                                : "group-hover:scale-[1.03]"
+                                }`}
                         />
                         {secondaryImagePath && (
                             <Image
                                 src={secondaryImagePath}
                                 loader={productImageLoader}
-                                alt={`${product.name} — вид 2`}
+                                alt={`${cardTitle} — вид 2`}
                                 fill
                                 loading="lazy"
                                 sizes="(max-width: 640px) 50vw, 280px"
@@ -170,16 +170,9 @@ export default function ProductCard({ product, showBrand = true, eager = false }
             {/* ─── INFO ZONE ─── */}
             <div className="flex flex-1 flex-col gap-1.5 border-t border-[var(--line)] p-2.5 pb-3">
 
-                {/* Brand */}
-                {showBrand && product.brand?.name && (
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">
-                        {product.brand.name}
-                    </div>
-                )}
-
-                {/* Product name */}
+                {/* Product name (brand + name on catalog; short name on brand page) */}
                 <div className="line-clamp-2 min-h-[34px] text-[13px] font-semibold leading-[1.4] text-[var(--foreground)]">
-                    {product.name}
+                    {cardTitle}
                 </div>
 
                 {/* Variants */}

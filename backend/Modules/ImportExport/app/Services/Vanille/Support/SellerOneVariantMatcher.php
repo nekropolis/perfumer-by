@@ -9,6 +9,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
+use Modules\Catalog\Support\ProductDisplayName;
 
 /**
  * Матчер поставщика Seller One.
@@ -99,6 +100,9 @@ class SellerOneVariantMatcher
                 'id' => $variant->id,
                 'product_id' => $variant->product_id,
                 'product_name' => $variant->product?->name ?? $product?->name,
+                'display_name' => $variant->product
+                    ? ProductDisplayName::forProduct($variant->product)
+                    : ($product ? ProductDisplayName::forProduct($product) : null),
                 'brand_name' => $variant->product?->brand?->name ?? $product?->brand?->name,
                 'display' => $this->buildVariantLabel($variant),
                 'confidence' => $breakdown['total'],
@@ -109,6 +113,7 @@ class SellerOneVariantMatcher
             'suggested_product' => $product ? [
                 'id' => $product->id,
                 'name' => $product->name,
+                'display_name' => ProductDisplayName::forProduct($product),
                 'slug' => $product->slug,
                 'brand_name' => $product->brand?->name,
                 'confidence' => $breakdown['total'],
@@ -461,8 +466,8 @@ class SellerOneVariantMatcher
         $genderMarker = $this->extractGenderMarker($title);
 
         if ($brandName) {
-            $pattern = '/^' . preg_quote($brandName, '/') . '\s+/iu';
-            $name = (string) preg_replace($pattern, '', $name, 1);
+            $strip = ProductDisplayName::stripBrandFromName($brandName, $name);
+            $name = $strip['name'];
         }
 
         $name = (string) preg_replace('/\b(test|tester|тестер)\b/iu', '', $name);

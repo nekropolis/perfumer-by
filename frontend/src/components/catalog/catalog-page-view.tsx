@@ -71,7 +71,7 @@ export default function CatalogPageView({
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}
-                            showBrandFilter={!basePath.includes("/brands/")}
+                            showBrandFilter={showBrand}
                             attributes={filters.attributes}
                             priceRange={filters.price}
                             volumeOptions={filters.volume}
@@ -89,7 +89,7 @@ export default function CatalogPageView({
                                 compact
                                 brands={brands}
                                 basePath={basePath}
-                                showBrandFilter={!basePath.includes("/brands/")}
+                                showBrandFilter={showBrand}
                                 attributes={filters.attributes}
                                 priceRange={filters.price}
                                 volumeOptions={filters.volume}
@@ -104,7 +104,6 @@ export default function CatalogPageView({
                                     <ProductCard
                                         key={product.id}
                                         product={product}
-                                        showBrand={showBrand}
                                         eager={index < 4}
                                     />
                                 ))}

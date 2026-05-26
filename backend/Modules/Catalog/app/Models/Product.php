@@ -2,8 +2,10 @@
 
 namespace Modules\Catalog\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Catalog\Support\ProductDisplayName;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -37,6 +39,11 @@ class Product extends Model
         'is_out_of_stock' => 'boolean',
         'description_rewritten_at' => 'datetime',
     ];
+
+    protected function displayName(): Attribute
+    {
+        return Attribute::get(fn (): string => ProductDisplayName::forProduct($this));
+    }
 
     public function brand(): BelongsTo
     {

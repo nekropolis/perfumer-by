@@ -19,6 +19,8 @@ export type StockReceiptImportUnresolvedRow = {
         id?: number;
         product_id?: number;
         product_name?: string;
+        display_name?: string | null;
+        brand_name?: string | null;
         display?: string;
     } | null;
     parsed?: StockReceiptImportParsed | null;

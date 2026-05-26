@@ -254,7 +254,7 @@ textarea:focus {
     line-height: 1.2;
   }
 
-  .admin-order-receipt-print-card:not(:last-child)::after {
+  .admin-order-receipt-print-card::after {
     content: "";
     position: absolute;
     right: 0;
@@ -390,7 +390,7 @@ textarea:focus {
 
   .admin-order-receipt-signature {
     display: grid;
-    grid-template-columns: 18mm 52mm 52mm;
+    grid-template-columns: 18mm 39mm 39mm;
     align-items: end;
     gap: 3mm;
     padding: 9mm 2mm 0;

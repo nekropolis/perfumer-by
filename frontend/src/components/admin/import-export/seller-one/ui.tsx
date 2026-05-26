@@ -124,7 +124,9 @@ export function ManualLinkModal({
                                                 className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-admin-primary text-white" : "hover:bg-admin-muted"
                                                     }`}
                                             >
-                                                {product.name}
+                                                {product.brand?.name
+                                                    ? `${product.brand.name} ${product.name}`.trim()
+                                                    : product.name}
                                             </button>
                                         );
                                     })}

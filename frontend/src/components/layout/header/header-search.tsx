@@ -7,6 +7,7 @@ import { renderHighlightedText } from "@/components/layout/header/render-highlig
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
 import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { headerSearchProductTitle } from "@/lib/product-display-name";
 
 type HeaderSearchProps = {
     searchRef: RefObject<HTMLDivElement | null>;
@@ -204,6 +205,7 @@ export default function HeaderSearch({
                                     const imageSrc = item.image
                                         ? normalizeProductImageUrl(item.image)
                                         : null;
+                                    const title = headerSearchProductTitle(item);
                                     return (
                                     <button
                                         key={`desktop-${item.id}`}
@@ -223,7 +225,7 @@ export default function HeaderSearch({
                                                     <Image
                                                         src={imageSrc}
                                                         loader={productImageLoader}
-                                                        alt={item.name}
+                                                        alt={title}
                                                         fill
                                                         sizes="48px"
                                                         className="object-cover"
@@ -237,7 +239,7 @@ export default function HeaderSearch({
                                                     </div>
                                                 ) : null}
                                                 <div className="truncate text-sm font-medium text-[var(--foreground)]">
-                                                    {renderHighlightedText(item.name, searchQuery)}
+                                                    {renderHighlightedText(title, searchQuery)}
                                                 </div>
                                                 <div className="truncate text-xs text-[var(--text-secondary)]">
                                                     {formatSearchPrice(item)}

@@ -25,6 +25,7 @@ export type LegacyUnmatchedProductItem = {
     linked_product_id: number | null;
     linked_product_name: string | null;
     linked_product_slug: string | null;
+    linked_brand_name: string | null;
 };
 
 export type LegacyUnmatchedProductsResponse = {

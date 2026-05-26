@@ -9,6 +9,7 @@ import { renderHighlightedText } from "@/components/layout/header/render-highlig
 import HeaderSearch from "@/components/layout/header/header-search";
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
 import { formatSearchPrice } from "@/components/layout/header/format-search-price";
+import { headerSearchProductTitle } from "@/lib/product-display-name";
 
 type HeaderMainRowProps = {
     searchRef: RefObject<HTMLDivElement | null>;
@@ -265,7 +266,9 @@ export default function HeaderMainRow({
                                                 {renderHighlightedText(brand.name, searchQuery)}
                                             </button>
                                         ))}
-                                        {searchResults.map((item) => (
+                                        {searchResults.map((item) => {
+                                            const title = headerSearchProductTitle(item);
+                                            return (
                                             <button
                                                 key={`inline-product-${item.id}`}
                                                 type="button"
@@ -278,13 +281,14 @@ export default function HeaderMainRow({
                                                     </div>
                                                 ) : null}
                                                 <div className="truncate text-sm font-medium text-[var(--foreground)]">
-                                                    {renderHighlightedText(item.name, searchQuery)}
+                                                    {renderHighlightedText(title, searchQuery)}
                                                 </div>
                                                 <div className="truncate text-xs text-[var(--text-secondary)]">
                                                     {formatSearchPrice(item)}
                                                 </div>
                                             </button>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

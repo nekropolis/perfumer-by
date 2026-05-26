@@ -10,6 +10,7 @@ import {
 } from "@/constants/order-statuses";
 import OrderDiscountSummary from "@/components/account/order-discount-summary";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 import { formatMoneyRub } from "@/lib/format-money-display";
 
 type Props = {
@@ -146,7 +147,9 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                             </div>
 
                             <div className="space-y-4">
-                                {order.items.map((item) => (
+                                {order.items.map((item) => {
+                                    const productTitle = lineItemProductTitle(item);
+                                    return (
                                     <div
                                         key={item.id}
                                         className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 sm:p-4"
@@ -158,7 +161,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                                         <Image
                                                             src={normalizeProductImageUrl(item.image)}
                                                             loader={productImageLoader}
-                                                            alt={item.product_name}
+                                                            alt={productTitle}
                                                             fill
                                                             sizes="56px"
                                                             className="object-cover"
@@ -172,7 +175,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                                                 <div className="min-w-0 flex-1 text-left">
                                                     <div className="break-words text-sm font-medium leading-snug text-[var(--foreground)] sm:text-base">
-                                                        {item.product_name}
+                                                        {productTitle}
                                                         {item.variant_title && (
                                                             <span className="text-[var(--text-secondary)]">
                                                                 {" "}— {item.variant_title}
@@ -193,7 +196,8 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                                 {order.gift_certificate_purchases?.map((row) => (
                                     <div
                                         key={row.id}

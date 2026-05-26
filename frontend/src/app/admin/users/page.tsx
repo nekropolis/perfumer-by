@@ -8,6 +8,7 @@ import {
     deleteAdminUser,
     fetchAdminUserOrdersHistory,
     fetchAdminUsers,
+    updateAdminUserRole,
     type AdminUserOrderHistoryItem,
     type AdminUser,
 } from "@/lib/admin-users-api";
@@ -23,7 +24,18 @@ import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import { AdminToast } from "@/types/admin";
 
-const ROLES = ["customer", "admin", "manager", "ceo"];
+const ROLES = ["customer", "admin", "manager", "ceo"] as const;
+
+const ROLE_LABELS: Record<(typeof ROLES)[number], string> = {
+    customer: "Покупатель",
+    admin: "Админ",
+    manager: "Менеджер",
+    ceo: "CEO",
+};
+
+function roleLabel(role: string): string {
+    return ROLE_LABELS[role as (typeof ROLES)[number]] ?? role;
+}
 
 function resolveUserState(user: AdminUser): { label: string; className: string } {
     const isVerified = Boolean(user.phone_verified_at);
@@ -72,6 +84,7 @@ export default function AdminUsersPage() {
     } | null>(null);
     const [toast, setToast] = useState<AdminToast | null>(null);
     const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+    const [updatingRoleUserId, setUpdatingRoleUserId] = useState<number | null>(null);
     const [historyUser, setHistoryUser] = useState<AdminUser | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRows, setHistoryRows] = useState<AdminUserOrderHistoryItem[]>([]);
@@ -114,6 +127,21 @@ export default function AdminUsersPage() {
             setToast({ type: "error", message: "Не удалось удалить пользователя" });
         } finally {
             setDeletingUserId(null);
+        }
+    };
+
+    const handleRoleChange = async (userId: number, role: string) => {
+        setToast(null);
+        try {
+            setUpdatingRoleUserId(userId);
+            await updateAdminUserRole(userId, role);
+            setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
+            setToast({ type: "success", message: "Роль обновлена" });
+        } catch (error) {
+            console.error(error);
+            setToast({ type: "error", message: "Не удалось обновить роль" });
+        } finally {
+            setUpdatingRoleUserId(null);
         }
     };
 
@@ -180,6 +208,7 @@ export default function AdminUsersPage() {
                                 <th className="px-3 py-2">Имя</th>
                                 <th className="px-3 py-2">Телефон</th>
                                 <th className="px-3 py-2">Email</th>
+                                <th className="px-3 py-2">Роль</th>
                                 <th className="px-3 py-2">Статус</th>
                                 <th className="px-3 py-2">Скидочная карта</th>
                                 <th className="px-3 py-2 text-right">Действия</th>
@@ -195,6 +224,21 @@ export default function AdminUsersPage() {
                                         <td className="px-3 py-2">{user.name || "—"}</td>
                                         <td className="px-3 py-2">{user.phone || "—"}</td>
                                         <td className="max-w-[240px] truncate px-3 py-2" title={user.email || "—"}>{user.email || "—"}</td>
+                                        <td className="px-3 py-2">
+                                            <select
+                                                value={ROLES.includes(user.role as (typeof ROLES)[number]) ? user.role : "customer"}
+                                                onChange={(e) => void handleRoleChange(user.id, e.target.value)}
+                                                disabled={updatingRoleUserId === user.id}
+                                                className="min-w-[9rem] rounded-lg border border-admin-border bg-white px-2 py-1 text-xs disabled:opacity-60"
+                                                aria-label={`Роль пользователя ${user.name || user.id}`}
+                                            >
+                                                {ROLES.map((role) => (
+                                                    <option key={role} value={role}>
+                                                        {roleLabel(role)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
                                         <td className="px-3 py-2">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium ${state.className}`}>

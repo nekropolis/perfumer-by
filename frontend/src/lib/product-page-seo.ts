@@ -1,4 +1,5 @@
 import type { ProductDetailData } from "@/types/catalog";
+import { productDisplayName } from "@/lib/product-display-name";
 import { formatBynAmountDisplay } from "@/lib/format-byn";
 import { SITE_NAME } from "@/lib/seo";
 import { stripHtml, truncateByWords } from "@/lib/seo-text";
@@ -7,11 +8,12 @@ export function buildProductMetaTitle(product: ProductDetailData): string {
     if (product.seo_title?.trim()) {
         return product.seo_title.trim();
     }
+    const titleName = productDisplayName(product);
     const price = product.price_range?.min ? formatBynAmountDisplay(product.price_range.min) : "";
     if (price) {
-        return `${product.name} купить в Минске и Беларуси — цена ${price} BYN | ${SITE_NAME}`;
+        return `${titleName} купить в Минске и Беларуси — цена ${price} BYN | ${SITE_NAME}`;
     }
-    return `${product.name} купить в Минске и Беларуси | ${SITE_NAME}`;
+    return `${titleName} купить в Минске и Беларуси | ${SITE_NAME}`;
 }
 
 export function buildProductMetaDescription(product: ProductDetailData): string {
@@ -40,9 +42,10 @@ export function buildProductMetaDescription(product: ProductDetailData): string 
         ? `Цена от ${formatBynAmountDisplay(product.price_range.min)} BYN.`
         : "";
 
+    const display = productDisplayName(product);
     const lead = product.brand?.name?.trim()
-        ? `${product.name} — аромат ${product.brand.name}.`
-        : `${product.name}.`;
+        ? `${display} — аромат ${product.brand.name}.`
+        : `${display}.`;
 
     const description = [
         lead,
@@ -56,18 +59,18 @@ export function buildProductMetaDescription(product: ProductDetailData): string 
         .trim();
 
     return truncateByWords(
-        description || `Купить ${product.name} с доставкой по Беларуси.`,
+        description || `Купить ${productDisplayName(product)} с доставкой по Беларуси.`,
         160,
     );
 }
 
 export function primaryProductImageAlt(product: ProductDetailData): string {
     const imgs = product.images ?? [];
-    if (!imgs.length) return product.name;
+    if (!imgs.length) return productDisplayName(product);
     const sorted = [...imgs].sort((a, b) => {
         if (a.is_main && !b.is_main) return -1;
         if (!a.is_main && b.is_main) return 1;
         return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
-    return sorted[0]?.alt?.trim() || product.name;
+    return sorted[0]?.alt?.trim() || productDisplayName(product);
 }

@@ -28,6 +28,7 @@ import {
     normalizeGiftCertificateCodeInput,
 } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
@@ -599,8 +600,7 @@ export default function CheckoutPage() {
                         ))}
                         {checkoutCartLines.items.map((item) => (
                             <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
-                                <div className="text-sm text-[var(--text-secondary)]">{item.brand_name || "—"}</div>
-                                <div className="font-medium">{item.product_name}</div>
+                                <div className="font-medium">{lineItemProductTitle(item)}</div>
                                 <div className="text-sm text-[var(--text-secondary)]">
                                     {item.variant?.display_name || item.variant?.title}
                                 </div>

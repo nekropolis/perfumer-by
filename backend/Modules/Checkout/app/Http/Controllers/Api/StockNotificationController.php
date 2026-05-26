@@ -64,7 +64,9 @@ class StockNotificationController extends Controller
             'user_id' => $user?->id,
             'product_id' => $validated['product_id'],
             'variant_id' => $validated['variant_id'] ?? null,
-            'product_name' => $product?->name,
+            'product_name' => $product
+                ? \Modules\Catalog\Support\ProductDisplayName::forProduct($product)
+                : null,
             'variant_title' => $variantTitle,
             'phone' => $phone,
             'comment' => $comment,

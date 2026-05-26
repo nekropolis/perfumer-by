@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 use Modules\Reviews\Models\Review;
 
@@ -16,6 +17,7 @@ class LegacyUnmatchedProductAdminController extends Controller
     {
         $query = DB::table('legacy_unmatched_products as lup')
             ->leftJoin('products as p', 'p.id', '=', 'lup.linked_product_id')
+            ->leftJoin('brands', 'brands.id', '=', 'p.brand_id')
             ->select([
                 'lup.id',
                 'lup.legacy_product_id',
@@ -27,6 +29,7 @@ class LegacyUnmatchedProductAdminController extends Controller
                 'lup.linked_product_id',
                 'p.name as linked_product_name',
                 'p.slug as linked_product_slug',
+                'brands.name as linked_brand_name',
             ]);
 
         if ($request->filled('status')) {
@@ -79,7 +82,8 @@ class LegacyUnmatchedProductAdminController extends Controller
             ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
             ->where(function ($inner) use ($q): void {
                 $inner->where('products.name', 'like', "%{$q}%")
-                    ->orWhere('products.slug', 'like', "%{$q}%");
+                    ->orWhere('products.slug', 'like', "%{$q}%")
+                    ->orWhere('brands.name', 'like', "%{$q}%");
             })
             ->whereNotIn('products.id', function ($sub): void {
                 $sub->from('legacy_unmatched_products')
@@ -142,21 +146,36 @@ class LegacyUnmatchedProductAdminController extends Controller
             }
 
             /** @var Product $target */
-            $target = Product::query()->findOrFail($targetProductId);
+            $target = Product::query()->with('brand:id,name')->findOrFail($targetProductId);
+
+            $legacyTitle = trim((string) ($legacy->legacy_name ?? ''));
+            $brandName = trim((string) ($target->brand?->name ?? ''));
+            $normalized = $legacyTitle !== ''
+                ? ProductDisplayName::normalizeLegacyProductTitle($legacyTitle, $brandName)
+                : null;
 
             $before = [
+                'name' => $target->name,
+                'h1' => $target->h1,
                 'description' => $target->description,
                 'seo_title' => $target->seo_title,
                 'seo_description' => $target->seo_description,
                 'seo_keyword' => $target->seo_keyword,
             ];
 
-            $target->update([
+            $updatePayload = [
                 'description' => $legacy->legacy_description,
-                'seo_title' => $legacy->legacy_meta_title,
+                'seo_title' => $legacy->legacy_meta_title ?: ($normalized['display_name'] ?? $target->h1),
                 'seo_description' => $legacy->legacy_meta_description,
                 'seo_keyword' => $legacy->legacy_meta_keyword,
-            ]);
+            ];
+            if ($normalized !== null) {
+                $updatePayload['name'] = $normalized['short_name'];
+                $updatePayload['h1'] = $normalized['display_name'];
+            }
+
+            $target->update($updatePayload);
+            $target->refresh();
 
             $fromPath = $this->normalizePath($legacy->legacy_slug ? '/'.$legacy->legacy_slug : '/');
             $toPath = '/product/'.$target->slug;
@@ -193,6 +212,8 @@ class LegacyUnmatchedProductAdminController extends Controller
             }
 
             $after = [
+                'name' => $target->name,
+                'h1' => $target->h1,
                 'description' => $target->description,
                 'seo_title' => $target->seo_title,
                 'seo_description' => $target->seo_description,

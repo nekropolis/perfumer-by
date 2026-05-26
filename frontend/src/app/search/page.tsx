@@ -81,6 +81,7 @@ export default async function SearchPage({
             ) : null}
 
             <SearchResultsClient
+                key={query}
                 initialQuery={query}
                 initialData={data}
                 initialError={error}

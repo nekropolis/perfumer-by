@@ -20,6 +20,7 @@ use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariant;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Throwable;
@@ -762,12 +763,16 @@ class VanilleImportController extends Controller
                 'product' => $item->product ? [
                     'id' => $item->product->id,
                     'name' => $item->product->name,
+                    'display_name' => ProductDisplayName::forProduct($item->product),
                     'slug' => $item->product->slug,
                 ] : null,
                 'suggested_variant' => $suggestedVariant ? [
                     'id' => $suggestedVariant->id,
                     'product_id' => $suggestedVariant->product_id,
                     'product_name' => $suggestedVariant->product?->name,
+                    'display_name' => $suggestedVariant->product
+                        ? ProductDisplayName::forProduct($suggestedVariant->product)
+                        : null,
                     'brand_name' => $suggestedVariant->product?->brand?->name,
                     'display' => trim(implode(' / ', array_filter([
                         $suggestedVariant->volume ? "{$suggestedVariant->volume} {$suggestedVariant->volume_unit}" : null,
@@ -778,6 +783,7 @@ class VanilleImportController extends Controller
                 'suggested_product' => $suggestedProduct ? [
                     'id' => $suggestedProduct->id,
                     'name' => $suggestedProduct->name,
+                    'display_name' => ProductDisplayName::forProduct($suggestedProduct),
                     'slug' => $suggestedProduct->slug,
                     'brand_name' => $suggestedProduct->brand?->name,
                     'variants_count' => is_countable($suggestedProduct->variants)
@@ -788,6 +794,9 @@ class VanilleImportController extends Controller
                     'id' => $linkedVariant->id,
                     'product_id' => $linkedVariant->product_id,
                     'product_name' => $linkedVariant->product?->name,
+                    'display_name' => $linkedVariant->product
+                        ? ProductDisplayName::forProduct($linkedVariant->product)
+                        : null,
                     'brand_name' => $linkedVariant->product?->brand?->name,
                     'display' => trim(implode(' / ', array_filter([
                         $linkedVariant->volume ? "{$linkedVariant->volume} {$linkedVariant->volume_unit}" : null,

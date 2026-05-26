@@ -105,8 +105,8 @@ export default function ProductsTable({
                 <thead className="bg-admin-muted/80 text-left text-xs font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                 <tr>
                     <th className="px-3 py-2.5">ID</th>
-                    <th className="px-3 py-2.5">Название</th>
                     <th className="px-3 py-2.5">Бренд</th>
+                    <th className="px-3 py-2.5">Название</th>
                     <th className="px-3 py-2.5">Slug</th>
                     <th className="px-3 py-2.5">Статус</th>
                     <th className="px-3 py-2.5">Метки</th>
@@ -119,6 +119,9 @@ export default function ProductsTable({
                     <tr key={item.id} className="border-t border-admin-border align-center transition hover:bg-admin-muted/70">
                         <td className="px-3 py-3 text-admin-text-secondary">
                             {highlightQueryInText(String(item.id), searchQuery)}
+                        </td>
+                        <td className="px-3 py-3 text-admin-text">
+                            {highlightQueryInText(item.brand?.name ?? "—", searchQuery)}
                         </td>
                         <td className="px-3 py-3 font-medium text-admin-text">
                             <div>{highlightQueryInText(item.name, searchQuery)}</div>
@@ -134,9 +137,6 @@ export default function ProductsTable({
                                     ))}
                                 </div>
                             ) : null}
-                        </td>
-                        <td className="px-3 py-3 text-admin-text">
-                            {highlightQueryInText(item.brand?.name ?? "—", searchQuery)}
                         </td>
                         <td className="px-3 py-3 text-admin-text-secondary">
                             {highlightQueryInText(item.slug, searchQuery)}

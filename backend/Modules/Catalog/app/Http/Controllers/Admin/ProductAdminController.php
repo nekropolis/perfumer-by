@@ -15,6 +15,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
@@ -52,6 +53,12 @@ class ProductAdminController extends Controller
 
             $query->where(function ($q) use ($search, $stem, $isNumericIdSearch) {
                 $q->where('name', 'like', "%{$search}%")
+                    ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
+                        $brandQuery->where('name', 'like', "%{$search}%");
+                        if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
+                            $brandQuery->orWhere('name', 'like', "%{$stem}%");
+                        }
+                    })
                     ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhereHas('variants.definition', function ($def) use ($search) {
                         $def->where('title', 'like', "%{$search}%")
@@ -183,22 +190,27 @@ class ProductAdminController extends Controller
             'seo_keyword' => ['nullable', 'string'],
         ]);
 
-        $slug = VanilleHelper::slugify($validated['slug']);
+        $brand = Brand::query()->findOrFail((int) $validated['brand_id']);
+        $slug = ProductDisplayName::resolveUniqueProductSlug(
+            ProductDisplayName::buildSlug($brand->slug, $validated['name'])
+        );
         if (Brand::query()->where('slug', $slug)->exists()) {
             return response()->json([
                 'message' => 'Slug уже используется брендом',
             ], 422);
         }
 
+        $displayName = ProductDisplayName::format($brand->name, $validated['name']);
+
         $product = Product::create([
             'brand_id' => $validated['brand_id'],
             'main_category_id' => null,
             'name' => $validated['name'],
             'slug' => $slug,
-            'h1' => $validated['h1'] ?: $validated['name'],
+            'h1' => $validated['h1'] ?: $displayName,
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
-            'seo_title' => $validated['seo_title'] ?: $validated['name'],
+            'seo_title' => $validated['seo_title'] ?: $displayName,
             'seo_description' => $validated['seo_description'] ?? null,
             'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
@@ -247,14 +259,17 @@ class ProductAdminController extends Controller
             ], 422);
         }
 
+        $brand = Brand::query()->findOrFail((int) $validated['brand_id']);
+        $displayName = ProductDisplayName::format($brand->name, $validated['name']);
+
         $product->update([
             'brand_id' => $validated['brand_id'],
             'name' => $validated['name'],
             'slug' => $slug,
-            'h1' => $validated['h1'] ?: $validated['name'],
+            'h1' => $validated['h1'] ?: $displayName,
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
-            'seo_title' => $validated['seo_title'] ?: $validated['name'],
+            'seo_title' => $validated['seo_title'] ?: $displayName,
             'seo_description' => $validated['seo_description'] ?? null,
             'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? $product->is_active,
@@ -450,7 +465,7 @@ class ProductAdminController extends Controller
             ->first(['id', 'name']);
         $supplierWarehouseId = (int) ($supplierWarehouseRow?->id ?? 0);
         $supplierWarehouseName = (string) ($supplierWarehouseRow?->name ?: 'Поставщик');
-        $productName = (string) $product->name;
+        $productName = ProductDisplayName::forProduct($product);
 
         $data = $variants->map(function (ProductVariantLink $variant) use (
             $receiptItemsByVariant,

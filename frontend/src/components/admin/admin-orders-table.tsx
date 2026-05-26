@@ -415,8 +415,9 @@ export default function AdminOrdersTable({
 
     return (
         <>
-            <div className="w-full rounded-lg border border-admin-border bg-admin-surface shadow-sm">
-                <table className="w-full table-fixed border-collapse text-[13px]">
+            <div className="overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[56rem] table-fixed border-collapse text-[13px]">
                     <thead className="bg-admin-muted/80">
                         <tr className="border-b border-admin-border text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                             <th className="w-[4%] border-r border-admin-border px-2 py-2">
@@ -526,6 +527,7 @@ export default function AdminOrdersTable({
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
 
             <AdminOrderCellTooltip

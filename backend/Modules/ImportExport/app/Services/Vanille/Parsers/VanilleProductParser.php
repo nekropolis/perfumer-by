@@ -22,6 +22,11 @@ class VanilleProductParser
         $brand = $characteristics['Бренд'] ?? $this->extractBrandFromName($name);
         $description = $this->parseDescription($html);
         $offers = $this->parseOffers($html, $brand, $name);
+        $defaultType = is_string($characteristics['Типы'] ?? null)
+            ? trim((string) $characteristics['Типы'])
+            : '';
+        $barcodeOffers = $this->parseBarcodeVolumeOffers($html, $defaultType);
+        $offers = $this->mergeOffersByVolumeKey($offers, $barcodeOffers);
 
         return [
             'url' => $url,
@@ -229,6 +234,91 @@ class VanilleProductParser
         }
 
         return $offers;
+    }
+
+    /**
+     * Объёмы из таблицы штрих-кодов (есть даже если нет в наличии на витрине).
+     *
+     * @return list<array<string, string>>
+     */
+    protected function parseBarcodeVolumeOffers(string $html, string $defaultType): array
+    {
+        if (!preg_match_all('/<td class="barcode">(.*?)<\/td>\s*<td>(\d+)<\/td>/isu', $html, $rows, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $offers = [];
+
+        foreach ($rows as $row) {
+            $label = $this->cleanText(preg_replace('/<[^>]+>/u', ' ', $row[1]) ?? $row[1]);
+            if (!preg_match('/(\d+(?:[.,]\d+)?)\s*мл/iu', $label, $volumeMatch)) {
+                continue;
+            }
+
+            $volume = (int) round((float) str_replace(',', '.', $volumeMatch[1]));
+            $type = $defaultType;
+            if (preg_match('/(?:^|\s)(парфюмерная вода|туалетная вода|одеколон|духи)/iu', $label, $typeMatch)) {
+                $type = $this->cleanText($typeMatch[1]);
+            }
+
+            $offers[] = [
+                'variant' => $volume . ' мл',
+                'type' => $type,
+                'title' => '',
+                'article' => $this->cleanText($row[2]),
+                'price_byn' => '',
+                'old_price' => '',
+                'stock_flag' => '',
+                'sale_flag' => '',
+                'shop_flag' => '',
+            ];
+        }
+
+        return $offers;
+    }
+
+    /**
+     * @param  list<array<string, string>>  $primary
+     * @param  list<array<string, string>>  $secondary
+     * @return list<array<string, string>>
+     */
+    protected function mergeOffersByVolumeKey(array $primary, array $secondary): array
+    {
+        $seen = [];
+        foreach ($primary as $offer) {
+            $key = $this->offerVolumeKey($offer);
+            if ($key !== '') {
+                $seen[$key] = true;
+            }
+        }
+
+        $merged = $primary;
+        foreach ($secondary as $offer) {
+            $key = $this->offerVolumeKey($offer);
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+            $merged[] = $offer;
+            $seen[$key] = true;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param  array<string, string>  $offer
+     */
+    protected function offerVolumeKey(array $offer): string
+    {
+        $text = mb_strtolower(trim(((string) ($offer['variant'] ?? '')) . ' ' . ((string) ($offer['type'] ?? ''))));
+        if (!preg_match('/(\d+(?:[.,]\d+)?)\s*мл/u', $text, $match)) {
+            return '';
+        }
+
+        $ml = (int) round((float) str_replace(',', '.', $match[1]));
+        $type = mb_strtolower(trim((string) ($offer['type'] ?? '')));
+
+        return $ml . '|' . $type;
     }
 
     protected function parseAttrs(string $tag): array

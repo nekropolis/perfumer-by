@@ -224,7 +224,7 @@ export default function AdminLegacyProductsPage() {
                                         <td className="px-3 py-2">{item.status}</td>
                                         <td className="px-3 py-2">
                                             {item.linked_product_id
-                                                ? `${item.linked_product_name || "—"} (${item.linked_product_slug || "—"})`
+                                                ? `${item.linked_brand_name ? `${item.linked_brand_name} ` : ""}${item.linked_product_name || "—"} (${item.linked_product_slug || "—"})`
                                                 : "—"}
                                         </td>
                                         <td className="px-3 py-2 text-right">

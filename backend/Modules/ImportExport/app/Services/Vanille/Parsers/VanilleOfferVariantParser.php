@@ -14,23 +14,14 @@ class VanilleOfferVariantParser
         $type = (string) ($offer['type'] ?? '');
         $fullText = mb_strtolower(trim("{$variant} {$title} {$type}"));
 
-        $volume = null;
-        if (preg_match('/(\d+)\s*(мл|ml)/iu', $variant, $m)) {
-            $volume = (int) $m[1];
+        $volume = $this->extractVolumeMl($variant);
+        if ($volume === null) {
+            $volume = $this->extractVolumeMl($fullText);
         }
 
         $isTester = str_contains($fullText, 'тестер') || str_contains($fullText, 'tester');
 
-        $concentration = null;
-        if (str_contains($fullText, 'extrait de parfum') || str_contains($fullText, ' extrait')) {
-            $concentration = 'extrait de parfum';
-        } elseif (str_contains($fullText, ' edc')) {
-            $concentration = 'edc';
-        } elseif (str_contains($fullText, ' edp')) {
-            $concentration = 'edp';
-        } elseif (str_contains($fullText, ' edt')) {
-            $concentration = 'edt';
-        }
+        $concentration = $this->resolveConcentrationCode($fullText);
 
         return [
             'volume_ml' => $volume,
@@ -78,5 +69,43 @@ class VanilleOfferVariantParser
                 'sort_order' => 0,
             ]
         );
+    }
+
+    private function extractVolumeMl(string $text): ?int
+    {
+        if (!preg_match('/(\d+(?:[.,]\d+)?)\s*(мл|ml)\b/iu', $text, $match)) {
+            return null;
+        }
+
+        return (int) round((float) str_replace(',', '.', $match[1]));
+    }
+
+    private function resolveConcentrationCode(string $fullText): ?string
+    {
+        if (str_contains($fullText, 'extrait de parfum') || preg_match('/\bextrait\b/u', $fullText)) {
+            return 'extrait de parfum';
+        }
+
+        if (str_contains($fullText, 'парфюмерная вода') || str_contains($fullText, 'eau de parfum')) {
+            return 'edp';
+        }
+
+        if (str_contains($fullText, 'туалетная вода') || str_contains($fullText, 'eau de toilette')) {
+            return 'edt';
+        }
+
+        if (str_contains($fullText, 'одеколон') || str_contains($fullText, 'eau de cologne')) {
+            return 'edc';
+        }
+
+        if (preg_match('/\b(edp|edt|edc)\b/u', $fullText, $abbrev)) {
+            return mb_strtolower($abbrev[1]);
+        }
+
+        if (str_contains($fullText, 'духи') && !str_contains($fullText, 'туалет')) {
+            return 'extrait de parfum';
+        }
+
+        return null;
     }
 }

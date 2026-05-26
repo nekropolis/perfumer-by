@@ -463,7 +463,7 @@ class StockInventoryService
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $product->id,
                     'variant_id' => $variant->id,
-                    'product_name' => $product->name,
+                    'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_title' => $variant->title,
                     'qty' => $qty,
                     'price' => $price,
@@ -490,7 +490,7 @@ class StockInventoryService
 
                 $auditItems[] = [
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_id' => $variant->id,
                     'variant_title' => $variant->title,
                     'qty' => $qty,
@@ -556,7 +556,7 @@ class StockInventoryService
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $product->id,
                     'variant_id' => $variant->id,
-                    'product_name' => $product->name,
+                    'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_title' => $variant->title,
                     'qty' => $qty,
                     'price' => $price,
@@ -582,7 +582,7 @@ class StockInventoryService
 
                 $auditItems[] = [
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_id' => $variant->id,
                     'variant_title' => $variant->title,
                     'qty' => $qty,

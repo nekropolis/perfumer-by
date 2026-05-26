@@ -5,6 +5,7 @@ namespace Modules\Cart\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -66,6 +67,9 @@ class CartItemResource extends JsonResource
             'product_variant_id' => $variant?->id,
 
             'product_name' => $product?->name,
+            'product_display_name' => $product
+                ? ProductDisplayName::forProduct($product)
+                : null,
             'product_slug' => $product?->slug,
             'brand_name' => $product?->brand?->name,
 

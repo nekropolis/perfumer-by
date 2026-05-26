@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Services\SmartSearch;
 
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\ProductDisplayName;
 
 class ProductSearchDocumentBuilder
 {
@@ -27,7 +28,7 @@ class ProductSearchDocumentBuilder
         $hasStock = (int) ($product->activeVariants?->sum('stock') ?? 0) > 0;
         $preorderAvailable = (bool) ($product->activeVariants?->contains(fn ($variant) => (bool) $variant->is_preorder) ?? false);
 
-        $display = trim(((string) ($product->brand?->name ?? '')).' '.((string) $product->name));
+        $display = ProductDisplayName::forProduct($product);
 
         return [
             'id' => (int) $product->id,

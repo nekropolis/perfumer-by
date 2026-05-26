@@ -22,6 +22,7 @@ import {
     productImageLoader,
     productImagePathForContext,
 } from "@/lib/product-image-url";
+import { productDisplayName } from "@/lib/product-display-name";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import ProductCard from "@/components/product/product-card";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
@@ -221,13 +222,13 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
                     className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
                 >
                     <div className="mt-2 flex w-max snap-x snap-mandatory gap-3">
-                        {products.map((item, index) => (
+                        {products.map((item) => (
                             <div
                                 key={item.id}
                                 className="min-w-0 shrink-0 snap-start"
                                 style={{ width: slideWidthPx, flex: "0 0 auto" }}
                             >
-                                <ProductCard product={item} showBrand eager={index < 4} />
+                                <ProductCard product={item} />
                             </div>
                         ))}
                     </div>
@@ -443,7 +444,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                     <Image
                                         src={mainImageUrl}
                                         loader={productImageLoader}
-                                        alt={mainImage?.alt?.trim() || product.name}
+                                        alt={mainImage?.alt?.trim() || productDisplayName(product)}
                                         fill
                                         priority
                                         loading="eager"
@@ -496,7 +497,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                             <Image
                                                 src={thumbUrl}
                                                 loader={productImageLoader}
-                                                alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
+                                                alt={image.alt?.trim() || `${productDisplayName(product)} — фото ${index + 1}`}
                                                 fill
                                                 loading="eager"
                                                 sizes="96px"
@@ -521,7 +522,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     </div>
 
                     <h1 className="mb-5 text-3xl font-semibold leading-tight sm:text-4xl">
-                        {product.h1 || product.name}
+                        {product.h1 || productDisplayName(product)}
                     </h1>
 
                     <button
@@ -622,7 +623,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         onAddToCartAction={handleAddToCart}
                         formatPriceAction={formatPrice}
                         productId={product.id}
-                        productName={product.name}
+                        productName={productDisplayName(product)}
                         isProductOutOfStock={product.is_out_of_stock}
                         loyaltyCardNumber={isAuthenticated ? loyaltyCard?.number ?? null : null}
                         loyaltyPercent={isAuthenticated ? loyaltyCard?.discountPercent ?? 0 : 0}
@@ -633,7 +634,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                 <section className="md:col-span-2 xl:col-span-2">
                     <ProductServiceInfo
                         productId={product.id}
-                        productName={product.name}
+                        productName={productDisplayName(product)}
                         variantId={selectedVariant?.id ?? null}
                         variantTitle={selectedVariant?.display_name ?? null}
                     />
@@ -754,7 +755,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
                         <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium text-[var(--foreground)]">
-                                {product.h1 || product.name}
+                                {product.h1 || productDisplayName(product)}
                             </div>
                             <div className="truncate text-xs text-[var(--text-secondary)]">
                                 {selectedVariant?.display_name || "Вариант не выбран"}
@@ -827,7 +828,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={mainImageFullUrl}
-                                    alt={mainImage?.alt?.trim() || product.name}
+                                    alt={mainImage?.alt?.trim() || productDisplayName(product)}
                                     className="block h-auto w-auto max-h-[min(92vh,720px)] max-w-[92vw] object-contain"
                                 />
                                 {lightboxHasMultiple ? (
@@ -871,7 +872,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                                     <Image
                                                         src={thumbUrl}
                                                         loader={productImageLoader}
-                                                        alt={image.alt?.trim() || `${product.name} — фото ${index + 1}`}
+                                                        alt={image.alt?.trim() || `${productDisplayName(product)} — фото ${index + 1}`}
                                                         fill
                                                         sizes="56px"
                                                         className="object-contain"

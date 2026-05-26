@@ -238,12 +238,14 @@ export type SellerOneSupplierProductItem = {
     product?: {
         id: number;
         name: string;
+        display_name?: string;
         slug: string;
     } | null;
     suggested_variant?: {
         id: number;
         product_id: number;
         product_name: string | null;
+        display_name?: string | null;
         brand_name: string | null;
         display: string;
     } | null;
@@ -252,6 +254,7 @@ export type SellerOneSupplierProductItem = {
     suggested_product?: {
         id: number;
         name: string;
+        display_name?: string;
         slug: string | null;
         brand_name: string | null;
         variants_count: number;
@@ -260,6 +263,7 @@ export type SellerOneSupplierProductItem = {
         id: number;
         product_id: number;
         product_name: string | null;
+        display_name?: string | null;
         brand_name: string | null;
         display: string;
     } | null;

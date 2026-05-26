@@ -10,6 +10,9 @@ use Illuminate\Support\Carbon;
 use Modules\Catalog\Jobs\RunVanilleImportJob;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\PublicStorageWriteGuard;
+use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Catalog\Models\ProductVariant;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
@@ -51,6 +54,8 @@ class VanilleImportService
     public const PARSE_PRODUCTS_MODE_FULL = 'full';
 
     public const PARSE_PRODUCTS_MODE_NEW_ONLY = 'new_only';
+
+    public const PARSE_PRODUCTS_MODE_ERRORS_ONLY = 'errors_only';
 
     public function __construct(
         protected VanilleHttpClient $httpClient,
@@ -124,11 +129,12 @@ class VanilleImportService
             try {
                 $newProductIdForLlm = null;
                 DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$newProductIdForLlm) {
-                    $productName = $this->resolveProductName($item);
+                    $fullTitle = $this->resolveProductName($item);
                     $brand = null;
+                    $brandName = trim((string) ($item['brand'] ?? ''));
 
-                    if (!empty($item['brand'])) {
-                        $brandSlug = Str::slug($item['brand']);
+                    if ($brandName !== '') {
+                        $brandSlug = VanilleHelper::slugify($brandName);
                         if ($brandSlug === '') {
                             $brandSlug = 'brand';
                         }
@@ -137,8 +143,8 @@ class VanilleImportService
                         $brand = Brand::firstOrCreate(
                             ['slug' => $brandSlug],
                             [
-                                'name' => $item['brand'],
-                                'seo_title' => $item['brand'],
+                                'name' => $brandName,
+                                'seo_title' => $brandName,
                                 'seo_description' => null,
                                 'description' => null,
                                 'is_active' => true,
@@ -147,12 +153,18 @@ class VanilleImportService
                         $brandSlugSet[mb_strtolower((string) $brand->slug)] = true;
                     }
 
-                    $slug = Str::slug($productName);
-                    if ($slug === '') {
+                    $strip = ProductDisplayName::stripBrandFromName($brandName, $fullTitle);
+                    $productShortName = $strip['found'] ? $strip['name'] : $fullTitle;
+                    $displayName = ProductDisplayName::format($brand?->name ?? $brandName, $productShortName);
+
+                    $baseSlug = $brand
+                        ? ProductDisplayName::buildSlug((string) $brand->slug, $productShortName)
+                        : VanilleHelper::slugify($productShortName);
+                    if ($baseSlug === '') {
                         $urlTail = trim((string) parse_url((string) ($item['url'] ?? ''), PHP_URL_PATH), '/');
-                        $slug = Str::slug($urlTail) ?: 'product';
+                        $baseSlug = VanilleHelper::slugify($urlTail) ?: 'product';
                     }
-                    $slug = $this->resolveUniqueSlugInMemory($slug, $productSlugSet, $brandSlugSet);
+                    $slug = $this->resolveUniqueSlugInMemory($baseSlug, $productSlugSet, $brandSlugSet);
                     $existingProduct = Product::where('slug', $slug)->first();
 
                     if ($existingProduct) {
@@ -164,11 +176,11 @@ class VanilleImportService
                             'slug' => $slug,
                             'brand_id' => $brand?->id,
                             'main_category_id' => null,
-                            'name' => $productName,
-                            'h1' => $productName,
+                            'name' => $productShortName,
+                            'h1' => $displayName,
                             'short_description' => mb_substr(trim(strip_tags($item['description'] ?? '')), 0, 1000),
                             'description' => $item['description'] ?? null,
-                            'seo_title' => mb_substr(trim($item['page_title'] ?? $productName), 0, 255),
+                            'seo_title' => mb_substr(trim($item['page_title'] ?? $displayName), 0, 255),
                             'seo_description' => mb_substr(trim(strip_tags($item['description'] ?? '')), 0, 500),
                             'is_active' => true,
                             'is_new' => false,
@@ -188,8 +200,8 @@ class VanilleImportService
                         [
                             'brand_id' => $brand?->id,
                             'product_id' => $product->id,
-                            'external_name' => $productName,
-                            'external_slug' => Str::slug($productName),
+                            'external_name' => $fullTitle,
+                            'external_slug' => VanilleHelper::slugify($fullTitle),
                             'is_linked' => true,
                             'is_active' => true,
                             'last_seen_at' => now(),
@@ -201,14 +213,14 @@ class VanilleImportService
                     if ($existingProduct) {
                         $updated++;
                         $updatedProducts[] = [
-                            'name' => $productName,
+                            'name' => $displayName,
                             'slug' => (string) $product->slug,
                             'url' => trim((string) ($item['url'] ?? '')),
                         ];
                     } else {
                         $imported++;
                         $createdProducts[] = [
-                            'name' => $productName,
+                            'name' => $displayName,
                             'slug' => (string) $product->slug,
                             'url' => trim((string) ($item['url'] ?? '')),
                         ];
@@ -220,38 +232,13 @@ class VanilleImportService
                     );
 
                     $offers = is_array($item['offers'] ?? null) ? $item['offers'] : [];
-                    foreach ($offers as $index => $offer) {
-                        $parsed = $this->offerVariantParser->parseVariant($offer);
-                        $definition = $this->offerVariantParser->resolveVariantDefinition($parsed);
-                        if (!$definition) {
-                            continue;
-                        }
-
-                        $variant = ProductVariant::where([
-                            'product_id' => $product->id,
-                            'variant_definition_id' => $definition->id,
-                        ])->first();
-
-                        if (!$variant) {
-                            ProductVariant::create([
-                                'product_id' => $product->id,
-                                'variant_definition_id' => $definition->id,
-                                // Vanille parser should only create product/variant structure.
-                                'price' => null,
-                                'old_price' => null,
-                                'stock' => 0,
-                                'is_preorder' => false,
-                                'is_active' => true,
-                                'sort_order' => $index,
-                            ]);
-                        }
-                    }
+                    $this->syncProductVariantsFromOffers($product, $offers);
 
                     if ($offers === []) {
-                        $log[] = 'INFO: товар без вариантов создан: ' . $productName;
+                        $log[] = 'INFO: товар без вариантов создан: ' . $displayName;
                     }
 
-                    $log[] = 'OK: ' . $productName;
+                    $log[] = 'OK: ' . $displayName;
                 });
 
                 if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {
@@ -910,6 +897,27 @@ class VanilleImportService
             }
         }
 
+        if ($mode === self::PARSE_PRODUCTS_MODE_ERRORS_ONLY && $linksFilePath === null) {
+            $errorsLinksPath = $this->buildParseErrorsLinksFile();
+            if ($errorsLinksPath === '') {
+                return [
+                    'success' => true,
+                    'message' => 'Нет URL в parse_errors.json для повторного парсинга',
+                    'count' => 0,
+                    'errors' => 0,
+                    'files' => [],
+                    'log' => [],
+                    'done' => true,
+                    'offset' => 0,
+                    'limit' => $limit,
+                    'links_path' => $this->parseErrorsManifestPath(),
+                    'parse_mode' => $mode,
+                    'parse_errors_pending' => 0,
+                ];
+            }
+            $linksFilePath = $errorsLinksPath;
+        }
+
         $linksPath = $linksFilePath ?: ($this->ensureVanilleImportDir() . '/product_links.json');
 
         if (!file_exists($linksPath)) {
@@ -979,13 +987,16 @@ class VanilleImportService
                 $items[] = $item;
                 $log[] = 'OK: ' . $url;
                 $parsedUrls[] = $url;
+                $this->removeParseError($url);
                 $parsedProducts[] = [
                     'url' => $url,
                     'name' => trim((string) ($item['name'] ?? '')),
                 ];
             } catch (\Throwable $e) {
                 $errors++;
-                $log[] = 'ERROR: ' . $url . ' -> ' . $e->getMessage();
+                $message = $e->getMessage();
+                $log[] = 'ERROR: ' . $url . ' -> ' . $message;
+                $this->recordParseError($url, $message);
             }
         }
 
@@ -1179,6 +1190,317 @@ class VanilleImportService
             'processed_files' => $processedFiles,
             'created_products' => $createdProducts,
             'updated_products' => $updatedProducts,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $offers
+     */
+    public function syncProductVariantsFromOffers(Product $product, array $offers): int
+    {
+        $created = 0;
+
+        foreach ($offers as $index => $offer) {
+            if (!is_array($offer)) {
+                continue;
+            }
+
+            $parsed = $this->offerVariantParser->parseVariant($offer);
+            $definition = $this->offerVariantParser->resolveVariantDefinition($parsed);
+            if (!$definition) {
+                continue;
+            }
+
+            $variant = ProductVariant::where([
+                'product_id' => $product->id,
+                'variant_definition_id' => $definition->id,
+            ])->first();
+
+            if ($variant) {
+                continue;
+            }
+
+            ProductVariant::create([
+                'product_id' => $product->id,
+                'variant_definition_id' => $definition->id,
+                'price' => null,
+                'old_price' => null,
+                'stock' => 0,
+                'is_preorder' => false,
+                'is_active' => true,
+                'sort_order' => $index,
+            ]);
+            $created++;
+        }
+
+        return $created;
+    }
+
+    /**
+     * @return array{
+     *     success: bool,
+     *     message: string,
+     *     processed: int,
+     *     variants_created: int,
+     *     offers_refreshed: int,
+     *     errors: int,
+     *     offset: int,
+     *     next_offset: int,
+     *     total: int,
+     *     done: bool,
+     *     log: list<string>
+     * }
+     */
+    public function repairVanilleVariantsBatch(
+        int $offset = 0,
+        int $limit = 20,
+        bool $onlyMissingVariants = true,
+        bool $reparseFromUrl = true,
+        bool $dryRun = false,
+    ): array {
+        $supplier = Supplier::query()->where('code', 'vanille')->first();
+        if (!$supplier) {
+            return [
+                'success' => false,
+                'message' => 'Поставщик vanille не найден',
+                'processed' => 0,
+                'variants_created' => 0,
+                'offers_refreshed' => 0,
+                'errors' => 0,
+                'offset' => $offset,
+                'next_offset' => $offset,
+                'total' => 0,
+                'done' => true,
+                'log' => [],
+            ];
+        }
+
+        $query = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('is_linked', true)
+            ->whereNotNull('product_id')
+            ->whereNotNull('external_url')
+            ->with('product')
+            ->orderBy('id');
+
+        if ($onlyMissingVariants) {
+            $query->whereHas('product', static function ($productQuery): void {
+                $productQuery->whereDoesntHave('variants');
+            });
+        }
+
+        $total = (clone $query)->count();
+        $rows = $query->offset($offset)->limit(max(1, $limit))->get();
+
+        $log = [];
+        $processed = 0;
+        $variantsCreated = 0;
+        $offersRefreshed = 0;
+        $errors = 0;
+
+        foreach ($rows as $supplierProduct) {
+            $processed++;
+            $product = $supplierProduct->product;
+            $url = trim((string) $supplierProduct->external_url);
+
+            if (!$product) {
+                $errors++;
+                $log[] = 'SKIP: product #' . (int) $supplierProduct->product_id . ' not found';
+
+                continue;
+            }
+
+            if ($url === '') {
+                $errors++;
+                $log[] = 'SKIP: empty URL for product #' . $product->id;
+
+                continue;
+            }
+
+            try {
+                $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+                $offers = is_array($payload['offers'] ?? null) ? $payload['offers'] : [];
+
+                if ($reparseFromUrl) {
+                    if ($dryRun) {
+                        $log[] = 'DRY: reparse ' . $url;
+                        continue;
+                    }
+
+                    $parsed = $this->productParser->parseProductPage($url);
+                    $offers = is_array($parsed['offers'] ?? null) ? $parsed['offers'] : [];
+                    $payload['offers'] = $offers;
+                    foreach (['characteristics', 'description', 'gallery_image_urls', 'brand', 'name', 'page_title'] as $key) {
+                        if (array_key_exists($key, $parsed)) {
+                            $payload[$key] = $parsed[$key];
+                        }
+                    }
+                    $supplierProduct->payload = $payload;
+                    $supplierProduct->save();
+                    $offersRefreshed++;
+                }
+
+                if ($dryRun) {
+                    $wouldCreate = 0;
+                    foreach ($offers as $offer) {
+                        if (!is_array($offer)) {
+                            continue;
+                        }
+                        $parsedOffer = $this->offerVariantParser->parseVariant($offer);
+                        if ($this->offerVariantParser->resolveVariantDefinition($parsedOffer)) {
+                            $wouldCreate++;
+                        }
+                    }
+                    $log[] = sprintf(
+                        'DRY: %s | offers=%d | would_add_variants=%d',
+                        $product->name,
+                        count($offers),
+                        $wouldCreate
+                    );
+
+                    continue;
+                }
+
+                $created = $this->syncProductVariantsFromOffers($product, $offers);
+                $variantsCreated += $created;
+                $log[] = sprintf(
+                    'OK: %s | offers=%d | variants+%d | total=%d',
+                    $product->name,
+                    count($offers),
+                    $created,
+                    $product->variants()->count()
+                );
+            } catch (Throwable $e) {
+                $errors++;
+                $log[] = 'ERROR: ' . $url . ' -> ' . $e->getMessage();
+            }
+        }
+
+        $nextOffset = $offset + $processed;
+
+        return [
+            'success' => $errors === 0,
+            'message' => $dryRun
+                ? 'Проверка вариантов Vanille (dry-run)'
+                : 'Починка вариантов Vanille',
+            'processed' => $processed,
+            'variants_created' => $variantsCreated,
+            'offers_refreshed' => $offersRefreshed,
+            'errors' => $errors,
+            'offset' => $offset,
+            'next_offset' => $nextOffset,
+            'total' => $total,
+            'done' => $nextOffset >= $total,
+            'log' => $log,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     success: bool,
+     *     message: string,
+     *     items_updated: int,
+     *     errors: int,
+     *     file_offset: int,
+     *     next_file_offset: int,
+     *     total_files: int,
+     *     done: bool,
+     *     files: list<string>,
+     *     log: list<string>
+     * }
+     */
+    public function refreshParsedJsonOffersBatch(
+        int $fileOffset = 0,
+        int $fileLimit = 1,
+        bool $dryRun = false,
+    ): array {
+        $dir = $this->ensureVanilleProductsDir();
+        $files = glob($dir . '/products_*.json') ?: [];
+        sort($files);
+
+        if ($files === []) {
+            return [
+                'success' => false,
+                'message' => 'Файлы products_*.json не найдены',
+                'items_updated' => 0,
+                'errors' => 0,
+                'file_offset' => $fileOffset,
+                'next_file_offset' => $fileOffset,
+                'total_files' => 0,
+                'done' => true,
+                'files' => [],
+                'log' => [],
+            ];
+        }
+
+        $chunk = array_slice($files, $fileOffset, max(1, $fileLimit));
+        $log = [];
+        $itemsUpdated = 0;
+        $errors = 0;
+
+        foreach ($chunk as $file) {
+            $items = json_decode((string) file_get_contents($file), true);
+            if (!is_array($items)) {
+                $errors++;
+                $log[] = 'ERROR: invalid JSON ' . basename($file);
+
+                continue;
+            }
+
+            $fileChanged = false;
+
+            foreach ($items as $index => $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $url = trim((string) ($item['url'] ?? ''));
+                if ($url === '') {
+                    continue;
+                }
+
+                try {
+                    if ($dryRun) {
+                        $log[] = 'DRY: ' . $url;
+
+                        continue;
+                    }
+
+                    $parsed = $this->productParser->parseProductPage($url);
+                    $items[$index]['offers'] = is_array($parsed['offers'] ?? null) ? $parsed['offers'] : [];
+                    $fileChanged = true;
+                    $itemsUpdated++;
+                } catch (Throwable $e) {
+                    $errors++;
+                    $log[] = 'ERROR: ' . $url . ' -> ' . $e->getMessage();
+                }
+            }
+
+            if ($fileChanged && !$dryRun) {
+                file_put_contents(
+                    $file,
+                    json_encode($items, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+                );
+            }
+
+            $log[] = 'FILE: ' . basename($file);
+        }
+
+        $nextFileOffset = $fileOffset + count($chunk);
+
+        return [
+            'success' => $errors === 0,
+            'message' => $dryRun
+                ? 'Обновление offers в JSON (dry-run)'
+                : 'Обновление offers в JSON',
+            'items_updated' => $itemsUpdated,
+            'errors' => $errors,
+            'file_offset' => $fileOffset,
+            'next_file_offset' => $nextFileOffset,
+            'total_files' => count($files),
+            'done' => $nextFileOffset >= count($files),
+            'files' => array_map(static fn (string $path): string => basename($path), $chunk),
+            'log' => $log,
         ];
     }
 
@@ -1393,6 +1715,128 @@ class VanilleImportService
     private function parsedUrlsManifestPath(): string
     {
         return $this->ensureVanilleImportDir() . '/parsed_urls.json';
+    }
+
+    private function parseErrorsManifestPath(): string
+    {
+        return $this->ensureVanilleImportDir() . '/parse_errors.json';
+    }
+
+    /**
+     * @return array<string, array{message: string, last_attempt_at: string}>
+     */
+    private function loadParseErrorsMap(): array
+    {
+        $path = $this->parseErrorsManifestPath();
+        if (!is_file($path)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+        $errors = is_array($decoded['errors'] ?? null) ? $decoded['errors'] : [];
+        $map = [];
+
+        foreach ($errors as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $url = trim((string) ($row['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+            $key = $this->normalizeLinkUrl($url);
+            $map[$key] = [
+                'url' => $url,
+                'message' => trim((string) ($row['message'] ?? '')),
+                'last_attempt_at' => (string) ($row['last_attempt_at'] ?? ''),
+            ];
+        }
+
+        return $map;
+    }
+
+    private function persistParseErrorsMap(array $map): void
+    {
+        $rows = array_values($map);
+        usort($rows, static fn (array $a, array $b): int => strcmp((string) ($a['url'] ?? ''), (string) ($b['url'] ?? '')));
+
+        file_put_contents(
+            $this->parseErrorsManifestPath(),
+            json_encode(['errors' => $rows], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
+    }
+
+    private function recordParseError(string $url, string $message): void
+    {
+        $key = $this->normalizeLinkUrl($url);
+        if ($key === '') {
+            return;
+        }
+
+        $map = $this->loadParseErrorsMap();
+        $map[$key] = [
+            'url' => $url,
+            'message' => $message,
+            'last_attempt_at' => now()->toIso8601String(),
+        ];
+        $this->persistParseErrorsMap($map);
+    }
+
+    private function removeParseError(string $url): void
+    {
+        $key = $this->normalizeLinkUrl($url);
+        if ($key === '') {
+            return;
+        }
+
+        $map = $this->loadParseErrorsMap();
+        if (!isset($map[$key])) {
+            return;
+        }
+
+        unset($map[$key]);
+        $this->persistParseErrorsMap($map);
+    }
+
+    /**
+     * Файл ссылок только для URL из parse_errors.json (режим errors_only).
+     */
+    private function buildParseErrorsLinksFile(): string
+    {
+        $map = $this->loadParseErrorsMap();
+        if ($map === []) {
+            return '';
+        }
+
+        $links = [];
+        foreach ($map as $row) {
+            $url = trim((string) ($row['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+            $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
+            $slug = trim(basename($path));
+            $links[] = [
+                'url' => $url,
+                'slug' => $slug !== '' ? $slug : null,
+            ];
+        }
+
+        $path = $this->ensureVanilleImportDir() . '/product_links_errors_only.json';
+        file_put_contents($path, json_encode($links, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        return $path;
+    }
+
+    public function getParseErrorsSummary(): array
+    {
+        $map = $this->loadParseErrorsMap();
+
+        return [
+            'path' => $this->parseErrorsManifestPath(),
+            'count' => count($map),
+            'sample' => array_slice(array_values($map), 0, 20),
+        ];
     }
 
     private function newOnlyProductLinksPath(): string
@@ -1827,6 +2271,8 @@ class VanilleImportService
 
     public function enqueueParseCatalogImages(): VanilleImportJob
     {
+        PublicStorageWriteGuard::assertProductImagesWritable();
+
         return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_CATALOG_IMAGES, [
             'state' => ['brand_offset' => 0],
         ]);
@@ -1834,6 +2280,8 @@ class VanilleImportService
 
     public function enqueueParseProductImages(): VanilleImportJob
     {
+        PublicStorageWriteGuard::assertProductImagesWritable();
+
         return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_PRODUCT_IMAGES, [
             'state' => ['offset' => 0],
         ]);
@@ -1851,6 +2299,13 @@ class VanilleImportService
      */
     public function enqueueRetryFailed(string $taskType, ?array $productIds = null): VanilleImportJob
     {
+        if (in_array($taskType, [
+            ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
+            ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
+        ], true)) {
+            PublicStorageWriteGuard::assertProductImagesWritable();
+        }
+
         $state = ['task_type' => $taskType];
         if ($productIds !== null && $productIds !== []) {
             $state['product_ids'] = array_values(array_map('intval', $productIds));

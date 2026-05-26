@@ -4,6 +4,8 @@ namespace Modules\ImportExport\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\ProductDisplayName;
 
 class ImportLegacyOrdersCommand extends Command
 {
@@ -41,6 +43,11 @@ class ImportLegacyOrdersCommand extends Command
             ->whereNotNull('product_id')
             ->pluck('product_id', 'legacy_product_id')
             ->all();
+        $catalogProductsById = Product::query()
+            ->with('brand:id,name')
+            ->whereIn('id', array_values(array_unique(array_map(static fn ($id): int => (int) $id, $productMap))))
+            ->get()
+            ->keyBy('id');
         $customerMap = DB::table('legacy_map_customers')
             ->whereNotNull('user_id')
             ->pluck('user_id', 'legacy_customer_id')
@@ -142,6 +149,12 @@ class ImportLegacyOrdersCommand extends Command
                         $model = trim((string) ($item['model'] ?? ''));
                         $variantTitle = $model !== '' ? $model : ($name !== '' ? $name : 'Вариант');
 
+                        $catalogProduct = $mappedProductId ? $catalogProductsById->get($mappedProductId) : null;
+                        $productName = $catalogProduct
+                            ? ProductDisplayName::forProduct($catalogProduct)
+                            : ($name !== '' ? $name : 'Товар');
+                        $brandName = $catalogProduct?->brand?->name;
+
                         $qty = max(1, (int) ($item['quantity'] ?? 1));
                         $price = $this->asMoneyString((string) ($item['price'] ?? '0'));
                         $lineTotal = $this->asMoneyString((string) ($item['total'] ?? (string) (round((float) $price * $qty, 2))));
@@ -150,9 +163,9 @@ class ImportLegacyOrdersCommand extends Command
                             'order_id' => $orderId,
                             'product_id' => $mappedProductId,
                             'variant_id' => null,
-                            'product_name' => $name !== '' ? $name : 'Товар',
-                            'product_slug' => null,
-                            'brand_name' => null,
+                            'product_name' => $productName,
+                            'product_slug' => $catalogProduct?->slug,
+                            'brand_name' => $brandName !== null && $brandName !== '' ? $brandName : null,
                             'variant_title' => $variantTitle,
                             'sku' => $model !== '' ? mb_substr($model, 0, 255) : null,
                             'qty' => $qty,

@@ -42,6 +42,12 @@ type SearchResultsClientProps = {
     debugEnabled: boolean;
 };
 
+type ClientFetchState = {
+    forQuery: string;
+    data: SearchResponse | null;
+    error: string;
+};
+
 export default function SearchResultsClient({
     initialQuery,
     initialData,
@@ -51,31 +57,36 @@ export default function SearchResultsClient({
     const router = useRouter();
     const [query, setQuery] = useState(initialQuery);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(initialError);
-    const [data, setData] = useState<SearchResponse | null>(initialData);
+    const [fetchState, setFetchState] = useState<ClientFetchState | null>(null);
+
+    const trimmed = query.trim();
+    const isEmpty = trimmed.length === 0;
+    const isServerQuery = !isEmpty && trimmed === initialQuery.trim();
+
+    const data = isEmpty
+        ? null
+        : isServerQuery
+          ? initialData
+          : fetchState?.forQuery === trimmed
+            ? fetchState.data
+            : null;
+
+    const error = isEmpty
+        ? ""
+        : isServerQuery
+          ? initialError
+          : fetchState?.forQuery === trimmed
+            ? fetchState.error
+            : "";
 
     useEffect(() => {
-        setQuery(initialQuery);
-        setError(initialError);
-        setData(initialData);
-    }, [initialData, initialError, initialQuery]);
-
-    useEffect(() => {
-        const trimmed = query.trim();
-        if (!trimmed) {
-            setData(null);
-            setError("");
-            return;
-        }
-
-        if (trimmed === initialQuery.trim()) {
+        if (isEmpty || isServerQuery) {
             return;
         }
 
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => {
             setLoading(true);
-            setError("");
 
             const sp = new URLSearchParams();
             sp.set("q", trimmed);
@@ -88,14 +99,17 @@ export default function SearchResultsClient({
                 signal: controller.signal,
             })
                 .then((result) => {
-                    setData(result);
+                    setFetchState({ forQuery: trimmed, data: result, error: "" });
                 })
                 .catch((e) => {
                     if ((e as { name?: string })?.name === "AbortError") {
                         return;
                     }
-                    setError(e instanceof Error ? e.message : "Неизвестная ошибка");
-                    setData(null);
+                    setFetchState({
+                        forQuery: trimmed,
+                        data: null,
+                        error: e instanceof Error ? e.message : "Неизвестная ошибка",
+                    });
                 })
                 .finally(() => {
                     setLoading(false);
@@ -106,7 +120,7 @@ export default function SearchResultsClient({
             controller.abort();
             window.clearTimeout(timeoutId);
         };
-    }, [debugEnabled, initialQuery, query]);
+    }, [debugEnabled, isEmpty, isServerQuery, trimmed]);
 
     const brands = useMemo(() => data?.data?.brands ?? [], [data]);
     const products = useMemo(() => data?.data?.products ?? [], [data]);
@@ -195,7 +209,7 @@ export default function SearchResultsClient({
                     ) : (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {products.map((product) => (
-                                <ProductCard key={product.id} product={product} showBrand />
+                                <ProductCard key={product.id} product={product} />
                             ))}
                         </div>
                     )}

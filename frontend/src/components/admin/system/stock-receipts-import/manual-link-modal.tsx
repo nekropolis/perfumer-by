@@ -73,7 +73,9 @@ export function StockReceiptManualLinkModal({
                                                     active ? "bg-admin-primary text-white" : "hover:bg-admin-muted"
                                                 }`}
                                             >
-                                                {product.name}
+                                                {product.brand?.name
+                                                    ? `${product.brand.name} ${product.name}`.trim()
+                                                    : product.name}
                                             </button>
                                         );
                                     })}

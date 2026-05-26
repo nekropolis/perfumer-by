@@ -19,6 +19,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePreviewSyncService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
@@ -1117,6 +1118,12 @@ class SupplierPriceImportService
             'id' => $link->id,
             'product_id' => $link->product_id,
             'product_name' => $productModel?->name ?? ($product['name'] ?? null),
+            'display_name' => $productModel
+                ? ProductDisplayName::forProduct($productModel)
+                : ProductDisplayName::format(
+                    $product['brand_name'] ?? null,
+                    (string) ($product['name'] ?? '')
+                ),
             'brand_name' => $productModel?->brand?->name ?? ($product['brand_name'] ?? null),
             'display' => $this->variantMatcher->buildVariantLabel($link),
             'confidence' => 100,

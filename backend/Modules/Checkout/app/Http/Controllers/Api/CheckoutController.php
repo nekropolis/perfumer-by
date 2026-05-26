@@ -175,7 +175,9 @@ class CheckoutController extends Controller
                     'order_id' => $order->id,
                     'product_id' => $cartItem->product_id,
                     'variant_id' => $cartItem->variant_id,
-                    'product_name' => $cartItem->product?->name ?? '',
+                    'product_name' => $cartItem->product
+                        ? \Modules\Catalog\Support\ProductDisplayName::forProduct($cartItem->product)
+                        : '',
                     'product_slug' => $cartItem->product?->slug,
                     'brand_name' => $cartItem->product?->brand?->name,
                     'variant_title' => $this->makeVariantDisplayTitle($cartItem->variant),

@@ -13,6 +13,7 @@ use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\Catalog\Services\ProductImageVariantService;
 use Modules\Catalog\Support\ProductImagePathResolver;
+use Modules\Catalog\Support\PublicStorageWriteGuard;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
@@ -67,6 +68,8 @@ class VanilleMediaImportService
 
     public function runCatalogImagesBatch(int $brandOffset, int $brandLimit = self::CATALOG_BRANDS_PER_BATCH): array
     {
+        PublicStorageWriteGuard::assertProductImagesWritable();
+
         $brandsPath = storage_path('app/public/imports/vanille/brands.json');
         if (! is_file($brandsPath)) {
             return [
@@ -136,6 +139,7 @@ class VanilleMediaImportService
                     }
                     $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
                 } catch (Throwable $e) {
+                    $this->abortIfStorageWriteError($e);
                     $failed++;
                     $this->importRetryQueue->record(
                         ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
@@ -168,6 +172,8 @@ class VanilleMediaImportService
 
     public function runProductGalleryBatch(int $offset, int $limit = self::GALLERY_PRODUCTS_PER_BATCH): array
     {
+        PublicStorageWriteGuard::assertProductImagesWritable();
+
         $supplierId = $this->vanilleSupplierId();
         if ($supplierId === 0) {
             return [
@@ -247,6 +253,7 @@ class VanilleMediaImportService
                         $this->storeGalleryImage($productId, $imgUrl);
                         $saved++;
                     } catch (Throwable $e) {
+                        $this->abortIfStorageWriteError($e);
                         $log[] = 'WARN product '.$productId.' img '.$imgUrl.' -> '.$e->getMessage();
                     }
                 }
@@ -263,6 +270,7 @@ class VanilleMediaImportService
                     $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES, $productId);
                 }
             } catch (Throwable $e) {
+                $this->abortIfStorageWriteError($e);
                 $failed++;
                 $this->importRetryQueue->record(
                     ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
@@ -386,6 +394,13 @@ class VanilleMediaImportService
      */
     public function runRetryFailedBatch(string $taskType, int $offset, int $limit = self::RETRY_PRODUCTS_PER_BATCH, ?array $onlyProductIds = null): array
     {
+        if (in_array($taskType, [
+            ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
+            ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
+        ], true)) {
+            PublicStorageWriteGuard::assertProductImagesWritable();
+        }
+
         $ids = $onlyProductIds ?? $this->importRetryQueue->pendingProductIds($taskType, $limit, $offset);
         if ($ids === []) {
             return [
@@ -406,6 +421,7 @@ class VanilleMediaImportService
                     default => throw new \InvalidArgumentException('Unknown task_type'),
                 };
             } catch (Throwable $e) {
+                $this->abortIfStorageWriteError($e);
                 $failed++;
                 $this->importRetryQueue->record($taskType, (int) $productId, $e->getMessage(), []);
             }
@@ -915,5 +931,12 @@ class VanilleMediaImportService
     private function descriptionRewriter(): ProductDescriptionRewriter
     {
         return app(ProductDescriptionRewriter::class);
+    }
+
+    private function abortIfStorageWriteError(Throwable $e): void
+    {
+        if (PublicStorageWriteGuard::isStorageWriteError($e)) {
+            throw $e;
+        }
     }
 }

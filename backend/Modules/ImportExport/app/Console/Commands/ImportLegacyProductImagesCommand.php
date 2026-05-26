@@ -6,6 +6,8 @@ use Illuminate\Console\Command;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Modules\Catalog\Services\ProductImageVariantService;
+use Modules\Catalog\Support\ProductImagePathResolver;
 
 class ImportLegacyProductImagesCommand extends Command
 {
@@ -15,16 +17,16 @@ class ImportLegacyProductImagesCommand extends Command
         {--repair-existing : Normalize already imported legacy paths in product_images}
         {--debug-missing : Print sample missing source paths and candidates}';
 
-    protected $description = 'Import legacy product images (oc_product + oc_product_image) into product_images';
+    protected $description = 'Import legacy product images (oc_product + oc_product_image) into product_images with WebP variants';
 
-    public function handle(): int
+    public function handle(ProductImageVariantService $variantService): int
     {
         $dumpPath = (string) $this->option('dump');
         $dryRun = (bool) $this->option('dry-run');
         $repairExisting = (bool) $this->option('repair-existing');
 
         if ($repairExisting) {
-            $repairStats = $this->repairExistingImagePaths($dryRun, (bool) $this->option('debug-missing'));
+            $repairStats = $this->repairExistingImagePaths($variantService, $dryRun, (bool) $this->option('debug-missing'));
             $this->info('Existing product image paths repair finished.');
             $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
             $this->line('Checked existing rows: '.$repairStats['checked']);
@@ -120,7 +122,7 @@ class ImportLegacyProductImagesCommand extends Command
         $resolvedRows = [];
         $missingFiles = 0;
         foreach ($rowsToImport as $row) {
-            $resolved = $this->resolveLegacyImagePath($row, $dryRun);
+            $resolved = $this->resolveLegacyImagePath($row, $dryRun, $variantService);
             if ($resolved === null) {
                 $missingFiles++;
                 continue;
@@ -470,7 +472,7 @@ class ImportLegacyProductImagesCommand extends Command
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>|null
      */
-    private function resolveLegacyImagePath(array $row, bool $dryRun): ?array
+    private function resolveLegacyImagePath(array $row, bool $dryRun, ProductImageVariantService $variantService): ?array
     {
         $legacyPath = trim((string) ($row['path'] ?? ''));
         $productId = (int) ($row['product_id'] ?? 0);
@@ -481,6 +483,43 @@ class ImportLegacyProductImagesCommand extends Command
         $disk = Storage::disk('public');
         $normalizedLegacyPath = ltrim((string) preg_replace('#^storage/#', '', $legacyPath), '/');
         $sourceRelativePath = $this->resolveExistingSourcePath($disk, $normalizedLegacyPath);
+        $storedPaths = $this->storeLegacyImage($variantService, $disk, $sourceRelativePath, $productId, $legacyPath, $dryRun);
+        if ($storedPaths === null) {
+            return null;
+        }
+
+        return $this->applyStoredImagePaths($row, $storedPaths);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  array<string, string>  $storedPaths
+     * @return array<string, mixed>
+     */
+    private function applyStoredImagePaths(array $row, array $storedPaths): array
+    {
+        $row['path'] = $storedPaths['path'];
+        if (ProductImagePathResolver::hasVariantColumns()) {
+            $row['path_full'] = $storedPaths['path_full'];
+            $row['path_card'] = $storedPaths['path_card'];
+            $row['path_listing'] = $storedPaths['path_listing'];
+            $row['path_thumb'] = $storedPaths['path_thumb'];
+        }
+
+        return $row;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function storeLegacyImage(
+        ProductImageVariantService $variantService,
+        FilesystemAdapter $disk,
+        string $sourceRelativePath,
+        int $productId,
+        string $legacyPath,
+        bool $dryRun
+    ): ?array {
         if (! $this->sourceFileExists($disk, $sourceRelativePath)) {
             return null;
         }
@@ -491,6 +530,42 @@ class ImportLegacyProductImagesCommand extends Command
             $basename = 'image.jpg';
         }
 
+        if (ProductImagePathResolver::hasVariantColumns()) {
+            $baseFilename = pathinfo($basename, PATHINFO_FILENAME);
+            if ($baseFilename === '' || $baseFilename === '.' || $baseFilename === '..') {
+                $baseFilename = 'image';
+            }
+            $baseFilename = $this->resolveUniqueVariantBaseFilename($disk, $destinationDirectory, $baseFilename);
+
+            if ($dryRun) {
+                return [
+                    'path' => 'storage/'.$destinationDirectory.'/'.$baseFilename.'-full.webp',
+                    'path_full' => 'storage/'.$destinationDirectory.'/'.$baseFilename.'-full.webp',
+                    'path_card' => 'storage/'.$destinationDirectory.'/'.$baseFilename.'-card.webp',
+                    'path_listing' => 'storage/'.$destinationDirectory.'/'.$baseFilename.'-listing.webp',
+                    'path_thumb' => 'storage/'.$destinationDirectory.'/'.$baseFilename.'-thumb.webp',
+                ];
+            }
+
+            $binary = $this->readSourceBinary($disk, $sourceRelativePath);
+            if ($binary === null) {
+                return null;
+            }
+
+            try {
+                return $variantService->generateFromBinary(
+                    $binary,
+                    $disk,
+                    $destinationDirectory,
+                    'legacy-image',
+                    1,
+                    $baseFilename
+                );
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
         $destinationRelativePath = $destinationDirectory.'/'.$basename;
         if ($destinationRelativePath !== $sourceRelativePath) {
             $destinationRelativePath = $this->resolveUniqueDestinationPath($disk, $destinationRelativePath, $sourceRelativePath);
@@ -499,9 +574,37 @@ class ImportLegacyProductImagesCommand extends Command
             }
         }
 
-        $row['path'] = 'storage/'.$destinationRelativePath;
+        return ['path' => 'storage/'.$destinationRelativePath];
+    }
 
-        return $row;
+    private function resolveUniqueVariantBaseFilename(FilesystemAdapter $disk, string $directory, string $baseFilename): string
+    {
+        $candidate = $baseFilename;
+        $counter = 2;
+        while ($disk->exists($directory.'/'.$candidate.'-full.webp')) {
+            $candidate = $baseFilename.'-'.$counter;
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
+    private function readSourceBinary(FilesystemAdapter $disk, string $relativePath): ?string
+    {
+        if ($disk->exists($relativePath)) {
+            $binary = $disk->get($relativePath);
+
+            return ($binary !== false && $binary !== '') ? $binary : null;
+        }
+
+        $absolutePath = storage_path('app/public/'.ltrim($relativePath, '/'));
+        if (! is_file($absolutePath)) {
+            return null;
+        }
+
+        $binary = file_get_contents($absolutePath);
+
+        return ($binary !== false && $binary !== '') ? $binary : null;
     }
 
     private function resolveUniqueDestinationPath(FilesystemAdapter $disk, string $destinationRelativePath, string $sourceRelativePath): string
@@ -531,7 +634,7 @@ class ImportLegacyProductImagesCommand extends Command
     /**
      * @return array{checked:int,repaired:int,already_normalized:int,missing_source:int,empty_path:int}
      */
-    private function repairExistingImagePaths(bool $dryRun, bool $debugMissing): array
+    private function repairExistingImagePaths(ProductImageVariantService $variantService, bool $dryRun, bool $debugMissing): array
     {
         $stats = [
             'checked' => 0,
@@ -546,7 +649,7 @@ class ImportLegacyProductImagesCommand extends Command
 
         DB::table('product_images')
             ->orderBy('id')
-            ->chunkById(500, function ($rows) use (&$stats, &$debugMissingLines, $disk, $dryRun, $debugMissing): void {
+            ->chunkById(500, function ($rows) use (&$stats, &$debugMissingLines, $disk, $dryRun, $debugMissing, $variantService): void {
                 foreach ($rows as $row) {
                     $stats['checked']++;
 
@@ -558,7 +661,16 @@ class ImportLegacyProductImagesCommand extends Command
                     }
 
                     $normalizedCurrent = ltrim((string) preg_replace('#^storage/#', '', $currentPath), '/');
-                    if (preg_match('#^products/'.$productId.'/#', $normalizedCurrent) === 1) {
+                    if (
+                        preg_match('#^products/'.$productId.'/#', $normalizedCurrent) === 1
+                        && (
+                            ! ProductImagePathResolver::hasVariantColumns()
+                            || (
+                                is_string($row->path_full ?? null)
+                                && trim((string) $row->path_full) !== ''
+                            )
+                        )
+                    ) {
                         $stats['already_normalized']++;
                         continue;
                     }
@@ -581,32 +693,26 @@ class ImportLegacyProductImagesCommand extends Command
                         continue;
                     }
 
-                    $basename = pathinfo($normalizedCurrent, PATHINFO_BASENAME);
-                    if ($basename === '' || $basename === '.' || $basename === '..') {
-                        $basename = 'image.jpg';
-                    }
-
-                    $destinationDirectory = 'products/'.$productId;
-                    $destinationRelativePath = $destinationDirectory.'/'.$basename;
-                    $destinationRelativePath = $this->resolveUniqueDestinationPathForRow(
+                    $storedPaths = $this->storeLegacyImage(
+                        $variantService,
                         $disk,
-                        $destinationRelativePath,
                         $sourceRelativePath,
-                        (int) $row->id,
-                        $productId
+                        $productId,
+                        $normalizedCurrent,
+                        $dryRun
                     );
-
-                    if ($destinationRelativePath !== $sourceRelativePath && ! $dryRun && ! $this->sourceFileExists($disk, $destinationRelativePath)) {
-                        $this->copySourceToPublicPath($disk, $sourceRelativePath, $destinationRelativePath, $destinationDirectory);
+                    if ($storedPaths === null) {
+                        $stats['missing_source']++;
+                        continue;
                     }
 
                     if (! $dryRun) {
                         DB::table('product_images')
                             ->where('id', (int) $row->id)
-                            ->update([
-                                'path' => 'storage/'.$destinationRelativePath,
-                                'updated_at' => now(),
-                            ]);
+                            ->update(array_merge(
+                                $this->applyStoredImagePaths([], $storedPaths),
+                                ['updated_at' => now()]
+                            ));
                     }
 
                     $stats['repaired']++;

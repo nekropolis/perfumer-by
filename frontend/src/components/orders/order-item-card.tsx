@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 import type { OrderItem } from "@/types/orders";
 
 type Props = {
@@ -9,10 +10,11 @@ type Props = {
 export default function OrderItemCard({ item, linkMode }: Props) {
     const hasCatalog = item.product_id != null || item.variant_id != null;
 
+    const productTitle = lineItemProductTitle(item);
+
     return (
         <div className="rounded-2xl border p-4">
-            <div className="text-sm text-gray-500">{item.brand_name || "—"}</div>
-            <div className="text-lg font-medium">{item.product_name}</div>
+            <div className="text-lg font-medium">{productTitle}</div>
             <div className="text-sm text-gray-600">{item.variant_title}</div>
 
             {hasCatalog ? (
