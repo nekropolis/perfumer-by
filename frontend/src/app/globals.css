@@ -38,27 +38,33 @@ body {
 }
 
 body.admin-shell-body {
-  --admin-bg: #F7F3EE;
-  --admin-surface: #FFFCF8;
-  --admin-muted: #FBF7F3;
-  --admin-border: #E8DED4;
-  --admin-text: #1F1722;
-  --admin-text-secondary: #6E6572;
-  --admin-sidebar: #0f172a;
-  --admin-header: #1e293b;
+  --admin-bg: #F9FAFB;
+  --admin-surface: #FFFFFF;
+  --admin-muted: #F3F4F6;
+  --admin-border: #E5E7EB;
+  --admin-text: #111827;
+  --admin-text-secondary: #6B7280;
+  --admin-sidebar: #F3F4F6;
+  --admin-header: #FFFFFF;
   --admin-primary: #6F4A7E;
-  --admin-primary-hover: #5C3C68;
+  --admin-primary-hover: #5A3D66;
 
   background: var(--admin-bg);
-  background-image: linear-gradient(180deg, #F9F5F1 0%, #F7F3EE 100%);
+  background-image: none;
   color: var(--admin-text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 body.admin-shell-body input:focus,
 body.admin-shell-body select:focus,
 body.admin-shell-body textarea:focus {
   border-color: var(--admin-primary);
-  box-shadow: 0 0 0 3px rgb(216 194 230 / 0.55);
+  box-shadow: 0 0 0 3px rgb(111 74 126 / 0.14);
 }
 
 * {

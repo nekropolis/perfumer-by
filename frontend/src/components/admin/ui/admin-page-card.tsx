@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
+import { adminCardPadding, adminPageShell } from "@/lib/admin-ui-classes";
 
 type Props = {
     children: ReactNode;
@@ -7,5 +7,5 @@ type Props = {
 };
 
 export default function AdminPageCard({ children, className = "" }: Props) {
-    return <div className={`${adminCard} ${adminCardPadding} ${className}`}>{children}</div>;
+    return <div className={`${adminPageShell} ${adminCardPadding} ${className}`}>{children}</div>;
 }

@@ -15,6 +15,7 @@ use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
+use Modules\Catalog\Console\Commands\RepairVanilleCatalogImageOrderCommand;
 use Modules\Catalog\Console\Commands\RepairVanilleProductVariantsCommand;
 use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
@@ -67,6 +68,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         ImportVanilleSampleCommand::class,
         ParseVanilleProductsCommand::class,
         RepairVanilleProductVariantsCommand::class,
+        RepairVanilleCatalogImageOrderCommand::class,
         PruneBrandsWithoutProductsCommand::class,
         RegenerateProductImageVariantsCommand::class,
         ReindexProductSearchCommand::class,

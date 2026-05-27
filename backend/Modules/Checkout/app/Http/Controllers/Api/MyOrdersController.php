@@ -7,22 +7,26 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
+use Modules\Checkout\Support\OrderAccountScope;
 
 class MyOrdersController extends Controller
 {
+    private const ORDER_RELATIONS = [
+        'items.product.mainImage',
+        'discountCard:id,card_number',
+        'giftCertificatePurchases',
+        'orderGiftCertificates.giftCertificate',
+        'soldGiftCertificates.template',
+    ];
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        $orders = Order::query()
-            ->with([
-                'items.product.mainImage',
-                'discountCard:id,card_number',
-                'giftCertificatePurchases',
-                'orderGiftCertificates.giftCertificate',
-                'soldGiftCertificates.template',
-            ])
-            ->where('user_id', $user->id)
+        OrderAccountScope::linkOrdersForUser($user);
+
+        $orders = OrderAccountScope::queryForUser($user)
+            ->with(self::ORDER_RELATIONS)
             ->latest('id')
             ->paginate(20);
 
@@ -41,16 +45,15 @@ class MyOrdersController extends Controller
     {
         $user = $request->user();
 
+        OrderAccountScope::linkOrdersForUser($user);
+
         $order = Order::query()
-            ->with([
-                'items.product.mainImage',
-                'discountCard:id,card_number',
-                'giftCertificatePurchases',
-                'orderGiftCertificates.giftCertificate',
-                'soldGiftCertificates.template',
-            ])
-            ->where('user_id', $user->id)
+            ->with(self::ORDER_RELATIONS)
             ->findOrFail($id);
+
+        if (! OrderAccountScope::userCanAccess($order, $user)) {
+            abort(404);
+        }
 
         return response()->json([
             'data' => new OrderResource($order),

@@ -9,6 +9,10 @@ import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget
 import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
+import {
+    fetchAdminOrderCustomerContext,
+    type AdminOrderCustomerContext,
+} from "@/lib/admin-orders-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { adminBtnSecondary } from "@/lib/admin-ui-classes";
@@ -18,6 +22,133 @@ type Props = {
     onToggleSidebarAction: () => void;
     onOpenMobileMenuAction: () => void;
 };
+
+function phoneDigitsOnly(phone: string): string {
+    return phone.replace(/\D+/g, "");
+}
+
+function isExactQuickPhoneMatch(userPhone: string, fullPhone: string, national: string): boolean {
+    const digits = phoneDigitsOnly(userPhone);
+    const want = phoneDigitsOnly(fullPhone);
+    if (!digits || !want) {
+        return false;
+    }
+    if (digits === want) {
+        return true;
+    }
+    return national.length === 9 && digits.endsWith(national);
+}
+
+function QuickPhoneUserHitSummary({ user }: { user: AdminUser }) {
+    const count = Number(user.orders_count ?? 0);
+    const card = user.discount_cards?.[0];
+    if (count <= 0 && !card) {
+        return null;
+    }
+
+    return (
+        <div className="mt-1 space-y-0.5 text-[11px] leading-snug text-admin-text-secondary">
+            {count > 0 ? <p>заказов: {count}</p> : null}
+            {card ? (
+                <p>
+                    Карта <span className="font-mono text-admin-text">{card.number}</span>{" "}
+                    <span className="font-semibold text-admin-primary">−{card.discount_percent}%</span>
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+function QuickPhoneOrdersSummary({ context }: { context: AdminOrderCustomerContext }) {
+    const { completed, active, cancelled } = context.orders;
+    const total = completed + active + cancelled;
+    if (total <= 0) {
+        return (
+            <p className="mt-1 text-[11px] leading-snug text-admin-text-secondary">Заказов по этому номеру нет</p>
+        );
+    }
+
+    const segments: { text: string; className?: string }[] = [];
+    if (completed > 0) {
+        segments.push({ text: `выполнено ${completed}`, className: "text-emerald-700" });
+    }
+    if (active > 0) {
+        segments.push({ text: `активных ${active}`, className: "text-sky-700" });
+    }
+    if (cancelled > 0) {
+        segments.push({ text: `отменено ${cancelled}` });
+    }
+
+    return (
+        <div className="mt-1 space-y-0.5 text-[11px] leading-snug">
+            <p className="text-admin-text-secondary">
+                {segments.map((segment, index) => (
+                    <span key={segment.text}>
+                        {index > 0 ? " · " : null}
+                        <span className={segment.className}>{segment.text}</span>
+                    </span>
+                ))}
+                <span> · всего {total}</span>
+            </p>
+            {context.discount_cards.length > 0 ? (
+                <p className="text-admin-text-secondary">
+                    Карта{" "}
+                    <span className="font-mono text-admin-text">{context.discount_cards[0].number}</span>
+                    {" "}
+                    <span className="font-semibold text-admin-primary">
+                        −{context.discount_cards[0].discount_percent}%
+                    </span>
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+type QuickPhoneCustomerOptionProps = {
+    title: string;
+    phoneLine: string;
+    badge?: "В базе" | "Гость" | null;
+    context: AdminOrderCustomerContext | null;
+    showFullOrders: boolean;
+    userHit?: AdminUser;
+    onClick: () => void;
+};
+
+function QuickPhoneCustomerOption({
+    title,
+    phoneLine,
+    badge,
+    context,
+    showFullOrders,
+    userHit,
+    onClick,
+}: QuickPhoneCustomerOptionProps) {
+    return (
+        <button
+            type="button"
+            className="block w-full border-b border-admin-border/60 px-3 py-2.5 text-left last:border-b-0 hover:bg-admin-muted"
+            onClick={onClick}
+        >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm font-medium text-admin-text">{title}</span>
+                {badge ? (
+                    <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            badge === "В базе"
+                                ? "bg-admin-primary/12 text-admin-primary"
+                                : "bg-amber-100/90 text-amber-900"
+                        }`}
+                    >
+                        {badge}
+                    </span>
+                ) : null}
+            </div>
+            <div className="text-xs text-admin-text-secondary">{phoneLine}</div>
+            {showFullOrders && context ? <QuickPhoneOrdersSummary context={context} /> : null}
+            {userHit && !showFullOrders ? <QuickPhoneUserHitSummary user={userHit} /> : null}
+        </button>
+    );
+}
 
 export default function AdminHeader({
     sidebarCollapsed,
@@ -33,6 +164,8 @@ export default function AdminHeader({
     const [quickPhoneFocused, setQuickPhoneFocused] = useState(false);
     const [quickPhoneHitsLoading, setQuickPhoneHitsLoading] = useState(false);
     const [quickPhoneHits, setQuickPhoneHits] = useState<AdminUser[]>([]);
+    const [quickPhoneContext, setQuickPhoneContext] = useState<AdminOrderCustomerContext | null>(null);
+    const [quickPhoneContextLoading, setQuickPhoneContextLoading] = useState(false);
     const accountRef = useRef<HTMLDivElement | null>(null);
     const quickPhoneRef = useRef<HTMLDivElement | null>(null);
     const roleLabel = getRoleLabel(user?.role);
@@ -47,19 +180,36 @@ export default function AdminHeader({
         if (d.length <= 7) return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5)}`;
         return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}`;
     };
-    const fullPhone = `375${clampNationalDigits(quickPhone)}`;
-    const showQuickPhoneHits = quickPhoneFocused && clampNationalDigits(quickPhone).length >= 5;
+    const nationalDigits = clampNationalDigits(quickPhone);
+    const fullPhone = `375${nationalDigits}`;
+    const showQuickPhoneHits = quickPhoneFocused && nationalDigits.length >= 5;
 
-    const getCreateOrderHref = (phoneDigits: string) => {
+    const quickPhoneOrdersCount = quickPhoneContext
+        ? quickPhoneContext.orders.completed +
+          quickPhoneContext.orders.cancelled +
+          quickPhoneContext.orders.active
+        : 0;
+    const quickPhoneSuggestedName =
+        quickPhoneContext?.matched_user?.name?.trim() ||
+        quickPhoneContext?.customer_name?.trim() ||
+        "";
+
+    const getCreateOrderHref = (phoneDigits: string, customerName?: string) => {
         const national = clampNationalDigits(phoneDigits);
         if (!national) {
             return "/admin/orders/create";
         }
-        return `/admin/orders/create?phone=${encodeURIComponent(`375${national}`)}`;
+        const params = new URLSearchParams();
+        params.set("phone", `375${national}`);
+        const name = customerName?.trim();
+        if (name) {
+            params.set("name", name);
+        }
+        return `/admin/orders/create?${params.toString()}`;
     };
 
-    const openCreateOrderWithPhone = (phoneDigits: string) => {
-        router.push(getCreateOrderHref(phoneDigits));
+    const openCreateOrderWithPhone = (phoneDigits: string, customerName?: string) => {
+        router.push(getCreateOrderHref(phoneDigits, customerName));
         setQuickPhoneFocused(false);
     };
 
@@ -130,13 +280,38 @@ export default function AdminHeader({
     }, [clampNationalDigits, debouncedQuickPhone, digitsOnly]);
 
     useEffect(() => {
+        const national = clampNationalDigits(debouncedQuickPhone);
+        if (national.length < 9) {
+            setQuickPhoneContext(null);
+            setQuickPhoneContextLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setQuickPhoneContextLoading(true);
+        void fetchAdminOrderCustomerContext(`375${national}`)
+            .then((response) => {
+                if (!cancelled) setQuickPhoneContext(response.data);
+            })
+            .catch(() => {
+                if (!cancelled) setQuickPhoneContext(null);
+            })
+            .finally(() => {
+                if (!cancelled) setQuickPhoneContextLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [clampNationalDigits, debouncedQuickPhone]);
+
+    useEffect(() => {
         setQuickPhone("");
         setQuickPhoneHits([]);
+        setQuickPhoneContext(null);
         setQuickPhoneFocused(false);
     }, [pathname]);
 
     return (
-        <header className="h-14 flex-none border-b border-admin-border bg-admin-surface shadow-[0_12px_28px_-28px_rgba(31,23,34,0.5)]">
+        <header className="h-14 flex-none border-b border-admin-border bg-admin-header shadow-admin-header">
             <div className="flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6">
                 <div className="flex min-w-0 items-center gap-3">
                     <button
@@ -149,8 +324,8 @@ export default function AdminHeader({
                     </button>
 
                     <div className="relative w-[calc(100vw-5rem)] max-w-[24rem] sm:w-[24rem] lg:w-[26rem] lg:max-w-none" ref={quickPhoneRef}>
-                        <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-muted shadow-sm">
-                            <span className="flex items-center border-r border-admin-border px-2 text-xs text-admin-text-secondary">
+                        <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
+                            <span className="flex items-center border-r border-admin-border bg-admin-muted px-2.5 text-xs font-medium text-admin-text-secondary">
                                 +375
                             </span>
                             <input
@@ -179,7 +354,7 @@ export default function AdminHeader({
                                 Найти
                             </button>
                             <Link
-                                href={getCreateOrderHref(quickPhone)}
+                                href={getCreateOrderHref(quickPhone, quickPhoneSuggestedName)}
                                 onClick={() => setQuickPhoneFocused(false)}
                                 className="inline-flex shrink-0 items-center justify-center border-l border-admin-border bg-admin-primary px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-admin-primary-hover sm:px-3"
                             >
@@ -188,36 +363,123 @@ export default function AdminHeader({
                             </Link>
                         </div>
                         {showQuickPhoneHits ? (
-                            <div className="absolute left-0 right-0 z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
-                                {quickPhoneHitsLoading ? (
+                            <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-admin-border bg-admin-surface py-0 shadow-lg">
+                                {quickPhoneHitsLoading ||
+                                (nationalDigits.length >= 9 && quickPhoneContextLoading) ? (
                                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
                                         Поиск клиентов…
                                     </div>
-                                ) : quickPhoneHits.length === 0 ? (
-                                    <button
-                                        type="button"
-                                        className="w-full px-3 py-2 text-left text-xs text-admin-text-secondary hover:bg-admin-muted"
-                                        onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
-                                    >
-                                        Клиенты не найдены — создать заказ с этим номером
-                                    </button>
-                                ) : (
-                                    quickPhoneHits.map((u) => (
-                                        <button
-                                            key={u.id}
-                                            type="button"
-                                            className="block w-full px-3 py-2 text-left hover:bg-admin-muted"
-                                            onClick={() => openCreateOrderWithPhone(u.phone ?? fullPhone)}
-                                        >
-                                            <div className="text-sm font-medium text-admin-text">
-                                                {u.phone || `+${fullPhone}`}
-                                            </div>
-                                            <div className="text-xs text-admin-text-secondary">
-                                                {u.name || "Без имени"}
-                                            </div>
-                                        </button>
-                                    ))
-                                )}
+                                ) : (() => {
+                                    const showOrdersContext =
+                                        nationalDigits.length >= 9 &&
+                                        quickPhoneContext != null &&
+                                        quickPhoneOrdersCount > 0;
+                                    const exactHitInList = quickPhoneHits.some((u) =>
+                                        isExactQuickPhoneMatch(u.phone ?? "", fullPhone, nationalDigits),
+                                    );
+
+                                    return (
+                                        <>
+                                            {showOrdersContext && !exactHitInList ? (
+                                                <QuickPhoneCustomerOption
+                                                    title={quickPhoneSuggestedName || "Гость"}
+                                                    phoneLine={`+${fullPhone} — создать заказ`}
+                                                    badge={
+                                                        quickPhoneContext?.matched_user
+                                                            ? "В базе"
+                                                            : "Гость"
+                                                    }
+                                                    context={quickPhoneContext}
+                                                    showFullOrders={showOrdersContext}
+                                                    onClick={() =>
+                                                        openCreateOrderWithPhone(
+                                                            nationalDigits,
+                                                            quickPhoneSuggestedName,
+                                                        )
+                                                    }
+                                                />
+                                            ) : null}
+                                            {quickPhoneHits.length === 0 ? (
+                                                showOrdersContext || quickPhoneContext?.matched_user ? (
+                                                    <QuickPhoneCustomerOption
+                                                        title={
+                                                            quickPhoneSuggestedName || `+${fullPhone}`
+                                                        }
+                                                        phoneLine={`+${fullPhone} — создать заказ`}
+                                                        badge={
+                                                            quickPhoneContext?.matched_user
+                                                                ? "В базе"
+                                                                : quickPhoneOrdersCount > 0
+                                                                  ? "Гость"
+                                                                  : null
+                                                        }
+                                                        context={quickPhoneContext}
+                                                        showFullOrders={showOrdersContext}
+                                                        onClick={() =>
+                                                            openCreateOrderWithPhone(
+                                                                nationalDigits,
+                                                                quickPhoneSuggestedName,
+                                                            )
+                                                        }
+                                                    />
+                                                ) : nationalDigits.length >= 5 && nationalDigits.length < 9 ? (
+                                                    <div className="px-3 py-2 text-xs text-admin-text-secondary">
+                                                        Клиенты не найдены. Введите все 9 цифр — покажем
+                                                        заказы гостя.
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        className="w-full px-3 py-2 text-left text-xs text-admin-text-secondary hover:bg-admin-muted"
+                                                        onClick={() =>
+                                                            openCreateOrderWithPhone(nationalDigits)
+                                                        }
+                                                    >
+                                                        Клиенты не найдены — создать заказ с этим
+                                                        номером
+                                                    </button>
+                                                )
+                                            ) : (
+                                                quickPhoneHits.map((u) => {
+                                                    const hitName =
+                                                        u.name?.trim() ||
+                                                        quickPhoneSuggestedName ||
+                                                        "";
+                                                    const exact = isExactQuickPhoneMatch(
+                                                        u.phone ?? "",
+                                                        fullPhone,
+                                                        nationalDigits,
+                                                    );
+                                                    return (
+                                                        <QuickPhoneCustomerOption
+                                                            key={u.id}
+                                                            title={hitName || u.phone || `+${fullPhone}`}
+                                                            phoneLine={u.phone || `+${fullPhone}`}
+                                                            badge={
+                                                                exact && quickPhoneContext?.matched_user
+                                                                    ? "В базе"
+                                                                    : exact && showOrdersContext
+                                                                      ? "Гость"
+                                                                      : null
+                                                            }
+                                                            context={quickPhoneContext}
+                                                            showFullOrders={Boolean(
+                                                                showOrdersContext && exact,
+                                                            )}
+                                                            userHit={u}
+                                                            onClick={() =>
+                                                                openCreateOrderWithPhone(
+                                                                    u.phone ?? nationalDigits,
+                                                                    hitName,
+                                                                )
+                                                            }
+                                                        />
+                                                    );
+                                                })
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         ) : null}
                     </div>
@@ -293,7 +555,7 @@ export default function AdminHeader({
 
                     <button
                         type="button"
-                        className="inline-flex rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text lg:hidden"
+                        className="inline-flex rounded-lg border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text lg:hidden"
                         onClick={onOpenMobileMenuAction}
                         aria-label="Открыть меню"
                         title="Открыть меню"

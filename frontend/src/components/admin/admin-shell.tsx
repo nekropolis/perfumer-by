@@ -83,12 +83,12 @@ export default function AdminShell({ children }: Props) {
             style={{ height: "100dvh" }}
         >
             <div
-                className={`hidden min-h-0 shrink-0 overflow-hidden border-r border-admin-border bg-admin-muted shadow-[8px_0_30px_-28px_rgba(31,23,34,0.35)] lg:block ${sidebarCollapsed ? "w-[72px]" : "w-[260px]"
+                className={`hidden min-h-0 shrink-0 overflow-hidden border-r border-admin-border bg-admin-sidebar shadow-admin-sidebar lg:block ${sidebarCollapsed ? "w-[72px]" : "w-[260px]"
                     }`}
             >
                 <div className="flex h-full min-h-0 flex-col">
                     <div
-                        className={`flex h-14 flex-none items-center border-b border-admin-border bg-admin-muted ${sidebarCollapsed ? "justify-center px-2" : "px-5"
+                        className={`flex h-14 flex-none items-center border-b border-admin-border bg-admin-sidebar ${sidebarCollapsed ? "justify-center px-2" : "px-5"
                             }`}
                     >
                         {sidebarCollapsed ? (
@@ -119,7 +119,7 @@ export default function AdminShell({ children }: Props) {
                 </div>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-admin-surface">
                 <AdminHeader
                     sidebarCollapsed={sidebarCollapsed}
                     onToggleSidebarAction={() => setSidebarCollapsed((prev) => !prev)}
@@ -143,9 +143,9 @@ export default function AdminShell({ children }: Props) {
                         }}
                     />
 
-                    <div className="absolute left-0 top-0 flex h-full w-[min(88vw,300px)] flex-col border-r border-admin-border bg-admin-muted shadow-2xl">
+                    <div className="absolute left-0 top-0 flex h-full w-[min(88vw,300px)] flex-col border-r border-admin-border bg-admin-sidebar shadow-2xl">
                         <div className="relative flex flex-none items-center justify-between gap-2 border-b border-admin-border px-4 py-3">
-                            <div className="text-base font-semibold text-admin-text">Меню</div>
+                            <div className="text-sm font-semibold tracking-tight text-admin-text">Меню</div>
 
                             <div className="flex items-center gap-2">
                                 <AdminActiveTasksWidget compact className="flex items-center gap-2" />

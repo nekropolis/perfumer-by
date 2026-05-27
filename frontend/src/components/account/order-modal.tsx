@@ -67,7 +67,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+            className="fixed inset-0 z-[250] flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-6"
             onClick={onCloseOrderAction}
         >
             <div

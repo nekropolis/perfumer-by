@@ -27,7 +27,7 @@ export default function AdminTableToolbar({ title, description, action, children
 
             {children ? (
                 <div
-                    className={`${hasHeader ? "mt-4" : ""} flex flex-col gap-3 rounded-lg border border-admin-border bg-admin-muted/80 p-3 md:flex-row md:flex-wrap md:items-end md:justify-between`}
+                    className={`${hasHeader ? "mt-4" : ""} flex flex-col gap-3 rounded-xl border border-admin-border bg-admin-muted p-3 md:flex-row md:flex-wrap md:items-end md:justify-between`}
                 >
                     {children}
                 </div>

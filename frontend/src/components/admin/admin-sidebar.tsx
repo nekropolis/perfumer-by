@@ -147,7 +147,7 @@ function SidebarBadge({
     if (compact) {
         return (
             <span
-                className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(244,63,94,0.45)] ring-2 ring-white"
+                className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-admin-sidebar"
                 aria-label={`Новых: ${count}`}
             >
                 {formatBadgeCount(count)}
@@ -172,7 +172,7 @@ function FloatingTooltip({ tooltip }: { tooltip: TooltipState }) {
 
     return createPortal(
         <span
-            className="pointer-events-none fixed z-[9999] -translate-y-1/2 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-lg ring-1 ring-slate-600"
+            className="pointer-events-none fixed z-[9999] -translate-y-1/2 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-white shadow-lg"
             style={{ left: tooltip.x, top: tooltip.y }}
         >
             {tooltip.label}
@@ -284,7 +284,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                     .map((section) => (
                         <div key={section.key} className="space-y-1 overflow-visible">
                             {!collapsed ? (
-                                <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-admin-text-muted">
+                                <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-admin-text-secondary">
                                     {section.label}
                                 </div>
                             ) : (
@@ -328,17 +328,17 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 });
                                             }}
                                             onBlur={() => setTooltip(null)}
-                                            className={`group relative flex items-center gap-2 rounded-lg py-1.5 pl-4 pr-2.5 text-[13px] transition-colors ${
+                                            className={`group relative flex items-center gap-2 rounded-lg border-l-2 py-1.5 pr-2.5 text-[13px] transition-colors ${
                                                 isActive
-                                                    ? "bg-admin-primary-hover text-white shadow-sm"
-                                                    : "text-admin-text-secondary hover:bg-admin-surface hover:text-admin-text"
-                                            } ${collapsed ? "justify-center px-2" : ""}`}
+                                                    ? "border-admin-primary bg-white pl-[calc(1rem-2px)] font-semibold text-admin-primary shadow-sm"
+                                                    : "border-transparent pl-4 font-medium text-admin-text hover:bg-white/70 hover:text-admin-text"
+                                            } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""}`}
                                         >
                                             <span
                                                 className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
                                                     isActive
-                                                        ? "bg-white/15 text-white"
-                                                        : "text-admin-text-muted group-hover:bg-admin-muted group-hover:text-admin-text"
+                                                        ? "bg-admin-primary/10 text-admin-primary"
+                                                        : "text-admin-text-secondary group-hover:bg-white group-hover:text-admin-text"
                                                 }`}
                                             >
                                                 <Icon size={17} />
@@ -349,21 +349,13 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
                                             {!collapsed ? (
                                                 <div className="flex min-w-0 flex-1 items-center">
-                                                    <div
-                                                        className={`truncate leading-5 ${isActive ? "font-semibold" : "font-medium"}`}
-                                                    >
+                                                    <div className="truncate leading-5">
                                                         {item.label}
                                                     </div>
                                                     <SidebarBadge count={badgeCount} compact={false} />
                                                 </div>
                                             ) : null}
 
-                                            {isActive ? (
-                                                <span
-                                                    className="absolute left-1 top-1/2 h-4 w-1 -translate-y-1/2 rounded-full bg-white/85"
-                                                    aria-hidden
-                                                />
-                                            ) : null}
                                         </Link>
                                     );
                                 })}

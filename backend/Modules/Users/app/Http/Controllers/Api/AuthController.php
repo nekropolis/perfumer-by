@@ -11,10 +11,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\Rule;
-use Modules\Checkout\Models\Order;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\UserDiscountCard;
 use Modules\Users\Models\PhoneVerification;
+use Modules\Checkout\Support\OrderAccountScope;
 use Modules\Users\Models\User;
 
 class AuthController extends Controller
@@ -139,6 +139,8 @@ class AuthController extends Controller
         if (!$user instanceof User) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
+
+        OrderAccountScope::linkOrdersForUser($user);
 
         $verifiedCards = $user->discountCards()
             ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
@@ -567,6 +569,8 @@ class AuthController extends Controller
      */
     protected function authSuccessPayload(User $user): array
     {
+        OrderAccountScope::linkOrdersForUser($user);
+
         $token = $user->createToken('frontend')->plainTextToken;
 
         return [
@@ -831,40 +835,7 @@ class AuthController extends Controller
             return;
         }
 
-        // Fast path for normalized phones.
-        Order::query()
-            ->whereNull('user_id')
-            ->where('phone', $phone)
-            ->update([
-                'user_id' => $user->id,
-            ]);
-
-        // Fallback for legacy formatted phones.
-        $suffix = strlen($phone) >= 9 ? substr($phone, -9) : $phone;
-        if ($suffix === '') {
-            return;
-        }
-
-        $candidateIds = Order::query()
-            ->whereNull('user_id')
-            ->where('phone', 'like', '%'.$suffix.'%')
-            ->latest('id')
-            ->limit(1000)
-            ->get(['id', 'phone'])
-            ->filter(fn (Order $order) => $this->normalizePhone((string) $order->phone) === $phone)
-            ->pluck('id')
-            ->all();
-
-        if ($candidateIds === []) {
-            return;
-        }
-
-        Order::query()
-            ->whereNull('user_id')
-            ->whereIn('id', $candidateIds)
-            ->update([
-                'user_id' => $user->id,
-            ]);
+        OrderAccountScope::linkOrdersForUser($user);
     }
 
     /**

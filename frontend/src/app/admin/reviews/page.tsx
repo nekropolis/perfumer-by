@@ -160,21 +160,18 @@ export default function AdminReviewsPage() {
                 <AdminFilterSelect
                     value={days}
                     onChangeAction={setDays}
-                    label="Период"
                     options={DAYS_OPTIONS}
                     placeholder="За всё время"
                 />
                 <AdminFilterSelect
                     value={statusFilter}
                     onChangeAction={setStatusFilter}
-                    label="Статус"
                     options={STATUS_OPTIONS}
                     placeholder="Все статусы"
                 />
                 <AdminFilterSelect
                     value={typeFilter}
                     onChangeAction={setTypeFilter}
-                    label="Тип"
                     options={TYPE_OPTIONS}
                     placeholder="Все типы"
                 />

@@ -9,6 +9,7 @@ import AdminOrderCreateForm from "@/components/admin/orders/admin-order-create-f
 export default function AdminOrderCreatePage() {
   const searchParams = useSearchParams();
   const phoneFromQuery = searchParams.get("phone") ?? "";
+  const nameFromQuery = searchParams.get("name") ?? "";
 
   return (
     <AdminPageCard>
@@ -30,7 +31,7 @@ export default function AdminOrderCreatePage() {
         </Link>
       </div>
 
-      <AdminOrderCreateForm initialPhone={phoneFromQuery} />
+      <AdminOrderCreateForm initialPhone={phoneFromQuery} initialCustomerName={nameFromQuery} />
     </AdminPageCard>
   );
 }

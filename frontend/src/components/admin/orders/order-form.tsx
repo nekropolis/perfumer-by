@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { OrderData } from "@/types/orders";
 import type { AdminOrderPayload } from "@/lib/admin-orders-api";
 import {
   fetchProductById,
+  flattenProductSmartSearchHits,
+  productSmartSearchAvailabilityClass,
+  productSmartSearchAvailabilityLabel,
+  productSmartSearchPriceLabel,
+  productSmartSearchShowsPrice,
   smartSearchProducts,
   type ProductAdminDetail,
   type ProductSmartSearchItem,
+  type ProductSmartSearchVariantPreview,
 } from "@/lib/admin-products-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
@@ -74,6 +80,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
   const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
   const [searchResults, setSearchResults] = useState<ProductSmartSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const productSearchRef = useRef<HTMLDivElement>(null);
   const [productDetailsById, setProductDetailsById] = useState<Record<number, ProductAdminDetail>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -87,6 +94,22 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
       setSearchResults([]);
     }
   }, [itemsLocked]);
+
+  const closeProductSearch = useCallback(() => {
+    setActiveSearchRow(null);
+    setSearchResults([]);
+  }, []);
+
+  useEffect(() => {
+    if (activeSearchRow === null) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (productSearchRef.current?.contains(e.target as Node)) return;
+      closeProductSearch();
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [activeSearchRow, closeProductSearch]);
+
   const debouncedActiveSearchQuery = useDebouncedValue(activeSearchQuery, 250);
 
   useEffect(() => {
@@ -186,7 +209,11 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const selectProduct = async (rowIdx: number, product: ProductSmartSearchItem) => {
+  const selectProductVariant = async (
+    rowIdx: number,
+    product: ProductSmartSearchItem,
+    variantPreview: ProductSmartSearchVariantPreview,
+  ) => {
     if (itemsLocked) {
       return;
     }
@@ -200,7 +227,16 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
       setProductDetailsById((prev) => ({ ...prev, [product.id]: detail }));
     }
 
-    const preferredVariant = detail.variants?.[0];
+    const variantId = variantPreview.id;
+    const selectedVariant =
+      (variantId != null ? detail.variants?.find((v) => v.id === variantId) : undefined) ??
+      detail.variants?.find(
+        (v) => (v.title || v.display_name || "").trim() === variantPreview.title.trim(),
+      );
+    if (!selectedVariant) {
+      return;
+    }
+
     setItems((prev) =>
       prev.map((row, idx) => {
         if (idx !== rowIdx) {
@@ -212,11 +248,11 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           product_id: detail.id,
           product_name: detail.name,
           product_slug: detail.slug,
-          brand_name: detail.brand?.name ?? null,
-          variant_id: preferredVariant?.id ?? null,
-          variant_title: preferredVariant?.title ?? "",
-          sku: preferredVariant?.display_name ?? row.sku ?? null,
-          price: Number(preferredVariant?.price ?? row.price ?? 0),
+          brand_name: detail.brand?.name ?? product.brand_name ?? null,
+          variant_id: selectedVariant.id,
+          variant_title: selectedVariant.title ?? variantPreview.title,
+          sku: selectedVariant.display_name ?? row.sku ?? null,
+          price: Number(selectedVariant.price ?? variantPreview.price ?? row.price ?? 0),
         };
       }),
     );
@@ -401,7 +437,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
         ) : null}
         {items.map((item, idx) => (
           <div key={`item-${idx}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1.7fr_1.3fr_110px_120px_auto]">
-            <div className="relative">
+            <div className="relative" ref={activeSearchRow === idx ? productSearchRef : undefined}>
               <input
                 value={item.product_name}
                 onFocus={() => {
@@ -431,21 +467,47 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
                   {searchLoading ? (
                     <div className="px-2 py-2 text-xs text-admin-text-secondary">Поиск...</div>
                   ) : (
-                    searchResults.map((result) => (
-                      <button
-                        key={result.id}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void selectProduct(idx, result)}
-                        className="block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-admin-muted"
-                      >
-                        <div className="font-medium">{result.name}</div>
-                        <div className="text-xs text-admin-text-secondary">
-                          {result.brand_name ? `${result.brand_name} · ` : ""}
-                          {result.variant_titles?.slice(0, 2).join(", ") || "Без вариантов"}
-                        </div>
-                      </button>
-                    ))
+                    flattenProductSmartSearchHits(searchResults).map((option) => {
+                      const hit = option.hit;
+                      if (option.kind === "no-variants") {
+                        return (
+                          <div
+                            key={option.key}
+                            className="rounded-lg px-2 py-2 text-left text-xs text-admin-text-secondary"
+                          >
+                            {hit.id} {hit.brand_name ? `${hit.brand_name} ` : ""}
+                            {hit.name} — нет вариантов
+                          </div>
+                        );
+                      }
+                      const variant = option.variant;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => void selectProductVariant(idx, hit, variant)}
+                          className="block w-full rounded-lg px-2 py-2 text-left text-xs hover:bg-admin-muted"
+                        >
+                          <span className="tabular-nums text-gray-400">{hit.id}</span>{" "}
+                          {hit.brand_name ? (
+                            <span className="text-admin-text-secondary">{hit.brand_name} </span>
+                          ) : null}
+                          <span className="font-medium text-admin-text">{hit.name}</span>{" "}
+                          <span className="text-admin-text">{variant.title}</span>
+                          <span className="text-admin-text-secondary"> — </span>
+                          <span className={productSmartSearchAvailabilityClass(variant)}>
+                            {productSmartSearchAvailabilityLabel(variant)}
+                          </span>
+                          {productSmartSearchShowsPrice(variant) ? (
+                            <>
+                              <span className="text-admin-text-secondary"> — </span>
+                              <span className="tabular-nums">{productSmartSearchPriceLabel(variant)}</span>
+                            </>
+                          ) : null}
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               ) : null}

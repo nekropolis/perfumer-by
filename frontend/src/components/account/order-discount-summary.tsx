@@ -2,6 +2,7 @@
 
 import type { OrderData } from "@/types/orders";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { formatDiscountPercentSnapshot } from "@/lib/loyalty-pricing";
 
 function parseMoney(s: string | undefined | null): number {
     if (s == null || s === "") return 0;
@@ -15,7 +16,7 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
     const cardAmt = parseMoney(order.discount_amount);
     const certAmt = parseMoney(order.gift_certificate_amount);
     const cardNo = order.discount_card_number?.trim();
-    const pct = order.discount_percent_snapshot?.trim();
+    const pctLabel = formatDiscountPercentSnapshot(order.discount_percent_snapshot);
     const hasCard = cardAmt > 0;
     const certLabel = order.gift_certificate_code || order.gift_certificate_number;
     const hasCert = Boolean(certLabel) && certAmt > 0;
@@ -34,11 +35,18 @@ export default function OrderDiscountSummary({ order }: { order: OrderData }) {
             {hasCard ? (
                 <div className="flex justify-between text-green-800">
                     <span>
-                        Карта{" "}
-                        <span className="font-mono font-medium">
-                            {cardNo && cardNo !== "" ? cardNo : "удалена"}
-                        </span>
-                        {pct ? <span> ({pct}%)</span> : null}
+                        {cardNo ? (
+                            <>
+                                Карта{" "}
+                                <span className="font-mono font-medium">{cardNo}</span>
+                                {pctLabel ? <span> ({pctLabel}%)</span> : null}
+                            </>
+                        ) : (
+                            <>
+                                Карта лояльности
+                                {pctLabel ? <span> ({pctLabel}%)</span> : null}
+                            </>
+                        )}
                     </span>
                     <span>−{formatMoneyRub(order.discount_amount)}</span>
                 </div>

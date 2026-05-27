@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/lib/auth-token";
+import { formatMoneyRub } from "@/lib/format-money-display";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -49,12 +50,80 @@ export type ProductBrandOption = {
 };
 
 export type ProductSmartSearchVariantPreview = {
+    id?: number;
     title: string;
     availability: string;
     available_stock: number;
     is_available: boolean;
     is_preorder: boolean;
+    price?: string | null;
 };
+
+export type ProductSmartSearchFlatOption =
+    | {
+          kind: "variant";
+          key: string;
+          hit: ProductSmartSearchItem;
+          variant: ProductSmartSearchVariantPreview;
+      }
+    | {
+          kind: "no-variants";
+          key: string;
+          hit: ProductSmartSearchItem;
+      };
+
+/** Плоский список: по строке на вариант (или «нет вариантов»). */
+export function flattenProductSmartSearchHits(hits: ProductSmartSearchItem[]): ProductSmartSearchFlatOption[] {
+    const out: ProductSmartSearchFlatOption[] = [];
+    for (const hit of hits) {
+        const preview = hit.variants_preview?.length
+            ? hit.variants_preview
+            : (hit.variant_titles ?? []).map((title) => ({
+                  title,
+                  availability: "",
+                  available_stock: 0,
+                  is_available: false,
+                  is_preorder: false,
+              }));
+        if (preview.length === 0) {
+            out.push({ kind: "no-variants", key: `p-${hit.id}-none`, hit });
+            continue;
+        }
+        for (const variant of preview) {
+            const variantKey = variant.id != null ? String(variant.id) : variant.title;
+            out.push({
+                kind: "variant",
+                key: `p-${hit.id}-v-${variantKey}`,
+                hit,
+                variant,
+            });
+        }
+    }
+    return out;
+}
+
+export function productSmartSearchAvailabilityLabel(variant: ProductSmartSearchVariantPreview): string {
+    const tip = variant.availability?.trim();
+    if (tip) return tip;
+    if (variant.is_preorder) return "предзаказ";
+    if (variant.is_available) return "в наличии";
+    return "нет в наличии";
+}
+
+export function productSmartSearchAvailabilityClass(variant: ProductSmartSearchVariantPreview): string {
+    if (variant.is_preorder) return "text-amber-800";
+    if (variant.is_available) return "text-emerald-800";
+    return "text-admin-text-secondary";
+}
+
+export function productSmartSearchShowsPrice(variant: ProductSmartSearchVariantPreview): boolean {
+    return variant.is_available || variant.is_preorder;
+}
+
+export function productSmartSearchPriceLabel(variant: ProductSmartSearchVariantPreview): string {
+    const raw = variant.price;
+    return raw != null && String(raw).trim() !== "" ? formatMoneyRub(raw) : "—";
+}
 
 export type ProductSmartSearchItem = {
     id: number;

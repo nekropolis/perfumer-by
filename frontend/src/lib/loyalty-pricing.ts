@@ -26,6 +26,37 @@ export function resolveActiveLoyaltyCard(
     return active[0] ?? null;
 }
 
+export function formatDiscountPercentSnapshot(value: string | undefined | null): string | null {
+    if (value == null || value.trim() === "") {
+        return null;
+    }
+
+    const n = Number(value.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) {
+        return null;
+    }
+
+    return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+}
+
+/** Подпись скидки по карте в заказе (список ЛК и т.п.). */
+export function formatOrderLoyaltyCardDiscountReason(
+    cardNumber: string | undefined | null,
+    percentSnapshot: string | undefined | null,
+): string {
+    const cardNo = cardNumber?.trim();
+    if (cardNo) {
+        return `карта ${cardNo}`;
+    }
+
+    const pct = formatDiscountPercentSnapshot(percentSnapshot);
+    if (pct) {
+        return `карта лояльности (${pct}%)`;
+    }
+
+    return "карта лояльности";
+}
+
 export function applyPercentDiscount(price: string | null, percent: number): string | null {
     if (!price) {
         return null;

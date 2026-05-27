@@ -635,12 +635,12 @@ class VanilleMediaImportService
     private function listingUrlWithPage(string $baseUrl, int $page): string
     {
         $baseUrl = trim($baseUrl);
-        $parts = parse_url($baseUrl);
-        if ($parts === false || ! isset($parts['host'])) {
+        $host = parse_url($baseUrl, PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
             throw new \InvalidArgumentException('Некорректный URL бренда для листинга: '.$baseUrl);
         }
 
-        parse_str($parts['query'] ?? '', $queryParams);
+        parse_str((string) (parse_url($baseUrl, PHP_URL_QUERY) ?? ''), $queryParams);
 
         if ($page <= 1) {
             unset($queryParams['page']);
@@ -651,14 +651,16 @@ class VanilleMediaImportService
         ksort($queryParams);
         $query = http_build_query($queryParams);
 
-        $scheme = $parts['scheme'] ?? 'https';
-        $path = isset($parts['path']) ? $parts['path'] : '';
+        $scheme = (string) (parse_url($baseUrl, PHP_URL_SCHEME) ?? 'https');
+        $path = (string) (parse_url($baseUrl, PHP_URL_PATH) ?? '');
+        $port = parse_url($baseUrl, PHP_URL_PORT);
+        $fragment = parse_url($baseUrl, PHP_URL_FRAGMENT);
 
-        return $scheme.'://'.$parts['host']
-            .(isset($parts['port']) ? ':'.$parts['port'] : '')
+        return $scheme.'://'.$host
+            .(is_int($port) ? ':'.$port : '')
             .$path
             .($query !== '' ? '?'.$query : '')
-            .(isset($parts['fragment']) ? '#'.$parts['fragment'] : '');
+            .(is_string($fragment) && $fragment !== '' ? '#'.$fragment : '');
     }
 
     private function productImageSourceExists(int $productId, string $sourceUrl): bool

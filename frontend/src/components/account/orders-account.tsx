@@ -7,6 +7,7 @@ import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
 import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { formatOrderLoyaltyCardDiscountReason } from "@/lib/loyalty-pricing";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import type { AuthUserProfile } from "@/lib/auth-api";
 
@@ -243,13 +244,13 @@ export default function OrdersAccount({
                                                         return null;
                                                     }
 
-                                                    const cardNo = order.discount_card_number?.trim();
                                                     const reasonParts: string[] = [];
                                                     if (cardDiscount > 0.004) {
                                                         reasonParts.push(
-                                                            cardNo
-                                                                ? `карта ${cardNo}`
-                                                                : "карта лояльности (карта удалена)"
+                                                            formatOrderLoyaltyCardDiscountReason(
+                                                                order.discount_card_number,
+                                                                order.discount_percent_snapshot,
+                                                            ),
                                                         );
                                                     }
                                                     if (certificateDiscount > 0.004) {

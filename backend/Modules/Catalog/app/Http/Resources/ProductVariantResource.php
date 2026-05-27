@@ -122,6 +122,6 @@ class ProductVariantResource extends JsonResource
             return $preorder ? $core.' · предзаказ' : $core;
         }
 
-        return $preorder ? 'Предзаказ' : 'Нет доступного остатка для отгрузки';
+        return $preorder ? 'Предзаказ' : 'Нет в наличии';
     }
 }

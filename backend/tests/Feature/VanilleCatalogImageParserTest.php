@@ -41,8 +41,9 @@ class VanilleCatalogImageParserTest extends TestCase
 
         $this->assertCount(1, $rows);
         $this->assertCount(2, $rows[0]['image_urls']);
-        $this->assertSame('https://vanille.by/assets/images/products/70783/mediumwebp/stephane-humbert-lucas-777-khol-de-bahrein-2.webp', $rows[0]['image_urls'][0]);
-        $this->assertSame('https://vanille.by/assets/images/products/70783/medium/stephane-humbert-lucas-777-khol-de-bahrein-1.jpg', $rows[0]['image_urls'][1]);
+        $this->assertSame('https://vanille.by/assets/images/products/70783/medium/stephane-humbert-lucas-777-khol-de-bahrein-1.jpg', $rows[0]['image_urls'][0]);
+        $this->assertSame('https://vanille.by/assets/images/products/70783/mediumwebp/stephane-humbert-lucas-777-khol-de-bahrein-2.webp', $rows[0]['image_urls'][1]);
+        $this->assertSame($rows[0]['image_urls'][0], $rows[0]['image_url']);
     }
 
     public function test_max_listing_page_from_html_picks_max_query_param(): void

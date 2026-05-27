@@ -145,7 +145,6 @@ export default function AdminStockNotificationsPage() {
                 <AdminFilterSelect
                     value={kindFilter}
                     onChangeAction={setKindFilter}
-                    label="Тип"
                     options={KIND_OPTIONS}
                     placeholder="Все типы"
                 />
@@ -153,7 +152,6 @@ export default function AdminStockNotificationsPage() {
                 <AdminFilterSelect
                     value={statusFilter}
                     onChangeAction={setStatusFilter}
-                    label="Статус"
                     options={STATUS_OPTIONS}
                     placeholder="Все статусы"
                 />

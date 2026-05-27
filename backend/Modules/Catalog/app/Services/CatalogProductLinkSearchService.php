@@ -118,9 +118,9 @@ class CatalogProductLinkSearchService
                 'id' => (int) $product->id,
                 'name' => $name,
                 'brand_name' => $brandName !== '' ? $brandName : null,
-                'variant_titles' => $variantTitles->take(5)->values()->all(),
+                'variant_titles' => $variantTitles->values()->all(),
                 'variants_preview' => $this->smartSearchVariantLines(
-                    $product->variants->take(5),
+                    $product->variants,
                     $stocksByVariant,
                     $mainWarehouseId,
                     $supplierWarehouseId
@@ -393,12 +393,15 @@ class CatalogProductLinkSearchService
             $mainStock = $mainWarehouseId > 0 ? $byW->get($mainWarehouseId) : null;
             $supplierStock = $supplierWarehouseId > 0 ? $byW->get($supplierWarehouseId) : null;
             $presented = \Modules\Catalog\Support\CatalogVariantStockPresenter::forListing($link, $mainStock, $supplierStock);
+            $effectivePrice = \Modules\Catalog\Support\CatalogVariantStockPresenter::storefrontVariantPrice($link, $presented);
             $out[] = [
+                'id' => (int) $link->id,
                 'title' => (string) $link->title,
                 'availability' => \Modules\Catalog\Http\Resources\ProductVariantResource::adminFulfillmentTooltip($link, $mainStock, $supplierStock),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
                 'is_preorder' => (bool) $presented['is_preorder'],
+                'price' => $effectivePrice !== null ? (string) $effectivePrice : null,
             ];
         }
 
@@ -512,15 +515,15 @@ class CatalogProductLinkSearchService
             if ($product) {
                 $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
                 [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
-                    $product->variants->take(5)->pluck('id')->filter()->values()->all()
+                    $product->variants->pluck('id')->filter()->values()->all()
                 );
                 $byId[$product->id] = [
                     'id' => (int) $product->id,
                     'name' => (string) $product->name,
                     'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
-                    'variant_titles' => $variants->take(5)->values()->all(),
+                    'variant_titles' => $variants->values()->all(),
                     'variants_preview' => $this->smartSearchVariantLines(
-                        $product->variants->take(5),
+                        $product->variants,
                         $stByV,
                         $mw,
                         $sw
@@ -563,15 +566,15 @@ class CatalogProductLinkSearchService
                 }
                 $variants = $product->variants?->pluck('title')->filter()->values() ?? collect();
                 [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
-                    $product->variants->take(5)->pluck('id')->filter()->values()->all()
+                    $product->variants->pluck('id')->filter()->values()->all()
                 );
                 $byId[$pid] = [
                     'id' => (int) $product->id,
                     'name' => (string) $product->name,
                     'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
-                    'variant_titles' => $variants->take(5)->values()->all(),
+                    'variant_titles' => $variants->values()->all(),
                     'variants_preview' => $this->smartSearchVariantLines(
-                        $product->variants->take(5),
+                        $product->variants,
                         $stByV,
                         $mw,
                         $sw

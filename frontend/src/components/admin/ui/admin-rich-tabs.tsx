@@ -46,8 +46,8 @@ export default function AdminRichTabs<T extends string>({
                             <span
                                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
                                     isActive
-                                        ? "bg-admin-accent/55 text-admin-primary"
-                                        : "bg-transparent text-admin-text-muted group-hover:bg-admin-muted/80 group-hover:text-admin-text"
+                                        ? "bg-admin-primary-soft text-admin-primary"
+                                        : "bg-transparent text-admin-text-muted group-hover:bg-admin-muted group-hover:text-admin-text"
                                 }`}
                             >
                                 <Icon size={15} />

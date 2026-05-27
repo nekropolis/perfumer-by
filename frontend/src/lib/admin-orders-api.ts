@@ -211,6 +211,8 @@ export type AdminOrderQuotePayload = {
 
 export type AdminOrderCustomerContext = {
   matched_user: { id: number; name: string | null } | null;
+  /** Имя из профиля или последнего заказа по этому телефону. */
+  customer_name?: string | null;
   orders: {
     completed: number;
     cancelled: number;
@@ -218,16 +220,20 @@ export type AdminOrderCustomerContext = {
   };
   delivery_cities: string[];
   discount_cards: { number: string; discount_percent: string }[];
-  completed_orders: {
-    id: number;
-    created_at: string | null;
-    items_qty: number;
-    total: string;
-    items: {
-      product_name: string;
-      variant_title: string;
-      qty: number;
-    }[];
+  completed_orders: AdminOrderCustomerContextOrderRow[];
+  active_orders?: AdminOrderCustomerContextOrderRow[];
+  cancelled_orders?: AdminOrderCustomerContextOrderRow[];
+};
+
+export type AdminOrderCustomerContextOrderRow = {
+  id: number;
+  created_at: string | null;
+  items_qty: number;
+  total: string;
+  items: {
+    product_name: string;
+    variant_title: string;
+    qty: number;
   }[];
 };
 

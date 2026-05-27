@@ -79,28 +79,44 @@ class VanilleCatalogImageParser
     }
 
     /**
+     * Vanille кладёт hover-картинку (product-photo__img__second) в DOM раньше основной.
+     * Для импорта нужен порядок: сначала главное фото листинга, затем hover.
+     *
      * @return list<string>
      */
     private function findImageUrlsInHtml(string $fragment): array
     {
-        $out = [];
+        $primary = [];
+        $secondary = [];
         $seen = [];
 
-        if (preg_match_all('/<img[^>]+(?:data-src|src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $fragment, $matches)) {
-            foreach ($matches[1] as $rawUrl) {
-                $url = $this->normalizeUrl((string) $rawUrl);
-                if ($url === '' || isset($seen[$url])) {
-                    continue;
-                }
-                $seen[$url] = true;
-                $out[] = $url;
-                if (count($out) >= 2) {
-                    break;
-                }
+        if (! preg_match_all('/<img([^>]+)>/iu', $fragment, $matches)) {
+            return [];
+        }
+
+        foreach ($matches[1] as $attrs) {
+            if (! preg_match('/(?:data-src|src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/iu', $attrs, $urlMatch)) {
+                continue;
+            }
+
+            $url = $this->normalizeUrl((string) $urlMatch[1]);
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+            $seen[$url] = true;
+
+            if (str_contains($attrs, 'img__second') || str_contains($attrs, '__second')) {
+                $secondary[] = $url;
+            } else {
+                $primary[] = $url;
+            }
+
+            if (count($primary) + count($secondary) >= 2) {
+                break;
             }
         }
 
-        return $out;
+        return array_slice(array_merge($primary, $secondary), 0, 2);
     }
 
     private function normalizeUrl(string $url): string

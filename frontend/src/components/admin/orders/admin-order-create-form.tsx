@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,16 +18,23 @@ import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import type { OrderData } from "@/types/orders";
 import {
   fetchProductById,
+  flattenProductSmartSearchHits,
+  productSmartSearchAvailabilityClass,
+  productSmartSearchAvailabilityLabel,
+  productSmartSearchPriceLabel,
+  productSmartSearchShowsPrice,
   smartSearchProductsWithFallback,
   type ProductAdminDetail,
   type ProductSmartSearchItem,
+  type ProductSmartSearchVariantPreview,
 } from "@/lib/admin-products-api";
 import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 import { formatMoneyRub } from "@/lib/format-money-display";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Курьер по Минску" },
@@ -93,6 +100,44 @@ function isValidBelarusMobileNational(national: string): boolean {
   const d = clampNationalDigits(national);
   if (d.length !== 9) return false;
   return ["25", "29", "33", "44"].includes(d.slice(0, 2));
+}
+
+type CustomerNameParts = {
+  first: string;
+  last: string;
+  patronymic: string;
+};
+
+function parseCustomerNameParts(full: string): CustomerNameParts {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "", last: "", patronymic: "" };
+  if (parts.length === 1) return { first: parts[0], last: "", patronymic: "" };
+  if (parts.length === 2) return { first: parts[0], last: parts[1], patronymic: "" };
+  return { first: parts[0], last: parts[1], patronymic: parts.slice(2).join(" ") };
+}
+
+function buildCustomerName(parts: CustomerNameParts): string {
+  return [parts.first, parts.last, parts.patronymic]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+type OrdersHistoryModalKind = "completed" | "active" | "cancelled";
+
+const ORDERS_HISTORY_MODAL_TITLES: Record<OrdersHistoryModalKind, string> = {
+  completed: "Выполненные заказы по номеру",
+  active: "Активные заказы по номеру",
+  cancelled: "Отменённые заказы по номеру",
+};
+
+function ordersForHistoryModal(
+  context: AdminOrderCustomerContext,
+  kind: OrdersHistoryModalKind,
+): AdminOrderCustomerContextOrderRow[] {
+  if (kind === "completed") return context.completed_orders;
+  if (kind === "active") return context.active_orders ?? [];
+  return context.cancelled_orders ?? [];
 }
 
 function formatDateTime(value: string | null): string {
@@ -219,6 +264,7 @@ export type AdminOrderCreateFormProps = {
   mode?: "create" | "edit";
   initialOrder?: OrderData;
   initialPhone?: string;
+  initialCustomerName?: string;
 };
 
 type CertificatesPanelProps<T> = {
@@ -258,7 +304,12 @@ function CertificatesPanel<T>({
   );
 }
 
-export default function AdminOrderCreateForm({ mode = "create", initialOrder, initialPhone }: AdminOrderCreateFormProps) {
+export default function AdminOrderCreateForm({
+  mode = "create",
+  initialOrder,
+  initialPhone,
+  initialCustomerName,
+}: AdminOrderCreateFormProps) {
   const router = useRouter();
   const isEdit = mode === "edit" && initialOrder != null;
   const itemsLocked = Boolean(
@@ -269,7 +320,24 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   const [nationalNumber, setNationalNumber] = useState(() =>
     initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : nationalFromStoredPhone(initialPhone ?? ""),
   );
-  const [customerName, setCustomerName] = useState(() => initialOrder?.customer_name ?? "");
+  const [customerFirstName, setCustomerFirstName] = useState(
+    () =>
+      parseCustomerNameParts(
+        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+      ).first,
+  );
+  const [customerLastName, setCustomerLastName] = useState(
+    () =>
+      parseCustomerNameParts(
+        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+      ).last,
+  );
+  const [customerPatronymic, setCustomerPatronymic] = useState(
+    () =>
+      parseCustomerNameParts(
+        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+      ).patronymic,
+  );
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
   const [deliveryCity, setDeliveryCity] = useState(() => {
@@ -300,13 +368,13 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
   const [context, setContext] = useState<AdminOrderCustomerContext | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
-  const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
+  const [ordersHistoryModal, setOrdersHistoryModal] = useState<OrdersHistoryModalKind | null>(null);
 
   const debouncedNational = useDebouncedValue(nationalNumber, 280);
 
   const [activeLine, setActiveLine] = useState<number | null>(null);
-  const [productQuery, setProductQuery] = useState("");
-  const debouncedProductQ = useDebouncedValue(productQuery, 250);
+  const activeProductSearchQ = activeLine !== null ? (lines[activeLine]?.product_name ?? "") : "";
+  const debouncedProductQ = useDebouncedValue(activeProductSearchQ, 250);
   const [productHits, setProductHits] = useState<ProductSmartSearchItem[]>([]);
   const [productHitsLoading, setProductHitsLoading] = useState(false);
   /** Пока грузим карточку после клика по товару — не показываем «Ничего не найдено» по старому запросу. */
@@ -320,6 +388,9 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   } | null>(null);
   const [detailsByProductId, setDetailsByProductId] = useState<Record<number, ProductAdminDetail>>({});
   const [pickerProductId, setPickerProductId] = useState<number | null>(null);
+  const productPickerRef = useRef<HTMLDivElement>(null);
+  /** Не перезаписывать имя повторно для того же телефона после ручного ввода. */
+  const autoCustomerNamePhoneRef = useRef<string>("");
 
   const [belarusCityQuery, setBelarusCityQuery] = useState("");
   const debouncedBelarusCityQuery = useDebouncedValue(belarusCityQuery, 350);
@@ -344,7 +415,6 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     setActiveLine(null);
     setProductHits([]);
     setPickerProductId(null);
-    setProductQuery("");
   }, [itemsLocked]);
 
   useEffect(() => {
@@ -461,10 +531,31 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   }, [debouncedNational]);
 
   useEffect(() => {
-    if (context?.matched_user?.name && !customerName.trim()) {
-      setCustomerName(context.matched_user.name);
+    const nat = clampNationalDigits(debouncedNational);
+    if (nat.length !== 9) {
+      autoCustomerNamePhoneRef.current = "";
+      return;
     }
-  }, [context?.matched_user?.name, customerName]);
+
+    const phoneKey = fullPhoneFromNational(nat);
+    const suggested =
+      context?.matched_user?.name?.trim() || context?.customer_name?.trim() || "";
+    if (!suggested) return;
+
+    const initialNat = initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : "";
+    if (initialOrder && nat === initialNat) {
+      autoCustomerNamePhoneRef.current = phoneKey;
+      return;
+    }
+
+    if (autoCustomerNamePhoneRef.current === phoneKey) return;
+
+    const parts = parseCustomerNameParts(suggested);
+    setCustomerFirstName(parts.first);
+    setCustomerLastName(parts.last);
+    setCustomerPatronymic(parts.patronymic);
+    autoCustomerNamePhoneRef.current = phoneKey;
+  }, [context?.matched_user?.name, context?.customer_name, debouncedNational, initialOrder]);
 
   useEffect(() => {
     setDiscountCardManuallyCleared(false);
@@ -638,8 +729,8 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
 
   const discountCardConfirmed = Boolean(
     appliedDiscountCardNumber.trim() &&
-      orderQuote?.discount_card_number?.trim() &&
-      orderQuote.discount_card_number.trim() === appliedDiscountCardNumber.trim(),
+    orderQuote?.discount_card_number?.trim() &&
+    orderQuote.discount_card_number.trim() === appliedDiscountCardNumber.trim(),
   );
 
   const applyDiscountCardToOrder = useCallback(
@@ -714,7 +805,10 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
   const selectPhoneHit = (u: AdminUser) => {
     const d = digitsOnly(u.phone ?? "");
     setNationalNumber(d.startsWith(PHONE_PREFIX) ? d.slice(PHONE_PREFIX.length) : d.slice(-9));
-    setCustomerName(u.name ?? "");
+    const parts = parseCustomerNameParts(u.name ?? "");
+    setCustomerFirstName(parts.first);
+    setCustomerLastName(parts.last);
+    setCustomerPatronymic(parts.patronymic);
     setPhoneHitsOpen(false);
   };
 
@@ -726,30 +820,52 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     return response.data;
   };
 
+  const closeProductPicker = useCallback(() => {
+    setActiveLine(null);
+    setProductHits([]);
+    setPickerProductId(null);
+  }, []);
+
+  const productPickerOpen = activeLine !== null || pickerProductId !== null;
+
+  useEffect(() => {
+    if (!productPickerOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (productPickerRef.current?.contains(e.target as Node)) return;
+      closeProductPicker();
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [productPickerOpen, closeProductPicker]);
+
   const openProductPicker = (lineIdx: number) => {
     if (itemsLocked) return;
     setError("");
     setActiveLine(lineIdx);
     setPickerProductId(null);
-    const row = lines[lineIdx];
-    setProductQuery(row.product_name || "");
   };
 
-  const pickProductForLine = async (lineIdx: number, hit: ProductSmartSearchItem) => {
+  const pickProductVariantFromSearch = async (
+    lineIdx: number,
+    hit: ProductSmartSearchItem,
+    variantPreview: ProductSmartSearchVariantPreview,
+  ) => {
     if (itemsLocked) return;
     setLoadingProductLineIdx(lineIdx);
     setProductHits([]);
     try {
       const detail = await loadProductDetail(hit.id);
-      if (!detail.variants?.length) {
-        setError("У этого товара нет вариантов — в заказ добавить нельзя. Выберите другой товар.");
-        setPickerProductId(null);
-        setProductQuery(hit.name);
+      const variantId = variantPreview.id;
+      const variant =
+        (variantId != null ? detail.variants?.find((x) => x.id === variantId) : undefined) ??
+        detail.variants?.find(
+          (x) => (x.title || x.display_name || "").trim() === variantPreview.title.trim(),
+        );
+      if (!variant) {
+        setError("Вариант не найден — обновите страницу и попробуйте снова.");
         return;
       }
       setError("");
-      setPickerProductId(hit.id);
-      setProductQuery(detail.name);
       setLines((prev) =>
         prev.map((row, i) =>
           i === lineIdx
@@ -758,15 +874,17 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
               product_id: detail.id,
               product_name: detail.name,
               product_slug: detail.slug,
-              brand_name: detail.brand?.name ?? null,
-              variant_id: null,
-              variant_title: "",
-              sku: null,
-              price: 0,
+              brand_name: detail.brand?.name ?? hit.brand_name ?? detail.brand?.name ?? null,
+              variant_id: variant.id,
+              variant_title: variant.title || variant.display_name || "",
+              sku: variant.display_name ?? row.sku,
+              price: Number(variant.price ?? variantPreview.price ?? 0),
             }
             : row,
         ),
       );
+      setActiveLine(null);
+      setPickerProductId(null);
     } finally {
       setLoadingProductLineIdx(null);
     }
@@ -792,7 +910,6 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
     );
     setActiveLine(null);
     setPickerProductId(null);
-    setProductQuery("");
     setProductHits([]);
   };
 
@@ -856,7 +973,12 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
       deliveryMethod === "pickup" ? "нет - самовывоз" : deliveryAddress.trim();
 
     const payload: AdminOrderPayload = {
-      customer_name: customerName.trim() || null,
+      customer_name:
+        buildCustomerName({
+          first: customerFirstName,
+          last: customerLastName,
+          patronymic: customerPatronymic,
+        }) || null,
       phone: phoneDigits,
       comment: comment.trim() || null,
       delivery_method: deliveryMethod,
@@ -972,8 +1094,8 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
             </ul>
           ) : null}
           {!deliveryCity.trim() &&
-          belarusCityQuery.trim().length >= 2 &&
-          belarusCityHits.length === 0 ? (
+            belarusCityQuery.trim().length >= 2 &&
+            belarusCityHits.length === 0 ? (
             <div className="mt-2">
               <p className="mb-1 text-xs text-admin-text-secondary">
                 {belarusCityLookupFailed
@@ -1007,7 +1129,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
         <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
-          <div className="flex w-full shrink-0 flex-col gap-2.5 sm:max-w-[14.5rem]">
+          <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3.5 sm:max-w-[22rem] lg:max-w-[26rem]">
             <div className="relative">
               <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Телефон *</label>
 
@@ -1034,46 +1156,79 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
               </div>
 
               {showPhoneClientPanel ? (
-                <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[14.5rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
+                <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[16rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
                   {phoneHitsLoading || nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
                   ) : phoneHits.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
                       {hasOrderHistoryByPhone
-                        ? `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`
+                        ? (() => {
+                            const guestName =
+                              context?.customer_name?.trim() ||
+                              context?.matched_user?.name?.trim() ||
+                              "";
+                            return guestName
+                              ? `${guestName} · заказов: ${totalOrdersCount(context)}`
+                              : `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`;
+                          })()
                         : "Клиенты не найдены"}
                     </div>
                   ) : (
-                    phoneHits.map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
-                        onMouseDown={(ev) => ev.preventDefault()}
-                        onClick={() => selectPhoneHit(u)}
-                      >
-                        <span className="font-medium text-admin-text">{u.phone}</span>
-
-                        {u.name ? <span className="text-xs text-admin-text-secondary">{u.name}</span> : null}
-                      </button>
-                    ))
+                    phoneHits.map((u) => {
+                      const hitName = u.name?.trim() || "";
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
+                          onMouseDown={(ev) => ev.preventDefault()}
+                          onClick={() => selectPhoneHit(u)}
+                        >
+                          <span className="font-medium text-admin-text">
+                            {hitName || u.phone}
+                          </span>
+                          <span className="text-xs text-admin-text-secondary">{u.phone}</span>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               ) : null}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Имя</label>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className={clientFieldClass}
-                placeholder={
-                  context?.matched_user
-                    ? "Из профиля или вручную"
-                    : "Для нового номера — вручную"
-                }
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="min-w-0">
+                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Имя</label>
+                  <input
+                    value={customerFirstName}
+                    onChange={(e) => setCustomerFirstName(e.target.value)}
+                    className={clientFieldClass}
+                    placeholder="Иван"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Фамилия</label>
+                  <input
+                    value={customerLastName}
+                    onChange={(e) => setCustomerLastName(e.target.value)}
+                    className={clientFieldClass}
+                    placeholder="Иванов"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Отчество</label>
+                  <input
+                    value={customerPatronymic}
+                    onChange={(e) => setCustomerPatronymic(e.target.value)}
+                    className={clientFieldClass}
+                    placeholder="Иванович"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1097,25 +1252,68 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
               <p className="text-sm text-admin-text-secondary">Загрузка…</p>
             ) : context ? (
               <div className="flex flex-1 flex-col justify-center gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompletedOrdersOpen(true)}
-                    disabled={context.orders.completed <= 0}
-                    className="group inline-flex items-baseline gap-1.5 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="text-xs text-admin-text-secondary">Выполнено</span>
-                    <span className="text-xl font-semibold tabular-nums text-emerald-700 underline-offset-2 group-enabled:hover:underline">
-                      {context.orders.completed}
-                    </span>
-                  </button>
-                  <div className="inline-flex items-baseline gap-1.5">
-                    <span className="text-xs text-admin-text-secondary">Активные</span>
-                    <span className="text-xl font-semibold tabular-nums text-admin-text">{context.orders.active}</span>
-                  </div>
-                  <div className="inline-flex items-baseline gap-1.5">
-                    <span className="text-xs text-admin-text-secondary">Отменено</span>
-                    <span className="text-xl font-semibold tabular-nums text-admin-text">{context.orders.cancelled}</span>
+                <div className="space-y-2">
+                  {totalOrdersCount(context) > 0 ? (
+                    <p className="text-[11px] text-admin-text-secondary">
+                      Нажмите на счётчик с числом — откроется список заказов
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        {
+                          kind: "completed" as const,
+                          label: "Выполнено",
+                          count: context.orders.completed,
+                          countClass: "text-emerald-700",
+                        },
+                        {
+                          kind: "active" as const,
+                          label: "Активные",
+                          count: context.orders.active,
+                          countClass: "text-sky-700",
+                        },
+                        {
+                          kind: "cancelled" as const,
+                          label: "Отменено",
+                          count: context.orders.cancelled,
+                          countClass: "text-admin-text",
+                        },
+                      ] as const
+                    ).map((stat) => {
+                      const clickable = stat.count > 0;
+                      return (
+                        <button
+                          key={stat.kind}
+                          type="button"
+                          disabled={!clickable}
+                          onClick={() => setOrdersHistoryModal(stat.kind)}
+                          title={clickable ? `Показать: ${stat.label}` : undefined}
+                          className={`inline-flex min-w-[5.5rem] flex-col items-start rounded-lg border px-2.5 py-2 text-left transition ${
+                            clickable
+                              ? "cursor-pointer border-admin-border bg-admin-surface shadow-sm hover:border-admin-primary/40 hover:bg-admin-muted/80"
+                              : "cursor-not-allowed border-transparent bg-transparent opacity-50"
+                          }`}
+                        >
+                          <span className="text-[11px] text-admin-text-secondary">{stat.label}</span>
+                          <span className="flex w-full items-center justify-between gap-1">
+                            <span
+                              className={`text-xl font-semibold tabular-nums ${stat.countClass}`}
+                            >
+                              {stat.count}
+                            </span>
+                            {clickable ? (
+                              <ChevronRight
+                                size={16}
+                                strokeWidth={2}
+                                className="shrink-0 text-admin-text-secondary"
+                                aria-hidden
+                              />
+                            ) : null}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1156,266 +1354,260 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
           </p>
         ) : null}
         <div className="space-y-2">
-        {lines.some(isCompleteOrderLine) ? (
-          <div className="overflow-x-auto rounded-xl ring-1 ring-inset ring-admin-border/60">
-            <div className="min-w-[28rem]">
-            <div
-              className={`${orderLineTableGrid} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
-            >
-              <span>Наименование</span>
-              <span className="text-center">Кол-во</span>
-              <span className="text-right">Цена</span>
-              <span className="text-right">Итого</span>
-              <span className="sr-only">Действия</span>
-            </div>
-            <div className="divide-y divide-admin-border/70">
-              {lines.map((line, idx) => {
-                if (!isCompleteOrderLine(line)) return null;
-                return (
-                  <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
-                    <p className="min-w-0 truncate text-sm leading-snug text-admin-text">
-                      <span className="font-medium">{line.product_name}</span>
-                      {line.variant_title ? (
-                        <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
-                      ) : null}
-                    </p>
-                    <div className="justify-self-center">
-                      {itemsLocked ? (
-                        <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
-                          {line.qty}
-                        </span>
-                      ) : (
-                        <input
-                          type="number"
-                          min={1}
-                          aria-label={`Количество: ${line.product_name}`}
-                          className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
-                          value={line.qty}
-                          onChange={(e) => setLineQty(idx, Number(e.target.value))}
-                        />
-                      )}
-                    </div>
-                    <p className="text-right text-sm tabular-nums text-admin-text">{formatMoneyRub(line.price)}</p>
-                    <p className="text-right text-sm font-semibold tabular-nums text-admin-text">
-                      {formatMoneyRub(orderLineMerchandiseTotal(line))}
-                    </p>
-                    <div className="justify-self-end">
-                      {!itemsLocked ? (
-                        <button
-                          type="button"
-                          onClick={() => removeLine(idx)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
-                          aria-label={`Удалить ${line.product_name}`}
-                          title="Удалить"
-                        >
-                          <Trash2 size={16} strokeWidth={1.75} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            </div>
-          </div>
-        ) : null}
-        {lines.map((line, idx) => {
-          if (isCompleteOrderLine(line)) return null;
-          const detail = line.product_id ? detailsByProductId[line.product_id] : undefined;
-          const inStock = variantsInStock(detail);
-          const variantChoices = orderableProductVariants(detail);
-          const showPicker = activeLine === idx;
-          /** Сразу после выбора товара из выпадающего списка — прячем результаты поиска, пока не выбран вариант (или не сбросили picker фокусом). */
-          const variantSelectionFromHit = Boolean(
-            line.product_id &&
-            !line.variant_id &&
-            pickerProductId != null &&
-            pickerProductId === line.product_id,
-          );
-          const showProductHitList =
-            showPicker &&
-            loadingProductLineIdx !== idx &&
-            !variantSelectionFromHit &&
-            (productHitsLoading || productHits.length > 0 || debouncedProductQ.trim().length >= 2);
-
-          return (
-            <div
-              key={`line-${idx}`}
-              className="rounded-xl border border-dashed border-admin-border/90 bg-admin-muted/25 px-3 py-2.5"
-            >
-              {itemsLocked ? (
-                <div className="text-xs text-admin-text-secondary">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-admin-text-secondary">Позиция {idx + 1}</div>
-                  <div className="relative">
-                    <input
-                      value={showPicker ? productQuery : line.product_name}
-                      onFocus={() => openProductPicker(idx)}
-                      onChange={(e) => {
-                        openProductPicker(idx);
-                        setProductQuery(e.target.value);
-                      }}
-                      className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
-                      placeholder="Название, артикул или код товара"
-                    />
-                    {showProductHitList ? (
-                      <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg">
-                        {productHitsLoading ? (
-                          <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-                        ) : productHits.length === 0 ? (
-                          <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-                        ) : (
-                          productHits.map((hit) => {
-                            const q = productQuery.trim();
-                            const preview =
-                              hit.variants_preview && hit.variants_preview.length > 0
-                                ? hit.variants_preview
-                                : (hit.variant_titles ?? []).map((title) => ({
-                                  title,
-                                  availability: "",
-                                  available_stock: 0,
-                                  is_available: false,
-                                  is_preorder: false,
-                                }));
-                            return (
-                              <button
-                                key={hit.id}
-                                type="button"
-                                className="block w-full border-b border-gray-50 px-3 py-2 text-left text-sm last:border-0 hover:bg-admin-muted"
-                                onMouseDown={(ev) => ev.preventDefault()}
-                                onClick={() => void pickProductForLine(idx, hit)}
-                              >
-                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                  <span className="shrink-0 text-xs text-gray-400 tabular-nums">
-                                    {highlightQueryInText(String(hit.id), q)}&nbsp;
-                                  </span>
-                                  <span className="min-w-0 font-medium text-admin-text">
-                                    {highlightQueryInText(hit.name, q)}
-                                  </span>
-                                  {hit.brand_name ? (
-                                    <span className="min-w-0 text-xs font-normal text-admin-text-secondary">
-                                      {highlightQueryInText(hit.brand_name, q)}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="mt-1 space-y-1 text-xs">
-                                  {preview.slice(0, 3).map((row, rowIdx) => (
-                                    <div
-                                      key={`${hit.id}-v-${rowIdx}`}
-                                      className="flex flex-col gap-0.5 rounded-md bg-admin-muted/80 px-2 py-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2"
-                                    >
-                                      <span className="min-w-0 text-admin-text">
-                                        {highlightQueryInText(row.title, q)}
-                                      </span>
-                                      {row.availability ? (
-                                        <span
-                                          className={`shrink-0 text-[10px] leading-snug sm:max-w-[55%] sm:text-right ${row.is_preorder
-                                            ? "text-amber-800"
-                                            : row.is_available
-                                              ? "text-emerald-800"
-                                              : "text-admin-text-secondary"
-                                            }`}
-                                        >
-                                          {highlightQueryInText(row.availability, q)}
-                                        </span>
-                                      ) : (
-                                        <span className="shrink-0 text-[10px] text-gray-400">Наличие не загружено</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {pickerProductId && line.product_id === pickerProductId && detail ? (
-                    variantChoices.length === 0 ? (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-sm text-admin-text">
-                        <div className="font-medium">У товара нет вариантов</div>
-                        <p className="mt-1 text-xs text-admin-text">Такой товар в заказ добавить нельзя. Выберите другой в поле поиска выше.</p>
-                        <button
-                          type="button"
-                          className="mt-2 text-xs font-medium text-admin-text underline decoration-gray-400 underline-offset-2 hover:text-admin-text"
-                          onClick={() => openProductPicker(idx)}
-                        >
-                          Сменить товар
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-admin-border bg-admin-muted/60 p-2">
-                        <div className="mb-1 text-xs font-medium text-admin-text-secondary">Выберите вариант</div>
-                        {inStock.length === 0 ? (
-                          <p className="mb-2 text-xs text-amber-900/90">
-                            Сейчас ни у одного варианта нет в наличии — для ручного заказа можно выбрать любой вариант.
-                          </p>
-                        ) : null}
-                        <div className="flex flex-wrap gap-1.5">
-                          {variantChoices.map((v) => {
-                            const tipLine2 = v.fulfillment_tooltip?.trim() ?? "";
-                            const available = Boolean(v.is_available || v.is_preorder);
-                            return (
-                              <button
-                                key={v.id}
-                                type="button"
-                                onMouseEnter={(e) => {
-                                  const r = e.currentTarget.getBoundingClientRect();
-                                  setVariantTooltip({
-                                    x: r.left + r.width / 2,
-                                    y: r.top,
-                                    product: detail.name,
-                                    line2: tipLine2 || "Канал отгрузки не указан",
-                                  });
-                                }}
-                                onMouseLeave={() => setVariantTooltip(null)}
-                                onFocus={(e) => {
-                                  const r = e.currentTarget.getBoundingClientRect();
-                                  setVariantTooltip({
-                                    x: r.left + r.width / 2,
-                                    y: r.top,
-                                    product: detail.name,
-                                    line2: tipLine2 || "Канал отгрузки не указан",
-                                  });
-                                }}
-                                onBlur={() => setVariantTooltip(null)}
-                                onMouseDown={() => setVariantTooltip(null)}
-                                onClick={() => pickVariantForLine(idx, detail, v.id)}
-                                className={`rounded-lg border bg-admin-surface px-2 py-1 text-left text-xs hover:border-gray-400 ${available ? "border-admin-border" : "border-amber-200/80 bg-amber-50/40"}`}
-                              >
-                                <div className="font-medium text-admin-text">{v.title || v.display_name}</div>
-                                <div className="text-admin-text-secondary">
-                                  {v.price != null ? `${v.price} руб.` : "нет в наличии"}
-                                  {typeof v.available_stock === "number" ? ` · ост. ${v.available_stock}` : ""}
-                                  {!available ? (
-                                    <span className="block text-[10px] text-amber-900/90">Нет в наличии</span>
-                                  ) : null}
-                                </div>
-                              </button>
-                            );
-                          })}
+          {lines.some(isCompleteOrderLine) ? (
+            <div className="overflow-x-auto rounded-xl ring-1 ring-inset ring-admin-border/60">
+              <div className="min-w-[28rem]">
+                <div
+                  className={`${orderLineTableGrid} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
+                >
+                  <span>Наименование</span>
+                  <span className="text-center">Кол-во</span>
+                  <span className="text-right">Цена</span>
+                  <span className="text-right">Итого</span>
+                  <span className="sr-only">Действия</span>
+                </div>
+                <div className="divide-y divide-admin-border/70">
+                  {lines.map((line, idx) => {
+                    if (!isCompleteOrderLine(line)) return null;
+                    return (
+                      <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
+                        <p className="min-w-0 truncate text-sm leading-snug text-admin-text">
+                          <span className="font-medium">{line.product_id} - {line.brand_name}  {line.product_name}</span>
+                          {line.variant_title ? (
+                            <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                          ) : null}
+                        </p>
+                        <div className="justify-self-center">
+                          {itemsLocked ? (
+                            <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
+                              {line.qty}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              min={1}
+                              aria-label={`Количество: ${line.product_name}`}
+                              className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                              value={line.qty}
+                              onChange={(e) => setLineQty(idx, Number(e.target.value))}
+                            />
+                          )}
+                        </div>
+                        <p className="text-right text-sm tabular-nums text-admin-text">{formatMoneyRub(line.price)}</p>
+                        <p className="text-right text-sm font-semibold tabular-nums text-admin-text">
+                          {formatMoneyRub(orderLineMerchandiseTotal(line))}
+                        </p>
+                        <div className="justify-self-end">
+                          {!itemsLocked ? (
+                            <button
+                              type="button"
+                              onClick={() => removeLine(idx)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                              aria-label={`Удалить ${line.product_name}`}
+                              title="Удалить"
+                            >
+                              <Trash2 size={16} strokeWidth={1.75} />
+                            </button>
+                          ) : null}
                         </div>
                       </div>
-                    )
-                  ) : null}
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
-          );
-        })}
+          ) : null}
+          {lines.map((line, idx) => {
+            if (isCompleteOrderLine(line)) return null;
+            const detail = line.product_id ? detailsByProductId[line.product_id] : undefined;
+            const inStock = variantsInStock(detail);
+            const variantChoices = orderableProductVariants(detail);
+            const showPicker = activeLine === idx;
+            const isPickerHost = showPicker || pickerProductId === line.product_id;
+            const flatProductHits = flattenProductSmartSearchHits(productHits);
+            const showProductHitList =
+              showPicker &&
+              loadingProductLineIdx !== idx &&
+              (productHitsLoading || flatProductHits.length > 0 || debouncedProductQ.trim().length >= 2);
 
-        <button
-          type="button"
-          onClick={addLine}
-          disabled={itemsLocked}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/20 px-3 py-2.5 text-sm font-medium text-admin-text-secondary transition hover:border-admin-primary/35 hover:bg-admin-muted/50 hover:text-admin-text disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Plus size={16} strokeWidth={2} />
-          Добавить позицию
-        </button>
+            return (
+              <div
+                key={`line-${idx}`}
+                className="rounded-xl border border-dashed border-admin-border/90 bg-admin-muted/25 px-3 py-2.5"
+              >
+                {itemsLocked ? (
+                  <div className="text-xs text-admin-text-secondary">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
+                ) : (
+                  <div className="space-y-2" ref={isPickerHost ? productPickerRef : undefined}>
+                    <div className="text-xs font-medium text-admin-text-secondary">Позиция {idx + 1}</div>
+                    <div className="relative">
+                      <input
+                        value={line.product_name}
+                        onFocus={() => openProductPicker(idx)}
+                        onChange={(e) => {
+                          openProductPicker(idx);
+                          const v = e.target.value;
+                          setLines((prev) =>
+                            prev.map((row, i) => (i === idx ? { ...row, product_name: v } : row)),
+                          );
+                        }}
+                        className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                        placeholder="Название, артикул или код товара"
+                      />
+                      {showProductHitList ? (
+                        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg">
+                          {productHitsLoading ? (
+                            <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
+                          ) : flatProductHits.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
+                          ) : (
+                            flatProductHits.map((option) => {
+                              const q = line.product_name.trim();
+                              const hit = option.hit;
+                              if (option.kind === "no-variants") {
+                                return (
+                                  <div
+                                    key={option.key}
+                                    className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
+                                  >
+                                    <span className="tabular-nums text-gray-400">
+                                      {highlightQueryInText(String(hit.id), q)}
+                                    </span>{" "}
+                                    {hit.brand_name ? (
+                                      <span>{highlightQueryInText(hit.brand_name, q)} </span>
+                                    ) : null}
+                                    <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
+                                    <span className="text-admin-text-secondary"> — нет вариантов</span>
+                                  </div>
+                                );
+                              }
+                              const variant = option.variant;
+                              const availability = productSmartSearchAvailabilityLabel(variant);
+                              return (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
+                                  onMouseDown={(ev) => ev.preventDefault()}
+                                  onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
+                                >
+                                  <span className="tabular-nums text-gray-400">
+                                    {highlightQueryInText(String(hit.id), q)}
+                                  </span>{" "}
+                                  {hit.brand_name ? (
+                                    <span className="text-admin-text-secondary">
+                                      {highlightQueryInText(hit.brand_name, q)}{" "}
+                                    </span>
+                                  ) : null}
+                                  <span className="font-medium text-admin-text">
+                                    {highlightQueryInText(hit.name, q)}
+                                  </span>{" "}
+                                  <span className="text-admin-text">
+                                    {highlightQueryInText(variant.title, q)}
+                                  </span>
+                                  <span className="text-admin-text-secondary"> — </span>
+                                  <span className={productSmartSearchAvailabilityClass(variant)}>
+                                    {highlightQueryInText(availability, q)}
+                                  </span>
+                                  {productSmartSearchShowsPrice(variant) ? (
+                                    <>
+                                      <span className="text-admin-text-secondary"> — </span>
+                                      <span className="tabular-nums text-admin-text">
+                                        {productSmartSearchPriceLabel(variant)}
+                                      </span>
+                                    </>
+                                  ) : null}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {pickerProductId && line.product_id === pickerProductId && detail ? (
+                      variantChoices.length === 0 ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-sm text-admin-text">
+                          <div className="font-medium">У товара нет вариантов</div>
+                          <p className="mt-1 text-xs text-admin-text">Такой товар в заказ добавить нельзя. Выберите другой в поле поиска выше.</p>
+                          <button
+                            type="button"
+                            className="mt-2 text-xs font-medium text-admin-text underline decoration-gray-400 underline-offset-2 hover:text-admin-text"
+                            onClick={() => openProductPicker(idx)}
+                          >
+                            Сменить товар
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-admin-border bg-admin-muted/60 p-2">
+                          <div className="mb-1 text-xs font-medium text-admin-text-secondary">Выберите вариант</div>
+                          {inStock.length === 0 ? (
+                            <p className="mb-2 text-xs text-amber-900/90">
+                              Сейчас ни у одного варианта нет в наличии — для ручного заказа можно выбрать любой вариант.
+                            </p>
+                          ) : null}
+                          <div className="flex flex-wrap gap-1.5">
+                            {variantChoices.map((v) => {
+                              const tipLine2 = v.fulfillment_tooltip?.trim() ?? "";
+                              const available = Boolean(v.is_available || v.is_preorder);
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onMouseEnter={(e) => {
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    setVariantTooltip({
+                                      x: r.left + r.width / 2,
+                                      y: r.top,
+                                      product: detail.name,
+                                      line2: tipLine2 || "Канал отгрузки не указан",
+                                    });
+                                  }}
+                                  onMouseLeave={() => setVariantTooltip(null)}
+                                  onFocus={(e) => {
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    setVariantTooltip({
+                                      x: r.left + r.width / 2,
+                                      y: r.top,
+                                      product: detail.name,
+                                      line2: tipLine2 || "Канал отгрузки не указан",
+                                    });
+                                  }}
+                                  onBlur={() => setVariantTooltip(null)}
+                                  onMouseDown={() => setVariantTooltip(null)}
+                                  onClick={() => pickVariantForLine(idx, detail, v.id)}
+                                  className={`rounded-lg border bg-admin-surface px-2 py-1 text-left text-xs hover:border-gray-400 ${available ? "border-admin-border" : "border-amber-200/80 bg-amber-50/40"}`}
+                                >
+                                  <div className="font-medium text-admin-text">{v.title || v.display_name}</div>
+                                  <div className="text-admin-text-secondary">
+                                    {v.price != null ? `${v.price} руб.` : "нет в наличии"}
+                                    {typeof v.available_stock === "number" ? ` · ост. ${v.available_stock}` : ""}
+                                    {!available ? (
+                                      <span className="block text-[10px] text-amber-900/90">Нет в наличии</span>
+                                    ) : null}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={addLine}
+            disabled={itemsLocked}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/20 px-3 py-2.5 text-sm font-medium text-admin-text-secondary transition hover:border-admin-primary/35 hover:bg-admin-muted/50 hover:text-admin-text disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus size={16} strokeWidth={2} />
+            Добавить позицию
+          </button>
         </div>
       </SectionCard>
 
@@ -1568,56 +1760,56 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                     Карта клиента подставляется автоматически. При оплате картой скидка по накопительной карте не
                     начисляется.
                   </p>
-                    {discountCardConfirmed ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
-                        <span>
-                          Применена{" "}
-                          <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
-                          {hasLoyaltyDiscount ? (
-                            <span className="text-emerald-800">
-                              {" "}
-                              · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
-                            </span>
-                          ) : paymentMethod === "card" ? (
-                            <span className="text-admin-text-secondary"> · при оплате картой скидка не действует</span>
-                          ) : null}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
-                          onClick={() => {
-                            setDiscountCardInput("");
-                            setAppliedDiscountCardNumber("");
-                            setDiscountCardError("");
-                            setDiscountCardManuallyCleared(true);
-                          }}
-                        >
-                          Убрать
-                        </button>
-                      </div>
-                    ) : <div className="flex flex-col gap-2 sm:flex-row">
-                      <input
-                        value={discountCardInput}
-                        onChange={(e) => {
-                          setDiscountCardInput(e.target.value);
-                          setDiscountCardError("");
-                          if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
-                            setAppliedDiscountCardNumber("");
-                          }
-                        }}
-                        placeholder="Номер скидочной карты"
-                        className="min-w-0 flex-1 rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
-                      />
+                  {discountCardConfirmed ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
+                      <span>
+                        Применена{" "}
+                        <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
+                        {hasLoyaltyDiscount ? (
+                          <span className="text-emerald-800">
+                            {" "}
+                            · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
+                          </span>
+                        ) : paymentMethod === "card" ? (
+                          <span className="text-admin-text-secondary"> · при оплате картой скидка не действует</span>
+                        ) : null}
+                      </span>
                       <button
                         type="button"
-                        disabled={!discountCardInput.trim() || orderQuoteLoading}
-                        onClick={() => void applyDiscountCardToOrder(discountCardInput)}
-                        className="shrink-0 rounded-xl border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
+                        className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
+                        onClick={() => {
+                          setDiscountCardInput("");
+                          setAppliedDiscountCardNumber("");
+                          setDiscountCardError("");
+                          setDiscountCardManuallyCleared(true);
+                        }}
                       >
-                        {orderQuoteLoading ? "Проверка…" : "Применить"}
+                        Убрать
                       </button>
                     </div>
-                    }
+                  ) : <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={discountCardInput}
+                      onChange={(e) => {
+                        setDiscountCardInput(e.target.value);
+                        setDiscountCardError("");
+                        if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
+                          setAppliedDiscountCardNumber("");
+                        }
+                      }}
+                      placeholder="Номер скидочной карты"
+                      className="min-w-0 flex-1 rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={!discountCardInput.trim() || orderQuoteLoading}
+                      onClick={() => void applyDiscountCardToOrder(discountCardInput)}
+                      className="shrink-0 rounded-xl border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
+                    >
+                      {orderQuoteLoading ? "Проверка…" : "Применить"}
+                    </button>
+                  </div>
+                  }
                   {context?.discount_cards.length ? (
                     <div className="flex flex-wrap gap-2">
                       {context.discount_cards.map((card) => (
@@ -1737,23 +1929,31 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
         )
         : null}
 
-      {context && completedOrdersOpen && typeof document !== "undefined"
+      {context && ordersHistoryModal && typeof document !== "undefined"
         ? createPortal(
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4">
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl">
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4"
+            onClick={() => setOrdersHistoryModal(null)}
+          >
+            <div
+              className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between border-b px-4 py-3">
-                <h3 className="text-sm font-semibold text-admin-text">Выполненные заказы по номеру</h3>
+                <h3 className="text-sm font-semibold text-admin-text">
+                  {ORDERS_HISTORY_MODAL_TITLES[ordersHistoryModal]}
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setCompletedOrdersOpen(false)}
+                  onClick={() => setOrdersHistoryModal(null)}
                   className="rounded-lg border border-admin-border px-2.5 py-1.5 text-xs text-admin-text hover:bg-admin-muted"
                 >
                   Закрыть
                 </button>
               </div>
               <div className="max-h-[72vh] overflow-auto p-4">
-                {context.completed_orders.length === 0 ? (
-                  <p className="text-sm text-admin-text-secondary">Выполненные заказы не найдены.</p>
+                {ordersForHistoryModal(context, ordersHistoryModal).length === 0 ? (
+                  <p className="text-sm text-admin-text-secondary">Заказы не найдены.</p>
                 ) : (
                   <table className="min-w-full text-sm">
                     <thead>
@@ -1766,7 +1966,7 @@ export default function AdminOrderCreateForm({ mode = "create", initialOrder, in
                       </tr>
                     </thead>
                     <tbody>
-                      {context.completed_orders.map((order) => (
+                      {ordersForHistoryModal(context, ordersHistoryModal).map((order) => (
                         <tr key={order.id} className="border-b last:border-b-0">
                           <td className="px-3 py-2 font-medium text-admin-text">
                             <a

@@ -19,6 +19,7 @@ use Modules\Users\Models\User;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Checkout\Services\AdminOrderPricingService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
+use Modules\Checkout\Support\OrderAccountScope;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Services\StockInventoryService;
 
@@ -91,10 +92,13 @@ class OrderController extends Controller
             return response()->json([
                 'data' => [
                     'matched_user' => null,
+                    'customer_name' => null,
                     'orders' => ['completed' => 0, 'cancelled' => 0, 'active' => 0],
                     'delivery_cities' => [],
                     'discount_cards' => [],
                     'completed_orders' => [],
+                    'active_orders' => [],
+                    'cancelled_orders' => [],
                 ],
             ]);
         }
@@ -106,7 +110,7 @@ class OrderController extends Controller
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderByDesc('id')
             ->limit(800)
-            ->get(['id', 'status', 'delivery_city', 'phone', 'created_at', 'items_qty', 'total'])
+            ->get(['id', 'status', 'delivery_city', 'phone', 'created_at', 'items_qty', 'total', 'customer_name'])
             ->filter(fn (Order $o) => Phone::normalize((string) $o->phone) === $digits);
 
         $completed = $orderRows->whereIn('status', ['done', 'completed'])->count();
@@ -121,24 +125,15 @@ class OrderController extends Controller
             ->values()
             ->all();
 
-        $completedOrders = $orderRows
-            ->whereIn('status', ['done', 'completed'])
-            ->take(30)
-            ->map(static fn (Order $order): array => [
-                'id' => (int) $order->id,
-                'created_at' => optional($order->created_at)?->toIso8601String(),
-                'items_qty' => (int) ($order->items_qty ?? 0),
-                'total' => (string) $order->total,
-                'items' => $order->items->map(static function (OrderItem $item): array {
-                    return [
-                        'product_name' => (string) ($item->product_name ?? ''),
-                        'variant_title' => (string) ($item->variant_title ?? ''),
-                        'qty' => (int) ($item->qty ?? 0),
-                    ];
-                })->values()->all(),
-            ])
-            ->values()
-            ->all();
+        $completedOrders = $this->customerContextOrderRows(
+            $orderRows->whereIn('status', ['done', 'completed'])
+        );
+        $activeOrders = $this->customerContextOrderRows(
+            $orderRows->whereNotIn('status', ['done', 'completed', 'cancelled'])
+        );
+        $cancelledOrders = $this->customerContextOrderRows(
+            $orderRows->where('status', 'cancelled')
+        );
 
         $user = User::query()
             ->where('phone', 'like', '%'.$suffix.'%')
@@ -146,6 +141,18 @@ class OrderController extends Controller
             ->limit(50)
             ->get()
             ->first(fn (User $u) => Phone::normalize((string) $u->phone) === $digits);
+
+        $suggestedCustomerName = null;
+        if ($user && filled(trim((string) ($user->name ?? '')))) {
+            $suggestedCustomerName = trim((string) $user->name);
+        } else {
+            $latestNamedOrder = $orderRows->first(
+                fn (Order $order) => filled(trim((string) ($order->customer_name ?? '')))
+            );
+            if ($latestNamedOrder) {
+                $suggestedCustomerName = trim((string) $latestNamedOrder->customer_name);
+            }
+        }
 
         $cards = [];
         if ($user) {
@@ -170,6 +177,7 @@ class OrderController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                 ] : null,
+                'customer_name' => $suggestedCustomerName,
                 'orders' => [
                     'completed' => $completed,
                     'cancelled' => $cancelled,
@@ -178,8 +186,35 @@ class OrderController extends Controller
                 'delivery_cities' => $deliveryCities,
                 'discount_cards' => $cards,
                 'completed_orders' => $completedOrders,
+                'active_orders' => $activeOrders,
+                'cancelled_orders' => $cancelledOrders,
             ],
         ]);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Order>  $orders
+     * @return list<array<string, mixed>>
+     */
+    private function customerContextOrderRows(\Illuminate\Support\Collection $orders): array
+    {
+        return $orders
+            ->take(30)
+            ->map(static fn (Order $order): array => [
+                'id' => (int) $order->id,
+                'created_at' => optional($order->created_at)?->toIso8601String(),
+                'items_qty' => (int) ($order->items_qty ?? 0),
+                'total' => (string) $order->total,
+                'items' => $order->items->map(static function (OrderItem $item): array {
+                    return [
+                        'product_name' => (string) ($item->product_name ?? ''),
+                        'variant_title' => (string) ($item->variant_title ?? ''),
+                        'qty' => (int) ($item->qty ?? 0),
+                    ];
+                })->values()->all(),
+            ])
+            ->values()
+            ->all();
     }
 
     public function index(Request $request): JsonResponse
@@ -355,9 +390,11 @@ class OrderController extends Controller
 
         /** @var Order $order */
         $order = DB::transaction(function () use ($validated, $discountCardNumber) {
+            $phone = Phone::normalize((string) $validated['phone']);
             $order = Order::query()->create([
+                'user_id' => OrderAccountScope::resolveUserIdForPhone($phone),
                 'customer_name' => $validated['customer_name'] ?? null,
-                'phone' => (string) $validated['phone'],
+                'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,
                 'status' => (string) ($validated['status'] ?? 'new'),
                 'delivery_method' => $validated['delivery_method'] ?? null,
@@ -412,9 +449,11 @@ class OrderController extends Controller
         }
 
         DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber) {
+            $phone = Phone::normalize((string) $validated['phone']);
             $order->update([
+                'user_id' => OrderAccountScope::resolveUserIdForPhone($phone) ?? $order->user_id,
                 'customer_name' => $validated['customer_name'] ?? null,
-                'phone' => (string) $validated['phone'],
+                'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
