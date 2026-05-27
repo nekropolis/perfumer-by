@@ -76,9 +76,9 @@ export type ProductSmartSearchFlatOption =
 export function flattenProductSmartSearchHits(hits: ProductSmartSearchItem[]): ProductSmartSearchFlatOption[] {
     const out: ProductSmartSearchFlatOption[] = [];
     for (const hit of hits) {
-        const preview = hit.variants_preview?.length
+        const preview: ProductSmartSearchVariantPreview[] = hit.variants_preview?.length
             ? hit.variants_preview
-            : (hit.variant_titles ?? []).map((title) => ({
+            : (hit.variant_titles ?? []).map((title): ProductSmartSearchVariantPreview => ({
                   title,
                   availability: "",
                   available_stock: 0,
