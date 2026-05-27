@@ -668,65 +668,7 @@ class ProductController extends Controller
             ->values()
             ->all();
 
-        $rankedBrands = Brand::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($queryLike, $patternLikes): void {
-                $q->where('name', 'like', $queryLike)
-                    ->orWhere('slug', 'like', $queryLike);
-
-                foreach ($patternLikes as $like) {
-                    $q->orWhere('name', 'like', $like)
-                        ->orWhere('slug', 'like', $like);
-                }
-            })
-            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
-            ->get(['id', 'name', 'slug'])
-            ->map(function (Brand $brand) use ($normalizedQuery, $tokens) {
-                $normalizedBrandName = $this->normalizeSearchText((string) $brand->name);
-                $normalizedBrandSlug = $this->normalizeSearchText((string) $brand->slug);
-                $scoreName = $this->similarityScore($normalizedQuery, $normalizedBrandName);
-                $scoreSlug = $this->similarityScore($normalizedQuery, $normalizedBrandSlug);
-                $score = max($scoreName, $scoreSlug * 0.95);
-
-                // Для многословных запросов (например, "tom ford") требуем
-                // совпадение по всем значимым токенам, чтобы отсечь шум вроде "waterford".
-                if (count($tokens) >= 2) {
-                    $tokenMatches = 0;
-                    foreach ($tokens as $token) {
-                        if (mb_strlen($token, 'UTF-8') < 3) {
-                            continue;
-                        }
-                        $tokenInName = str_contains($normalizedBrandName, $token)
-                            || $this->similarityScore($token, $normalizedBrandName) >= 0.75;
-                        $tokenInSlug = str_contains($normalizedBrandSlug, $token)
-                            || $this->similarityScore($token, $normalizedBrandSlug) >= 0.75;
-                        if ($tokenInName || $tokenInSlug) {
-                            $tokenMatches++;
-                        }
-                    }
-
-                    if ($tokenMatches < count(array_filter($tokens, static fn (string $t) => mb_strlen($t, 'UTF-8') >= 3))) {
-                        return null;
-                    }
-                }
-
-                if ($score < 0.3) {
-                    return null;
-                }
-                $payload = [
-                    'id' => (int) $brand->id,
-                    'name' => (string) $brand->name,
-                    'slug' => (string) $brand->slug,
-                    'products_count' => (int) ($brand->products_count ?? 0),
-                    'score' => round($score, 6),
-                ];
-                return $payload;
-            })
-            ->filter()
-            ->sortByDesc('score')
-            ->take(5)
-            ->values()
-            ->all();
+        $rankedBrands = $this->buildSmartSearchRankedBrands($rankedProducts, $query, $tokens, $normalizedQuery);
 
         if (!$debug) {
             $rankedProducts = array_map(static function (array $item): array {
@@ -946,6 +888,158 @@ class ProductController extends Controller
                 }
             }
             $matched[$pid] = $exact ?? $candidates[0];
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Бренды в подсказках: из найденных товаров; прямой поиск бренда — только если товаров нет.
+     *
+     * @param  list<array<string, mixed>>  $rankedProducts
+     * @param  list<string>  $tokens
+     * @return list<array<string, mixed>>
+     */
+    private function buildSmartSearchRankedBrands(array $rankedProducts, string $query, array $tokens, string $normalizedQuery): array
+    {
+        $limit = 5;
+        $fromProducts = $this->smartSearchBrandsFromRankedProducts($rankedProducts, $limit);
+        if ($fromProducts !== []) {
+            return $fromProducts;
+        }
+
+        return $this->smartSearchBrandsDirectMatch($query, $tokens, $normalizedQuery, $limit);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rankedProducts
+     * @return list<array<string, mixed>>
+     */
+    private function smartSearchBrandsFromRankedProducts(array $rankedProducts, int $limit): array
+    {
+        $brandIds = [];
+        foreach ($rankedProducts as $product) {
+            $brandId = (int) ($product['brand']['id'] ?? 0);
+            if ($brandId <= 0 || in_array($brandId, $brandIds, true)) {
+                continue;
+            }
+            $brandIds[] = $brandId;
+            if (count($brandIds) >= $limit) {
+                break;
+            }
+        }
+
+        if ($brandIds === []) {
+            return [];
+        }
+
+        $brandsById = Brand::query()
+            ->whereIn('id', $brandIds)
+            ->where('is_active', true)
+            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->get(['id', 'name', 'slug'])
+            ->keyBy('id');
+
+        $out = [];
+        foreach ($brandIds as $brandId) {
+            $brand = $brandsById->get($brandId);
+            if ($brand === null) {
+                continue;
+            }
+            $out[] = [
+                'id' => (int) $brand->id,
+                'name' => (string) $brand->name,
+                'slug' => (string) $brand->slug,
+                'products_count' => (int) ($brand->products_count ?? 0),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<string>  $tokens
+     * @return list<array<string, mixed>>
+     */
+    private function smartSearchBrandsDirectMatch(string $query, array $tokens, string $normalizedQuery, int $limit): array
+    {
+        $significantTokens = array_values(array_filter(
+            $tokens,
+            static fn (string $t): bool => mb_strlen($t, 'UTF-8') >= 2
+        ));
+
+        if ($significantTokens === []) {
+            return [];
+        }
+
+        $queryLike = '%'.$this->escapeLikeValue($query).'%';
+
+        return Brand::query()
+            ->where('is_active', true)
+            ->where(function ($q) use ($queryLike): void {
+                $q->where('name', 'like', $queryLike)
+                    ->orWhere('slug', 'like', $queryLike);
+            })
+            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->get(['id', 'name', 'slug'])
+            ->filter(function (Brand $brand) use ($significantTokens, $normalizedQuery): bool {
+                $normalizedBrandName = $this->normalizeSearchText((string) $brand->name);
+                $normalizedBrandSlug = $this->normalizeSearchText((string) $brand->slug);
+
+                if (
+                    ! $this->brandMatchesAllTokensAsWords($normalizedBrandName, $significantTokens)
+                    && ! $this->brandMatchesAllTokensAsWords($normalizedBrandSlug, $significantTokens)
+                ) {
+                    return false;
+                }
+
+                $score = max(
+                    $this->similarityScore($normalizedQuery, $normalizedBrandName),
+                    $this->similarityScore($normalizedQuery, $normalizedBrandSlug) * 0.95,
+                );
+
+                return $score >= 0.45;
+            })
+            ->sortByDesc(function (Brand $brand) use ($normalizedQuery): float {
+                return max(
+                    $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $brand->name)),
+                    $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $brand->slug)) * 0.95,
+                );
+            })
+            ->take($limit)
+            ->map(static function (Brand $brand): array {
+                return [
+                    'id' => (int) $brand->id,
+                    'name' => (string) $brand->name,
+                    'slug' => (string) $brand->slug,
+                    'products_count' => (int) ($brand->products_count ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Токен только как отдельное слово — «one» не матчит «jones».
+     *
+     * @param  list<string>  $tokens
+     */
+    private function brandMatchesAllTokensAsWords(string $normalizedHaystack, array $tokens): bool
+    {
+        if ($normalizedHaystack === '') {
+            return false;
+        }
+
+        $matched = false;
+        foreach ($tokens as $token) {
+            if (mb_strlen($token, 'UTF-8') < 2) {
+                continue;
+            }
+            $matched = true;
+            $pattern = '/(?:^|\s)'.preg_quote($token, '/').'(?:\s|$)/u';
+            if (! preg_match($pattern, $normalizedHaystack)) {
+                return false;
+            }
         }
 
         return $matched;

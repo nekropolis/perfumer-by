@@ -2,9 +2,11 @@
 
 namespace Modules\Catalog\Services;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 use Modules\Warehouse\Models\Warehouse;
@@ -493,6 +495,114 @@ class CatalogProductLinkSearchService
         }
 
         return $grams;
+    }
+
+    /**
+     * Поиск в админском списке товаров: «Kenzo Flower By Legere» = бренд + AND по токенам имени.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function applyAdminProductListSearch(Builder $query, string $search): void
+    {
+        $search = trim($search);
+        if ($search === '') {
+            return;
+        }
+
+        $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
+        $isNumericIdSearch = preg_match('/^\d{1,12}$/', $search) === 1 && (int) $search > 0;
+
+        $brands = Brand::query()->select(['id', 'name'])->get();
+        $split = CatalogProductLinkNameTokenizer::splitLeadingBrand($search, $brands);
+        $brandFilter = $split['brand_id'];
+        $stripBrandName = $split['brand_name'];
+
+        $rest = $search;
+        if ($stripBrandName !== null && $stripBrandName !== '') {
+            $pattern = '/^'.preg_quote($stripBrandName, '/').'\s+/iu';
+            $stripped = trim((string) preg_replace($pattern, '', $search, 1));
+            if ($stripped !== '') {
+                $rest = $stripped;
+            }
+        } elseif ($split['rest'] !== '') {
+            $rest = $split['rest'];
+        }
+
+        $tokens = CatalogProductLinkNameTokenizer::linkSearchTokensFromRest($rest, null);
+        $significant = array_values(array_filter(
+            $tokens,
+            static fn (string $t): bool => mb_strlen($t, 'UTF-8') >= 2
+                && ! CatalogProductLinkNameTokenizer::isGenderCanonToken($t)
+        ));
+        $hasGender = CatalogProductLinkNameTokenizer::tokensContainGenderCanon($tokens);
+        $useTokenizedPath = $brandFilter !== null || $significant !== [] || $hasGender;
+
+        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath): void {
+            if ($useTokenizedPath) {
+                $outer->where(function ($tokenized) use ($brandFilter, $significant, $hasGender, $tokens): void {
+                    if ($brandFilter !== null && $brandFilter > 0) {
+                        $tokenized->where('brand_id', $brandFilter);
+                    }
+
+                    foreach ($significant as $token) {
+                        $needle = '%'.$this->escapeLikeValue($token).'%';
+                        $tokenized->where(function ($w) use ($needle): void {
+                            $this->applyAdminListTokenMatch($w, $needle);
+                        });
+                    }
+
+                    if ($hasGender) {
+                        $tokenized->where(function ($w) use ($tokens): void {
+                            $this->applyGenderOrLikesForTokens($w, $tokens);
+                        });
+                    }
+                });
+            }
+
+            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch): void {
+                $legacy->where('name', 'like', "%{$search}%")
+                    ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
+                        $brandQuery->where('name', 'like', "%{$search}%");
+                        if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
+                            $brandQuery->orWhere('name', 'like', "%{$stem}%");
+                        }
+                    })
+                    ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhereHas('variants.definition', function ($def) use ($search): void {
+                        $def->where('title', 'like', "%{$search}%")
+                            ->orWhere('concentration_label', 'like', "%{$search}%")
+                            ->orWhere('concentration_code', 'like', "%{$search}%");
+                    });
+
+                if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
+                    $legacy->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
+                }
+
+                if ($isNumericIdSearch) {
+                    $legacy->orWhere((new Product())->getQualifiedKeyName(), (int) $search);
+                    $legacy->orWhereHas('variants', function ($variantQuery) use ($search): void {
+                        $variantQuery->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search);
+                    });
+                }
+            });
+        });
+    }
+
+    /**
+     * @param  Builder<Product>  $w
+     */
+    private function applyAdminListTokenMatch(Builder $w, string $needle): void
+    {
+        $w->where('name', 'like', $needle)
+            ->orWhere('slug', 'like', $needle)
+            ->orWhereHas('brand', static function ($brandQuery) use ($needle): void {
+                $brandQuery->where('name', 'like', $needle);
+            })
+            ->orWhereHas('variants.definition', static function ($def) use ($needle): void {
+                $def->where('title', 'like', $needle)
+                    ->orWhere('concentration_label', 'like', $needle)
+                    ->orWhere('concentration_code', 'like', $needle);
+            });
     }
 
     /**

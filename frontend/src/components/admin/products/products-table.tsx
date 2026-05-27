@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { Boxes, Pencil, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import { resolveProductStatuses } from "@/lib/product-statuses";
 
 type Props = {
@@ -12,43 +12,6 @@ type Props = {
     onDeleteAction: (item: ProductAdminItem) => void;
     onVariantsAction: (item: ProductAdminItem) => void;
 };
-
-function highlightQueryInText(text: string, query: string): ReactNode {
-    const q = query.trim();
-    if (!q) {
-        return text;
-    }
-
-    const lowerText = text.toLocaleLowerCase("ru-RU");
-    const lowerQ = q.toLocaleLowerCase("ru-RU");
-    const parts: ReactNode[] = [];
-    let pos = 0;
-
-    for (let i = 0; i < 80 && pos < text.length; i += 1) {
-        const idx = lowerText.indexOf(lowerQ, pos);
-        if (idx === -1) {
-            parts.push(text.slice(pos));
-            break;
-        }
-
-        if (idx > pos) {
-            parts.push(text.slice(pos, idx));
-        }
-
-        parts.push(
-            <mark
-                key={`hl-${idx}-${i}`}
-                className="rounded-sm bg-amber-200 px-0.5 text-admin-text"
-            >
-                {text.slice(idx, idx + q.length)}
-            </mark>,
-        );
-
-        pos = idx + q.length;
-    }
-
-    return parts.length > 0 ? <>{parts}</> : text;
-}
 
 function StatusBadge({ active }: { active: boolean }) {
     return (
@@ -115,16 +78,19 @@ export default function ProductsTable({
                 </tr>
                 </thead>
                 <tbody>
-                {items.map((item) => (
+                {items.map((item) => {
+                    const brandName = item.brand?.name ?? null;
+
+                    return (
                     <tr key={item.id} className="border-t border-admin-border align-center transition hover:bg-admin-muted/70">
                         <td className="px-3 py-3 text-admin-text-secondary">
-                            {highlightQueryInText(String(item.id), searchQuery)}
+                            {highlightAdminSearchTerms(String(item.id), searchQuery, brandName)}
                         </td>
                         <td className="px-3 py-3 text-admin-text">
-                            {highlightQueryInText(item.brand?.name ?? "—", searchQuery)}
+                            {highlightAdminSearchTerms(item.brand?.name ?? "—", searchQuery)}
                         </td>
                         <td className="px-3 py-3 font-medium text-admin-text">
-                            <div>{highlightQueryInText(item.name, searchQuery)}</div>
+                            <div>{highlightAdminSearchTerms(item.name, searchQuery, brandName)}</div>
                             {item.matched_variant_ids && item.matched_variant_ids.length > 0 ? (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                     {item.matched_variant_ids.map((variantId) => (
@@ -132,14 +98,14 @@ export default function ProductsTable({
                                             key={`${item.id}-variant-${variantId}`}
                                             className="inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
                                         >
-                                            вариант: #{highlightQueryInText(String(variantId), searchQuery)}
+                                            вариант: #{highlightAdminSearchTerms(String(variantId), searchQuery, brandName)}
                                         </span>
                                     ))}
                                 </div>
                             ) : null}
                         </td>
                         <td className="px-3 py-3 text-admin-text-secondary">
-                            {highlightQueryInText(item.slug, searchQuery)}
+                            {highlightAdminSearchTerms(item.slug, searchQuery, brandName)}
                         </td>
                         <td className="px-3 py-3">
                             <StatusBadge active={item.is_active} />
@@ -188,7 +154,8 @@ export default function ProductsTable({
                             </div>
                         </td>
                     </tr>
-                ))}
+                    );
+                })}
                 </tbody>
             </table>
         </div>

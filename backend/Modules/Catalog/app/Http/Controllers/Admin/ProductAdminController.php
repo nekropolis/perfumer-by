@@ -29,7 +29,7 @@ class ProductAdminController extends Controller
 {
     private const SMART_SEARCH_RESULT_LIMIT = 40;
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, CatalogProductLinkSearchService $linkSearch): JsonResponse
     {
         $query = Product::query()
             ->with(['brand'])
@@ -49,33 +49,8 @@ class ProductAdminController extends Controller
         if ($request->filled('search')) {
             $search = trim($request->string('search')->toString());
             $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
-            $isNumericIdSearch = preg_match('/^\d{1,12}$/', $search) === 1 && (int) $search > 0;
 
-            $query->where(function ($q) use ($search, $stem, $isNumericIdSearch) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
-                        $brandQuery->where('name', 'like', "%{$search}%");
-                        if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
-                            $brandQuery->orWhere('name', 'like', "%{$stem}%");
-                        }
-                    })
-                    ->orWhere('slug', 'like', "%{$search}%")
-                    ->orWhereHas('variants.definition', function ($def) use ($search) {
-                        $def->where('title', 'like', "%{$search}%")
-                            ->orWhere('concentration_label', 'like', "%{$search}%")
-                            ->orWhere('concentration_code', 'like', "%{$search}%");
-                    });
-                if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
-                    // «Gucci Guilty - 90 ml» не матчит LIKE по имени «Gucci Guilty» — добавляем точное имя по stem.
-                    $q->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
-                }
-                if ($isNumericIdSearch) {
-                    $q->orWhere((new Product())->getQualifiedKeyName(), (int) $search);
-                    $q->orWhereHas('variants', function ($variantQuery) use ($search): void {
-                        $variantQuery->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search);
-                    });
-                }
-            });
+            $linkSearch->applyAdminProductListSearch($query, $search);
 
             // Сортировка: точное имя (полная строка или stem) и slug выше частичных совпадений, затем id.
 
