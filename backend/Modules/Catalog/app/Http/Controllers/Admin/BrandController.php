@@ -10,6 +10,7 @@ use Illuminate\Validation\Rule;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Support\VanilleHelper;
 use Throwable;
@@ -181,9 +182,13 @@ class BrandController extends Controller
 
         $decoded = VanilleBrandParser::filterExcludedListingRows($decoded);
 
-        $existingNames = Brand::query()
+        $existingEquivalentKeys = Brand::query()
             ->pluck('name')
-            ->mapWithKeys(static fn ($name) => [mb_strtolower(trim((string) $name), 'UTF-8') => true])
+            ->mapWithKeys(static function ($name): array {
+                $key = ProductDisplayName::brandEquivalentKey((string) $name);
+
+                return $key !== '' ? [$key => true] : [];
+            })
             ->all();
 
         $usedSlugs = Brand::query()
@@ -216,8 +221,8 @@ class BrandController extends Controller
                 continue;
             }
 
-            $normalizedName = mb_strtolower($name, 'UTF-8');
-            if (isset($existingNames[$normalizedName])) {
+            $equivalentKey = ProductDisplayName::brandEquivalentKey($name);
+            if ($equivalentKey !== '' && isset($existingEquivalentKeys[$equivalentKey])) {
                 $skipped++;
                 continue;
             }
@@ -246,7 +251,9 @@ class BrandController extends Controller
                 'is_active' => true,
             ]);
 
-            $existingNames[$normalizedName] = true;
+            if ($equivalentKey !== '') {
+                $existingEquivalentKeys[$equivalentKey] = true;
+            }
             $created++;
         }
 

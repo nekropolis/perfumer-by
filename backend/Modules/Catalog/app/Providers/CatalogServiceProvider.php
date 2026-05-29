@@ -17,6 +17,7 @@ use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
 use Modules\Catalog\Console\Commands\RepairVanilleCatalogImageOrderCommand;
 use Modules\Catalog\Console\Commands\RepairVanilleProductVariantsCommand;
 use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
+use Modules\Catalog\Console\Commands\MergeDuplicateBrandsCommand;
 use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
@@ -73,6 +74,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         RepairVanilleCatalogImageOrderCommand::class,
         PruneBrandsWithoutProductsCommand::class,
         PruneProductsWithoutVanilleCommand::class,
+        MergeDuplicateBrandsCommand::class,
         RegenerateProductImageVariantsCommand::class,
         ReindexProductSearchCommand::class,
         StripBrandFromProductNamesCommand::class,

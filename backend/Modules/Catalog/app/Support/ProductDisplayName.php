@@ -138,7 +138,13 @@ final class ProductDisplayName
 
     public static function brandNamesEquivalent(string $a, string $b): bool
     {
-        return self::normalizeBrandKey($a) === self::normalizeBrandKey($b);
+        return self::brandEquivalentKey($a) === self::brandEquivalentKey($b);
+    }
+
+    /** Ключ для сопоставления брендов (A'PIEU = A'PIEU, Dolce & Gabbana = Dolce&Gabbana). */
+    public static function brandEquivalentKey(string $value): string
+    {
+        return self::normalizeBrandKey($value);
     }
 
     private static function normalizeBrandKey(string $value): string

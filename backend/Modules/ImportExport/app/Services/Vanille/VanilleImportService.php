@@ -120,6 +120,7 @@ class VanilleImportService
             ->filter()
             ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
             ->all();
+        $brandByEquivalentKey = $this->buildBrandEquivalentLookup();
         $productSlugSet = Product::query()
             ->pluck('slug')
             ->filter()
@@ -143,7 +144,7 @@ class VanilleImportService
             try {
                 $newProductIdForLlm = null;
                 $productIdForSearch = null;
-                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$newProductIdForLlm, &$productIdForSearch) {
+                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$brandByEquivalentKey, &$newProductIdForLlm, &$productIdForSearch) {
                     $fullTitle = $this->resolveProductName($item);
                     $brand = null;
                     $brandName = trim((string) ($item['brand'] ?? ''));
@@ -156,19 +157,14 @@ class VanilleImportService
                         if ($brandSlug === '') {
                             $brandSlug = 'brand';
                         }
-                        $brandSlug = $this->resolveUniqueSlugInMemory($brandSlug, $brandSlugSet, $productSlugSet);
-
-                        $brand = Brand::firstOrCreate(
-                            ['slug' => $brandSlug],
-                            [
-                                'name' => trim((string) ($catalogBrand['name'] ?? $brandName)),
-                                'seo_title' => $brandName,
-                                'seo_description' => null,
-                                'description' => null,
-                                'is_active' => true,
-                            ]
+                        $brand = $this->resolveBrandForVanilleImport(
+                            $brandName,
+                            $catalogBrand,
+                            $brandSlug,
+                            $brandSlugSet,
+                            $productSlugSet,
+                            $brandByEquivalentKey,
                         );
-                        $brandSlugSet[mb_strtolower((string) $brand->slug)] = true;
                     }
 
                     $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
@@ -2262,6 +2258,76 @@ class VanilleImportService
         }
 
         return mb_strtolower($normalized);
+    }
+
+    /**
+     * @return array<string, Brand>
+     */
+    private function buildBrandEquivalentLookup(): array
+    {
+        $map = [];
+        foreach (Brand::query()->get(['id', 'name', 'slug']) as $brand) {
+            $key = ProductDisplayName::brandEquivalentKey((string) $brand->name);
+            if ($key === '' || isset($map[$key])) {
+                continue;
+            }
+            $map[$key] = $brand;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $catalogBrand
+     * @param  array<string, bool>  $brandSlugSet
+     * @param  array<string, bool>  $productSlugSet
+     * @param  array<string, Brand>  $brandByEquivalentKey
+     */
+    private function resolveBrandForVanilleImport(
+        string $brandName,
+        ?array $catalogBrand,
+        string $preferredSlug,
+        array &$brandSlugSet,
+        array &$productSlugSet,
+        array &$brandByEquivalentKey,
+    ): Brand {
+        $preferredSlug = $this->resolveUniqueSlugInMemory($preferredSlug, $brandSlugSet, $productSlugSet);
+        $preferredKey = mb_strtolower($preferredSlug);
+
+        $existingBySlug = Brand::query()->where('slug', $preferredSlug)->first();
+        if ($existingBySlug !== null) {
+            $brandSlugSet[$preferredKey] = true;
+            $eqKey = ProductDisplayName::brandEquivalentKey($brandName);
+            if ($eqKey !== '') {
+                $brandByEquivalentKey[$eqKey] = $existingBySlug;
+            }
+
+            return $existingBySlug;
+        }
+
+        $eqKey = ProductDisplayName::brandEquivalentKey($brandName);
+        if ($eqKey !== '' && isset($brandByEquivalentKey[$eqKey])) {
+            $brand = $brandByEquivalentKey[$eqKey];
+            $brandSlugSet[mb_strtolower((string) $brand->slug)] = true;
+
+            return $brand;
+        }
+
+        $brand = Brand::query()->create([
+            'slug' => $preferredSlug,
+            'name' => trim((string) ($catalogBrand['name'] ?? $brandName)),
+            'seo_title' => $brandName,
+            'seo_description' => null,
+            'description' => null,
+            'is_active' => true,
+        ]);
+
+        $brandSlugSet[$preferredKey] = true;
+        if ($eqKey !== '') {
+            $brandByEquivalentKey[$eqKey] = $brand;
+        }
+
+        return $brand;
     }
 
     private function findExistingProductForVanilleImport(

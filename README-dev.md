@@ -109,6 +109,8 @@ cd /var/www/perfumer-by/backend
 php artisan catalog:prune-products-without-vanille --dry-run
 php artisan catalog:prune-products-without-vanille --force
 php artisan catalog:prune-brands-without-products
+php artisan catalog:merge-duplicate-brands --dry-run
+php artisan catalog:merge-duplicate-brands --force
 ```
 
 Удаляются товары, если:
