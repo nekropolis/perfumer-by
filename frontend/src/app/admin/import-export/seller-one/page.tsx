@@ -289,6 +289,14 @@ export default function SellerOneImportPage() {
                 }
 
                 const data = status.data;
+                if (!data) {
+                    setSupplierPreviewLoading(false);
+                    setBatchProgress("");
+                    window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
+                    setActiveJobId(null);
+                    setSupplierError("Фоновая задача парсинга на сервере не найдена (истёк кеш) — состояние сброшено.");
+                    return;
+                }
                 const processed = Number(data.processed ?? 0);
                 const totalRows = Number(data.total_rows ?? 0);
                 const progressText = totalRows > 0
@@ -359,6 +367,14 @@ export default function SellerOneImportPage() {
                 }
 
                 const data = res.data;
+                if (!data) {
+                    setSupplierRefreshPricesLoading(false);
+                    setBatchProgress("");
+                    window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
+                    setRefreshLinkedJobId(null);
+                    setSupplierError("Фоновая задача обновления цен на сервере не найдена (истёк кеш) — состояние сброшено.");
+                    return;
+                }
 
                 /** Discovery и per-job snapshot расходятся после ручного сброса кеша или новой вкладке. */
                 let canonicalSellerOneJobId: string | null | undefined;

@@ -40,6 +40,14 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::post('/parse-product-images', [VanilleImportController::class, 'parseProductImages']);
     Route::post('/rewrite-descriptions', [VanilleImportController::class, 'rewriteDescriptions']);
     Route::post('/retry-failed-job', [VanilleImportController::class, 'retryFailedJob']);
+    // Seller One / прайс (те же обработчики, что seller-one — fallback URL во фронте)
+    Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
+    Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
+    Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);
+    Route::get('/supplier-price/status/{jobId}', [VanilleImportController::class, 'sellerOneParseStatus']);
+    Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
+    Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
+    Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/retry-queue')->group(function () {

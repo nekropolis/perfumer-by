@@ -62,6 +62,17 @@ function trimResponsePreview(text: string, maxLength = 260): string {
         : normalized;
 }
 
+/** HTTP 404 «статус не найден» не должен переключать fallback на /vanille/… */
+function isLaravelRouteNotFoundResponse(status: number, text: string, serverMessage?: string): boolean {
+    if (status !== 404) {
+        return false;
+    }
+
+    const blob = `${serverMessage ?? ""} ${text}`;
+
+    return /could not be found/i.test(blob) && /\broute\b/i.test(blob);
+}
+
 function buildHttpErrorMessage(params: {
     method: string;
     url: string;
@@ -134,9 +145,8 @@ async function adminVanilleFetchWithFallback<T>(
         } catch (error) {
             const normalized = error instanceof Error ? error : new Error("Unknown API error");
             errors.push(normalized.message);
-            const is404 = normalized.message.includes("404");
             const hasNextFallback = index < paths.length - 1;
-            if (is404 && hasNextFallback) {
+            if (hasNextFallback && isLaravelRouteNotFoundError(normalized)) {
                 continue;
             }
 
@@ -149,6 +159,10 @@ async function adminVanilleFetchWithFallback<T>(
             ? `All API fallbacks failed:\n- ${errors.join("\n- ")}`
             : "Vanille API fallback failed"
     );
+}
+
+function isLaravelRouteNotFoundError(error: Error): boolean {
+    return /could not be found/i.test(error.message) && /\broute\b/i.test(error.message);
 }
 
 export async function fetchVanilleSupplierProducts(params?: {
@@ -398,8 +412,10 @@ export async function previewSellerOnePrice(
         errors.push(message);
 
         const hasNextFallback = index < previewPaths.length - 1;
-        const shouldTryNext = res.status === 404 && hasNextFallback;
-        if (shouldTryNext) {
+        if (
+            hasNextFallback
+            && isLaravelRouteNotFoundResponse(res.status, text, data?.message)
+        ) {
             continue;
         }
 
@@ -454,7 +470,10 @@ export async function startSellerOneParseJob(file: File): Promise<SellerOneParse
         errors.push(message);
 
         const hasNextFallback = index < paths.length - 1;
-        if (res.status === 404 && hasNextFallback) {
+        if (
+            hasNextFallback
+            && isLaravelRouteNotFoundResponse(res.status, text, data?.message)
+        ) {
             continue;
         }
 
@@ -468,7 +487,7 @@ export async function startSellerOneParseJob(file: File): Promise<SellerOneParse
     );
 }
 
-export async function fetchSellerOneParseStatus(jobId: string): Promise<{ data: SellerOneParseStatus }> {
+export async function fetchSellerOneParseStatus(jobId: string): Promise<{ data: SellerOneParseStatus | null }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus }>(
         [
             `/admin/import-export/seller-one/supplier-price/status/${jobId}`,
@@ -550,7 +569,10 @@ export async function startSellerOneRefreshLinkedPricesJob(file: File): Promise<
         errors.push(message);
 
         const hasNextFallback = index < paths.length - 1;
-        if (res.status === 404 && hasNextFallback) {
+        if (
+            hasNextFallback
+            && isLaravelRouteNotFoundResponse(res.status, text, data?.message)
+        ) {
             continue;
         }
 
@@ -564,7 +586,7 @@ export async function startSellerOneRefreshLinkedPricesJob(file: File): Promise<
     );
 }
 
-export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promise<{ data: SellerOneParseStatus }> {
+export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promise<{ data: SellerOneParseStatus | null }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus }>(
         [
             `/admin/import-export/seller-one/supplier-price/refresh-linked/status/${jobId}`,

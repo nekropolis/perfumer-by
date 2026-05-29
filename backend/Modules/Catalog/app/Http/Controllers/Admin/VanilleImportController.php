@@ -425,9 +425,7 @@ class VanilleImportController extends Controller
         $status = Cache::get(RunSellerOneParseJob::cacheKey($jobId));
 
         if (!$status) {
-            return response()->json([
-                'message' => 'Статус задачи не найден',
-            ], 404);
+            return response()->json(['data' => null]);
         }
 
         return response()->json([
@@ -546,9 +544,7 @@ class VanilleImportController extends Controller
         $status = Cache::get(RunSellerOneRefreshLinkedPricesJob::cacheKey($jobId));
 
         if (!$status) {
-            return response()->json([
-                'message' => 'Статус задачи не найден',
-            ], 404);
+            return response()->json(['data' => null]);
         }
 
         return response()->json([
