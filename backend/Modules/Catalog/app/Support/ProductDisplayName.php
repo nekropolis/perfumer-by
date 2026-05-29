@@ -62,25 +62,93 @@ final class ProductDisplayName
             return ['found' => false, 'name' => $productName];
         }
 
-        $prefixPattern = '/^'.preg_quote($brandName, '/').'\s*/iu';
-        if (preg_match($prefixPattern, $productName) === 1) {
-            $rest = trim((string) preg_replace($prefixPattern, '', $productName, 1));
-            if ($rest !== '' && mb_strtolower($rest, 'UTF-8') !== mb_strtolower($productName, 'UTF-8')) {
-                return ['found' => true, 'name' => self::normalizeSpaces($rest)];
+        $rest = $productName;
+        $stripped = false;
+
+        for ($i = 0; $i < 5; $i++) {
+            $next = self::stripBrandFromNameOnce($brandName, $rest);
+            if ($next === null) {
+                break;
             }
+            $rest = $next;
+            $stripped = true;
         }
 
-        $escaped = preg_quote($brandName, '/');
-        $inlinePattern = '/(?:^|\s)'.$escaped.'(?:\s|$)/iu';
-        if (preg_match($inlinePattern, $productName) === 1) {
-            $rest = trim((string) preg_replace($inlinePattern, ' ', $productName));
-            $rest = self::normalizeSpaces($rest);
-            if ($rest !== '' && mb_strtolower($rest, 'UTF-8') !== mb_strtolower($productName, 'UTF-8')) {
-                return ['found' => true, 'name' => $rest];
-            }
+        if ($stripped && self::brandNamesEquivalent($brandName, $rest)) {
+            return ['found' => true, 'name' => ''];
+        }
+
+        if ($stripped && $rest !== '') {
+            return ['found' => true, 'name' => $rest];
         }
 
         return ['found' => false, 'name' => $productName];
+    }
+
+    /**
+     * Одна итерация снятия бренда (префикс / вхождение). null — больше нечего снимать.
+     */
+    private static function stripBrandFromNameOnce(string $brandName, string $productName): ?string
+    {
+        $variants = self::brandNameMatchVariants($brandName);
+        foreach ($variants as $variant) {
+            if ($variant === '') {
+                continue;
+            }
+
+            $prefixPattern = '/^'.preg_quote($variant, '/').'\s*/iu';
+            if (preg_match($prefixPattern, $productName) === 1) {
+                $rest = trim((string) preg_replace($prefixPattern, '', $productName, 1));
+                if ($rest !== '' && !self::brandNamesEquivalent($variant, $rest)) {
+                    return self::normalizeSpaces($rest);
+                }
+            }
+
+            $escaped = preg_quote($variant, '/');
+            $inlinePattern = '/(?:^|\s)'.$escaped.'(?:\s|$)/iu';
+            if (preg_match($inlinePattern, $productName) === 1) {
+                $rest = self::normalizeSpaces(trim((string) preg_replace($inlinePattern, ' ', $productName)));
+                if ($rest !== '' && !self::brandNamesEquivalent($variant, $rest)) {
+                    return $rest;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function brandNameMatchVariants(string $brandName): array
+    {
+        $brandName = trim($brandName);
+        $variants = [$brandName];
+        $noAmp = str_replace('&', ' and ', $brandName);
+        $withAmp = preg_replace('/\band\b/iu', '&', $brandName) ?? $brandName;
+        foreach ([$noAmp, $withAmp, str_replace(' ', '', $brandName)] as $variant) {
+            $variant = self::normalizeSpaces($variant);
+            if ($variant !== '' && !in_array($variant, $variants, true)) {
+                $variants[] = $variant;
+            }
+        }
+
+        return $variants;
+    }
+
+    public static function brandNamesEquivalent(string $a, string $b): bool
+    {
+        return self::normalizeBrandKey($a) === self::normalizeBrandKey($b);
+    }
+
+    private static function normalizeBrandKey(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+        $value = str_replace('&', 'and', $value);
+        $value = preg_replace('/\s+/u', '', $value) ?? '';
+        $value = preg_replace('/[^a-z0-9]+/u', '', $value) ?? '';
+
+        return $value;
     }
 
     public static function buildSlug(?string $brandSlug, string $productName): string
@@ -96,7 +164,43 @@ final class ProductDisplayName
             return $brandSlug;
         }
 
-        return $brandSlug.'-'.$productSlug;
+        if ($productSlug === $brandSlug) {
+            return $brandSlug;
+        }
+
+        if (str_starts_with($productSlug, $brandSlug . '-')) {
+            return $productSlug;
+        }
+
+        return $brandSlug . '-' . $productSlug;
+    }
+
+    /**
+     * Короткое имя товара из URL Vanille, если в h1 остался только бренд.
+     */
+    public static function productShortNameFromVanilleUrl(string $url, string $brandSlug): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+        if ($path === '') {
+            return '';
+        }
+
+        $brandSlug = VanilleHelper::slugify($brandSlug);
+        $slug = VanilleHelper::slugify($path);
+        if ($slug === '' || $slug === $brandSlug) {
+            return '';
+        }
+
+        if (str_starts_with($slug, $brandSlug . '-')) {
+            $slug = substr($slug, strlen($brandSlug) + 1);
+        }
+
+        $parts = array_values(array_filter(explode('-', $slug)));
+        if ($parts === []) {
+            return '';
+        }
+
+        return self::normalizeSpaces(implode(' ', $parts));
     }
 
     public static function buildSlugForProduct(Product $product): string
@@ -104,6 +208,89 @@ final class ProductDisplayName
         $product->loadMissing('brand:id,slug');
 
         return self::buildSlug($product->brand?->slug, (string) $product->name);
+    }
+
+    /**
+     * Ключ одного и того же аромата: путь/slug без префикса бренда и без повторов сегмента бренда
+     * (kenzo-tokyo-by-kenzo-ryoko и kenzo-tokyo-by-ryoko → tokyo-by-ryoko).
+     */
+    public static function vanilleProductPathIdentityKey(string $brandSlug, string $urlOrSlugPath): string
+    {
+        $slug = self::pathToSlug($urlOrSlugPath);
+        $brandSlug = VanilleHelper::slugify($brandSlug);
+        if ($slug === '' || $brandSlug === '') {
+            return $slug;
+        }
+
+        if ($slug === $brandSlug) {
+            return '';
+        }
+
+        if (str_starts_with($slug, $brandSlug . '-')) {
+            $slug = substr($slug, strlen($brandSlug) + 1);
+        }
+
+        $brandTokens = array_values(array_filter(explode('-', $brandSlug)));
+        $parts = array_values(array_filter(
+            explode('-', $slug),
+            static fn (string $part): bool => $part !== '' && !in_array($part, $brandTokens, true),
+        ));
+
+        return implode('-', $parts);
+    }
+
+    public static function shortNameFromPathIdentityKey(string $pathIdentityKey): string
+    {
+        $pathIdentityKey = trim($pathIdentityKey);
+        if ($pathIdentityKey === '') {
+            return '';
+        }
+
+        return self::normalizeSpaces(implode(' ', explode('-', $pathIdentityKey)));
+    }
+
+    /**
+     * Каноническое короткое имя: сначала URL Vanille, иначе заголовок (с полным снятием бренда).
+     */
+    public static function resolveCanonicalShortName(
+        string $brandName,
+        string $brandSlug,
+        string $fullTitle,
+        string $vanilleUrl,
+    ): string {
+        $brandSlug = VanilleHelper::slugify($brandSlug);
+        $urlKey = $vanilleUrl !== '' ? self::vanilleProductPathIdentityKey($brandSlug, $vanilleUrl) : '';
+        if ($urlKey !== '') {
+            return self::shortNameFromPathIdentityKey($urlKey);
+        }
+
+        $strip = self::stripBrandFromName($brandName, trim($fullTitle));
+        $fromTitle = $strip['found'] ? $strip['name'] : trim($fullTitle);
+        if ($fromTitle === '' || self::brandNamesEquivalent($brandName, $fromTitle)) {
+            return '';
+        }
+
+        $titleKey = self::vanilleProductPathIdentityKey($brandSlug, VanilleHelper::slugify($fromTitle));
+
+        return $titleKey !== ''
+            ? self::shortNameFromPathIdentityKey($titleKey)
+            : $fromTitle;
+    }
+
+    private static function pathToSlug(string $urlOrSlugPath): string
+    {
+        $value = trim($urlOrSlugPath);
+        if ($value === '') {
+            return '';
+        }
+
+        if (str_contains($value, '://')) {
+            $value = trim((string) parse_url($value, PHP_URL_PATH), '/');
+        } else {
+            $value = trim($value, '/');
+        }
+
+        return VanilleHelper::slugify($value);
     }
 
     public static function resolveUniqueProductSlug(string $baseSlug, ?int $ignoreProductId = null): string

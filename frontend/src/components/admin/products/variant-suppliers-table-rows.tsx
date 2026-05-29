@@ -11,7 +11,6 @@ function warehouseCellsPair(
         warehouse_name: string | null;
         stock: number;
         available_stock: number;
-        virtual_price_channel?: boolean;
     }>,
     cellClassName: string,
 ): [ReactNode, ReactNode] {
@@ -31,9 +30,7 @@ function warehouseCellsPair(
             {warehouses.map((w) => w.warehouse_name || "—").join(", ")}
         </td>,
         <td key="wh-q" className={cellClassName}>
-            {warehouses
-                .map((w) => `${w.stock} шт.${w.virtual_price_channel ? " · оценка" : ""}`)
-                .join(", ")}
+            {warehouses.map((w) => `${w.stock} шт.`).join(", ")}
         </td>,
     ];
 }

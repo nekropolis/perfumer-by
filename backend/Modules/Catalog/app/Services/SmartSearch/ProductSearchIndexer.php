@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Services\SmartSearch;
 
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Jobs\SyncProductSearchIndexJob;
 
 class ProductSearchIndexer
 {
@@ -76,8 +77,8 @@ class ProductSearchIndexer
                 'disableOnWords' => [],
                 'disableOnAttributes' => ['slug'],
                 'minWordSizeForTypos' => [
-                    'oneTypo' => 4,
-                    'twoTypos' => 8,
+                    'oneTypo' => 3,
+                    'twoTypos' => 7,
                 ],
             ],
         ]);
@@ -110,6 +111,63 @@ class ProductSearchIndexer
         $this->client->post('/indexes/'.$this->indexName().'/documents', [
             $this->documentBuilder->build($product),
         ]);
+    }
+
+    public function queueProductSync(int $productId): void
+    {
+        if (!$this->isEnabled() || $productId <= 0) {
+            return;
+        }
+
+        $run = function () use ($productId): void {
+            if ((bool) config('services.catalog_search.async_updates', true)) {
+                SyncProductSearchIndexJob::dispatch($productId, false);
+
+                return;
+            }
+
+            $product = Product::query()->find($productId);
+            if ($product === null) {
+                $this->deleteProductById($productId);
+
+                return;
+            }
+
+            $this->syncProduct($product);
+        };
+
+        if (\Illuminate\Support\Facades\DB::transactionLevel() > 0) {
+            \Illuminate\Support\Facades\DB::afterCommit($run);
+
+            return;
+        }
+
+        $run();
+    }
+
+    public function queueProductDelete(int $productId): void
+    {
+        if (!$this->isEnabled() || $productId <= 0) {
+            return;
+        }
+
+        $run = function () use ($productId): void {
+            if ((bool) config('services.catalog_search.async_updates', true)) {
+                SyncProductSearchIndexJob::dispatch($productId, true);
+
+                return;
+            }
+
+            $this->deleteProductById($productId);
+        };
+
+        if (\Illuminate\Support\Facades\DB::transactionLevel() > 0) {
+            \Illuminate\Support\Facades\DB::afterCommit($run);
+
+            return;
+        }
+
+        $run();
     }
 
     public function deleteProductById(int $productId): void

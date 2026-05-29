@@ -126,6 +126,9 @@ Run from `backend/`.
 | `php artisan catalog:search:reindex` | Rebuilds full product index in Meilisearch. | After search mapping/indexing changes or large catalog imports. |
 | `php artisan catalog:search:reindex --chunk=500` | Reindexes with custom batch size. | Tune for server resources; allowed range is clamped in command. |
 | `php artisan catalog:prune-brands-without-products` | Shows brands without products and asks whether to delete them. | Catalog cleanup after imports. |
+| `php artisan catalog:prune-products-without-vanille --dry-run` | Lists products without Vanille link or empty (0 variants, 0 attributes). | Before bulk cleanup after bad import. |
+| `php artisan catalog:prune-products-without-vanille --force` | Deletes those products and their Vanille `supplier_products` rows. | One-shot catalog cleanup; run `prune-brands-without-products` after. |
+| `php artisan catalog:prune-products-without-vanille --limit=100` | Same, max N products per run. | Large catalogs on low-memory servers. |
 | `php artisan catalog:import-vanille-sample path/to/file.json` | Imports parsed Vanille sample JSON. | Testing Vanille import logic on a fixture/sample file. |
 | `php artisan catalog:parse-vanille-products` | Parses Vanille product pages from existing `product_links.json`. | Running product page parsing manually. |
 | `php artisan catalog:parse-vanille-products --once --limit=20` | Runs one parsing batch. | Debugging parser or running controlled batches. |

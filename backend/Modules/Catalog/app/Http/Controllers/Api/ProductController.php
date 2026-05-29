@@ -27,6 +27,8 @@ class ProductController extends Controller
     private const int SMART_SEARCH_DIRECT_MATCH_LIMIT = 600;
     private const int SMART_SEARCH_RESULT_LIMIT = 10;
     private const int SMART_SEARCH_MAX_LIMIT = 30;
+    /** Товары с опечаткой в запросе (1 буква в слове) — после точных, не более 5. */
+    private const int SMART_SEARCH_TYPO_EXTRA_LIMIT = 5;
     private const array VOLUME_BUCKETS = [
         ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
         ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
@@ -388,6 +390,7 @@ class ProductController extends Controller
 
         $normalizedQuery = $this->normalizeSearchText($query);
         $tokens = array_values(array_filter(explode(' ', $normalizedQuery)));
+        $typoCorrectedQuery = $this->resolveTypoCorrectedQuery($normalizedQuery, $tokens);
         $searchPatterns = collect($tokens)
             ->flatMap(function (string $token): array {
                 $variants = [$token];
@@ -432,7 +435,6 @@ class ProductController extends Controller
             'source' => 'legacy',
             'elapsed_ms' => 0,
         ];
-        $suggestedQuery = null;
         $meiliIds = [];
 
         if ($codeOrSkuBoostIds !== [] && $isCodeLikeQuery) {
@@ -441,7 +443,6 @@ class ProductController extends Controller
             $meiliResult['source'] = 'code_lookup';
         } elseif (!$isStrictNumericQuery) {
             $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, self::SMART_SEARCH_POOL_LIMIT);
-            $suggestedQuery = $meiliResult['suggested_query'] ?? null;
             $meiliIds = $meiliResult['ids'] ?? [];
         }
 
@@ -513,6 +514,15 @@ class ProductController extends Controller
             $pool = $directPool->concat($broadPool)->unique('id');
         }
 
+        if ($typoCorrectedQuery !== null) {
+            $pool = $this->mergeSmartSearchPoolForQuery(
+                $pool,
+                $baseProductQuery,
+                $typoCorrectedQuery,
+                $isStrictNumericQuery,
+            );
+        }
+
         if ($codeOrSkuBoostIds !== []) {
             $existing = $pool->pluck('id')->all();
             $missingIds = array_values(array_diff($codeOrSkuBoostIds, $existing));
@@ -542,7 +552,7 @@ class ProductController extends Controller
                 ->groupBy('variant_id');
         }
 
-        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet, $matchedCodeByProductId) {
+        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $typoCorrectedQuery, $tokens, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet, $matchedCodeByProductId) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
@@ -614,10 +624,26 @@ class ProductController extends Controller
                 $scoreVariant * 0.9,
                 $scoreDisplay * 1.08
             );
-            if (isset($codeOrSkuBoostSet[$product->id])) {
+            $isCodeBoost = isset($codeOrSkuBoostSet[$product->id]);
+            if ($isCodeBoost) {
                 $bestScore = max($bestScore, 1.0);
             }
-            if ($bestScore < 0.3) {
+
+            $isExactMatch = $isCodeBoost
+                || $this->smartSearchProductIsExactMatch($normalizedQuery, $tokens, $normalizedName, $normalizedBrand)
+                || ($typoCorrectedQuery !== null
+                    && $this->smartSearchProductIsExactMatch($typoCorrectedQuery, array_values(array_filter(explode(' ', $typoCorrectedQuery))), $normalizedName, $normalizedBrand));
+            $typoPhrase = null;
+            $isTypoMatch = false;
+            if (!$isExactMatch) {
+                $typoPhrase = $this->smartSearchExtractTypoPhrase(
+                    $normalizedQuery,
+                    trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName),
+                );
+                $isTypoMatch = $typoPhrase !== null;
+            }
+
+            if (!$isExactMatch && !$isTypoMatch) {
                 return null;
             }
 
@@ -655,25 +681,39 @@ class ProductController extends Controller
                 'variant_labels' => $variantTitles->values()->all(),
                 'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
                 '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
+                '_match_tier' => $isExactMatch ? 0 : 1,
+                '_typo_phrase' => $typoPhrase,
                 'score' => round($bestScore, 6),
             ];
             return $payload;
         })
-            ->filter()
-            ->sortBy([
-                ['score', 'desc'],
-                ['_availability_rank', 'desc'],
-            ])
+            ->filter();
+
+        $sortRanked = static fn ($items) => $items->sortBy([
+            ['score', 'desc'],
+            ['_availability_rank', 'desc'],
+        ])->values();
+
+        $exactProducts = $sortRanked($rankedProducts->filter(static fn (array $item): bool => ($item['_match_tier'] ?? 1) === 0));
+        $typoProducts = $typoCorrectedQuery !== null
+            ? collect()
+            : $sortRanked($rankedProducts->filter(static fn (array $item): bool => ($item['_match_tier'] ?? 0) === 1))
+                ->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+
+        $rankedProducts = $exactProducts
+            ->concat($typoProducts)
             ->take($limit)
             ->values()
             ->all();
 
-        $rankedBrands = $this->buildSmartSearchRankedBrands($rankedProducts, $query, $tokens, $normalizedQuery);
+        $rankedBrands = $this->buildSmartSearchRankedBrands($query, $tokens, $normalizedQuery);
 
         if (!$debug) {
             $rankedProducts = array_map(static function (array $item): array {
                 unset($item['score']);
                 unset($item['_availability_rank']);
+                unset($item['_match_tier']);
+                unset($item['_typo_phrase']);
                 return $item;
             }, $rankedProducts);
             $rankedBrands = array_map(static function (array $item): array {
@@ -683,6 +723,8 @@ class ProductController extends Controller
         } else {
             $rankedProducts = array_map(static function (array $item): array {
                 unset($item['_availability_rank']);
+                unset($item['_match_tier']);
+                unset($item['_typo_phrase']);
                 return $item;
             }, $rankedProducts);
         }
@@ -691,8 +733,10 @@ class ProductController extends Controller
             'data' => [
                 'brands' => $rankedBrands,
                 'products' => $rankedProducts,
-                'suggested_query' => (count($rankedProducts) === 0 && count($rankedBrands) === 0)
-                    ? $suggestedQuery
+                'suggested_query' => ($typoCorrectedQuery !== null
+                    && $typoCorrectedQuery !== $normalizedQuery
+                    && count($rankedProducts) > 0)
+                    ? $typoCorrectedQuery
                     : null,
             ],
         ];
@@ -894,67 +938,291 @@ class ProductController extends Controller
     }
 
     /**
-     * Бренды в подсказках: из найденных товаров; прямой поиск бренда — только если товаров нет.
+     * Бренды в подсказках — только по названию/slug бренда, не по названиям товаров.
      *
-     * @param  list<array<string, mixed>>  $rankedProducts
      * @param  list<string>  $tokens
      * @return list<array<string, mixed>>
      */
-    private function buildSmartSearchRankedBrands(array $rankedProducts, string $query, array $tokens, string $normalizedQuery): array
+    private function buildSmartSearchRankedBrands(string $query, array $tokens, string $normalizedQuery): array
     {
-        $limit = 5;
-        $fromProducts = $this->smartSearchBrandsFromRankedProducts($rankedProducts, $limit);
-        if ($fromProducts !== []) {
-            return $fromProducts;
-        }
-
-        return $this->smartSearchBrandsDirectMatch($query, $tokens, $normalizedQuery, $limit);
+        return $this->smartSearchBrandsDirectMatch($query, $tokens, $normalizedQuery, 5);
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rankedProducts
-     * @return list<array<string, mixed>>
+     * Товар в выдаче: запрос как подстрока в «бренд + название» (как на витрине).
+     * Для однословного запроса — отдельное слово в названии товара.
+     * Для нескольких слов — только целая фраза, не разрозненные токены
+     * (иначе «the one» матчит «Take One To The Moon»).
+     *
+     * @param  list<string>  $tokens
      */
-    private function smartSearchBrandsFromRankedProducts(array $rankedProducts, int $limit): array
-    {
-        $brandIds = [];
-        foreach ($rankedProducts as $product) {
-            $brandId = (int) ($product['brand']['id'] ?? 0);
-            if ($brandId <= 0 || in_array($brandId, $brandIds, true)) {
-                continue;
-            }
-            $brandIds[] = $brandId;
-            if (count($brandIds) >= $limit) {
-                break;
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $pool
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function mergeSmartSearchPoolForQuery(
+        $pool,
+        Builder $baseProductQuery,
+        string $normalizedQuery,
+        bool $isStrictNumericQuery,
+    ) {
+        $columns = ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+        $correctedLike = '%'.$this->escapeLikeValue($normalizedQuery).'%';
+
+        $sqlPool = (clone $baseProductQuery)
+            ->where(function ($q) use ($correctedLike): void {
+                $q->where('name', 'like', $correctedLike)
+                    ->orWhere('slug', 'like', $correctedLike);
+                $this->orWhereBrandPlusProductNameLike($q, $correctedLike);
+            })
+            ->orderByDesc('id')
+            ->limit(self::SMART_SEARCH_DIRECT_MATCH_LIMIT)
+            ->get($columns);
+
+        $pool = $pool->concat($sqlPool);
+
+        if (!$isStrictNumericQuery) {
+            $correctedMeili = app(ProductSearchRetrievalService::class)->searchProductIds(
+                $normalizedQuery,
+                self::SMART_SEARCH_POOL_LIMIT,
+            );
+            $correctedIds = $correctedMeili['ids'] ?? [];
+            if ($correctedIds !== []) {
+                $meiliPool = (clone $baseProductQuery)
+                    ->whereIn('id', $correctedIds)
+                    ->get($columns)
+                    ->sortBy(static function (Product $product) use ($correctedIds): int {
+                        $index = array_search((int) $product->id, $correctedIds, true);
+
+                        return $index === false ? PHP_INT_MAX : (int) $index;
+                    })
+                    ->values();
+                $pool = $pool->concat($meiliPool);
             }
         }
 
-        if ($brandIds === []) {
+        return $pool->unique('id')->values();
+    }
+
+    /**
+     * Подбор исправленного запроса: «the ont» → «the one», если такая фраза есть в каталоге.
+     *
+     * @param  list<string>  $tokens
+     */
+    private function resolveTypoCorrectedQuery(string $normalizedQuery, array $tokens): ?string
+    {
+        if ($normalizedQuery === '' || $this->catalogHasExactPhrase($normalizedQuery)) {
+            return null;
+        }
+
+        $stopWords = ['the', 'and', 'for', 'with', 'men', 'eau', 'de', 'la', 'le', 'des', 'pour', 'her', 'him'];
+        $candidateQueries = [];
+
+        foreach ($tokens as $index => $token) {
+            $length = mb_strlen($token, 'UTF-8');
+            if ($length < 3 || $length > 5 || in_array($token, $stopWords, true)) {
+                continue;
+            }
+            if (!preg_match('/^[a-z0-9]+$/', $token)) {
+                continue;
+            }
+
+            foreach ($this->generateTypoVariants($token) as $variant) {
+                $trial = $tokens;
+                $trial[$index] = $variant;
+                $candidateQueries[] = implode(' ', $trial);
+            }
+        }
+
+        foreach (array_unique($candidateQueries) as $candidate) {
+            if ($candidate === $normalizedQuery) {
+                continue;
+            }
+            if ($this->catalogHasExactPhrase($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function catalogHasExactPhrase(string $normalizedPhrase): bool
+    {
+        if ($normalizedPhrase === '') {
+            return false;
+        }
+
+        $like = '%'.$this->escapeLikeValue($normalizedPhrase).'%';
+
+        return Product::query()
+            ->where('is_active', true)
+            ->where(function (Builder $q) use ($like): void {
+                $q->whereRaw('LOWER(name) LIKE ?', [$like]);
+                $this->orWhereBrandPlusProductNameLike($q, $like);
+            })
+            ->exists();
+    }
+
+    /**
+     * Варианты слова с одной опечаткой (латиница, 3–5 букв).
+     *
+     * @return list<string>
+     */
+    private function generateTypoVariants(string $word): array
+    {
+        $length = strlen($word);
+        if ($length < 3 || $length > 5) {
             return [];
         }
 
-        $brandsById = Brand::query()
-            ->whereIn('id', $brandIds)
-            ->where('is_active', true)
-            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
-            ->get(['id', 'name', 'slug'])
-            ->keyBy('id');
+        $variants = [];
+        $alphabet = 'abcdefghijklmnopqrstuvwxyz';
 
-        $out = [];
-        foreach ($brandIds as $brandId) {
-            $brand = $brandsById->get($brandId);
-            if ($brand === null) {
-                continue;
+        for ($i = 0; $i < $length; $i++) {
+            foreach (str_split($alphabet) as $char) {
+                $variant = substr($word, 0, $i).$char.substr($word, $i + 1);
+                if ($variant !== $word) {
+                    $variants[] = $variant;
+                }
             }
-            $out[] = [
-                'id' => (int) $brand->id,
-                'name' => (string) $brand->name,
-                'slug' => (string) $brand->slug,
-                'products_count' => (int) ($brand->products_count ?? 0),
-            ];
         }
 
-        return $out;
+        for ($i = 0; $i < $length; $i++) {
+            $variants[] = substr($word, 0, $i).substr($word, $i + 1);
+        }
+
+        for ($i = 0; $i <= $length; $i++) {
+            foreach (str_split($alphabet) as $char) {
+                $variants[] = substr($word, 0, $i).$char.substr($word, $i);
+            }
+        }
+
+        return array_values(array_unique(array_filter(
+            $variants,
+            static fn (string $variant): bool => strlen($variant) >= 2 && strlen($variant) <= 6,
+        )));
+    }
+
+    private function smartSearchProductIsExactMatch(
+        string $normalizedQuery,
+        array $tokens,
+        string $normalizedName,
+        string $normalizedBrand,
+    ): bool {
+        if ($normalizedQuery === '') {
+            return false;
+        }
+
+        $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
+        if ($normalizedDisplay !== '' && str_contains($normalizedDisplay, $normalizedQuery)) {
+            return true;
+        }
+
+        $significantTokens = array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => mb_strlen($token, 'UTF-8') >= 2
+        ));
+        if ($significantTokens === []) {
+            return false;
+        }
+
+        if (count($significantTokens) >= 2) {
+            return false;
+        }
+
+        return $this->matchesAllTokensAsWords($normalizedName, $significantTokens);
+    }
+
+    /**
+     * Фраза из названия с опечаткой в запросе (не более 1 буквы на слово, порядок слов тот же).
+     * «the ont» → «the one»; «Take One To The Moon» не матчится.
+     */
+    private function smartSearchExtractTypoPhrase(string $normalizedQuery, string $normalizedDisplay): ?string
+    {
+        if ($normalizedQuery === '' || $normalizedDisplay === '') {
+            return null;
+        }
+
+        if (str_contains($normalizedDisplay, $normalizedQuery)) {
+            return null;
+        }
+
+        $queryWords = array_values(array_filter(explode(' ', $normalizedQuery)));
+        $displayWords = array_values(array_filter(explode(' ', $normalizedDisplay)));
+        if ($queryWords === [] || count($displayWords) < count($queryWords)) {
+            return null;
+        }
+
+        $wordCount = count($queryWords);
+        $bestPhrase = null;
+        $bestDistance = PHP_INT_MAX;
+
+        for ($i = 0; $i <= count($displayWords) - $wordCount; $i++) {
+            $window = array_slice($displayWords, $i, $wordCount);
+            $distance = 0;
+            $hasTypo = false;
+
+            foreach ($queryWords as $index => $queryWord) {
+                $displayWord = $window[$index];
+                $wordDistance = $this->mbLevenshtein($queryWord, $displayWord);
+                if ($wordDistance > 1) {
+                    $distance = PHP_INT_MAX;
+                    break;
+                }
+                $distance += $wordDistance;
+                if ($wordDistance > 0) {
+                    $hasTypo = true;
+                }
+            }
+
+            if ($distance === PHP_INT_MAX || !$hasTypo) {
+                continue;
+            }
+
+            if ($distance < $bestDistance) {
+                $bestDistance = $distance;
+                $bestPhrase = implode(' ', $window);
+            }
+        }
+
+        return $bestPhrase;
+    }
+
+    private function mbLevenshtein(string $a, string $b): int
+    {
+        if ($a === $b) {
+            return 0;
+        }
+
+        $lenA = mb_strlen($a, 'UTF-8');
+        $lenB = mb_strlen($b, 'UTF-8');
+        if ($lenA === 0) {
+            return $lenB;
+        }
+        if ($lenB === 0) {
+            return $lenA;
+        }
+
+        if (preg_match('/^[\x20-\x7E]+$/', $a) === 1 && preg_match('/^[\x20-\x7E]+$/', $b) === 1) {
+            return levenshtein($a, $b);
+        }
+
+        $prev = range(0, $lenB);
+        for ($i = 1; $i <= $lenA; $i++) {
+            $current = [$i];
+            $charA = mb_substr($a, $i - 1, 1, 'UTF-8');
+            for ($j = 1; $j <= $lenB; $j++) {
+                $cost = $charA === mb_substr($b, $j - 1, 1, 'UTF-8') ? 0 : 1;
+                $current[$j] = min(
+                    $current[$j - 1] + 1,
+                    $prev[$j] + 1,
+                    $prev[$j - 1] + $cost,
+                );
+            }
+            $prev = $current;
+        }
+
+        return (int) $prev[$lenB];
     }
 
     /**
@@ -987,8 +1255,8 @@ class ProductController extends Controller
                 $normalizedBrandSlug = $this->normalizeSearchText((string) $brand->slug);
 
                 if (
-                    ! $this->brandMatchesAllTokensAsWords($normalizedBrandName, $significantTokens)
-                    && ! $this->brandMatchesAllTokensAsWords($normalizedBrandSlug, $significantTokens)
+                    ! $this->matchesAllTokensAsWords($normalizedBrandName, $significantTokens)
+                    && ! $this->matchesAllTokensAsWords($normalizedBrandSlug, $significantTokens)
                 ) {
                     return false;
                 }
@@ -1024,7 +1292,7 @@ class ProductController extends Controller
      *
      * @param  list<string>  $tokens
      */
-    private function brandMatchesAllTokensAsWords(string $normalizedHaystack, array $tokens): bool
+    private function matchesAllTokensAsWords(string $normalizedHaystack, array $tokens): bool
     {
         if ($normalizedHaystack === '') {
             return false;

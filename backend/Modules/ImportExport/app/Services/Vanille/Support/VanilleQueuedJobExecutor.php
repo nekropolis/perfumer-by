@@ -64,7 +64,13 @@ class VanilleQueuedJobExecutor
         $state = is_array($job->result['state'] ?? null) ? $job->result['state'] : [];
         $offset = (int) ($state['offset'] ?? 0);
         $maxLinks = null;
-        $batch = $service->collectProductLinks($offset, self::COLLECT_LINKS_BATCH_SIZE, $maxLinks);
+        $batch = $service->collectProductLinks(
+            $offset,
+            self::COLLECT_LINKS_BATCH_SIZE,
+            $maxLinks,
+            true,
+            $offset === 0,
+        );
         $done = (bool) ($batch['done'] ?? true);
         $nextOffset = (int) ($batch['next_offset'] ?? ($offset + self::COLLECT_LINKS_BATCH_SIZE));
         $processedBrands = min($nextOffset, (int) ($batch['total_brands'] ?? $nextOffset));
@@ -166,6 +172,7 @@ class VanilleQueuedJobExecutor
                     'collect_state' => [
                         'offset' => 0,
                         'limit' => self::COLLECT_LINKS_BATCH_SIZE,
+                        'rebuild_links' => true,
                     ],
                 ],
             ];
@@ -174,7 +181,14 @@ class VanilleQueuedJobExecutor
         if ($phase === 'collect_links') {
             $collectState = is_array($result['collect_state'] ?? null) ? $result['collect_state'] : [];
             $offset = (int) ($collectState['offset'] ?? 0);
-            $batch = $service->collectProductLinks($offset, self::COLLECT_LINKS_BATCH_SIZE, null);
+            $rebuildLinks = (bool) ($collectState['rebuild_links'] ?? false) && $offset === 0;
+            $batch = $service->collectProductLinks(
+                $offset,
+                self::COLLECT_LINKS_BATCH_SIZE,
+                null,
+                true,
+                $rebuildLinks,
+            );
             $doneCollect = (bool) ($batch['done'] ?? true);
             $nextOffset = (int) ($batch['next_offset'] ?? ($offset + self::COLLECT_LINKS_BATCH_SIZE));
             $processedBrands = min($nextOffset, (int) ($batch['total_brands'] ?? $nextOffset));
@@ -212,6 +226,7 @@ class VanilleQueuedJobExecutor
                         'collect_state' => [
                             'offset' => $nextOffset,
                             'limit' => self::COLLECT_LINKS_BATCH_SIZE,
+                            'rebuild_links' => false,
                         ],
                         'added_links_count' => $addedLinksTotal,
                         'added_links_sample' => $addedLinksSample,

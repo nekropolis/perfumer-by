@@ -94,22 +94,50 @@ class ProductSearchRetrievalService
             return null;
         }
 
-        $candidate = trim((string) ($topHit['display_title'] ?? $topHit['name'] ?? ''));
-        if ($candidate === '') {
-            return null;
-        }
-
         $queryNormalized = mb_strtolower($trimmedQuery, 'UTF-8');
-        $candidateNormalized = mb_strtolower($candidate, 'UTF-8');
-
-        if ($candidateNormalized === $queryNormalized) {
+        $candidateNormalized = mb_strtolower(
+            trim((string) ($topHit['display_title'] ?? $topHit['name'] ?? '')),
+            'UTF-8',
+        );
+        if ($candidateNormalized === '') {
             return null;
         }
 
-        if (str_contains($candidateNormalized, $queryNormalized)) {
+        if ($candidateNormalized === $queryNormalized || str_contains($candidateNormalized, $queryNormalized)) {
             return null;
         }
 
-        return $candidate;
+        // Не подставляем целое название товара — только короткую фразу из запроса (опечатка).
+        $queryWords = array_values(array_filter(explode(' ', preg_replace('/\s+/u', ' ', $queryNormalized) ?? '')));
+        if ($queryWords === []) {
+            return null;
+        }
+
+        $displayWords = array_values(array_filter(explode(' ', preg_replace('/\s+/u', ' ', $candidateNormalized) ?? '')));
+        $wordCount = count($queryWords);
+        if (count($displayWords) < $wordCount) {
+            return null;
+        }
+
+        $bestPhrase = null;
+        $bestDistance = PHP_INT_MAX;
+        for ($i = 0; $i <= count($displayWords) - $wordCount; $i++) {
+            $window = array_slice($displayWords, $i, $wordCount);
+            $distance = 0;
+            foreach ($queryWords as $index => $queryWord) {
+                $wordDistance = levenshtein($queryWord, $window[$index]);
+                if ($wordDistance > 1) {
+                    $distance = PHP_INT_MAX;
+                    break;
+                }
+                $distance += $wordDistance;
+            }
+            if ($distance < $bestDistance && $distance > 0 && $distance <= $wordCount) {
+                $bestDistance = $distance;
+                $bestPhrase = implode(' ', $window);
+            }
+        }
+
+        return $bestPhrase;
     }
 }

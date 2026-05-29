@@ -249,6 +249,7 @@ export default function AdminProductEditPage() {
                         <ProductVariantsEditor
                             productId={form.id!}
                             productName={productData.name}
+                            productBrandName={productData.brand?.name}
                             items={productData.variants || []}
                             onReloadAction={loadData}
                         />

@@ -17,6 +17,7 @@ import ProductVariantSuppliersModal from "@/components/admin/products/product-va
 type Props = {
     productId: number;
     productName: string;
+    productBrandName?: string | null;
     items: AdminProductVariantItem[];
     onReloadAction: () => Promise<void>;
 };
@@ -278,6 +279,7 @@ function VariantFormFields({
 export default function ProductVariantsEditor({
     productId,
     productName,
+    productBrandName,
     items,
     onReloadAction,
 }: Props) {
@@ -298,7 +300,6 @@ export default function ProductVariantsEditor({
     const [success, setSuccess] = useState("");
     const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
     const [suppliersModalFocusId, setSuppliersModalFocusId] = useState<number | null>(null);
-    const [suppliersModalSubtitle, setSuppliersModalSubtitle] = useState("");
     const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
 
     const loadVariants = useCallback(async () => {
@@ -336,7 +337,6 @@ export default function ProductVariantsEditor({
     }, [editForm?.id, editForm?.variant_definition_title, runtimeItems]);
 
     const openInfo = (item: AdminProductVariantItem) => {
-        setSuppliersModalSubtitle(formatVariantEditTitle(item));
         setSuppliersModalFocusId(item.id);
         setSuppliersModalOpen(true);
     };
@@ -344,7 +344,6 @@ export default function ProductVariantsEditor({
     const closeSuppliersModal = () => {
         setSuppliersModalOpen(false);
         setSuppliersModalFocusId(null);
-        setSuppliersModalSubtitle("");
     };
 
     const openCreate = () => {
@@ -688,8 +687,8 @@ export default function ProductVariantsEditor({
                 open={suppliersModalOpen}
                 onCloseAction={closeSuppliersModal}
                 productId={productId}
-                productTitle={productName}
-                subtitle={suppliersModalSubtitle || undefined}
+                productName={productName}
+                productBrandName={productBrandName}
                 highlightVariantId={suppliersModalFocusId}
                 singleVariantId={suppliersModalFocusId}
             />

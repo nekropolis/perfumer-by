@@ -15,6 +15,7 @@ import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
+import VariantSuppliersSummaryRow from "@/components/admin/products/variant-suppliers-summary-row";
 import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
@@ -340,61 +341,35 @@ export default function AdminProductsPage() {
                     open
                     onCloseAction={() => setVariantsTarget(null)}
                     productId={variantsTarget.id}
-                    productTitle={`Продукт: ${variantsTarget.name}`}
+                    productName={variantsTarget.name}
+                    productBrandName={variantsTarget.brand?.name}
                     suppliers={variantSuppliers}
                     suppliersLoading={variantsLoading}
                     suppliersError={error}
                     renderVariantToolbarAction={(variant) => (
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-admin-text">
-                            <span className="shrink-0 tabular-nums text-admin-text-secondary">{variant.id}</span>
-                            <span className="shrink-0 text-gray-300" aria-hidden>
-                                ·
-                            </span>
-                            <span
-                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${variant.is_active !== false
-                                        ? "bg-green-50 text-green-700"
-                                        : "bg-gray-100 text-admin-text-secondary"
-                                    }`}
-                            >
-                                {variant.is_active !== false ? "Активен" : "Выкл"}
-                            </span>
-                            {variant.is_preorder ? (
-                                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                                    Предзаказ
+                        <VariantSuppliersSummaryRow
+                            variant={variant}
+                            priceSlot={
+                                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getVariantPriceInputValue(variant)}
+                                        onChange={(e) =>
+                                            setVariantPriceDrafts((prev) => ({
+                                                ...prev,
+                                                [variant.id]: e.target.value,
+                                            }))
+                                        }
+                                        onBlur={() => void saveVariantSitePriceOnBlur(variant)}
+                                        disabled={variantPriceSavingId === variant.id}
+                                        placeholder="—"
+                                        className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
+                                    />
+                                    <span>{variantPriceSavingId === variant.id ? "…" : "BYN"}</span>
                                 </span>
-                            ) : null}
-                            <span className="shrink-0 text-gray-300" aria-hidden>
-                                ·
-                            </span>
-                            <span className="min-w-0 flex-1 truncate font-medium">
-                                {variant.title || "—"}
-                            </span>
-                            <span className="shrink-0 text-gray-300" aria-hidden>
-                                ·
-                            </span>
-                            <span className="shrink-0 tabular-nums text-admin-text">{variant.stock} шт</span>
-                            <span className="shrink-0 text-gray-300" aria-hidden>
-                                ·
-                            </span>
-                            <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={getVariantPriceInputValue(variant)}
-                                    onChange={(e) =>
-                                        setVariantPriceDrafts((prev) => ({
-                                            ...prev,
-                                            [variant.id]: e.target.value,
-                                        }))
-                                    }
-                                    onBlur={() => void saveVariantSitePriceOnBlur(variant)}
-                                    disabled={variantPriceSavingId === variant.id}
-                                    placeholder="—"
-                                    className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
-                                />
-                                <span>{variantPriceSavingId === variant.id ? "…" : "BYN"}</span>
-                            </span>
-                        </div>
+                            }
+                        />
                     )}
                 />
             ) : null}

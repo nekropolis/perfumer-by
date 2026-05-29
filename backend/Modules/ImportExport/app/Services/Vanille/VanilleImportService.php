@@ -3,6 +3,7 @@
 namespace Modules\ImportExport\Services\Vanille;
 
 use Illuminate\Contracts\Queue\Factory as QueueFactory;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,10 +24,12 @@ use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleLinkCollector;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleOfferVariantParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleProductParser;
+use Modules\ImportExport\Services\Vanille\Support\VanilleParsedImportGuard;
 use Modules\ImportExport\Services\Vanille\Support\VanilleQueuedJobExecutor;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
+use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
 use App\Services\AuditLogService;
@@ -126,15 +129,30 @@ class VanilleImportService
         $items = $this->deduplicateParsedItems($items);
 
         foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $skipReason = VanilleParsedImportGuard::skipReason($item);
+            if ($skipReason !== null) {
+                $log[] = 'SKIP: ' . $skipReason . ' | ' . trim((string) ($item['url'] ?? ''));
+
+                continue;
+            }
+
             try {
                 $newProductIdForLlm = null;
-                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$newProductIdForLlm) {
+                $productIdForSearch = null;
+                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$newProductIdForLlm, &$productIdForSearch) {
                     $fullTitle = $this->resolveProductName($item);
                     $brand = null;
                     $brandName = trim((string) ($item['brand'] ?? ''));
+                    $catalogBrand = null;
 
                     if ($brandName !== '') {
-                        $brandSlug = VanilleHelper::slugify($brandName);
+                        $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName);
+                        $brandSlug = trim((string) ($catalogBrand['slug'] ?? ''))
+                            ?: VanilleHelper::slugify($brandName);
                         if ($brandSlug === '') {
                             $brandSlug = 'brand';
                         }
@@ -143,7 +161,7 @@ class VanilleImportService
                         $brand = Brand::firstOrCreate(
                             ['slug' => $brandSlug],
                             [
-                                'name' => $brandName,
+                                'name' => trim((string) ($catalogBrand['name'] ?? $brandName)),
                                 'seo_title' => $brandName,
                                 'seo_description' => null,
                                 'description' => null,
@@ -153,19 +171,36 @@ class VanilleImportService
                         $brandSlugSet[mb_strtolower((string) $brand->slug)] = true;
                     }
 
-                    $strip = ProductDisplayName::stripBrandFromName($brandName, $fullTitle);
-                    $productShortName = $strip['found'] ? $strip['name'] : $fullTitle;
+                    $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
+                    $vanilleUrl = trim((string) ($item['url'] ?? ''));
+                    $productShortName = ProductDisplayName::resolveCanonicalShortName(
+                        $brandName,
+                        $brandSlugForPath,
+                        $fullTitle,
+                        $vanilleUrl,
+                    );
+                    if ($productShortName === '') {
+                        $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
+                        $productShortName = $urlTail !== '' ? $urlTail : $fullTitle;
+                    }
                     $displayName = ProductDisplayName::format($brand?->name ?? $brandName, $productShortName);
 
                     $baseSlug = $brand
                         ? ProductDisplayName::buildSlug((string) $brand->slug, $productShortName)
                         : VanilleHelper::slugify($productShortName);
-                    if ($baseSlug === '') {
-                        $urlTail = trim((string) parse_url((string) ($item['url'] ?? ''), PHP_URL_PATH), '/');
+                    if ($baseSlug === '' || $baseSlug === (string) $brand?->slug) {
+                        $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
                         $baseSlug = VanilleHelper::slugify($urlTail) ?: 'product';
                     }
                     $slug = $this->resolveUniqueSlugInMemory($baseSlug, $productSlugSet, $brandSlugSet);
-                    $existingProduct = Product::where('slug', $slug)->first();
+                    $pathIdentityKey = ProductDisplayName::vanilleProductPathIdentityKey($brandSlugForPath, $vanilleUrl);
+                    $existingProduct = $this->findExistingProductForVanilleImport(
+                        $supplier,
+                        $brand,
+                        $slug,
+                        $pathIdentityKey,
+                        $vanilleUrl,
+                    );
 
                     if ($existingProduct) {
                         // Существующий товар: не перезаписываем название, H1, бренд, активность,
@@ -239,7 +274,16 @@ class VanilleImportService
                     }
 
                     $log[] = 'OK: ' . $displayName;
+                    $productIdForSearch = (int) $product->id;
                 });
+
+                if (
+                    $productIdForSearch !== null
+                    && $productIdForSearch > 0
+                    && (bool) config('services.catalog_search.enabled', false)
+                ) {
+                    app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch);
+                }
 
                 if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {
                     $this->rewriteDescriptionForNewProductIfPossible($newProductIdForLlm);
@@ -325,7 +369,7 @@ class VanilleImportService
     public function parseBrands(): array
     {
         try {
-            $brands = $this->brandParser->parse();
+            $brands = VanilleBrandParser::filterExcludedListingRows($this->brandParser->parse());
         } catch (\Throwable $e) {
             return [
                 'success' => false,
@@ -357,12 +401,7 @@ class VanilleImportService
 
     public function enqueueJob(string $type): VanilleImportJob
     {
-        $activeJob = VanilleImportJob::query()
-            ->whereIn('status', ['pending', 'running'])
-            ->orderByDesc('id')
-            ->first();
-
-        if ($activeJob) {
+        if (VanilleImportJob::findLatestActive()) {
             throw new \RuntimeException('Уже выполняется задача парсинга Vanille. Дождитесь завершения.');
         }
 
@@ -517,103 +556,93 @@ class VanilleImportService
      */
     public function getActiveImportJob(): ?VanilleImportJob
     {
-        // Пороги подобраны с запасом относительно RunVanilleImportJob::$timeout (300с на пачку)
-        // и возможной задержки подхвата следующей пачки queue worker'ом.
+        $this->failStaleActiveJobsIfDue();
+
+        return VanilleImportJob::findLatestActive();
+    }
+
+    /**
+     * Помечает зависшие pending/running. Не чаще раза в минуту и не более 25 id за запрос parse-status.
+     */
+    private function failStaleActiveJobsIfDue(): void
+    {
+        if (!Cache::add('vanille_import_stale_sweep', 1, 60)) {
+            return;
+        }
+
         $pendingStaleBefore = Carbon::now()->subMinutes(3);
         $runningStaleBefore = Carbon::now()->subMinutes(7);
 
-        VanilleImportJob::query()
-            ->where(function ($query) use ($pendingStaleBefore, $runningStaleBefore) {
-                $query->where(function ($pending) use ($pendingStaleBefore) {
-                    $pending->where('status', 'pending')
-                        ->where(function ($inner) use ($pendingStaleBefore) {
-                            $inner->where('updated_at', '<=', $pendingStaleBefore)
-                                ->orWhere(function ($nested) use ($pendingStaleBefore) {
-                                    $nested->whereNull('updated_at')
-                                        ->where('created_at', '<=', $pendingStaleBefore);
-                                });
-                        });
-                })->orWhere(function ($running) use ($runningStaleBefore) {
-                    $running->where('status', 'running')
-                        ->where('updated_at', '<=', $runningStaleBefore);
-                });
-            })
-            ->orderBy('id')
-            ->chunkById(50, function ($staleJobs) use ($pendingStaleBefore, $runningStaleBefore): void {
-                foreach ($staleJobs as $staleJob) {
-                    // Защита от гонки: задача могла успеть закончиться / получить свежий апдейт,
-                    // пока мы итерируемся. Перечитываем и перепроверяем условие staleness.
-                    $fresh = VanilleImportJob::query()->find($staleJob->id);
-                    if (!$fresh) {
-                        continue;
-                    }
-                    if (!in_array($fresh->status, ['pending', 'running'], true)) {
-                        continue;
-                    }
+        foreach (VanilleImportJob::staleActiveJobIds($pendingStaleBefore, $runningStaleBefore, 25) as $jobId) {
+            $fresh = VanilleImportJob::query()->find($jobId);
+            if (!$fresh || !in_array($fresh->status, VanilleImportJob::ACTIVE_STATUSES, true)) {
+                continue;
+            }
 
-                    $threshold = $fresh->status === 'pending' ? $pendingStaleBefore : $runningStaleBefore;
-                    $reference = $fresh->updated_at ?? $fresh->created_at;
-                    if ($reference !== null && $reference->greaterThan($threshold)) {
-                        continue;
-                    }
+            $threshold = $fresh->status === VanilleImportJob::STATUS_PENDING
+                ? $pendingStaleBefore
+                : $runningStaleBefore;
+            $reference = $fresh->updated_at ?? $fresh->created_at;
+            if ($reference !== null && $reference->greaterThan($threshold)) {
+                continue;
+            }
 
-                    $wasPending = $fresh->status === 'pending';
-                    $reason = $wasPending ? 'worker_not_picked_up' : 'worker_died_mid_batch';
-                    $humanReason = $wasPending
-                        ? 'queue worker не подобрал задачу (не запущен или слушает не ту очередь)'
-                        : 'queue worker подхватил, но упал посреди пачки';
-                    $label = $this->queuedJobExecutor->label($fresh->type);
-                    $queueConnection = (string) config('queue.default');
-                    $queueName = (string) (config('queue.connections.' . $queueConnection . '.queue') ?? 'default');
+            $this->markImportJobFailedAsStale($fresh);
+        }
+    }
 
-                    VanilleImportJobLog::query()->create([
-                        'vanille_import_job_id' => $fresh->id,
-                        'level' => 'error',
-                        'message' => sprintf('%s: %s', $label, $humanReason),
-                        'context' => [
-                            'reason' => $reason,
-                            'previous_status' => $fresh->status,
-                            'queue_connection' => $queueConnection,
-                            'queue_name' => $queueName,
-                            'hint' => $wasPending
-                                ? 'php artisan catalog:vanille-queue status; убедись что запущен php artisan queue:work на том же connection'
-                                : 'см. storage/logs/laravel.log и failed_jobs в момент последнего updated_at',
-                        ],
-                    ]);
+    private function markImportJobFailedAsStale(VanilleImportJob $fresh): void
+    {
+        $wasPending = $fresh->status === VanilleImportJob::STATUS_PENDING;
+        $reason = $wasPending ? 'worker_not_picked_up' : 'worker_died_mid_batch';
+        $humanReason = $wasPending
+            ? 'queue worker не подобрал задачу (не запущен или слушает не ту очередь)'
+            : 'queue worker подхватил, но упал посреди пачки';
+        $label = $this->queuedJobExecutor->label($fresh->type);
+        $queueConnection = (string) config('queue.default');
+        $queueName = (string) (config('queue.connections.' . $queueConnection . '.queue') ?? 'default');
 
-                    try {
-                        app(AuditLogService::class)->record(
-                            AuditLogService::ENTITY_VANILLE_IMPORT,
-                            $fresh->id,
-                            AuditLogService::ACTION_FAILED,
-                            sprintf('%s: %s', $label, $humanReason),
-                            [
-                                'reason' => $reason,
-                                'job_type' => $fresh->type,
-                                'previous_status' => $fresh->status,
-                                'queue_connection' => $queueConnection,
-                                'queue_name' => $queueName,
-                            ],
-                        );
-                    } catch (Throwable) {
-                    }
+        VanilleImportJobLog::query()->create([
+            'vanille_import_job_id' => $fresh->id,
+            'level' => 'error',
+            'message' => sprintf('%s: %s', $label, $humanReason),
+            'context' => [
+                'reason' => $reason,
+                'previous_status' => $fresh->status,
+                'queue_connection' => $queueConnection,
+                'queue_name' => $queueName,
+                'hint' => $wasPending
+                    ? 'php artisan catalog:vanille-queue status; убедись что запущен php artisan queue:work на том же connection'
+                    : 'см. storage/logs/laravel.log и failed_jobs в момент последнего updated_at',
+            ],
+        ]);
 
-                    $fresh->update([
-                        'status' => 'failed',
-                        'progress' => 100,
-                        'message' => sprintf('%s: %s', $label, $humanReason),
-                        'error' => $fresh->error ?: ($wasPending
-                            ? 'Queue worker не подобрал задачу из очереди.'
-                            : 'Queue worker перестал обновлять статус задачи.'),
-                        'finished_at' => now(),
-                    ]);
-                }
-            });
+        try {
+            app(AuditLogService::class)->record(
+                AuditLogService::ENTITY_VANILLE_IMPORT,
+                $fresh->id,
+                AuditLogService::ACTION_FAILED,
+                sprintf('%s: %s', $label, $humanReason),
+                [
+                    'reason' => $reason,
+                    'job_type' => $fresh->type,
+                    'previous_status' => $fresh->status,
+                    'queue_connection' => $queueConnection,
+                    'queue_name' => $queueName,
+                ],
+            );
+        } catch (Throwable) {
+        }
 
-        return VanilleImportJob::query()
-            ->whereIn('status', ['pending', 'running'])
-            ->orderByDesc('id')
-            ->first();
+        $fresh->update([
+            'status' => VanilleImportJob::STATUS_FAILED,
+            'progress' => 100,
+            'message' => sprintf('%s: %s', $label, $humanReason),
+            'error' => $fresh->error ?: ($wasPending
+                ? 'Queue worker не подобрал задачу из очереди.'
+                : 'Queue worker перестал обновлять статус задачи.'),
+            'finished_at' => now(),
+        ]);
     }
 
     /**
@@ -782,7 +811,13 @@ class VanilleImportService
         }
     }
 
-    public function collectProductLinks(int $offset = 0, int $limit = 100, ?int $maxLinks = null): array
+    public function collectProductLinks(
+        int $offset = 0,
+        int $limit = 100,
+        ?int $maxLinks = null,
+        bool $useBrandListingApi = true,
+        bool $rebuildLinksFile = false,
+    ): array
     {
         $brandsPath = storage_path('app/public/imports/vanille/brands.json');
 
@@ -816,12 +851,14 @@ class VanilleImportService
 
         $brands = VanilleBrandParser::filterExcludedListingRows($brands);
 
-        $result = $this->linkCollector->collect($brands, $offset, $limit, $maxLinks);
+        $result = $this->linkCollector->collect($brands, $offset, $limit, $maxLinks, $useBrandListingApi);
 
         $path = $this->ensureVanilleImportDir() . '/product_links.json';
         $existingLinks = [];
         $existingKeysBeforeMerge = [];
-        if ($offset > 0 && file_exists($path)) {
+        if ($rebuildLinksFile && $offset === 0) {
+            $result['log'][] = 'product_links.json: полная пересборка с нуля';
+        } elseif (file_exists($path)) {
             $decoded = json_decode(file_get_contents($path), true);
             if (is_array($decoded)) {
                 foreach ($decoded as $link) {
@@ -843,6 +880,10 @@ class VanilleImportService
             if (!is_array($link)) {
                 continue;
             }
+            $slug = trim((string) ($link['slug'] ?? ''));
+            if ($slug !== '' && !VanilleBrandParser::isValidBrandSlug($slug)) {
+                continue;
+            }
             $key = $this->buildLinkDedupKey($link);
             if ($key === '') {
                 continue;
@@ -859,6 +900,15 @@ class VanilleImportService
             $path,
             json_encode($mergedLinks, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
+
+        $finalize = ['brands_kept' => 0, 'brands_removed' => 0, 'links_kept' => count($mergedLinks)];
+        if ($result['done']) {
+            $finalize = $this->finalizeBrandsAndProductLinks();
+            $mergedLinks = json_decode((string) file_get_contents($path), true);
+            if (!is_array($mergedLinks)) {
+                $mergedLinks = [];
+            }
+        }
 
         return [
             'success' => true,
@@ -878,6 +928,108 @@ class VanilleImportService
             'reached_max_links' => $result['reached_max_links'],
             'added_links' => array_values($addedLinks),
             'added_links_count' => count($addedLinks),
+            'brands_kept' => $finalize['brands_kept'],
+            'brands_removed' => $finalize['brands_removed'],
+            'links_kept' => $finalize['links_kept'],
+        ];
+    }
+
+    /**
+     * После полного сбора: в brands.json только бренды с ≥1 товарной ссылкой; product_links без «сирот».
+     *
+     * @return array{brands_kept: int, brands_removed: int, links_kept: int}
+     */
+    public function finalizeBrandsAndProductLinks(): array
+    {
+        $dir = $this->ensureVanilleImportDir();
+        $brandsPath = $dir . '/brands.json';
+        $linksPath = $dir . '/product_links.json';
+
+        $brands = is_file($brandsPath)
+            ? VanilleBrandParser::filterExcludedListingRows(json_decode((string) file_get_contents($brandsPath), true) ?: [])
+            : [];
+        $links = is_file($linksPath)
+            ? (json_decode((string) file_get_contents($linksPath), true) ?: [])
+            : [];
+        if (!is_array($links)) {
+            $links = [];
+        }
+
+        $nameToSlug = [];
+        foreach ($brands as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $slug = mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8');
+            $name = mb_strtolower(trim((string) ($row['name'] ?? '')), 'UTF-8');
+            if ($slug !== '' && $name !== '') {
+                $nameToSlug[$name] = $slug;
+            }
+        }
+
+        $linkCounts = [];
+        $normalizedLinks = [];
+        foreach ($links as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+            $brandSlug = mb_strtolower(trim((string) ($link['brand_slug'] ?? '')), 'UTF-8');
+            if ($brandSlug === '') {
+                $brandName = mb_strtolower(trim((string) ($link['brand'] ?? '')), 'UTF-8');
+                $brandSlug = $nameToSlug[$brandName] ?? '';
+                if ($brandSlug !== '') {
+                    $link['brand_slug'] = $brandSlug;
+                }
+            }
+            if ($brandSlug === '' || VanilleBrandParser::isGarbageBrandRow(
+                (string) ($link['brand'] ?? ''),
+                $brandSlug,
+                (string) ($link['url'] ?? ''),
+            )) {
+                continue;
+            }
+            $linkCounts[$brandSlug] = ($linkCounts[$brandSlug] ?? 0) + 1;
+            $key = $this->buildLinkDedupKey($link);
+            if ($key !== '') {
+                $normalizedLinks[$key] = $link;
+            }
+        }
+
+        $keptBrands = [];
+        foreach ($brands as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $slug = mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8');
+            if ($slug === '' || ($linkCounts[$slug] ?? 0) < 1) {
+                continue;
+            }
+            $keptBrands[] = $row;
+        }
+
+        $keptSlugs = array_fill_keys(
+            array_map(
+                static fn (array $row): string => mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8'),
+                $keptBrands,
+            ),
+            true,
+        );
+
+        $filteredLinks = [];
+        foreach ($normalizedLinks as $link) {
+            $brandSlug = mb_strtolower(trim((string) ($link['brand_slug'] ?? '')), 'UTF-8');
+            if ($brandSlug !== '' && isset($keptSlugs[$brandSlug])) {
+                $filteredLinks[] = $link;
+            }
+        }
+
+        file_put_contents($brandsPath, json_encode($keptBrands, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        file_put_contents($linksPath, json_encode(array_values($filteredLinks), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        return [
+            'brands_kept' => count($keptBrands),
+            'brands_removed' => max(0, count($brands) - count($keptBrands)),
+            'links_kept' => count($filteredLinks),
         ];
     }
 
@@ -1699,17 +1851,17 @@ class VanilleImportService
 
     private function buildLinkDedupKey(array $link): string
     {
+        $url = trim((string) ($link['url'] ?? ''));
+        if ($url !== '') {
+            return $this->normalizeLinkUrl($url);
+        }
+
         $slug = trim((string) ($link['slug'] ?? ''));
         if ($slug !== '') {
             return mb_strtolower($slug);
         }
 
-        $url = trim((string) ($link['url'] ?? ''));
-        if ($url === '') {
-            return '';
-        }
-
-        return $this->normalizeLinkUrl($url);
+        return '';
     }
 
     private function parsedUrlsManifestPath(): string
@@ -2112,6 +2264,93 @@ class VanilleImportService
         return mb_strtolower($normalized);
     }
 
+    private function findExistingProductForVanilleImport(
+        Supplier $supplier,
+        ?Brand $brand,
+        string $slug,
+        string $pathIdentityKey,
+        string $vanilleUrl,
+    ): ?Product {
+        $normalizedUrl = $vanilleUrl !== '' ? $this->normalizeLinkUrl($vanilleUrl) : '';
+        if ($normalizedUrl !== '') {
+            $linkedId = $this->resolveLinkedVanilleProductId($vanilleUrl);
+            if ($linkedId !== null && $linkedId > 0) {
+                $linked = Product::query()->find($linkedId);
+                if ($linked !== null) {
+                    return $linked;
+                }
+            }
+        }
+
+        $bySlug = Product::query()->where('slug', $slug)->first();
+        if ($bySlug !== null) {
+            return $bySlug;
+        }
+
+        if ($brand === null || $pathIdentityKey === '') {
+            return null;
+        }
+
+        $byIdentity = $this->findProductByPathIdentityKey((int) $brand->id, (string) $brand->slug, $pathIdentityKey);
+        if ($byIdentity !== null) {
+            return $byIdentity;
+        }
+
+        return $this->findProductBySupplierPathIdentity($supplier, (int) $brand->id, (string) $brand->slug, $pathIdentityKey);
+    }
+
+    private function findProductByPathIdentityKey(int $brandId, string $brandSlug, string $pathIdentityKey): ?Product
+    {
+        if ($pathIdentityKey === '') {
+            return null;
+        }
+
+        $products = Product::query()
+            ->where('brand_id', $brandId)
+            ->get(['id', 'slug', 'name']);
+
+        foreach ($products as $product) {
+            $productKey = ProductDisplayName::vanilleProductPathIdentityKey($brandSlug, (string) $product->slug);
+            if ($productKey === $pathIdentityKey) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
+    private function findProductBySupplierPathIdentity(
+        Supplier $supplier,
+        int $brandId,
+        string $brandSlug,
+        string $pathIdentityKey,
+    ): ?Product {
+        if ($pathIdentityKey === '') {
+            return null;
+        }
+
+        $rows = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('brand_id', $brandId)
+            ->whereNotNull('product_id')
+            ->whereNotNull('external_url')
+            ->get(['product_id', 'external_url']);
+
+        foreach ($rows as $row) {
+            $rowKey = ProductDisplayName::vanilleProductPathIdentityKey($brandSlug, (string) $row->external_url);
+            if ($rowKey !== $pathIdentityKey) {
+                continue;
+            }
+
+            $product = Product::query()->find((int) $row->product_id);
+            if ($product !== null) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
     private function resolveUniqueSlugInMemory(string $baseSlug, array $primarySet, array $foreignSet): string
     {
         $candidate = $baseSlug;
@@ -2321,12 +2560,7 @@ class VanilleImportService
      */
     private function enqueueJobWithInitialResult(string $type, array $initialResult): VanilleImportJob
     {
-        $activeJob = VanilleImportJob::query()
-            ->whereIn('status', ['pending', 'running'])
-            ->orderByDesc('id')
-            ->first();
-
-        if ($activeJob) {
+        if (VanilleImportJob::findLatestActive()) {
             throw new \RuntimeException('Уже выполняется задача парсинга Vanille. Дождитесь завершения.');
         }
 
@@ -2334,7 +2568,7 @@ class VanilleImportService
 
         $job = VanilleImportJob::query()->create([
             'type' => $type,
-            'status' => 'pending',
+            'status' => VanilleImportJob::STATUS_PENDING,
             'progress' => 0,
             'message' => $this->queuedJobExecutor->label($type).': в очереди',
             'result' => $initialResult,

@@ -2,83 +2,159 @@
 
 namespace Modules\ImportExport\Services\Vanille\Support;
 
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
 class VanilleHttpClient
 {
+    private const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+    public function createCookieJar(): CookieJar
+    {
+        return new CookieJar();
+    }
+
     public function fetchUrl(string $url, int $timeout = 10): string
     {
-        $httpResponseHeader = null;
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'timeout' => $timeout,
-                'ignore_errors' => true,
-                'header' => implode("\r\n", [
-                    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language: ru-RU,ru;q=0.9,en;q=0.8',
-                    'Connection: close',
-                ]),
-            ],
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-            ],
-        ]);
+        $jar = $this->createCookieJar();
 
-        $html = @file_get_contents($url, false, $context, 0, 5_000_000);
-
-        if ($html === false || $html === '') {
-            throw new \RuntimeException($this->formatFetchFailure($url, $httpResponseHeader));
-        }
-
-        $status = $this->extractHttpStatus($httpResponseHeader);
-        if ($status !== null && ($status < 200 || $status >= 400)) {
-            throw new \RuntimeException($this->formatFetchFailure($url, $httpResponseHeader, $status));
-        }
-
-        return $html;
+        return $this->fetchUrlWithCookieJar($url, $jar, $timeout)['body'];
     }
 
     /**
-     * @param  array<int, string>|null  $httpResponseHeader
+     * @return array{body: string, cookie_jar: CookieJar}
      */
-    private function formatFetchFailure(string $url, ?array $httpResponseHeader, ?int $httpStatus = null): string
+    public function fetchUrlWithCookieJar(string $url, CookieJar $jar, int $timeout = 10): array
     {
-        $parts = ["Не удалось загрузить URL: {$url}"];
+        $response = Http::withOptions([
+            'cookies' => $jar,
+            'verify' => false,
+            'timeout' => $timeout,
+        ])
+            ->withHeaders($this->defaultRequestHeaders())
+            ->get($url);
 
-        if ($httpStatus !== null) {
-            $parts[] = "HTTP {$httpStatus}";
-        } elseif ($httpResponseHeader !== null && $httpResponseHeader !== []) {
-            $status = $this->extractHttpStatus($httpResponseHeader);
-            if ($status !== null) {
-                $parts[] = "HTTP {$status}";
+        if (!$response->successful()) {
+            throw new RuntimeException($this->formatHttpFailure('GET', $url, $response->status(), $response->body()));
+        }
+
+        $body = $response->body();
+        if ($body === '') {
+            throw new RuntimeException("Пустой ответ GET: {$url}");
+        }
+
+        return [
+            'body' => $body,
+            'cookie_jar' => $jar,
+        ];
+    }
+
+    /**
+     * @return array{body: string, cookie_header: string}
+     */
+    public function fetchUrlWithCookies(string $url, int $timeout = 10): array
+    {
+        $jar = $this->createCookieJar();
+        $result = $this->fetchUrlWithCookieJar($url, $jar, $timeout);
+
+        return [
+            'body' => $result['body'],
+            'cookie_header' => $this->cookieJarToHeader($jar),
+        ];
+    }
+
+    public function postForm(
+        string $url,
+        array $fields,
+        int $timeout = 15,
+        string $cookieHeader = '',
+        string $referer = 'https://vanille.by/',
+    ): string {
+        $jar = $this->createCookieJar();
+        if ($cookieHeader !== '') {
+            $this->applyCookieHeaderToJar($jar, $cookieHeader);
+        }
+
+        return $this->postFormWithCookieJar($url, $fields, $jar, $referer, $timeout);
+    }
+
+    public function postFormWithCookieJar(
+        string $url,
+        array $fields,
+        CookieJar $jar,
+        string $referer = 'https://vanille.by/',
+        int $timeout = 15,
+    ): string {
+        $response = Http::withOptions([
+            'cookies' => $jar,
+            'verify' => false,
+            'timeout' => $timeout,
+        ])
+            ->withHeaders([
+                ...$this->defaultRequestHeaders(),
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'Referer' => $referer,
+                'Origin' => 'https://vanille.by',
+            ])
+            ->asForm()
+            ->post($url, $fields);
+
+        if (!$response->successful()) {
+            throw new RuntimeException($this->formatHttpFailure('POST', $url, $response->status(), $response->body()));
+        }
+
+        return $response->body();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function defaultRequestHeaders(): array
+    {
+        return [
+            'User-Agent' => self::DEFAULT_USER_AGENT,
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'ru-RU,ru;q=0.9,en;q=0.8',
+        ];
+    }
+
+    private function cookieJarToHeader(CookieJar $jar): string
+    {
+        $chunks = [];
+        foreach ($jar->toArray() as $cookie) {
+            $name = trim((string) ($cookie['Name'] ?? ''));
+            if ($name === '') {
+                continue;
             }
+            $chunks[] = $name . '=' . (string) ($cookie['Value'] ?? '');
         }
 
-        $phpError = error_get_last();
-        if (is_array($phpError) && !empty($phpError['message'])) {
-            $parts[] = 'PHP: '.trim((string) $phpError['message']);
-        }
-
-        $parts[] = 'проверьте с сервера: curl -I '.escapeshellarg($url);
-
-        return implode('; ', $parts);
+        return implode('; ', $chunks);
     }
 
-    /**
-     * @param  array<int, string>|null  $httpResponseHeader
-     */
-    private function extractHttpStatus(?array $httpResponseHeader): ?int
+    private function applyCookieHeaderToJar(CookieJar $jar, string $cookieHeader): void
     {
-        if ($httpResponseHeader === null || $httpResponseHeader === []) {
-            return null;
+        foreach (explode(';', $cookieHeader) as $part) {
+            $part = trim($part);
+            if ($part === '' || !str_contains($part, '=')) {
+                continue;
+            }
+            [$name, $value] = explode('=', $part, 2);
+            $jar->setCookie(new SetCookie([
+                'Name' => trim($name),
+                'Value' => trim($value),
+                'Domain' => 'vanille.by',
+            ]));
         }
+    }
 
-        $line = (string) ($httpResponseHeader[0] ?? '');
-        if (preg_match('/\s(\d{3})\s/', $line, $matches) === 1) {
-            return (int) $matches[1];
-        }
+    private function formatHttpFailure(string $method, string $url, int $status, string $body): string
+    {
+        $snippet = trim(mb_substr(preg_replace('/\s+/u', ' ', strip_tags($body)) ?? '', 0, 200));
 
-        return null;
+        return trim("{$method} {$url} failed: HTTP {$status}" . ($snippet !== '' ? " — {$snippet}" : ''));
     }
 }

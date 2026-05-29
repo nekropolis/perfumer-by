@@ -100,6 +100,17 @@ php artisan catalog:vanille-queue run-pending
 
 После этого в базе должны появиться товары, бренды, варианты и supplier products из Vanille.
 
+### Очистка дублей и мусора (после пробного/ошибочного импорта)
+
+```bash
+cd backend
+php artisan catalog:prune-products-without-vanille --dry-run
+php artisan catalog:prune-products-without-vanille --force
+php artisan catalog:prune-brands-without-products
+```
+
+Удаляются товары без связи с Vanille и пустые карточки (0 вариантов, 0 атрибутов). Нормальные товары с Vanille и заполненной карточкой не трогаются.
+
 ## 4. Vanille: каталожные изображения листинга
 
 После импорта товаров через админку запусти:

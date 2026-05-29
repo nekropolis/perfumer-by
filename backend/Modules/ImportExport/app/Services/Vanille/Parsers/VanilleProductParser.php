@@ -13,7 +13,7 @@ class VanilleProductParser
 
     public function parseProductPage(string $url): array
     {
-        $html = $this->httpClient->fetchUrl($url, 10);
+        $html = $this->httpClient->fetchUrl($url, 25);
 
         $pageTitle = $this->matchOne('/<title>(.*?)<\/title>/isu', $html);
         $name = $this->matchOne('/<h1[^>]*>(.*?)<\/h1>/isu', $html);

@@ -1,59 +1,34 @@
 "use client";
 
-import { Fragment, type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
     fetchProductVariantSuppliers,
     type ProductVariantSupplierItem,
 } from "@/lib/admin-products-api";
 import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
+import VariantSuppliersSummaryRow, {
+    formatProductSuppliersModalTitle,
+} from "@/components/admin/products/variant-suppliers-summary-row";
 
-function defaultVariantToolbarRow(
-    variant: ProductVariantSupplierItem,
-    highlightVariantId?: number | null,
-): ReactNode {
-    const highlighted = highlightVariantId != null && highlightVariantId === variant.id;
-    return (
-        <div
-            className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-admin-text ${
-                highlighted ? "rounded-md bg-blue-50/70 px-1 py-0.5" : ""
-            }`}
-        >
-            <span className="shrink-0 tabular-nums text-admin-text-secondary">{variant.id}</span>
-            <span className="shrink-0 text-gray-300" aria-hidden>
-                ·
-            </span>
-            <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    variant.is_active !== false ? "bg-green-50 text-green-700" : "bg-gray-100 text-admin-text-secondary"
-                }`}
-            >
-                {variant.is_active !== false ? "Активен" : "Выкл"}
-            </span>
-            {variant.is_preorder ? (
-                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                    Предзаказ
-                </span>
-            ) : null}
-            <span className="shrink-0 text-gray-300" aria-hidden>
-                ·
-            </span>
-            <span className="min-w-0 flex-1 truncate font-medium">{variant.title || "—"}</span>
-            <span className="shrink-0 text-gray-300" aria-hidden>
-                ·
-            </span>
-            <span className="shrink-0 tabular-nums text-admin-text">{variant.stock}</span>
-        </div>
-    );
-}
+const SUPPLIER_TABLE_HEAD = (
+    <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
+        <tr>
+            <th className="px-3 py-2">Поставщик</th>
+            <th className="px-3 py-2">Код</th>
+            <th className="px-3 py-2">Название у поставщика</th>
+            <th className="px-3 py-2">Закуп. цена</th>
+            <th className="px-3 py-2">Склад</th>
+            <th className="px-3 py-2">Кол-во</th>
+        </tr>
+    </thead>
+);
 
 export type ProductVariantSuppliersModalProps = {
     open: boolean;
     onCloseAction: () => void;
     productId: number;
-    /** Заголовок модалки (обычно название товара). */
-    productTitle: string;
-    /** Подзаголовок под названием (опционально). */
-    subtitle?: string;
+    productName: string;
+    productBrandName?: string | null;
     /** Подсветить блок варианта (например открыли из строки варианта). */
     highlightVariantId?: number | null;
     /**
@@ -74,18 +49,14 @@ export type ProductVariantSuppliersModalProps = {
 export function ProductVariantSuppliersGroupedTable({
     variants,
     highlightVariantId,
-    cellClassName,
+    cellClassName = "px-3 py-2",
     renderVariantToolbarAction,
 }: {
     variants: ProductVariantSupplierItem[];
     highlightVariantId?: number | null;
-    cellClassName: string;
+    cellClassName?: string;
     renderVariantToolbarAction?: (variant: ProductVariantSupplierItem) => ReactNode;
 }) {
-    const toolbarForVariant =
-        renderVariantToolbarAction ??
-        ((v: ProductVariantSupplierItem) => defaultVariantToolbarRow(v, highlightVariantId));
-
     if (variants.length === 0) {
         return (
             <div className="rounded-xl border px-3 py-4 text-sm text-admin-text-secondary">
@@ -95,31 +66,29 @@ export function ProductVariantSuppliersGroupedTable({
     }
 
     return (
-        <div className="overflow-x-auto rounded-xl border">
-            <table className="min-w-full text-xs">
-                <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
-                    <tr>
-                        <th className={cellClassName}>Поставщик</th>
-                        <th className={cellClassName}>Код</th>
-                        <th className={cellClassName}>Название у поставщика</th>
-                        <th className={cellClassName}>Закуп. цена</th>
-                        <th className={cellClassName}>Склад</th>
-                        <th className={cellClassName}>Кол-во</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {variants.map((variant) => (
-                        <Fragment key={variant.id}>
-                            <tr className="border-t bg-admin-muted/80">
-                                <td colSpan={6} className={`${cellClassName} py-2`}>
-                                    {toolbarForVariant(variant)}
-                                </td>
-                            </tr>
-                            <VariantSuppliersTableRows variant={variant} cellClassName={cellClassName} />
-                        </Fragment>
-                    ))}
-                </tbody>
-            </table>
+        <div className="space-y-4">
+            {variants.map((variant) => (
+                <section key={variant.id} className="overflow-hidden rounded-xl border">
+                    <div className="border-b bg-admin-muted/80 px-3 py-2">
+                        {renderVariantToolbarAction ? (
+                            renderVariantToolbarAction(variant)
+                        ) : (
+                            <VariantSuppliersSummaryRow
+                                variant={variant}
+                                highlightVariantId={highlightVariantId}
+                            />
+                        )}
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs">
+                            {SUPPLIER_TABLE_HEAD}
+                            <tbody>
+                                <VariantSuppliersTableRows variant={variant} cellClassName={cellClassName} />
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            ))}
         </div>
     );
 }
@@ -128,8 +97,8 @@ export default function ProductVariantSuppliersModal({
     open,
     onCloseAction,
     productId,
-    productTitle,
-    subtitle,
+    productName,
+    productBrandName,
     highlightVariantId,
     singleVariantId,
     renderVariantToolbarAction,
@@ -142,6 +111,7 @@ export default function ProductVariantSuppliersModal({
     const [error, setError] = useState("");
 
     const useExternalSuppliers = suppliersFromParent !== undefined;
+    const modalTitle = formatProductSuppliersModalTitle(productId, productName, productBrandName);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -189,12 +159,7 @@ export default function ProductVariantSuppliersModal({
             <div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-                        <div className="min-w-0 pr-3">
-                            <h2 className="truncate text-xl font-semibold">{productTitle}</h2>
-                            {subtitle ? (
-                                <p className="mt-1 truncate text-sm text-admin-text-secondary">{subtitle}</p>
-                            ) : null}
-                        </div>
+                        <h2 className="min-w-0 truncate pr-3 text-xl font-semibold">{modalTitle}</h2>
                         <button
                             type="button"
                             onClick={() => onCloseAction()}
@@ -215,7 +180,6 @@ export default function ProductVariantSuppliersModal({
                             <ProductVariantSuppliersGroupedTable
                                 variants={items}
                                 highlightVariantId={highlightVariantId}
-                                cellClassName="px-3 py-2"
                                 renderVariantToolbarAction={renderVariantToolbarAction}
                             />
                         )}

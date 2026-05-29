@@ -97,6 +97,41 @@ php artisan catalog:parse-vanille-products
 - `Новый парсинг` — разбор прайса и матчинга
 - `Обновить цены` — обновление цен только связанных товаров по коду
 
+### Очистка мусора и дублей после импорта
+
+Все товары в каталоге должны идти только с Vanille (`supplier_products`, поставщик `vanille`).
+Дубли и «пустые оболочки» появлялись из‑за разных slug/H1 при одном аромате — импорт теперь сопоставляет карточки по URL и каноническому ключу пути.
+
+**Одна команда очистки** (сначала dry-run):
+
+```bash
+cd /var/www/perfumer-by/backend
+php artisan catalog:prune-products-without-vanille --dry-run
+php artisan catalog:prune-products-without-vanille --force
+php artisan catalog:prune-brands-without-products
+```
+
+Удаляются товары, если:
+
+- нет привязки к Vanille, **или**
+- 0 вариантов **и** 0 значений атрибутов (пустая карточка, в т.ч. с ошибочной связью).
+
+Опции: `--limit=N` — пачками; `--force` — без подтверждения.
+
+Импорт не создаёт новые дубли: `VanilleParsedImportGuard` требует характеристики на карточке; при импорте ищется существующий товар по URL Vanille и identity-ключу пути (`ProductDisplayName::vanilleProductPathIdentityKey`).
+
+Один бренд (например Dolce & Gabbana):
+
+```bash
+php artisan catalog:vanille-brand dolce-i-gabbana preflight|collect|parse|run --expected=121
+```
+
+Полный цикл ссылок/брендов:
+
+```bash
+php artisan catalog:vanille-sync brands|links|parse
+```
+
 ## 6) Частые проблемы
 
 ### Permission denied на `storage/.../vanille/products_*.json`
@@ -241,9 +276,10 @@ php artisan catalog:vanille-queue resume --job-id=4
 # attach: tmux attach -t vanille
 ```
 
-### Почему это безопасно
+### Почему повторный импорт не плодит дубли
 
-- `VanilleImportService::importFromJsonFile()` использует `updateOrCreate` по `slug` → повторный прогон не плодит дубли.
+- `SupplierProduct` — `updateOrCreate` по `external_url`; товар ищется по slug, URL Vanille и identity-ключу пути.
+- Короткое имя/slug нормализуются из URL (`resolveCanonicalShortName`), а не только из H1.
 - `result.state.offset` — индекс по отсортированному `glob('products_*.json')`, порядок детерминированный, продолжит ровно с нужного файла.
 
 ### «Зомби»-payload'ы в Redis

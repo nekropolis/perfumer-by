@@ -10,7 +10,7 @@ use Modules\ImportExport\Services\Vanille\VanilleImportService;
 class VanilleImportQueueCommand extends Command
 {
     protected $signature = 'catalog:vanille-queue
-        {action=status : status|run-pending|resume}
+        {action=status : status|run-pending|resume|cleanup-active}
         {--job-id= : Explicit VanilleImportJob id for run-pending/resume}';
 
     protected $description = 'Диагностика и восстановление очереди импорта Vanille';
@@ -21,6 +21,7 @@ class VanilleImportQueueCommand extends Command
             'status' => $this->showStatus(),
             'run-pending' => $this->runPending($service),
             'resume' => $this->resume($service),
+            'cleanup-active' => $this->cleanupActive(),
             default => $this->fail('Unknown action: ' . $this->argument('action')),
         };
     }
@@ -78,10 +79,12 @@ class VanilleImportQueueCommand extends Command
             ])->all(),
         );
 
-        $active = VanilleImportJob::query()
-            ->whereIn('status', ['pending', 'running'])
-            ->orderByDesc('id')
-            ->first();
+        $activeCount = VanilleImportJob::query()->active()->count();
+        if ($activeCount > 1) {
+            $this->warn("Активных задач (pending/running): {$activeCount}. При ошибке parse-status: php artisan catalog:vanille-queue cleanup-active");
+        }
+
+        $active = VanilleImportJob::findLatestActive();
 
         if ($active) {
             $this->warn("Активная задача: id={$active->id}, status={$active->status}.");
@@ -96,10 +99,7 @@ class VanilleImportQueueCommand extends Command
         $jobId = $this->option('job-id');
 
         if ($jobId === null) {
-            $job = VanilleImportJob::query()
-                ->whereIn('status', ['pending', 'running'])
-                ->orderByDesc('id')
-                ->first();
+            $job = VanilleImportJob::findLatestActive();
         } else {
             $job = VanilleImportJob::query()->find((int) $jobId);
         }
@@ -195,5 +195,29 @@ class VanilleImportQueueCommand extends Command
         ));
 
         return $result->status === 'completed' ? self::SUCCESS : self::FAILURE;
+    }
+
+    protected function cleanupActive(): int
+    {
+        $latest = VanilleImportJob::findLatestActive();
+        if (!$latest) {
+            $this->info('Нет активных задач (pending/running).');
+
+            return self::SUCCESS;
+        }
+
+        $before = VanilleImportJob::query()->active()->count();
+        $updated = VanilleImportJob::failDuplicateActiveJobs($latest->id);
+        $after = VanilleImportJob::query()->active()->count();
+
+        $this->info(sprintf(
+            'Оставлена задача #%d. Помечено failed: %d (было активных: %d, осталось: %d).',
+            $latest->id,
+            $updated,
+            $before,
+            $after,
+        ));
+
+        return self::SUCCESS;
     }
 }
