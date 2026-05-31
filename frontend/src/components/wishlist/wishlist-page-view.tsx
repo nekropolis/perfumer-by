@@ -5,7 +5,7 @@ import ProductCard from "@/components/product/product-card";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 
 export default function WishlistPageView() {
-    const { products, loading, wishlistQty, removeFromWishlist } = useWishlist();
+    const { products, loading, wishlistQty } = useWishlist();
 
     return (
         <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -33,18 +33,9 @@ export default function WishlistPageView() {
                     Добавляйте товары в избранное, чтобы быстро возвращаться к ним позже.
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {products.map((product) => (
-                        <div key={product.id} className="relative">
-                            <ProductCard product={product} />
-                            <button
-                                type="button"
-                                onClick={() => void removeFromWishlist(product.id)}
-                                className="absolute right-3 top-3 rounded-full border border-[var(--line)] bg-[var(--surface)]/95 px-2.5 py-1 text-xs font-medium text-[var(--foreground)] shadow-sm backdrop-blur transition hover:bg-[var(--surface)] hover:text-[var(--accent)]"
-                            >
-                                Убрать
-                            </button>
-                        </div>
+                        <ProductCard key={product.id} product={product} />
                     ))}
                 </div>
             )}

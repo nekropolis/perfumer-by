@@ -134,7 +134,7 @@ export default function ProductCard({ product, eager = false, variant = "catalog
                         void toggleWishlist(product.id);
                     }}
                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                    className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 ${inWishlist
+                    className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:scale-110 active:scale-95 ${inWishlist
                         ? "border-[var(--accent)]/40 bg-[var(--accent)] text-[var(--background)] shadow-sm hover:opacity-95"
                         : "border-[var(--line)] bg-[var(--background)]/90 text-[var(--foreground)] backdrop-blur hover:bg-[var(--surface-2)]"
                         }`}
