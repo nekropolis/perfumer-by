@@ -6,18 +6,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\Catalog\Services\ProductImageVariantService;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Support\PublicStorageWriteGuard;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleCatalogImageParser;
+use Modules\ImportExport\Services\Vanille\Parsers\VanilleLinkCollector;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleProductParser;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\ImportExport\Support\LegacyProductDetector;
@@ -33,12 +36,10 @@ class VanilleMediaImportService
 
     private const int RETRY_PRODUCTS_PER_BATCH = 5;
 
-    /** Ограничитель на случай ошибок парсера/бесконечной пагинации. */
-    private const int MAX_BRAND_LISTING_PAGES = 200;
-
     public function __construct(
         protected VanilleHttpClient $httpClient,
         protected VanilleCatalogImageParser $catalogImageParser,
+        protected VanilleLinkCollector $linkCollector,
         protected VanilleProductParser $productParser,
         protected ImportRetryQueue $importRetryQueue,
         protected LegacyProductDetector $legacyDetector,
@@ -120,6 +121,8 @@ class VanilleMediaImportService
                 continue;
             }
 
+            $processedProductIds = [];
+
             foreach ($rows as $row) {
                 $slug = (string) ($row['slug'] ?? '');
                 $imageUrls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
@@ -132,6 +135,11 @@ class VanilleMediaImportService
                     continue;
                 }
                 $productId = (int) $supplierProduct->product_id;
+                $processedProductIds[$productId] = true;
+
+                if ($this->catalogImagesCountForProduct($productId) >= 2) {
+                    continue;
+                }
 
                 try {
                     foreach ($imageUrls as $imgUrl) {
@@ -148,6 +156,51 @@ class VanilleMediaImportService
                         ['slug' => $slug, 'image_urls' => $imageUrls],
                     );
                     $log[] = 'ERROR product '.$productId.' slug='.$slug.' -> '.$e->getMessage();
+                }
+            }
+
+            foreach ($this->linkedVanilleSupplierProductsForCatalogBrand($brand) as $supplierProduct) {
+                $productId = (int) $supplierProduct->product_id;
+                if ($productId <= 0 || isset($processedProductIds[$productId])) {
+                    continue;
+                }
+                if ($this->catalogImagesCountForProduct($productId) >= 2) {
+                    continue;
+                }
+
+                $slug = trim((string) ($supplierProduct->external_slug ?? ''));
+                if ($slug === '' && $supplierProduct->external_url) {
+                    $slug = trim((string) parse_url((string) $supplierProduct->external_url, PHP_URL_PATH), '/');
+                }
+                if ($slug === '') {
+                    continue;
+                }
+
+                $productUrl = trim((string) ($supplierProduct->external_url));
+                if ($productUrl === '') {
+                    $productUrl = 'https://vanille.by/'.$slug;
+                }
+
+                $imageUrls = $this->resolveCatalogListingImageUrls($slug, $rows, $productUrl);
+                if ($imageUrls === []) {
+                    continue;
+                }
+
+                try {
+                    foreach ($imageUrls as $imgUrl) {
+                        $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
+                    }
+                    $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
+                } catch (Throwable $e) {
+                    $this->abortIfStorageWriteError($e);
+                    $failed++;
+                    $this->importRetryQueue->record(
+                        ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
+                        $productId,
+                        $e->getMessage(),
+                        ['slug' => $slug, 'image_urls' => $imageUrls, 'source' => 'product_page_fallback'],
+                    );
+                    $log[] = 'ERROR product '.$productId.' slug='.$slug.' (card fallback) -> '.$e->getMessage();
                 }
             }
         }
@@ -456,38 +509,41 @@ class VanilleMediaImportService
             throw new \RuntimeException('Не удалось определить slug');
         }
 
+        $sp->loadMissing('brand');
         $brand = $sp->brand;
-        $brandsPath = storage_path('app/public/imports/vanille/brands.json');
-        $decoded = is_file($brandsPath) ? json_decode((string) file_get_contents($brandsPath), true) : [];
-        $brands = is_array($decoded) ? VanilleBrandParser::filterExcludedListingRows($decoded) : [];
-        $brandUrl = null;
-        if ($brands !== []) {
-            foreach ($brands as $b) {
-                if (! is_array($b)) {
-                    continue;
-                }
-                if (isset($b['slug']) && mb_strtolower((string) $b['slug']) === mb_strtolower((string) ($brand?->slug ?? ''))) {
-                    $brandUrl = (string) ($b['source_url'] ?? $b['url'] ?? '');
+
+        $catalogBrand = null;
+        $brandName = trim((string) ($brand?->name ?? ''));
+        if ($brandName !== '') {
+            $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName);
+        }
+
+        if ($catalogBrand === null && trim((string) ($brand?->slug ?? '')) !== '') {
+            $dbBrandSlug = mb_strtolower(trim((string) $brand->slug));
+            foreach (VanilleBrandParser::loadCatalogBrandRows() as $row) {
+                if (mb_strtolower(trim((string) ($row['slug'] ?? ''))) === $dbBrandSlug) {
+                    $catalogBrand = $row;
                     break;
                 }
             }
         }
+
+        $brandUrl = is_array($catalogBrand)
+            ? trim((string) ($catalogBrand['source_url'] ?? $catalogBrand['url'] ?? ''))
+            : '';
         if ($brandUrl === '') {
             throw new \RuntimeException('Не найден URL бренда в brands.json');
         }
 
-        $sp->loadMissing('brand');
-        $brandSlug = (string) ($sp->brand?->slug ?? '');
+        $brandSlug = trim((string) ($catalogBrand['slug'] ?? ''));
         $rows = $this->collectBrandListingRows($brandUrl, $brandSlug !== '' ? $brandSlug : null);
-        $listingImageUrls = [];
-        foreach ($rows as $row) {
-            if (mb_strtolower(trim((string) ($row['slug'] ?? ''))) === mb_strtolower($slug)) {
-                $listingImageUrls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
-                break;
-            }
+        $productUrl = trim((string) ($sp->external_url));
+        if ($productUrl === '') {
+            $productUrl = 'https://vanille.by/'.$slug;
         }
+        $listingImageUrls = $this->resolveCatalogListingImageUrls($slug, $rows, $productUrl);
         if ($listingImageUrls === []) {
-            throw new \RuntimeException('Картинка на листинге не найдена для slug='.$slug);
+            throw new \RuntimeException('Каталожное фото не найдено ни в листинге бренда, ни на карточке Vanille для slug='.$slug);
         }
 
         if ($this->catalogImagesCountForProduct($productId) >= 2) {
@@ -574,40 +630,27 @@ class VanilleMediaImportService
     }
 
     /**
-     * Все страницы листинга бренда (напр. /ajmal, /ajmal?page=2…) с дедупликацией по slug.
+     * Все страницы листинга бренда (msearch2 + product-cut), с дедупликацией по slug.
      *
      * @return list<array{slug:string, image_url:?string}>
      */
     private function collectBrandListingRows(string $brandPageUrl, ?string $brandSlug): array
     {
+        $fragments = $this->linkCollector->fetchBrandListingResultHtmlFragments([
+            'source_url' => $brandPageUrl,
+            'url' => $brandPageUrl,
+            'slug' => $brandSlug ?? '',
+        ]);
+
+        if ($fragments === []) {
+            return [];
+        }
+
         $seen = [];
         $out = [];
-        $maxHint = 1;
-        $page = 1;
 
-        while ($page <= self::MAX_BRAND_LISTING_PAGES) {
-            $fetchUrl = $this->listingUrlWithPage($brandPageUrl, $page);
-
-            try {
-                $html = $this->httpClient->fetchUrl($fetchUrl, 15);
-            } catch (Throwable) {
-                break;
-            }
-
-            $maxHint = max(
-                $maxHint,
-                min(
-                    self::MAX_BRAND_LISTING_PAGES,
-                    $this->catalogImageParser->maxListingPageFromHtml($html),
-                ),
-            );
-
-            $rows = $this->catalogImageParser->parseListing($html, $brandSlug);
-            if ($rows === []) {
-                break;
-            }
-
-            $newCount = 0;
+        foreach ($fragments as $html) {
+            $rows = $this->catalogImageParser->parseListing($html, $brandSlug, false);
             foreach ($rows as $row) {
                 $s = trim((string) ($row['slug'] ?? ''));
                 if ($s === '' || isset($seen[$s])) {
@@ -615,52 +658,81 @@ class VanilleMediaImportService
                 }
                 $seen[$s] = true;
                 $out[] = $row;
-                $newCount++;
             }
-
-            if ($page > 1 && $newCount === 0) {
-                break;
-            }
-
-            if ($maxHint > 1 && $page >= $maxHint) {
-                break;
-            }
-
-            $page++;
         }
 
         return $out;
     }
 
-    private function listingUrlWithPage(string $baseUrl, int $page): string
+    /**
+     * @param  list<array{slug:string, image_url:?string, image_urls?:list<string>}>  $listingRows
+     * @return list<string>
+     */
+    private function resolveCatalogListingImageUrls(string $slug, array $listingRows, ?string $productPageUrl = null): array
     {
-        $baseUrl = trim($baseUrl);
-        $host = parse_url($baseUrl, PHP_URL_HOST);
-        if (! is_string($host) || $host === '') {
-            throw new \InvalidArgumentException('Некорректный URL бренда для листинга: '.$baseUrl);
+        $slugLower = mb_strtolower(trim($slug));
+        foreach ($listingRows as $row) {
+            if (mb_strtolower(trim((string) ($row['slug'] ?? ''))) !== $slugLower) {
+                continue;
+            }
+
+            $urls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
+            if ($urls !== []) {
+                return $urls;
+            }
         }
 
-        parse_str((string) (parse_url($baseUrl, PHP_URL_QUERY) ?? ''), $queryParams);
-
-        if ($page <= 1) {
-            unset($queryParams['page']);
-        } else {
-            $queryParams['page'] = $page;
+        $productPageUrl = trim((string) $productPageUrl);
+        if ($productPageUrl === '') {
+            return [];
         }
 
-        ksort($queryParams);
-        $query = http_build_query($queryParams);
+        try {
+            $html = $this->httpClient->fetchUrl($productPageUrl, 20);
+        } catch (Throwable) {
+            return [];
+        }
 
-        $scheme = (string) (parse_url($baseUrl, PHP_URL_SCHEME) ?? 'https');
-        $path = (string) (parse_url($baseUrl, PHP_URL_PATH) ?? '');
-        $port = parse_url($baseUrl, PHP_URL_PORT);
-        $fragment = parse_url($baseUrl, PHP_URL_FRAGMENT);
+        return $this->normalizeListingImageUrls(
+            $this->catalogImageParser->parseProductPageCatalogImageUrls($html)
+        );
+    }
 
-        return $scheme.'://'.$host
-            .(is_int($port) ? ':'.$port : '')
-            .$path
-            .($query !== '' ? '?'.$query : '')
-            .(is_string($fragment) && $fragment !== '' ? '#'.$fragment : '');
+    /**
+     * @param  array<string, mixed>  $catalogBrand
+     * @return \Illuminate\Support\Collection<int, SupplierProduct>
+     */
+    private function linkedVanilleSupplierProductsForCatalogBrand(array $catalogBrand): \Illuminate\Support\Collection
+    {
+        $brandName = trim((string) ($catalogBrand['name'] ?? ''));
+        if ($brandName === '') {
+            return collect();
+        }
+
+        $supplierId = $this->vanilleSupplierId();
+        if ($supplierId === 0) {
+            return collect();
+        }
+
+        $brandIds = Brand::query()
+            ->get(['id', 'name'])
+            ->filter(fn (Brand $brand) => ProductDisplayName::brandNamesEquivalent($brandName, (string) $brand->name))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->values()
+            ->all();
+
+        if ($brandIds === []) {
+            return collect();
+        }
+
+        return SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->where('is_linked', true)
+            ->whereNotNull('product_id')
+            ->whereHas('product', fn ($q) => $q->whereIn('brand_id', $brandIds))
+            ->get();
     }
 
     private function productImageSourceExists(int $productId, string $sourceUrl): bool

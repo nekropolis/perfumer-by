@@ -24,10 +24,50 @@ class VanilleCatalogImageParserTest extends TestCase
         $html = '<a href="/other-prod"><img src="/a.jpg" alt=""></a>'
             .'<a href="/acme-good"><img data-src="https://vanille.by/b.jpg" alt=""></a>';
         $parser = new VanilleCatalogImageParser;
-        $rows = $parser->parseListing($html, 'acme');
+        $rows = $parser->parseListing($html, 'acme', true);
 
         $this->assertCount(1, $rows);
         $this->assertSame('acme-good', $rows[0]['slug']);
+    }
+
+    public function test_parse_listing_product_cut_includes_alternate_brand_slug_prefix(): void
+    {
+        $html = <<<'HTML'
+<div class="product-cut">
+  <a href="/dolce-and-gabbana-10-la-roue-de-la-fortune">
+    <img class="product-photo__img lazyload" data-src="https://vanille.by/assets/foo-1.jpg">
+  </a>
+</div>
+HTML;
+        $parser = new VanilleCatalogImageParser;
+        $rows = $parser->parseListing($html, 'dolce-i-gabbana', false);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('dolce-and-gabbana-10-la-roue-de-la-fortune', $rows[0]['slug']);
+    }
+
+    public function test_parse_product_page_catalog_image_urls_from_product_photo_block(): void
+    {
+        $html = <<<'HTML'
+<div class="product-photo">
+  <img class="product-photo__img lazyload" src="https://vanille.by/assets/images/products/62835/medium/dolce-and-gabbana-10-la-roue-de-la-fortune-1.jpg">
+  <img class="product-photo__img product-photo__img__second" src="https://vanille.by/assets/images/products/62835/mediumwebp/dolce-and-gabbana-10-la-roue-de-la-fortune-2.webp">
+  <img src="https://vanille.by/assets/images/products/62835/largewebp/dolce-and-gabbana-10-la-roue-de-la-fortune-1.webp">
+</div>
+<div class="other-block"></div>
+HTML;
+        $parser = new VanilleCatalogImageParser;
+        $urls = $parser->parseProductPageCatalogImageUrls($html);
+
+        $this->assertCount(2, $urls);
+        $this->assertSame(
+            'https://vanille.by/assets/images/products/62835/medium/dolce-and-gabbana-10-la-roue-de-la-fortune-1.jpg',
+            $urls[0]
+        );
+        $this->assertSame(
+            'https://vanille.by/assets/images/products/62835/mediumwebp/dolce-and-gabbana-10-la-roue-de-la-fortune-2.webp',
+            $urls[1]
+        );
     }
 
     public function test_parse_listing_extracts_up_to_two_images_from_card(): void

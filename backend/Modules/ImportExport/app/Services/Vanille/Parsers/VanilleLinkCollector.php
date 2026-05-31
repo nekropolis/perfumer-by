@@ -229,6 +229,87 @@ class VanilleLinkCollector
     }
 
     /**
+     * HTML-фрагменты карточек листинга бренда (msearch2 API + fallback на страницу бренда).
+     *
+     * @param  array<string, mixed>  $brand
+     * @return list<string>
+     */
+    public function fetchBrandListingResultHtmlFragments(array $brand): array
+    {
+        $url = $brand['source_url'] ?? ($brand['url'] ?? null);
+        if (! is_string($url) || trim($url) === '') {
+            return [];
+        }
+
+        $pageUrl = $this->normalizeBrandListingUrl($url);
+
+        try {
+            $jar = $this->httpClient->createCookieJar();
+            $pageResponse = $this->httpClient->fetchUrlWithCookieJar($pageUrl, $jar, 15);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $pageHtml = $pageResponse['body'];
+        $config = $this->parseMse2Config($pageHtml);
+        if ($config === null) {
+            return [$pageHtml];
+        }
+
+        $fragments = [];
+        $totalPages = 1;
+        $perPage = max(1, (int) ($config['limit'] ?? 24));
+        $apiFailed = false;
+
+        for ($page = 1; $page <= $totalPages && $page <= self::MAX_LISTING_API_PAGES; $page++) {
+            try {
+                $raw = $this->httpClient->postFormWithCookieJar(
+                    (string) $config['action_url'],
+                    [
+                        'action' => 'filter',
+                        'pageId' => (int) $config['page_id'],
+                        'key' => (string) $config['key'],
+                        'page' => $page,
+                        'limit' => $perPage,
+                    ],
+                    $jar,
+                    $pageUrl,
+                    25,
+                );
+            } catch (\Throwable) {
+                $apiFailed = true;
+                break;
+            }
+
+            $payload = json_decode($raw, true);
+            if (! is_array($payload) || ! ($payload['success'] ?? false)) {
+                $apiFailed = true;
+                break;
+            }
+
+            $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $totalPages = max(1, (int) ($data['pages'] ?? $totalPages));
+            $html = (string) ($data['results'] ?? '');
+
+            if ($html === '') {
+                break;
+            }
+
+            $fragments[] = $html;
+
+            if ($page >= $totalPages) {
+                break;
+            }
+        }
+
+        if ($fragments === [] || $apiFailed) {
+            return [$pageHtml];
+        }
+
+        return $fragments;
+    }
+
+    /**
      * @param  array<string, mixed>  $brand
      * @param  array<string, array{slug: string, url: string, brand: string}>  $indexed
      */
