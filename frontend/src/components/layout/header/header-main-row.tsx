@@ -174,7 +174,7 @@ export default function HeaderMainRow({
                                     }}
                                     onChange={(e) => onSearchChangeAction(e.target.value)}
                                     placeholder="Товары, бренды, код или артикул…"
-                                    className="w-full rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] py-2.5 pl-9 pr-9 text-base text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-[var(--header-control-bg)]"
+                                    className="w-full rounded-2xl border border-[var(--line)] bg-[var(--header-bg)] py-2.5 pl-9 pr-9 text-base text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-[var(--header-bg)]"
                                 />
                                 <button
                                     type="button"
