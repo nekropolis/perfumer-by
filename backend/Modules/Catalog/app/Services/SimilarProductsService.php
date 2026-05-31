@@ -358,11 +358,6 @@ final class SimilarProductsService
                 'is_out_of_stock',
                 'is_active',
             ])
-            ->withCount([
-                'activeVariants as in_stock_variants_count' => function ($q) {
-                    $q->where('stock', '>', 0);
-                },
-            ])
             ->with([
                 'brand:id,name,slug',
                 'mainCategory:id,name,slug',

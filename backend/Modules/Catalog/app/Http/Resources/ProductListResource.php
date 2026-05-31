@@ -48,8 +48,8 @@ class ProductListResource extends JsonResource
             ? $this->activeVariants
             : collect();
 
-        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
-        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+        $mainWarehouseId = self::warehouseIdByCode(Warehouse::CODE_MAIN);
+        $supplierWarehouseId = self::warehouseIdByCode(Warehouse::CODE_SUPPLIER);
         $variantIds = $variants->pluck('id')->filter()->values();
 
         $stocks = WarehouseVariantStock::query()
@@ -190,6 +190,21 @@ class ProductListResource extends JsonResource
             'variants_count' => $variants->count(),
             'variant_labels' => $variantLabels,
         ];
+    }
+
+    /**
+     * Warehouse id by code, memoized per request so the listing does not
+     * re-query the same lookup for every product in the collection.
+     */
+    private static function warehouseIdByCode(string $code): int
+    {
+        static $cache = [];
+
+        if (!array_key_exists($code, $cache)) {
+            $cache[$code] = (int) Warehouse::query()->where('code', $code)->value('id');
+        }
+
+        return $cache[$code];
     }
 
     private static function hasUsageTypeColumn(): bool

@@ -86,11 +86,6 @@ class ProductController extends Controller
                     'is_new',
                     'is_hit',
                     'is_out_of_stock',
-                ])
-                ->withCount([
-                    'activeVariants as in_stock_variants_count' => function ($q) {
-                        $q->where('stock', '>', 0);
-                    },
                 ]);
 
             $this->applyCatalogBaseFilters($query, $request);
