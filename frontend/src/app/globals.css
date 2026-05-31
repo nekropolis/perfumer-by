@@ -21,7 +21,7 @@
 
   /* Header-specific palette */
   --header-bg: #FFFFFF;
-  --header-control-bg: #F4EFE8;
+  --header-control-bg: var(--header-bg);
   --header-line: #E7DFD2;
 
   /* Catalog toolbar: fallback until Header measures real offsetHeight */
