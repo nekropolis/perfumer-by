@@ -95,7 +95,7 @@ export default function HeaderMainRow({
     }, [searchOpen, isMobileOpen]);
 
     return (
-        <div className="overflow-x-clip bg-[var(--background)]">
+        <div className="overflow-x-clip bg-[var(--header-bg)]">
             <div className="mx-auto max-w-7xl min-w-0 px-4 sm:px-6 lg:px-8">
                 <div className="flex h-[78px] min-h-0 min-w-0 items-center gap-3 md:gap-4">
                     <div className="flex shrink-0 items-center gap-3">

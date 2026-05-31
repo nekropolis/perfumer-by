@@ -6,7 +6,7 @@
   color-scheme: light;
 
   /* Core palette — light modern luxury */
-  --background: #FAF7F2;
+  --background: #FCFBF9;
   --foreground: #221C16;
   --surface: #FFFFFF;
   --surface-2: #F3EDE4;
@@ -22,6 +22,7 @@
   /* Header-specific palette */
   --header-bg: #FFFFFF;
   --header-control-bg: #F4EFE8;
+  --header-line: #E7DFD2;
 
   /* Catalog toolbar: fallback until Header measures real offsetHeight */
   --catalog-toolbar-sticky-top: 79px;
@@ -38,7 +39,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), serif;
-  background-image: linear-gradient(180deg, #FBF9F5 0%, #FAF7F2 55%, #F6F1EA 100%);
+  background-image: linear-gradient(180deg, #FEFDFC 0%, #FCFBF9 55%, #FAF8F5 100%);
   width: 100%;
   max-width: 100%;
   overflow-x: clip;

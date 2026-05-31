@@ -14,6 +14,7 @@ import { productDisplayName } from "@/lib/product-display-name";
 type Props = {
     product: ProductListItem;
     eager?: boolean;
+    variant?: "catalog" | "featured";
 };
 
 function formatPrice(product: ProductListItem) {
@@ -34,6 +35,28 @@ function formatPrice(product: ProductListItem) {
     return `${fmtMin || fmtMax} BYN`;
 }
 
+function formatOldPrice(product: ProductListItem) {
+    if (!product.has_discount) {
+        return null;
+    }
+
+    const min = product.old_price_range?.min;
+    const max = product.old_price_range?.max;
+
+    if (!min && !max) {
+        return null;
+    }
+
+    const fmtMin = formatMoneyDisplay(min);
+    const fmtMax = formatMoneyDisplay(max);
+
+    if (fmtMin && fmtMax && fmtMin !== fmtMax) {
+        return `${fmtMin} – ${fmtMax} BYN`;
+    }
+
+    return fmtMin || fmtMax;
+}
+
 function compactVariantLabel(label: string) {
     const match = label.match(/\d+/);
     return match ? match[0] : label;
@@ -52,10 +75,11 @@ function normalizeVariantLabels(value: unknown): string[] {
     return [];
 }
 
-export default function ProductCard({ product, eager = false }: Props) {
+export default function ProductCard({ product, eager = false, variant = "catalog" }: Props) {
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
 
+    const showVariants = variant === "catalog";
     const rawVariants = normalizeVariantLabels(product.variant_labels);
     const compactVariants = rawVariants.map(compactVariantLabel);
     const visibleVariants = compactVariants.slice(0, 3);
@@ -84,23 +108,24 @@ export default function ProductCard({ product, eager = false }: Props) {
             : null;
 
     const cardTitle = productDisplayName(product);
+    const presetDisplayName = product.display_name?.trim();
+    const brandName = product.brand?.name?.trim() ?? "";
+    const showBrandLine = Boolean(brandName) && !presetDisplayName;
+    const productTitle = presetDisplayName || product.name.trim() || brandName || cardTitle;
+    const oldPrice = formatOldPrice(product);
 
     return (
         <Link
             href={`/product/${product.slug}`}
-            className="group relative flex flex-col overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)] transition-transform duration-150 active:scale-[0.98]"
+            className="group relative flex flex-col rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)] active:scale-[0.98]"
         >
-            {/* ─── IMAGE ZONE ─── */}
-            <div className="relative aspect-square w-full overflow-hidden bg-[var(--image-plate)]">
-
-                {/* Status badges */}
+            <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[16px] bg-[var(--surface)]">
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
                     hasDiscount={Boolean(product.has_discount)}
                 />
 
-                {/* Wishlist button */}
                 <button
                     type="button"
                     onClick={(e) => {
@@ -111,7 +136,7 @@ export default function ProductCard({ product, eager = false }: Props) {
                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
                     className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 ${inWishlist
                         ? "border-[var(--accent)]/40 bg-[var(--accent)] text-[var(--background)] shadow-sm hover:opacity-95"
-                        : "border-[var(--line)] bg-[var(--surface)]/90 text-[var(--foreground)] backdrop-blur hover:bg-[var(--surface-2)]"
+                        : "border-[var(--line)] bg-[var(--background)]/90 text-[var(--foreground)] backdrop-blur hover:bg-[var(--surface-2)]"
                         }`}
                 >
                     <span aria-hidden className="text-[13px] leading-none">
@@ -119,9 +144,8 @@ export default function ProductCard({ product, eager = false }: Props) {
                     </span>
                 </button>
 
-                {/* Product image */}
                 {imagePath ? (
-                    <div className="relative h-full w-full p-3">
+                    <>
                         <Image
                             src={imagePath}
                             loader={productImageLoader}
@@ -129,10 +153,7 @@ export default function ProductCard({ product, eager = false }: Props) {
                             fill
                             loading={eager ? "eager" : "lazy"}
                             sizes="(max-width: 640px) 50vw, 280px"
-                            className={`object-contain transition duration-300 ${secondaryImagePath
-                                ? "group-hover:opacity-0 group-hover:scale-[1.03]"
-                                : "group-hover:scale-[1.03]"
-                                }`}
+                            className={`object-contain transition-opacity duration-300 ${secondaryImagePath ? "group-hover:opacity-0" : ""}`}
                         />
                         {secondaryImagePath && (
                             <Image
@@ -142,10 +163,10 @@ export default function ProductCard({ product, eager = false }: Props) {
                                 fill
                                 loading="lazy"
                                 sizes="(max-width: 640px) 50vw, 280px"
-                                className="pointer-events-none absolute inset-0 object-contain opacity-0 transition duration-300 group-hover:opacity-100"
+                                className="pointer-events-none object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                             />
                         )}
-                    </div>
+                    </>
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-1.5 text-[var(--text-secondary)]">
                         <svg
@@ -167,50 +188,53 @@ export default function ProductCard({ product, eager = false }: Props) {
                 )}
             </div>
 
-            {/* ─── INFO ZONE ─── */}
-            <div className="flex flex-1 flex-col gap-1.5 border-t border-[var(--line)] p-2.5 pb-3">
+            <div className="flex flex-1 flex-col">
+                {showBrandLine ? (
+                    <div className="mb-1 text-sm text-[var(--text-secondary)]">{brandName}</div>
+                ) : null}
 
-                {/* Product name (brand + name on catalog; short name on brand page) */}
-                <div className="line-clamp-2 min-h-[34px] text-[13px] font-semibold leading-[1.4] text-[var(--foreground)]">
-                    {cardTitle}
+                <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-[var(--foreground)]">
+                    {productTitle}
                 </div>
 
-                {/* Variants */}
-                {(visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0)) && (
-                    <div className="flex flex-wrap items-center gap-1">
-                        {visibleVariants.map((label, i) => (
-                            <span
-                                key={`${label}-${i}`}
-                                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--background)] px-1.5 text-[10px] font-semibold text-[var(--foreground)]"
-                            >
-                                {label}
-                            </span>
-                        ))}
-                        {hiddenVariantsCount > 0 && (
-                            <span className="inline-flex h-5 items-center justify-center rounded-full border border-[var(--line)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                                +{hiddenVariantsCount}
-                            </span>
-                        )}
-                    </div>
-                )}
-
-                {/* ─── FOOTER: price + arrow ─── */}
-                <div className="mt-auto flex items-end justify-between gap-2 pt-1">
-                    <div className="min-w-0 origin-left transition-transform duration-150 ease-out">
-                        <div className="text-[15px] font-bold leading-none tracking-tight text-[var(--foreground)]">
-                            {formatPrice(product)}
+                {showVariants &&
+                    (visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0)) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                            {visibleVariants.map((label, i) => (
+                                <span
+                                    key={`${label}-${i}`}
+                                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--background)]/70 px-1.5 text-[10px] font-semibold text-[var(--foreground)]"
+                                >
+                                    {label}
+                                </span>
+                            ))}
+                            {hiddenVariantsCount > 0 && (
+                                <span className="inline-flex h-5 items-center justify-center rounded-full border border-[var(--line)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                    +{hiddenVariantsCount}
+                                </span>
+                            )}
                         </div>
-                        {isAuthenticated && loyaltyCard && loyaltyPriceText && (
+                    )}
+
+                <div className="mt-4 flex items-end justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-end gap-2">
+                            <div className="text-lg font-semibold text-[var(--foreground)]">{formatPrice(product)}</div>
+                            {oldPrice ? (
+                                <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice}</div>
+                            ) : null}
+                        </div>
+                        {variant === "catalog" && isAuthenticated && loyaltyCard && loyaltyPriceText && (
                             <div className="mt-1 text-[10px] font-medium text-emerald-700">
                                 По карте: {loyaltyPriceText}
                             </div>
                         )}
                     </div>
 
-                    {/* Arrow button */}
-                    <div
+                    <span
                         aria-hidden
-                        className="flex h-7 w-7 flex-shrink-0 origin-center items-center justify-center rounded-full bg-[var(--accent)] text-[var(--background)] shadow-sm transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-hover:scale-[1.03]"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface-2)] text-[var(--accent)] transition-all duration-150 group-hover:border-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--background)] group-hover:translate-x-0.5"
+                        title="Перейти к товару"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -224,7 +248,7 @@ export default function ProductCard({ product, eager = false }: Props) {
                                 clipRule="evenodd"
                             />
                         </svg>
-                    </div>
+                    </span>
                 </div>
             </div>
         </Link>

@@ -53,7 +53,7 @@ const popularSearches = [
     { title: "Парфюмерия со скидкой", href: "/catalog?sale=1" },
 ];
 
-function ProductCard({
+function FeaturedProductCard({
     name,
     brand,
     price,
@@ -65,13 +65,13 @@ function ProductCard({
     oldPrice: string | null;
 }) {
     return (
-        <div className="group rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.45)]">
-            <div className="mb-4 aspect-[4/5] rounded-[20px] bg-[var(--image-plate)] bg-gradient-to-b from-[#F8F4ED] to-[#ECE3D6]" />
+        <div className="group cursor-pointer rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)]">
+            <div className="mb-4 aspect-square rounded-[16px] bg-[var(--surface)]" />
             <div className="mb-1 text-sm text-[var(--text-secondary)]">{brand}</div>
             <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-[var(--foreground)]">{name}</div>
             <div className="mt-4 flex items-end gap-2">
-                <div className="text-lg font-semibold text-[var(--foreground)]">{price} руб.</div>
-                {oldPrice ? <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice} руб.</div> : null}
+                <div className="text-lg font-semibold text-[var(--foreground)]">{price} BYN</div>
+                {oldPrice ? <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice} BYN</div> : null}
             </div>
         </div>
     );
@@ -203,7 +203,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
 
                     <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
                         {featuredProducts.map((product) => (
-                            <ProductCard key={product.id} {...product} />
+                            <FeaturedProductCard key={product.id} {...product} />
                         ))}
                     </div>
                 </section>

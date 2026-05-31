@@ -34,9 +34,9 @@ export default function HeaderServiceBar({
 }: HeaderServiceBarProps) {
     return (
         <div
-            className={`hidden bg-[var(--background)] text-[var(--text-secondary)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${isCompact
+            className={`hidden bg-[var(--header-bg)] text-[var(--text-secondary)] transition-[max-height,opacity,border-color] duration-250 ease-out md:block ${isCompact
                     ? "max-h-0 overflow-hidden border-b border-transparent opacity-0"
-                    : "max-h-9 border-b border-[var(--line)] opacity-100"
+                    : "max-h-9 border-b border-[var(--header-line)] opacity-100"
                 }`}
             aria-hidden={isCompact}
         >

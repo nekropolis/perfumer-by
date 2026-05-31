@@ -308,7 +308,10 @@ export default function Header() {
     };
 
     return (
-        <header ref={headerRef} className="relative z-[140]">
+        <header
+            ref={headerRef}
+            className="relative z-[140] border-b border-[var(--header-line)] bg-[var(--header-bg)] shadow-[0_8px_24px_rgba(36,28,21,0.05)]"
+        >
             <HeaderServiceBar
                 isCompact={false}
                 promoText={promoText}
@@ -332,7 +335,7 @@ export default function Header() {
             ) : null}
             <div
                 ref={mainRowRef}
-                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120]" : "relative z-30"} border-b border-[var(--line)] bg-[var(--header-bg)] shadow-sm md:bg-[var(--header-bg)]/95 md:backdrop-blur`}
+                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120] shadow-[0_8px_24px_rgba(36,28,21,0.05)]" : "relative z-30"} border-b border-[var(--header-line)] bg-[var(--header-bg)]`}
                 style={isMainRowPinned ? { top: `${viewportTopOffset}px` } : undefined}
             >
                 <HeaderMainRow
