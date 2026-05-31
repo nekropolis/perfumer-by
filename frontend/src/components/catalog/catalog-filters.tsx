@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
@@ -52,6 +52,8 @@ export default function CatalogFilters({
                 .filter((v) => Number.isInteger(v) && v > 0),
         [searchParams]
     );
+    const [, startTransition] = useTransition();
+    const [optimisticBrandIds, setOptimisticBrandIds] = useOptimistic(selectedBrandIds);
     const hasActiveFilters = useMemo(
         () => Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort"),
         [searchParams]
@@ -61,7 +63,9 @@ export default function CatalogFilters({
         const params = new URLSearchParams(searchParams.toString());
         mutator(params);
         params.delete("page");
-        router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+        startTransition(() => {
+            router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+        });
     };
 
     const toggleAttributeOption = (attributeId: number, optionId: number) => {
@@ -153,30 +157,34 @@ export default function CatalogFilters({
         }
         return brands.filter((brand) => brand.name.toLowerCase().includes(q));
     }, [brands, brandQuery]);
-    const previewBrands = useMemo(() => brands.slice(0, 5), [brands]);
+    const previewBrands = useMemo(() => {
+        const selected = brands.filter((brand) => optimisticBrandIds.includes(brand.id));
+        const rest = brands.filter((brand) => !optimisticBrandIds.includes(brand.id));
+        return [...selected, ...rest].slice(0, Math.max(5, selected.length));
+    }, [brands, optimisticBrandIds]);
     const brandGroups = useMemo(() => groupBrandsByFirstLetter(filteredBrands), [filteredBrands]);
     const brandSectionLetters = useMemo(() => orderedLettersWithBrands(brandGroups), [brandGroups]);
 
-    const isBrandSelected = (brandId: number) => selectedBrandIds.includes(brandId);
+    const isBrandSelected = (brandId: number) => optimisticBrandIds.includes(brandId);
 
     const toggleBrand = (brandId: number) => {
-        pushParams((params) => {
-            const next = new Set(
-                (params.get("brand") || "")
-                    .split(",")
-                    .map((v) => Number(v))
-                    .filter((v) => Number.isInteger(v) && v > 0)
-            );
-            if (next.has(brandId)) {
-                next.delete(brandId);
-            } else {
-                next.add(brandId);
-            }
-            if (next.size === 0) {
+        const next = new Set(optimisticBrandIds);
+        if (next.has(brandId)) {
+            next.delete(brandId);
+        } else {
+            next.add(brandId);
+        }
+        const nextIds = Array.from(next).sort((a, b) => a - b);
+        startTransition(() => {
+            setOptimisticBrandIds(nextIds);
+            const params = new URLSearchParams(searchParams.toString());
+            if (nextIds.length === 0) {
                 params.delete("brand");
             } else {
-                params.set("brand", Array.from(next).sort((a, b) => a - b).join(","));
+                params.set("brand", nextIds.join(","));
             }
+            params.delete("page");
+            router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
         });
     };
     const scrollToBrandLetter = (letter: string) => {
