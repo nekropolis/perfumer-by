@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useOptimistic, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
+import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -33,7 +34,7 @@ export default function CatalogFilters({
     priceRange,
     volumeOptions,
 }: Props) {
-    const router = useRouter();
+    const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
 
     const [priceMinDraft, setPriceMinDraft] = useState(searchParams.get("price_min") ?? "");
@@ -52,7 +53,6 @@ export default function CatalogFilters({
                 .filter((v) => Number.isInteger(v) && v > 0),
         [searchParams]
     );
-    const [, startTransition] = useTransition();
     const [optimisticBrandIds, setOptimisticBrandIds] = useOptimistic(selectedBrandIds);
     const hasActiveFilters = useMemo(
         () => Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort"),
@@ -63,9 +63,7 @@ export default function CatalogFilters({
         const params = new URLSearchParams(searchParams.toString());
         mutator(params);
         params.delete("page");
-        startTransition(() => {
-            router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-        });
+        navigate(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
     };
 
     const toggleAttributeOption = (attributeId: number, optionId: number) => {
@@ -93,7 +91,7 @@ export default function CatalogFilters({
     };
 
     const resetFilters = () => {
-        router.push(basePath);
+        navigate(basePath);
     };
 
     const applyPrice = () => {
@@ -175,17 +173,17 @@ export default function CatalogFilters({
             next.add(brandId);
         }
         const nextIds = Array.from(next).sort((a, b) => a - b);
-        startTransition(() => {
-            setOptimisticBrandIds(nextIds);
-            const params = new URLSearchParams(searchParams.toString());
-            if (nextIds.length === 0) {
-                params.delete("brand");
-            } else {
-                params.set("brand", nextIds.join(","));
-            }
-            params.delete("page");
-            router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-        });
+        const params = new URLSearchParams(searchParams.toString());
+        if (nextIds.length === 0) {
+            params.delete("brand");
+        } else {
+            params.set("brand", nextIds.join(","));
+        }
+        params.delete("page");
+        navigate(
+            `${basePath}${params.toString() ? `?${params.toString()}` : ""}`,
+            () => setOptimisticBrandIds(nextIds)
+        );
     };
     const scrollToBrandLetter = (letter: string) => {
         const target = document.getElementById(`brand-letter-${letter}`);

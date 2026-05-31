@@ -2,8 +2,9 @@
 
 import { ChevronDown, Check } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
+import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
 type Props = {
     basePath: string;
@@ -41,7 +42,7 @@ type ActiveChip = {
 };
 
 export default function CatalogGridToolbar({ basePath, brands, attributes, mobileRightAction }: Props) {
-    const router = useRouter();
+    const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
     const currentSort = searchParams.get("sort") || "price_asc";
     const safeAttributes = useMemo(() => (Array.isArray(attributes) ? attributes : []), [attributes]);
@@ -52,8 +53,8 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
         const params = new URLSearchParams(searchParams.toString());
         mutator(params);
         params.delete("page");
-        router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
-    }, [basePath, router, searchParams]);
+        navigate(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
+    }, [basePath, navigate, searchParams]);
 
     useEffect(() => {
         if (!isSortOpen) {
@@ -253,7 +254,7 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                         {hasActiveFilters ? (
                             <button
                                 type="button"
-                                onClick={() => router.push(basePath)}
+                                onClick={() => navigate(basePath)}
                                 className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
                             >
                                 Сбросить фильтры

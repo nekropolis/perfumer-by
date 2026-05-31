@@ -3,6 +3,8 @@ import CatalogFilters from "@/components/catalog/catalog-filters";
 import CatalogMobileFiltersDrawer from "@/components/catalog/catalog-mobile-filters-drawer";
 import CatalogPagination from "@/components/catalog/catalog-pagination";
 import CatalogGridToolbar from "@/components/catalog/catalog-grid-toolbar";
+import { CatalogNavigationProvider } from "@/components/catalog/catalog-navigation";
+import CatalogResultsOverlay from "@/components/catalog/catalog-results-overlay";
 import ProductCard from "@/components/product/product-card";
 import type { CatalogBrandItem, CatalogFilterAttribute, ProductsResponse } from "@/types/catalog";
 
@@ -60,6 +62,7 @@ export default function CatalogPageView({
                 </div>
             </div>
 
+            <CatalogNavigationProvider>
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
                     <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -92,41 +95,46 @@ export default function CatalogPageView({
                         }
                     />
 
-                    {products.data.length > 0 ? (
-                        <>
-                            <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                                {products.data.map((product, index) => (
-                                    <ProductCard
-                                        key={product.id}
-                                        product={product}
-                                        eager={index < 4}
+                    <div className="relative">
+                        <CatalogResultsOverlay />
+
+                        {products.data.length > 0 ? (
+                            <>
+                                <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                                    {products.data.map((product, index) => (
+                                        <ProductCard
+                                            key={product.id}
+                                            product={product}
+                                            eager={index < 4}
+                                        />
+                                    ))}
+                                </div>
+
+                                <div className="mt-8">
+                                    <CatalogPagination
+                                        currentPage={currentPage}
+                                        lastPage={lastPage}
+                                        basePath={basePath}
+                                        queryString={queryString}
                                     />
-                                ))}
-                            </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
+                                <div className="mb-2 text-2xl font-semibold">
+                                    Ничего не найдено
+                                </div>
 
-                            <div className="mt-8">
-                                <CatalogPagination
-                                    currentPage={currentPage}
-                                    lastPage={lastPage}
-                                    basePath={basePath}
-                                    queryString={queryString}
-                                />
+                                <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
+                                    Попробуйте изменить фильтры или перейти в общий каталог,
+                                    чтобы посмотреть другие товары.
+                                </p>
                             </div>
-                        </>
-                    ) : (
-                        <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
-                            <div className="mb-2 text-2xl font-semibold">
-                                Ничего не найдено
-                            </div>
-
-                            <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
-                                Попробуйте изменить фильтры или перейти в общий каталог,
-                                чтобы посмотреть другие товары.
-                            </p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </section>
             </div>
+            </CatalogNavigationProvider>
 
             {footerDescriptionHtml?.trim() ? (
                 <section className="mt-10 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
