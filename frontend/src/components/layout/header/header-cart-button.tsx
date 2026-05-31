@@ -10,7 +10,7 @@ export default function HeaderCartButton({ qty }: HeaderCartButtonProps) {
     return (
         <Link
             href="/cart"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--accent)] bg-[var(--accent)] text-sm font-medium text-white transition hover:border-[#5C3E69] hover:bg-[#5C3E69] md:h-auto md:w-auto md:gap-2 md:px-4 md:py-2"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--accent)] bg-[var(--accent)] text-sm font-semibold text-[var(--background)] transition hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] md:h-auto md:w-auto md:gap-2 md:px-4 md:py-2"
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -30,7 +30,7 @@ export default function HeaderCartButton({ qty }: HeaderCartButtonProps) {
             <span className="hidden md:inline">Корзина</span>
 
             {qty > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-medium text-[var(--accent)] md:static">
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--background)] px-1.5 text-[10px] font-semibold text-[var(--accent)] md:static">
                     {qty}
                 </span>
             )}

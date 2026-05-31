@@ -94,7 +94,7 @@ export default function HeaderServiceBar({
                             <button
                                 key={item.id}
                                 type="button"
-                                className="inline-flex h-7 w-7 items-center justify-center text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                                className="inline-flex h-7 w-7 items-center justify-center text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                                 onClick={() =>
                                     onOpenMessengerAction(
                                         item.appHref,

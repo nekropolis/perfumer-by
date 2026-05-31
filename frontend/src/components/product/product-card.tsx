@@ -91,7 +91,7 @@ export default function ProductCard({ product, eager = false }: Props) {
             className="group relative flex flex-col overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)] transition-transform duration-150 active:scale-[0.98]"
         >
             {/* ─── IMAGE ZONE ─── */}
-            <div className="relative aspect-square w-full overflow-hidden bg-[#F8F7F5]">
+            <div className="relative aspect-square w-full overflow-hidden bg-[var(--image-plate)]">
 
                 {/* Status badges */}
                 <ProductStatusLabels
@@ -110,8 +110,8 @@ export default function ProductCard({ product, eager = false }: Props) {
                     }}
                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
                     className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 ${inWishlist
-                        ? "border-white/40 bg-[var(--accent)] text-white shadow-sm hover:opacity-95"
-                        : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                        ? "border-[var(--accent)]/40 bg-[var(--accent)] text-[var(--background)] shadow-sm hover:opacity-95"
+                        : "border-[var(--line)] bg-[var(--surface)]/90 text-[var(--foreground)] backdrop-blur hover:bg-[var(--surface-2)]"
                         }`}
                 >
                     <span aria-hidden className="text-[13px] leading-none">
@@ -201,7 +201,7 @@ export default function ProductCard({ product, eager = false }: Props) {
                             {formatPrice(product)}
                         </div>
                         {isAuthenticated && loyaltyCard && loyaltyPriceText && (
-                            <div className="mt-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                            <div className="mt-1 text-[10px] font-medium text-emerald-700">
                                 По карте: {loyaltyPriceText}
                             </div>
                         )}
@@ -210,7 +210,7 @@ export default function ProductCard({ product, eager = false }: Props) {
                     {/* Arrow button */}
                     <div
                         aria-hidden
-                        className="flex h-7 w-7 flex-shrink-0 origin-center items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-sm transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-hover:scale-[1.03]"
+                        className="flex h-7 w-7 flex-shrink-0 origin-center items-center justify-center rounded-full bg-[var(--accent)] text-[var(--background)] shadow-sm transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-hover:scale-[1.03]"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"

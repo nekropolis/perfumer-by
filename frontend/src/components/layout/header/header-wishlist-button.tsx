@@ -14,7 +14,7 @@ export default function HeaderWishlistButton({ qty }: HeaderWishlistButtonProps)
         >
             <span aria-hidden>♡</span>
             {qty > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-medium text-white">
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-[var(--background)]">
                     {qty}
                 </span>
             )}

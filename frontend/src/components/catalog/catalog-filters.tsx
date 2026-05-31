@@ -185,155 +185,156 @@ export default function CatalogFilters({
     };
 
     return (
-        <div className="space-y-5">
-            <div className="flex items-center justify-between">
+        <div>
+            <div className="flex items-center justify-between gap-3 pb-4">
                 {hasActiveFilters ? (
                     <button
                         type="button"
                         onClick={resetFilters}
-                        className="text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--foreground)]"
+                        className="text-xs font-medium text-[var(--text-secondary)] underline-offset-4 transition hover:text-[var(--foreground)] hover:underline"
                     >
-                        Очистить всё
+                        Сбросить
                     </button>
                 ) : null}
             </div>
 
-            {showBrandFilter ? (
-                <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                        Бренд
-                    </div>
-                    <div className="space-y-1">
-                        {previewBrands.map((brand) => (
-                            <label
-                                key={`brand-preview-${brand.id}`}
-                                className="flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                            >
-                                <span className="inline-flex items-center gap-2">
+            <div className="divide-y divide-[var(--line)]">
+                {showBrandFilter ? (
+                    <section className="space-y-3 py-5 first:pt-0">
+                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                            Бренд
+                        </div>
+                        <div className="space-y-0.5">
+                            {previewBrands.map((brand) => (
+                                <label
+                                    key={`brand-preview-${brand.id}`}
+                                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                >
                                     <input
                                         type="checkbox"
                                         checked={isBrandSelected(brand.id)}
                                         onChange={() => toggleBrand(brand.id)}
                                         suppressHydrationWarning
-                                        className="h-4 w-4 rounded border-[var(--line)]"
+                                        className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
                                     />
-                                    {brand.name}
-                                </span>
-                            </label>
-                        ))}
+                                    <span>{brand.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsBrandModalOpen(true)}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] transition hover:gap-1.5"
+                        >
+                            Все бренды ({brands.length})
+                            <span aria-hidden>→</span>
+                        </button>
+                    </section>
+                ) : null}
+
+                <section className="space-y-3 py-5 first:pt-0">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                        Цена, BYN
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder={priceRange.min !== null ? formatPrice(priceRange.min) : "От"}
+                            value={priceMinDraft}
+                            onChange={(e) => setPriceMinDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
+                            suppressHydrationWarning
+                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)]"
+                        />
+                        <span className="text-[var(--text-secondary)]">–</span>
+                        <input
+                            type="number"
+                            inputMode="numeric"
+                            placeholder={priceRange.max !== null ? formatPrice(priceRange.max) : "До"}
+                            value={priceMaxDraft}
+                            onChange={(e) => setPriceMaxDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
+                            suppressHydrationWarning
+                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)]"
+                        />
                     </div>
                     <button
                         type="button"
-                        onClick={() => setIsBrandModalOpen(true)}
-                        className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                        onClick={applyPrice}
+                        className="w-full rounded-xl bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                     >
-                        <span>Все {brands.length} варианта</span>
-                        <span>›</span>
+                        Применить
                     </button>
-                </div>
-            ) : null}
+                </section>
 
-            <div className="space-y-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-3">
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                    Цена
-                </div>
-                {priceRange.min !== null && priceRange.max !== null ? (
-                    <div className="text-xs text-[var(--text-secondary)]">
-                        Диапазон: {formatPrice(priceRange.min)} - {formatPrice(priceRange.max)} BYN
-                    </div>
+                {safeVolumeOptions.length > 0 ? (
+                    <section className="space-y-3 py-5 first:pt-0">
+                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                            Объем
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {safeVolumeOptions.map((item) => {
+                                const active = isVolumeSelected(item.key);
+                                return (
+                                    <button
+                                        key={item.key}
+                                        type="button"
+                                        onClick={() => toggleVolumeOption(item.key)}
+                                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition ${
+                                            active
+                                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
+                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent)]"
+                                        }`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
                 ) : null}
-                <div className="grid grid-cols-2 gap-2">
-                    <input
-                        type="number"
-                        placeholder="От"
-                        value={priceMinDraft}
-                        onChange={(e) => setPriceMinDraft(e.target.value)}
-                        suppressHydrationWarning
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
-                    />
-                    <input
-                        type="number"
-                        placeholder="До"
-                        value={priceMaxDraft}
-                        onChange={(e) => setPriceMaxDraft(e.target.value)}
-                        suppressHydrationWarning
-                        className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
-                    />
-                </div>
-                <button
-                    type="button"
-                    onClick={applyPrice}
-                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                >
-                    Применить цену
-                </button>
-            </div>
 
-            <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                    Объем
-                </div>
-                <div className="space-y-1">
-                    {safeVolumeOptions.map((item) => (
-                        <label
-                            key={item.key}
-                            className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={isVolumeSelected(item.key)}
-                                    onChange={() => toggleVolumeOption(item.key)}
-                                    suppressHydrationWarning
-                                    className="h-4 w-4 rounded border-[var(--line)]"
-                                />
-                                {item.label}
-                            </span>
-                            <span className="text-xs text-[var(--text-secondary)]">{item.products_count}</span>
-                        </label>
-                    ))}
-                </div>
-            </div>
-
-            {safeAttributes.map((attribute) => (
-                <div key={attribute.id} className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                        {attribute.name}
-                    </div>
-                    <div className="space-y-1">
-                        {attribute.options.slice(0, 4).map((option) => (
-                            <label
-                                key={option.id}
-                                className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                            >
-                                <span className="inline-flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={isOptionSelected(attribute.id, option.id)}
-                                        onChange={() => toggleAttributeOption(attribute.id, option.id)}
-                                        suppressHydrationWarning
-                                        className="h-4 w-4 rounded border-[var(--line)]"
-                                    />
-                                    {option.name}
-                                </span>
-                                <span className="text-xs text-[var(--text-secondary)]">{option.products_count}</span>
-                            </label>
-                        ))}
-                        {attribute.options.length > 4 ? (
+                {safeAttributes.map((attribute) => (
+                    <section key={attribute.id} className="space-y-3 py-5 first:pt-0">
+                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                            {attribute.name}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {attribute.options.slice(0, 6).map((option) => {
+                                const active = isOptionSelected(attribute.id, option.id);
+                                return (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => toggleAttributeOption(attribute.id, option.id)}
+                                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition ${
+                                            active
+                                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
+                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent)]"
+                                        }`}
+                                    >
+                                        {option.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {attribute.options.length > 6 ? (
                             <button
                                 type="button"
                                 onClick={() => setPopupAttributeId(attribute.id)}
-                                className="w-full rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] transition hover:gap-1.5"
                             >
                                 Показать все ({attribute.options.length})
+                                <span aria-hidden>→</span>
                             </button>
                         ) : null}
-                    </div>
-                </div>
-            ))}
+                    </section>
+                ))}
+            </div>
 
             {popupAttribute ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
                     <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl">
                         <div className="mb-3 flex items-center justify-between">
                             <div className="text-sm font-semibold text-[var(--foreground)]">{popupAttribute.name}</div>
@@ -349,7 +350,7 @@ export default function CatalogFilters({
                             {popupAttribute.options.map((option) => (
                                 <label
                                     key={option.id}
-                                    className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="flex cursor-pointer items-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                 >
                                     <span className="inline-flex items-center gap-2">
                                         <input
@@ -357,11 +358,10 @@ export default function CatalogFilters({
                                             checked={isOptionSelected(popupAttribute.id, option.id)}
                                             onChange={() => toggleAttributeOption(popupAttribute.id, option.id)}
                                             suppressHydrationWarning
-                                            className="h-4 w-4 rounded border-[var(--line)]"
+                                            className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
                                         />
                                         {option.name}
                                     </span>
-                                    <span className="text-xs text-[var(--text-secondary)]">{option.products_count}</span>
                                 </label>
                             ))}
                         </div>
@@ -429,7 +429,7 @@ export default function CatalogFilters({
                                                         checked={isBrandSelected(brand.id)}
                                                         onChange={() => toggleBrand(brand.id)}
                                                         suppressHydrationWarning
-                                                        className="h-4 w-4 rounded border-[var(--line)]"
+                                                        className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
                                                     />
                                                     {brand.name}
                                                 </span>

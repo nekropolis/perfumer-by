@@ -41,7 +41,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
         <aside className="space-y-5">
             <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
                 <div className="flex items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-xl font-semibold text-white shadow-lg">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-xl font-semibold text-[var(--background)] shadow-lg">
                         {userInitial}
                     </div>
 
@@ -78,10 +78,10 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                 </div>
             </section>
 
-            <section className="overflow-hidden rounded-[2rem] bg-[var(--accent)] p-5 text-white shadow-[0_24px_70px_rgba(111,74,126,0.22)]">
+            <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] p-5 text-[var(--background)] shadow-[0_24px_70px_rgba(0,0,0,0.5)]">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <div className="text-xs font-medium uppercase tracking-[0.24em] text-white/60">
+                        <div className="text-xs font-medium uppercase tracking-[0.24em] text-[var(--background)]/60">
                             Карта лояльности
                         </div>
 
@@ -91,7 +91,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                                     {activeCard.number}
                                 </div>
 
-                                <div className="mt-2 text-sm text-white/75">
+                                <div className="mt-2 text-sm text-[var(--background)]/75">
                                     Накопительная скидка
                                 </div>
                             </>
@@ -101,7 +101,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                                     Карта не привязана
                                 </div>
 
-                                <div className="mt-2 text-sm text-white/75">
+                                <div className="mt-2 text-sm text-[var(--background)]/75">
                                     Добавьте карту и получайте скидки.
                                 </div>
                             </>
@@ -116,7 +116,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                 </div>
 
                 {activeCard ? (
-                    <div className="mt-5 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm leading-snug text-white/90">
+                    <div className="mt-5 rounded-2xl border border-black/15 bg-black/10 px-4 py-3 text-sm leading-snug text-[var(--background)]/90">
                         Карта привязана к профилю постоянно. Отвязать или заменить её может только менеджер магазина — напишите или
                         позвоните в магазин.
                     </div>
@@ -137,10 +137,10 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                 <button
                     type="button"
                     onClick={logoutAction}
-                    className="mt-2 flex w-full items-center justify-between rounded-2xl bg-[var(--accent)] px-4 py-3 text-left text-sm font-semibold text-white transition hover:opacity-90"
+                    className="mt-2 flex w-full items-center justify-between rounded-2xl bg-[var(--accent)] px-4 py-3 text-left text-sm font-semibold text-[var(--background)] transition hover:opacity-90"
                 >
                     Выйти
-                    <span className="text-white/60">→</span>
+                    <span className="text-[var(--background)]/60">→</span>
                 </button>
             </section>
 

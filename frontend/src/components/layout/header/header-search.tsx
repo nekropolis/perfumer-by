@@ -151,7 +151,7 @@ export default function HeaderSearch({
                                                 key={`popular-desktop-${item}`}
                                                 type="button"
                                                 onClick={() => onPopularSelectAction(item)}
-                                                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                                                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                                             >
                                                 {item}
                                             </button>

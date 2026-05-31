@@ -181,7 +181,7 @@ export default function HeaderMainRow({
                                     onClick={() => {
                                         onSearchChangeAction("");
                                     }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--text-secondary)] transition hover:bg-[#F5EFF8] hover:text-[var(--accent)]"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--text-secondary)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
                                     aria-label="Очистить поиск"
                                     title="Очистить поиск"
                                 >
@@ -232,7 +232,7 @@ export default function HeaderMainRow({
                                                         key={`popular-inline-${item}`}
                                                         type="button"
                                                         onClick={() => onPopularSelectAction(item)}
-                                                        className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                                                        className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                                                     >
                                                         {item}
                                                     </button>

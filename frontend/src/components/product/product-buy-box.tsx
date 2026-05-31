@@ -155,7 +155,7 @@ export default function ProductBuyBox({
                                     type="button"
                                     onClick={onAddToCartAction}
                                     disabled={!canAddToCart || isPending}
-                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] transition-all duration-150 hover:-translate-y-[1px] hover:bg-[var(--accent-hover)] active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                                 >
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -202,7 +202,7 @@ export default function ProductBuyBox({
                     </p>
 
                     {renderNotifyButton(
-                        "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-black to-neutral-800 px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:shadow-md active:translate-y-0 active:scale-[0.99]",
+                        "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] transition-all duration-150 hover:-translate-y-[1px] hover:bg-[var(--accent-hover)] active:translate-y-0 active:scale-[0.99]",
                         "h-5 w-5",
                     )}
 

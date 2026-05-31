@@ -167,7 +167,7 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
                     <button
                         type="button"
                         onClick={openForm}
-                        className="w-full rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 sm:w-auto"
+                        className="w-full rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] sm:w-auto"
                     >
                         Написать отзыв
                     </button>
@@ -195,7 +195,7 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
                                     <span className="text-sm font-medium text-[var(--foreground)]">{item.name}</span>
                                     <span className="text-xs text-[var(--text-secondary)]">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
-                                <div className="mb-2 flex gap-0.5 text-amber-400" aria-hidden>
+                                <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
                                         <Star
                                             key={i}

@@ -19,7 +19,7 @@ export default function CallbackRequestTrigger({
     variantId,
     variantTitle,
     label = "Заказать звонок",
-    className = "inline-flex items-center gap-1.5 text-sm text-emerald-700",
+    className = "inline-flex items-center gap-1.5 text-sm text-[var(--accent)]",
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -40,7 +40,7 @@ export default function CallbackRequestTrigger({
                 className={className}
             >
                 <PhoneCall className="h-4 w-4" />
-                <span className="underline underline-offset-4 decoration-emerald-300">
+                <span className="underline underline-offset-4 decoration-[var(--accent-soft)]">
                     {label}
                 </span>
             </button>

@@ -155,7 +155,7 @@ export default function ReviewFormModal({
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {submitting ? "Отправка…" : "Отправить отзыв"}
                         </button>

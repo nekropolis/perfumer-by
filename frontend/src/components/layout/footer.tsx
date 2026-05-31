@@ -22,13 +22,13 @@ export default function Footer() {
 
                     {/* 1. Контакты */}
                     <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-sm font-semibold uppercase text-[var(--text-secondary)]">
+                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
                             Связаться с нами
                         </div>
 
                         <div className="space-y-2 text-sm text-[var(--foreground)]">
                             {phones.map(({ label, value }) => (
-                                <a key={label} href={telHref(value)} className="block hover:underline">
+                                <a key={label} href={telHref(value)} className="block transition hover:text-[var(--accent)]">
                                     Perfumer{" "}
                                     <span className="text-[var(--text-secondary)]">{label}</span>{" "}
                                     {formatBelarusDisplay(value)}
@@ -39,30 +39,30 @@ export default function Footer() {
 
                     {/* 2. Информация */}
                     <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-sm font-semibold uppercase text-[var(--text-secondary)]">
+                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
                             Информация
                         </div>
 
                         <div className="flex flex-col gap-2 text-sm text-[var(--foreground)]">
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Дисконтная программа
                             </Link>
-                            <Link href="/gift-certificates" className="hover:underline">
+                            <Link href="/gift-certificates" className="transition hover:text-[var(--accent)]">
                                 Подарочные сертификаты
                             </Link>
-                            <Link href="/reviews" className="hover:underline">
+                            <Link href="/reviews" className="transition hover:text-[var(--accent)]">
                                 Отзывы о магазине
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 О нас
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Информация о доставке
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Акции и скидки
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Наши партнеры
                             </Link>
                         </div>
@@ -70,18 +70,18 @@ export default function Footer() {
 
                     {/* 3. Дополнительно */}
                     <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-sm font-semibold uppercase text-[var(--text-secondary)]">
+                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
                             Дополнительно
                         </div>
 
                         <div className="flex flex-col gap-2 text-sm text-[var(--foreground)]">
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Производители
                             </Link>
-                            <Link href="#" className="hover:underline">
+                            <Link href="#" className="transition hover:text-[var(--accent)]">
                                 Партнёры
                             </Link>
-                            <Link href="/sitemap" className="hover:underline">
+                            <Link href="/sitemap" className="transition hover:text-[var(--accent)]">
                                 Карта сайта
                             </Link>
                         </div>

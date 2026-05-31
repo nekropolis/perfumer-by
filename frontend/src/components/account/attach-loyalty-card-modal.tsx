@@ -72,10 +72,10 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                 aria-modal="true"
                 aria-labelledby="attach-loyalty-title"
             >
-                <div className="bg-[var(--accent)] px-6 py-5 text-white">
+                <div className="bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-6 py-5 text-[var(--background)]">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-white/60">
+                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--background)]/60">
                                 Loyalty Card
                             </div>
 
@@ -90,18 +90,18 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                         <button
                             type="button"
                             onClick={onCloseAction}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl leading-none text-white transition hover:bg-white/20"
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xl leading-none text-[var(--background)] transition hover:bg-black/20"
                             aria-label="Закрыть"
                         >
                             ×
                         </button>
                     </div>
 
-                    <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
+                    <div className="mt-6 rounded-2xl border border-black/15 bg-black/10 px-4 py-3">
                         <div className="font-mono text-lg font-semibold tracking-[0.16em]">
                             •••• •••• ••••
                         </div>
-                        <div className="mt-1 text-sm text-white/70">
+                        <div className="mt-1 text-sm text-[var(--background)]/70">
                             Накопительная скидка будет применяться к заказам.
                         </div>
                     </div>
@@ -134,7 +134,7 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                         </div>
 
                         {error ? (
-                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                                 {error}
                             </div>
                         ) : null}
@@ -151,7 +151,7 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
 
                             <button
                                 type="submit"
-                                className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={submitting}
                             >
                                 {submitting ? "Проверка…" : "Привязать карту"}

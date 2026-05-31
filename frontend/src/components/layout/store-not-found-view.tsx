@@ -17,19 +17,19 @@ export default function StoreNotFoundView() {
             </p>
             <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3">
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--accent)] bg-[var(--accent)] px-5 text-sm font-semibold text-white transition hover:border-[#5C3E69] hover:bg-[#5C3E69] sm:min-h-0"
+                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--accent)] bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--background)] transition hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] sm:min-h-0"
                     href="/"
                 >
                     На главную
                 </Link>
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)] sm:min-h-0"
+                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)] sm:min-h-0"
                     href="/catalog"
                 >
                     Каталог
                 </Link>
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)] sm:min-h-0"
+                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)] sm:min-h-0"
                     href="/brands"
                 >
                     Бренды

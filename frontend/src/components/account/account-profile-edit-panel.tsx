@@ -166,7 +166,7 @@ export default function AccountProfileEditPanel({
                     type="button"
                     onClick={handleSubmit}
                     disabled={isPending}
-                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                 >
                     {isPending ? "Сохранение..." : "Сохранить"}
                 </button>

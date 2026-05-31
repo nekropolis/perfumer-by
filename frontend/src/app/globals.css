@@ -3,18 +3,25 @@
 @tailwind utilities;
 
 :root {
-  /* Core palette */
-  --background: #F7F3EE;
-  --foreground: #1F1722;
-  --surface: #FFFCF8;
-  --text-secondary: #6E6572;
-  --accent: #6F4A7E;
-  --accent-soft: #D8C2E6;
-  --line: #E8DED4;
+  color-scheme: light;
+
+  /* Core palette — light modern luxury */
+  --background: #FAF7F2;
+  --foreground: #221C16;
+  --surface: #FFFFFF;
+  --surface-2: #F3EDE4;
+  --text-secondary: #6F665A;
+  --accent: #241C15;
+  --accent-hover: #3A2E22;
+  --accent-soft: rgba(140, 107, 44, 0.12);
+  --line: #E7DFD2;
+
+  /* Soft cream plate behind product photos so white bottle shots blend in */
+  --image-plate: #F4EFE8;
 
   /* Header-specific palette */
-  --header-bg: #F7F3EE;
-  --header-control-bg: #FBF7F3;
+  --header-bg: #FFFFFF;
+  --header-control-bg: #F4EFE8;
 
   /* Catalog toolbar: fallback until Header measures real offsetHeight */
   --catalog-toolbar-sticky-top: 79px;
@@ -31,13 +38,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), serif;
-  background-image: linear-gradient(180deg, #F9F5F1 0%, #F7F3EE 100%);
+  background-image: linear-gradient(180deg, #FBF9F5 0%, #FAF7F2 55%, #F6F1EA 100%);
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body.admin-shell-body {
+  color-scheme: light;
   --admin-bg: #F9FAFB;
   --admin-surface: #FFFFFF;
   --admin-muted: #F3F4F6;
@@ -46,8 +54,8 @@ body.admin-shell-body {
   --admin-text-secondary: #6B7280;
   --admin-sidebar: #F3F4F6;
   --admin-header: #FFFFFF;
-  --admin-primary: #6F4A7E;
-  --admin-primary-hover: #5A3D66;
+  --admin-primary: #241C15;
+  --admin-primary-hover: #3A2E22;
 
   background: var(--admin-bg);
   background-image: none;
@@ -64,7 +72,7 @@ body.admin-shell-body input:focus,
 body.admin-shell-body select:focus,
 body.admin-shell-body textarea:focus {
   border-color: var(--admin-primary);
-  box-shadow: 0 0 0 3px rgb(111 74 126 / 0.14);
+  box-shadow: 0 0 0 3px rgb(36 28 21 / 0.14);
 }
 
 * {
@@ -87,7 +95,7 @@ select:focus,
 textarea:focus {
   outline: none;
   box-shadow: none;
-  border-color: #c3c3c3;
+  border-color: var(--accent);
 }
 
 .ProseMirror p {
@@ -147,6 +155,20 @@ textarea:focus {
   text-decoration: underline;
 }
 
+/* Storefront (dark) rich-text overrides; admin editor keeps light defaults */
+body:not(.admin-shell-body) .ProseMirror blockquote {
+  border-left-color: var(--line);
+  color: var(--text-secondary);
+}
+
+body:not(.admin-shell-body) .ProseMirror hr {
+  border-top-color: var(--line);
+}
+
+body:not(.admin-shell-body) .ProseMirror a {
+  color: var(--accent);
+}
+
 .ProseMirror img,
 .ProseMirror video,
 .ProseMirror iframe {
@@ -182,7 +204,7 @@ textarea:focus {
 .site-date-input::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.85;
-  filter: invert(28%) sepia(18%) saturate(1200%) hue-rotate(250deg) brightness(0.85);
+  filter: invert(72%) sepia(34%) saturate(540%) hue-rotate(2deg) brightness(0.92);
 }
 
 .site-date-input:focus {

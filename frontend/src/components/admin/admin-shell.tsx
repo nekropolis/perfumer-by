@@ -93,7 +93,7 @@ export default function AdminShell({ children }: Props) {
                     >
                         {sidebarCollapsed ? (
                             <Image
-                                src="/logo.svg"
+                                src="/logo-dark.svg"
                                 alt="Perfumer"
                                 width={934}
                                 height={356}
@@ -103,7 +103,7 @@ export default function AdminShell({ children }: Props) {
                         ) : (
                             <div className="min-w-0">
                                 <Image
-                                    src="/logo.svg"
+                                    src="/logo-dark.svg"
                                     alt="Perfumer"
                                     width={934}
                                     height={356}

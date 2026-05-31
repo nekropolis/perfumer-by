@@ -131,7 +131,7 @@ export default function OrdersAccount({
             <section className="space-y-6">
                 {profileSaveNotice && !isProfileEditing ? (
                     <div
-                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
                         role="status"
                     >
                         {profileSaveNotice}
@@ -270,7 +270,7 @@ export default function OrdersAccount({
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedOrderId(order.id)}
-                                                className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                                                className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                                             >
                                                 Подробнее
                                             </button>

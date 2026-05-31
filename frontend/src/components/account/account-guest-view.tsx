@@ -35,7 +35,7 @@ export default function AccountGuestView() {
                     <aside className="space-y-5">
                         <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
                             <div className="flex items-center gap-4">
-                                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-white shadow-lg">
+                                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--background)] shadow-lg">
                                     <UserRound className="h-8 w-8" strokeWidth={1.75} aria-hidden />
                                 </div>
 
@@ -50,7 +50,7 @@ export default function AccountGuestView() {
                             <div className="mt-5 flex flex-col gap-2">
                                 <Link
                                     href="/login"
-                                    className="flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                                    className="flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--background)] transition hover:opacity-90"
                                 >
                                     Войти
                                 </Link>
@@ -63,12 +63,12 @@ export default function AccountGuestView() {
                             </div>
                         </section>
 
-                        <section className="overflow-hidden rounded-[2rem] bg-[var(--accent)] p-5 text-white shadow-[0_24px_70px_rgba(111,74,126,0.22)]">
-                            <div className="text-xs font-medium uppercase tracking-[0.24em] text-white/60">
+                        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] p-5 text-[var(--background)] shadow-[0_24px_70px_rgba(0,0,0,0.5)]">
+                            <div className="text-xs font-medium uppercase tracking-[0.24em] text-[var(--background)]/60">
                                 Карта лояльности
                             </div>
                             <div className="mt-4 text-lg font-semibold">Доступна после входа</div>
-                            <p className="mt-2 text-sm leading-relaxed text-white/75">
+                            <p className="mt-2 text-sm leading-relaxed text-[var(--background)]/75">
                                 Привяжите карту магазина и получайте накопительную скидку на покупки.
                             </p>
                         </section>
@@ -121,7 +121,7 @@ export default function AccountGuestView() {
                                 </p>
                                 <Link
                                     href="/login"
-                                    className="mt-5 inline-flex rounded-2xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                                    className="mt-5 inline-flex rounded-2xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:opacity-90"
                                 >
                                     Войти в аккаунт
                                 </Link>

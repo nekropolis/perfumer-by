@@ -40,12 +40,12 @@ export default function HeaderMobileMenu({
     const getOperatorBadgeClass = (label: string) => {
         const normalized = label.toLowerCase();
         if (normalized.includes("мтс")) {
-            return "bg-red-50 text-red-700 border-red-100";
+            return "bg-red-50 text-red-700 border-red-200";
         }
         if (normalized.includes("life")) {
-            return "bg-amber-50 text-amber-700 border-amber-100";
+            return "bg-amber-50 text-amber-700 border-amber-200";
         }
-        return "bg-violet-50 text-violet-700 border-violet-100";
+        return "bg-violet-50 text-violet-700 border-violet-200";
     };
 
     return createPortal(
@@ -60,7 +60,7 @@ export default function HeaderMobileMenu({
                     <div className="grid grid-cols-2 gap-2">
                         <Link
                             href="/catalog"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Каталог
@@ -68,7 +68,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/brands"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Бренды
@@ -76,13 +76,13 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/wishlist"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             <span className="inline-flex items-center gap-2">
                                 Избранное
                                 {wishlistQty > 0 ? (
-                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-medium text-white">
+                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-[var(--background)]">
                                         {wishlistQty}
                                     </span>
                                 ) : null}
@@ -91,7 +91,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/catalog?sort=new"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Новинки
@@ -99,7 +99,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/catalog?sale=1"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Акции
@@ -107,7 +107,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/reviews"
-                            className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Отзывы о магазине
@@ -115,7 +115,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/news"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Новости
@@ -123,7 +123,7 @@ export default function HeaderMobileMenu({
 
                         <Link
                             href="/articles"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)]"
+                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                             onClick={onCloseAction}
                         >
                             Статьи
@@ -180,7 +180,7 @@ export default function HeaderMobileMenu({
                                     <a
                                         key={phone.number}
                                         href={`tel:${phone.number}`}
-                                        className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-white"
+                                        className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)]"
                                     >
                                         <span
                                             className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
@@ -202,7 +202,7 @@ export default function HeaderMobileMenu({
                                 ))}
 
                                 <div className="pt-1">
-                                    <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm text-emerald-700 transition hover:bg-[var(--background)]" />
+                                    <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm text-[var(--accent)] transition hover:bg-[var(--background)]" />
                                 </div>
                             </div>
                         </div>

@@ -427,7 +427,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
-                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-white p-2 shadow-sm sm:p-3">
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--image-plate)] p-2 shadow-sm sm:p-3">
                         <ProductStatusLabels
                             isNew={Boolean(product.is_new)}
                             isHit={Boolean(product.is_hit)}
@@ -493,7 +493,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                         onClick={() => setSelectedImageId(image.id)}
                                         className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-[var(--accent)] ring-1 ring-[var(--accent-soft)]" : "border-[var(--line)]"}`}
                                     >
-                                        <div className="relative h-full w-full bg-white p-1">
+                                        <div className="relative h-full w-full bg-[var(--image-plate)] p-1">
                                             <Image
                                                 src={thumbUrl}
                                                 loader={productImageLoader}
@@ -529,8 +529,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         type="button"
                         onClick={() => void toggleWishlist(product.id)}
                         className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${isInWishlist(product.id)
-                            ? "border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-95"
-                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--background)]"
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)] hover:bg-[var(--accent-hover)]"
+                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                             }`}
                     >
                         <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
@@ -548,7 +548,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                         const isSelected = variant.id === selectedVariantId;
 
                                         let availabilityText = "Нет";
-                                        let availabilityClass = "text-red-500";
+                                        let availabilityClass = "text-red-600";
 
                                         if (variant.is_available) {
                                             if (variant.is_preorder) {
@@ -559,7 +559,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                                 availabilityClass = "text-sky-700";
                                             } else {
                                                 availabilityText = "В наличии";
-                                                availabilityClass = "text-green-600";
+                                                availabilityClass = "text-emerald-600";
                                             }
                                         }
 
@@ -601,7 +601,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                             </div>
                         </>
                     ) : (
-                        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-5">
+                        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/70 p-5">
                             <div className="mb-2 text-2xl font-semibold leading-tight text-amber-900">
                                 Ожидается поступление
                             </div>
@@ -668,7 +668,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                             >
                                 <span>Отзывы</span>
                                 <span
-                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold tabular-nums text-white"
+                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--background)]"
                                     aria-label={`${reviewsTabCount} отзывов`}
                                 >
                                     {reviewsTabCount}
@@ -780,7 +780,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 type="button"
                                 onClick={handleAddToCart}
                                 disabled={!selectedVariant?.is_available || isPending}
-                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isPending ? "Добавление..." : "В корзину"}
                             </button>

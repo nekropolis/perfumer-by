@@ -154,7 +154,7 @@ export default function StoreReviewsStickySummary({
             <button
                 type="button"
                 onClick={onWriteReview}
-                className="mt-3 w-full rounded-xl bg-[var(--accent)] px-3 py-2.5 text-sm font-medium text-white transition hover:opacity-90 sm:mt-4 sm:px-4 sm:py-3"
+                className="mt-3 w-full rounded-xl bg-[var(--accent)] px-3 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] sm:mt-4 sm:px-4 sm:py-3"
             >
                 Оставить отзыв
             </button>

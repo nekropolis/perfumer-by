@@ -62,16 +62,16 @@ function CartLineSelectControl({ checked, onToggle, ariaLabel }: CartLineSelectC
             <span
                 aria-hidden
                 className={[
-                    "pointer-events-none flex h-5 w-5 items-center justify-center rounded-md border-2 bg-white shadow-sm transition-all duration-200 ease-out",
+                    "pointer-events-none flex h-5 w-5 items-center justify-center rounded-md border-2 bg-[var(--surface-2)] shadow-sm transition-all duration-200 ease-out",
                     "border-[var(--line)]",
                     "peer-hover:border-[var(--accent-soft)] peer-hover:shadow-md",
                     "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent-soft)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--surface)]",
-                    "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:shadow-[0_2px_8px_rgba(111,74,126,0.28)]",
+                    "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:shadow-[0_2px_8px_rgba(201,164,92,0.35)]",
                     "peer-checked:[&>svg]:scale-100 peer-checked:[&>svg]:opacity-100",
                     "[&>svg]:scale-90 [&>svg]:opacity-0",
                 ].join(" ")}
             >
-                <svg viewBox="0 0 12 10" fill="none" className="h-2.5 w-2.5 text-white transition-[opacity,transform] duration-200 ease-out" aria-hidden>
+                <svg viewBox="0 0 12 10" fill="none" className="h-2.5 w-2.5 text-[var(--background)] transition-[opacity,transform] duration-200 ease-out" aria-hidden>
                     <path
                         d="M1 5l3.5 3.5L11 1.5"
                         stroke="currentColor"
@@ -350,7 +350,7 @@ export default function CartPage() {
 
                     <Link
                         href="/catalog"
-                        className="inline-flex items-center justify-center rounded-2xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:opacity-95"
+                        className="inline-flex items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                     >
                         Перейти в каталог
                     </Link>
@@ -485,14 +485,14 @@ export default function CartPage() {
 
                                         {item.is_available ? (
                                             item.is_preorder ? (
-                                                <div className="text-amber-700">Под заказ</div>
+                                                <div className="text-amber-600">Под заказ</div>
                                             ) : (
-                                                <div className="text-green-700">
+                                                <div className="text-emerald-600">
                                                     Товар в наличии
                                                 </div>
                                             )
                                         ) : (
-                                            <div className="text-red-700">Нет в наличии</div>
+                                            <div className="text-red-600">Нет в наличии</div>
                                         )}
                                     </div>
                                 </div>
@@ -668,7 +668,7 @@ export default function CartPage() {
                                             className="hidden"
                                         />
                                         {giftCertificateApplyError ? (
-                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                                 {giftCertificateApplyError}
                                             </div>
                                         ) : null}
@@ -748,12 +748,12 @@ export default function CartPage() {
                                             </button>
                                         </div>
                                         {discountCardApplyError ? (
-                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                                 {discountCardApplyError}
                                             </div>
                                         ) : null}
                                         {discountCardConflict ? (
-                                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                                 <p className="mb-2">
                                                     Применить эту карту только к текущему заказу? Карта в профиле не изменится.
                                                 </p>
@@ -761,7 +761,7 @@ export default function CartPage() {
                                                     <button
                                                         type="button"
                                                         disabled={isPending}
-                                                        className="rounded-lg bg-black px-3 py-1.5 text-white"
+                                                        className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                                                         onClick={() =>
                                                             startTransition(async () => {
                                                                 const response = await applyDiscountCard(discountCardConflict, true);
@@ -834,13 +834,13 @@ export default function CartPage() {
                             <Link
                                 href="/checkout"
                                 onClick={persistCheckoutSelection}
-                                className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 active:translate-y-0 active:scale-[0.99]"
+                                className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] transition-all duration-150 hover:-translate-y-[1px] hover:bg-[var(--accent-hover)] active:translate-y-0 active:scale-[0.99]"
                             >
                                 Перейти к оформлению
                             </Link>
                         ) : (
                             <span
-                                className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-medium text-white opacity-45"
+                                className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] opacity-45"
                                 aria-disabled
                             >
                                 Выберите позиции для оформления
@@ -869,13 +869,13 @@ export default function CartPage() {
                         <Link
                             href="/checkout"
                             onClick={persistCheckoutSelection}
-                            className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white"
+                            className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--background)]"
                         >
                             Оформить
                         </Link>
                     ) : (
                         <span
-                            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white opacity-45"
+                            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--background)] opacity-45"
                             aria-disabled
                         >
                             Оформить

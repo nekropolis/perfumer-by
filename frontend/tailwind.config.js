@@ -9,6 +9,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          charcoal: "#14110F",
+          surface: "#1C1815",
+          "surface-2": "#232019",
+          line: "#2E2822",
+          text: "#F3ECE2",
+          "text-secondary": "#A89F92",
+          gold: "#C9A45C",
+          "gold-hover": "#D9B978",
+          plate: "#F4EFE8",
+        },
         admin: {
           bg: "#F9FAFB",
           surface: "#FFFFFF",
@@ -21,10 +32,10 @@ module.exports = {
           sidebar: "#F3F4F6",
           "sidebar-hover": "#E5E7EB",
           header: "#FFFFFF",
-          primary: "#6F4A7E",
-          "primary-hover": "#5A3D66",
-          "primary-soft": "#F5F0F8",
-          accent: "#EDE4F3",
+          primary: "#241C15",
+          "primary-hover": "#3A2E22",
+          "primary-soft": "#F4EEE1",
+          accent: "#EFE7D6",
         },
       },
       boxShadow: {

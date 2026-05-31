@@ -217,7 +217,7 @@ export default function StockNotificationModal({
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800"
+                                className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                             >
                                 Закрыть
                             </button>
@@ -258,14 +258,9 @@ export default function StockNotificationModal({
                                     />
                                     <span
                                         className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
-                                                ? "text-white"
-                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
+                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
                                             }`}
-                                        style={
-                                            allowPlainPhone
-                                                ? { backgroundColor: "#6f4a7e", borderColor: "#6f4a7e" }
-                                                : undefined
-                                        }
                                     >
                                         Нет мобильного
                                     </span>
@@ -297,7 +292,7 @@ export default function StockNotificationModal({
                         </div>
 
                         {errorMessage && (
-                            <div className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                 {errorMessage}
                             </div>
                         )}
@@ -313,7 +308,7 @@ export default function StockNotificationModal({
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !phoneIsValid}
-                                className="inline-flex items-center justify-center rounded-xl bg-black px-5 py-2 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex items-center justify-center rounded-xl bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isSubmitting ? "Отправка..." : "Отправить"}
                             </button>

@@ -70,12 +70,12 @@ export default async function SearchPage({
             <Breadcrumbs className="mb-4" items={[...crumbs]} />
 
             <h1 className="text-3xl font-semibold sm:text-4xl">Поиск</h1>
-            <p className="mt-2 text-sm text-gray-500">
-                Запрос: <span className="font-medium text-gray-900">{query || "—"}</span>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                Запрос: <span className="font-medium text-[var(--foreground)]">{query || "—"}</span>
             </p>
 
             {!query ? (
-                <div className="mt-6 rounded-3xl border bg-white px-6 py-10 text-sm text-gray-500">
+                <div className="mt-6 rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--text-secondary)]">
                     Введите поисковый запрос в шапке сайта и нажмите Enter.
                 </div>
             ) : null}

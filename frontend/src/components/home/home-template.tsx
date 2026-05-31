@@ -65,13 +65,13 @@ function ProductCard({
     oldPrice: string | null;
 }) {
     return (
-        <div className="group rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:shadow-[0_16px_30px_rgba(31,23,34,0.08)]">
-            <div className="mb-4 aspect-[4/5] rounded-[20px] bg-gradient-to-b from-[#F2ECE7] to-[#ECE5DF]" />
-            <div className="mb-1 text-sm text-gray-500">{brand}</div>
-            <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6">{name}</div>
+        <div className="group rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.45)]">
+            <div className="mb-4 aspect-[4/5] rounded-[20px] bg-[var(--image-plate)] bg-gradient-to-b from-[#F8F4ED] to-[#ECE3D6]" />
+            <div className="mb-1 text-sm text-[var(--text-secondary)]">{brand}</div>
+            <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-[var(--foreground)]">{name}</div>
             <div className="mt-4 flex items-end gap-2">
                 <div className="text-lg font-semibold text-[var(--foreground)]">{price} руб.</div>
-                {oldPrice ? <div className="text-sm text-gray-400 line-through">{oldPrice} руб.</div> : null}
+                {oldPrice ? <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice} руб.</div> : null}
             </div>
         </div>
     );
@@ -81,11 +81,12 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
     return (
         <>
             <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
-                <section className="overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--background)] px-5 py-7 md:px-8 md:py-9">
-                    <div className="flex flex-col gap-6 md:flex-row md:items-center">
+                <section className="relative overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--surface)] px-5 py-7 md:px-8 md:py-9">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_85%_0%,rgba(201,164,92,0.12),transparent_55%)]" />
+                    <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
                         <div className="order-1 md:min-w-0 md:flex-[1.28]">
-                            <div className="mb-4 inline-flex rounded-full border border-[var(--accent-soft)] px-3 py-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">
-                                Soft Luxury Editorial
+                            <div className="mb-4 inline-flex rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">
+                                Dark Luxury Editorial
                             </div>
 
                             <h1 className="font-display max-w-[19ch] text-5xl leading-[0.95] text-[var(--foreground)] sm:text-6xl">
@@ -96,29 +97,29 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                                 {heroDescription}
                             </p>
 
-                            <div className="mt-5 flex flex-wrap gap-3 text-sm text-[var(--text-secondary)]">
-                                <span>✔ 100% оригинал</span>
-                                <span>✔ Доставка по Беларуси</span>
-                                <span>✔ Консультация эксперта</span>
+                            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">
+                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">100% оригинал</span></span>
+                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">Доставка по Беларуси</span></span>
+                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">Консультация эксперта</span></span>
                             </div>
 
                             <div className="mt-7 flex flex-wrap gap-3">
-                                <Link href="/catalog" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5C3E69]">
+                                <Link href="/catalog" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]">
                                     Смотреть каталог
                                 </Link>
-                                <Link href="/brands" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-[var(--surface)] px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[#F5EFF8]">
+                                <Link href="/brands" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-transparent px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]">
                                     Популярные бренды
                                 </Link>
                             </div>
                         </div>
 
                         <div className="order-2 relative mx-auto w-full max-w-[360px] md:mx-0 md:ml-auto md:flex-[0.72]">
-                            <div className="rounded-[28px] border border-[var(--line)] bg-gradient-to-b from-[#F4EEE8] to-[#ECE5DF] p-6">
+                            <div className="rounded-[28px] border border-[var(--accent-soft)] bg-[var(--image-plate)] bg-gradient-to-b from-[#F8F4ED] to-[#E9DECF] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
                                 <div className="relative h-72">
-                                    <div className="absolute left-1/2 top-5 h-56 w-36 -translate-x-1/2 rounded-[28px] border border-[#b59a8f] bg-gradient-to-b from-[#3e2a31] to-[#1f1419] shadow-[0_26px_40px_rgba(36,22,24,0.35)]" />
-                                    <div className="absolute left-1/2 top-[-2px] h-16 w-14 -translate-x-1/2 rounded-[16px] border border-[#bcaea6] bg-gradient-to-b from-[#d8cbc3] to-[#af9f95]" />
-                                    <div className="absolute left-1/2 top-16 h-16 w-24 -translate-x-1/2 rounded-[16px] border border-white/35 bg-white/10" />
-                                    <div className="absolute bottom-4 right-4 rounded-[16px] bg-[var(--accent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
+                                    <div className="absolute left-1/2 top-5 h-56 w-36 -translate-x-1/2 rounded-[28px] border border-[#C9A45C]/40 bg-gradient-to-b from-[#2a2320] to-[#14110F] shadow-[0_26px_40px_rgba(0,0,0,0.4)]" />
+                                    <div className="absolute left-1/2 top-[-2px] h-16 w-14 -translate-x-1/2 rounded-[16px] border border-[#C9A45C]/60 bg-gradient-to-b from-[#E4C786] to-[#C9A45C]" />
+                                    <div className="absolute left-1/2 top-16 h-16 w-24 -translate-x-1/2 rounded-[16px] border border-[#C9A45C]/40 bg-white/30" />
+                                    <div className="absolute bottom-4 right-4 rounded-[16px] bg-[var(--accent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--background)]">
                                         bestseller
                                     </div>
                                 </div>
@@ -163,7 +164,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                             <Link
                                 key={brand}
                                 href={`/brands/${encodeURIComponent(brand.toLowerCase().replace(/\s+/g, "-"))}`}
-                                className="flex min-h-[82px] items-center justify-center rounded-[20px] border border-[var(--line)] bg-[var(--surface)] px-4 text-center text-sm font-semibold text-[#3E3136] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
+                                className="flex min-h-[82px] items-center justify-center rounded-[20px] border border-[var(--line)] bg-[var(--surface)] px-4 text-center text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
                             >
                                 {brand}
                             </Link>
@@ -171,22 +172,23 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                     </div>
                 </section>
 
-                <section className="mt-10 rounded-[28px] border border-[var(--accent-soft)] bg-[var(--accent)] p-6 text-white sm:p-8">
-                    <h2 className="font-display text-3xl font-semibold sm:text-4xl">
+                <section className="relative mt-10 overflow-hidden rounded-[28px] border border-[var(--accent-soft)] bg-[var(--surface)] p-6 sm:p-8">
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_130%_at_0%_0%,var(--accent-soft),transparent_55%)]" />
+                    <h2 className="relative font-display text-3xl font-semibold text-[var(--accent)] sm:text-4xl">
                         Акцентная подборка
                     </h2>
 
-                    <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="relative mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {promos.map((promo) => (
                             <Link
                                 key={promo.title}
                                 href={promo.href}
-                                className="rounded-[20px] border border-white/25 bg-white/10 p-5 transition hover:bg-white/15"
+                                className="rounded-[20px] border border-[var(--line)] bg-[var(--background)] p-5 transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)]"
                             >
-                                <div className="font-display text-3xl font-semibold leading-tight">
+                                <div className="font-display text-3xl font-semibold leading-tight text-[var(--foreground)]">
                                     {promo.title}
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-white/80">
+                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                                     {promo.description}
                                 </p>
                             </Link>
@@ -261,10 +263,10 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                         </div>
 
                         <div className="flex flex-wrap gap-3">
-                            <Link href="/contacts" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#5C3E69]">
+                            <Link href="/contacts" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]">
                                 Получить консультацию
                             </Link>
-                            <Link href="/catalog?sort=hit" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-[var(--surface)] px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[#F5EFF8]">
+                            <Link href="/catalog?sort=hit" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-transparent px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]">
                                 Смотреть хиты
                             </Link>
                         </div>

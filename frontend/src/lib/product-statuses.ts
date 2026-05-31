@@ -20,21 +20,21 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
         shortLabel: "NEW",
         label: "Новинка",
         adminClassName: "bg-blue-50 text-blue-700 border-blue-100",
-        storefrontClassName: "bg-blue-600 text-white",
+        storefrontClassName: "bg-[#14110F] text-[#E7DECF]",
     },
     hit: {
         code: "hit",
         shortLabel: "HIT",
         label: "Хит",
         adminClassName: "bg-violet-50 text-violet-700 border-violet-100",
-        storefrontClassName: "bg-violet-600 text-white",
+        storefrontClassName: "bg-[#C9A45C] text-[#14110F]",
     },
     discount: {
         code: "discount",
         shortLabel: "SALE",
         label: "Акция",
         adminClassName: "bg-rose-50 text-rose-700 border-rose-100",
-        storefrontClassName: "bg-rose-600 text-white",
+        storefrontClassName: "bg-[#8E2C3B] text-[#F6E7D6]",
     },
 };
 

@@ -201,7 +201,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                 {order.gift_certificate_purchases?.map((row) => (
                                     <div
                                         key={row.id}
-                                        className="rounded-2xl border border-violet-200/80 bg-violet-50/40 p-4"
+                                        className="rounded-2xl border border-[var(--accent-soft)] bg-[var(--accent-soft)] p-4"
                                     >
                                         <div className="mt-1 text-lg font-medium">
                                             Подарочный сертификат: {row.template_title}

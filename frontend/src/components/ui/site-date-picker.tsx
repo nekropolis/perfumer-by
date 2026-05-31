@@ -412,7 +412,7 @@ export default function SiteDatePicker({
                                 <button
                                     type="button"
                                     onClick={applyWheelSelection}
-                                    className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                                    className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                                 >
                                     Готово
                                 </button>
@@ -492,7 +492,7 @@ export default function SiteDatePicker({
                                                     !isDayDisabled &&
                                                     "text-[var(--foreground)] hover:bg-[var(--background)]",
                                                 isSelected &&
-                                                    "bg-[var(--accent)] font-semibold text-white shadow-sm",
+                                                    "bg-[var(--accent)] font-semibold text-[var(--background)] shadow-sm",
                                                 isToday && !isSelected && "ring-1 ring-[var(--accent-soft)]",
                                                 isDayDisabled &&
                                                     inMonth &&

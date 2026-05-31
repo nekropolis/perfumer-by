@@ -42,7 +42,7 @@ export default function GiftCertificatesCatalogPage() {
             </p>*/}
 
             {loading ? <div className="text-sm text-[var(--text-secondary)]">Загрузка...</div> : null}
-            {error ? <div className="text-sm text-red-700">{error}</div> : null}
+            {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((template) => (

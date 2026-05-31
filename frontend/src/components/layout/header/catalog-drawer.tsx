@@ -35,7 +35,7 @@ export default function HeaderCatalogDrawer({
         <div className="fixed inset-0 z-[200] transition-opacity duration-300 pointer-events-auto opacity-100" aria-hidden={false}>
             <button
                 type="button"
-                className="absolute inset-0 bg-[var(--foreground)]/30 backdrop-blur-[2px] transition-opacity duration-300 opacity-100"
+                className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 opacity-100"
                 aria-label="Закрыть меню каталога"
                 onClick={onCloseAction}
             />

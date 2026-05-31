@@ -131,7 +131,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
         messageTone === "error"
             ? "border-red-200 bg-red-50 text-red-700"
             : messageTone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : "border-[var(--line)] text-[var(--foreground)]";
 
     const getRecaptchaToken = async (action: string): Promise<string | undefined> => {
@@ -321,11 +321,11 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                 aria-modal="true"
                 aria-labelledby="auth-modal-title"
             >
-                <div className="shrink-0 bg-[var(--accent)] px-4 py-3 text-white sm:px-5 sm:py-4">
+                <div className="shrink-0 bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-4 py-3 text-[var(--background)] sm:px-5 sm:py-4">
                     <div className="flex items-center gap-2">
                         {!showForgot && registerStep === "form" ? (
                             <div
-                                className="flex min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 p-1"
+                                className="flex min-w-0 flex-1 rounded-xl border border-black/15 bg-black/10 p-1"
                                 role="tablist"
                                 aria-label="Аккаунт"
                             >
@@ -337,8 +337,8 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     onClick={() => switchTab("login")}
                                     className={`flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition sm:px-3 ${
                                         tab === "login"
-                                            ? "bg-white text-[var(--accent)]"
-                                            : "text-white/90 hover:text-white"
+                                            ? "bg-[var(--background)] text-[var(--accent)]"
+                                            : "text-[var(--background)]/70 hover:text-[var(--background)]"
                                     }`}
                                 >
                                     Войти
@@ -350,8 +350,8 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     onClick={() => switchTab("register")}
                                     className={`flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition sm:px-3 ${
                                         tab === "register"
-                                            ? "bg-white text-[var(--accent)]"
-                                            : "text-white/90 hover:text-white"
+                                            ? "bg-[var(--background)] text-[var(--accent)]"
+                                            : "text-[var(--background)]/70 hover:text-[var(--background)]"
                                     }`}
                                 >
                                     Регистрация
@@ -366,7 +366,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                             type="button"
                             onClick={onCloseAction}
                             disabled={isPending}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-lg leading-none text-white transition hover:bg-white/20 disabled:opacity-50"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/10 text-lg leading-none text-[var(--background)] transition hover:bg-black/20 disabled:opacity-50"
                             aria-label="Закрыть"
                         >
                             ×
@@ -398,7 +398,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     type="button"
                                     onClick={handleForgotPassword}
                                     disabled={isPending}
-                                    className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                    className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                                 >
                                     {isPending ? "Отправка…" : "Отправить SMS"}
                                 </button>
@@ -439,7 +439,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 type="button"
                                 onClick={handleLogin}
                                 disabled={isPending}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                             >
                                 {isPending ? "Вход…" : "Войти"}
                             </button>
@@ -483,7 +483,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 type="button"
                                 onClick={handleRegister}
                                 disabled={isPending}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                             >
                                 {isPending ? "Отправка…" : "Зарегистрироваться"}
                             </button>
@@ -506,7 +506,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 type="button"
                                 onClick={handleRegisterVerify}
                                 disabled={isPending || !code}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                             >
                                 {isPending ? "Проверка…" : "Подтвердить"}
                             </button>

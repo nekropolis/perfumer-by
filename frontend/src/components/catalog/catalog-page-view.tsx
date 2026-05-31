@@ -45,7 +45,6 @@ export default function CatalogPageView({
                                             basePath,
                                             footerDescriptionHtml,
                                         }: Props) {
-    const total = products.meta?.total ?? products.data.length;
     const lastPage = products.meta?.last_page ?? 1;
     const showBrand = !basePath.includes("/brands/");
 
@@ -58,16 +57,12 @@ export default function CatalogPageView({
                     <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
                         {title}
                     </h1>
-
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                        Найдено товаров: {total}
-                    </p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
-                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}

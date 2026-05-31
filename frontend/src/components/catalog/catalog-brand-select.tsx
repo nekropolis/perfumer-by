@@ -84,7 +84,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                 type="button"
                                 onClick={() => applyBrand()}
                                 className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
-                                    !selectedBrandId ? "bg-[var(--accent)] text-white" : "text-[var(--foreground)] hover:bg-[var(--background)]"
+                                    !selectedBrandId ? "bg-[var(--accent)] font-semibold text-[var(--background)]" : "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                                 }`}
                             >
                                 Все бренды
@@ -100,7 +100,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                             type="button"
                                             onClick={() => applyBrand(String(brand.id))}
                                             className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
-                                                isActive ? "bg-[var(--accent)] text-white" : "text-[var(--foreground)] hover:bg-[var(--background)]"
+                                                isActive ? "bg-[var(--accent)] font-semibold text-[var(--background)]" : "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                                             }`}
                                         >
                                             {brand.name}

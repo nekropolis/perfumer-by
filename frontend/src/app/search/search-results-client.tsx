@@ -128,8 +128,8 @@ export default function SearchResultsClient({
 
     return (
         <div className="mt-6 space-y-6">
-            <section className="rounded-3xl border bg-white p-5">
-                <label htmlFor="search-page-query" className="mb-2 block text-sm font-medium text-gray-700">
+            <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
+                <label htmlFor="search-page-query" className="mb-2 block text-sm font-medium text-[var(--foreground)]">
                     Быстрый поиск
                 </label>
                 <input
@@ -161,9 +161,9 @@ export default function SearchResultsClient({
                         });
                     }}
                     placeholder="Начните вводить название, бренд или артикул..."
-                    className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none transition focus:border-gray-400"
+                    className="h-11 w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)]"
                 />
-                {loading ? <div className="mt-2 text-xs text-gray-500">Поиск...</div> : null}
+                {loading ? <div className="mt-2 text-xs text-[var(--text-secondary)]">Поиск...</div> : null}
             </section>
 
             {error ? (
@@ -173,17 +173,17 @@ export default function SearchResultsClient({
             ) : null}
 
             {!error && brands.length > 0 ? (
-                <section className="rounded-3xl border bg-white p-5">
+                <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
                     <h2 className="mb-3 text-lg font-semibold">Бренды</h2>
                     <div className="space-y-1">
                         {brands.map((brand) => (
                             <Link
                                 key={brand.id}
                                 href={`/brands/${encodeURIComponent(brand.slug)}`}
-                                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm transition hover:bg-gray-50"
+                                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm transition hover:bg-[var(--surface-2)]"
                             >
                                 <span>{brand.name}</span>
-                                <span className="text-gray-500">{brand.products_count}</span>
+                                <span className="text-[var(--text-secondary)]">{brand.products_count}</span>
                             </Link>
                         ))}
                     </div>
@@ -191,16 +191,16 @@ export default function SearchResultsClient({
             ) : null}
 
             {!error ? (
-                <section className="rounded-3xl border bg-white p-5">
+                <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
                     <h2 className="mb-3 text-lg font-semibold">Товары</h2>
                     {products.length === 0 ? (
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-[var(--text-secondary)]">
                             <div>Ничего не найдено</div>
                             {suggestedQuery ? (
                                 <button
                                     type="button"
                                     onClick={() => setQuery(suggestedQuery)}
-                                    className="mt-2 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-800 transition hover:bg-gray-50"
+                                    className="mt-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--surface-2)]"
                                 >
                                     Возможно, вы имели в виду: <span className="font-medium">{suggestedQuery}</span>
                                 </button>
@@ -217,7 +217,7 @@ export default function SearchResultsClient({
             ) : null}
 
             {debugEnabled && data?.debug ? (
-                <section className="rounded-3xl border bg-black p-4 text-xs text-white/90">
+                <section className="rounded-3xl border border-[var(--line)] bg-black p-4 text-xs text-white/90">
                     <div className="mb-2 font-semibold">Debug search</div>
                     <pre className="overflow-auto whitespace-pre-wrap">{JSON.stringify(data.debug, null, 2)}</pre>
                 </section>

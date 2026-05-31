@@ -10,7 +10,7 @@ export default function HeaderLogo() {
 
     const logoImage = (
         <Image
-            src="/logo.svg"
+            src="/logo-dark.svg"
             alt="Perfumer"
             width={934}
             height={356}

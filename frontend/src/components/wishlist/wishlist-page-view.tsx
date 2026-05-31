@@ -11,25 +11,25 @@ export default function WishlistPageView() {
         <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
             <div className="mb-6 flex items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-black">Избранное</h1>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Избранное</h1>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
                         {wishlistQty > 0 ? `Товаров в избранном: ${wishlistQty}` : "Список пока пуст"}
                     </p>
                 </div>
                 <Link
                     href="/catalog"
-                    className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
+                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
                 >
                     В каталог
                 </Link>
             </div>
 
             {loading ? (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500">
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 text-sm text-[var(--text-secondary)]">
                     Загружаем избранное...
                 </div>
             ) : products.length === 0 ? (
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500">
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 text-sm text-[var(--text-secondary)]">
                     Добавляйте товары в избранное, чтобы быстро возвращаться к ним позже.
                 </div>
             ) : (
@@ -40,7 +40,7 @@ export default function WishlistPageView() {
                             <button
                                 type="button"
                                 onClick={() => void removeFromWishlist(product.id)}
-                                className="absolute right-3 top-3 rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-white hover:text-black"
+                                className="absolute right-3 top-3 rounded-full border border-[var(--line)] bg-[var(--surface)]/95 px-2.5 py-1 text-xs font-medium text-[var(--foreground)] shadow-sm backdrop-blur transition hover:bg-[var(--surface)] hover:text-[var(--accent)]"
                             >
                                 Убрать
                             </button>

@@ -17,22 +17,22 @@ export default function NewsPostDetailView({ post }: Props) {
                 ]}
             />
 
-            <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+            <article className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                 <div className="space-y-4 p-5 sm:p-6">
-                    <h1 className="text-2xl font-semibold text-gray-900">{post.title}</h1>
-                    <div className="text-sm text-gray-500">
+                    <h1 className="text-2xl font-semibold text-[var(--foreground)]">{post.title}</h1>
+                    <div className="text-sm text-[var(--text-secondary)]">
                         {post.created_at ? new Date(post.created_at).toLocaleDateString("ru-RU") : "—"}
                     </div>
                     {post.cover_image ? (
-                        <div className="float-none mb-4 w-full overflow-hidden rounded-xl border sm:float-left sm:mr-6 sm:mb-4 sm:w-[320px]">
+                        <div className="float-none mb-4 w-full overflow-hidden rounded-xl border border-[var(--line)] sm:float-left sm:mr-6 sm:mb-4 sm:w-[320px]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={post.cover_image} alt={post.title} className="h-full w-full object-cover" />
                         </div>
                     ) : null}
-                    {post.excerpt ? <p className="text-gray-600">{post.excerpt}</p> : null}
+                    {post.excerpt ? <p className="text-[var(--text-secondary)]">{post.excerpt}</p> : null}
                     {post.content ? (
                         <div
-                            className="prose prose-sm max-w-none text-gray-800"
+                            className="prose prose-sm max-w-none text-[var(--foreground)]"
                             dangerouslySetInnerHTML={{ __html: post.content }}
                         />
                     ) : null}

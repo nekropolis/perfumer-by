@@ -12,7 +12,7 @@ export default function HeaderMobileToggle({
     return (
         <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-white hover:text-[var(--accent)] md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)] md:hidden"
             onClick={onClickAction}
             aria-label="Открыть меню"
         >

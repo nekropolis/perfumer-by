@@ -393,14 +393,9 @@ export default function CheckoutPage() {
                                 <span
                                     className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                                         allowPlainPhone
-                                            ? "text-white"
-                                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
+                                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
                                     }`}
-                                    style={
-                                        allowPlainPhone
-                                            ? { backgroundColor: "#6f4a7e", borderColor: "#6f4a7e" }
-                                            : undefined
-                                    }
                                 >
                                     Нет мобильного
                                 </span>
@@ -565,7 +560,7 @@ export default function CheckoutPage() {
                     <button
                         type="submit"
                         disabled={isPending || !phoneIsValid}
-                        className="rounded-xl bg-[var(--accent)] px-5 py-3 text-white disabled:opacity-50"
+                        className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
                     >
                         {isPending ? "Оформление..." : "Подтвердить заказ"}
                     </button>
@@ -688,7 +683,7 @@ export default function CheckoutPage() {
                                         className="hidden"
                                     />
                                     {giftCertificateApplyError ? (
-                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                             {giftCertificateApplyError}
                                         </div>
                                     ) : null}
@@ -768,12 +763,12 @@ export default function CheckoutPage() {
                                         </button>
                                     </div>
                                     {discountCardApplyError ? (
-                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                             {discountCardApplyError}
                                         </div>
                                     ) : null}
                                     {discountCardConflict ? (
-                                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                             <p className="mb-2">
                                                 Применить эту карту только к текущему заказу? Карта в профиле не изменится.
                                             </p>
@@ -781,7 +776,7 @@ export default function CheckoutPage() {
                                                 <button
                                                     type="button"
                                                     disabled={isPending}
-                                                    className="rounded-lg bg-black px-3 py-1.5 text-white"
+                                                    className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                                                     onClick={() =>
                                                         startTransition(async () => {
                                                             const response = await applyDiscountCard(discountCardConflict, true);

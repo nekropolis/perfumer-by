@@ -38,7 +38,7 @@ function DrawerPanel({
 
     return (
         <div
-            className="fixed inset-0 isolate z-[100] lg:hidden"
+            className="fixed inset-0 isolate z-[150] lg:hidden"
             role="presentation"
         >
             <button

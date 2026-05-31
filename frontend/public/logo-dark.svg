@@ -1,0 +1,37 @@
+<svg viewBox="0 -40 380 85" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2A2420;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0E0B09;stop-opacity:1" />
+    </linearGradient>
+
+    <style>
+      .main-text {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-weight: 500;
+        letter-spacing: 5px;
+        fill: url(#textGradient);
+      }
+      .sub-text {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        font-size: 14px;
+        letter-spacing: 4px;
+        fill: #A6802E;
+        text-transform: uppercase;
+      }
+      .line {
+        stroke: #A6802E;
+        stroke-width: 1;
+      }
+    </style>
+  </defs>
+
+  <g transform="translate(190, 0)">
+    <text x="0" y="0" text-anchor="middle" font-size="52" class="main-text">PERFUMER</text>
+
+    <line x1="-185" y1="25" x2="-120" y2="25" class="line" />
+    <line x1="120" y1="25" x2="185" y2="25" class="line" />
+
+    <text x="0" y="30" text-anchor="middle" class="sub-text">ORIGINAL PERFUMES</text>
+  </g>
+</svg>

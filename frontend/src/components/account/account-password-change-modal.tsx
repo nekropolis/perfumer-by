@@ -127,10 +127,10 @@ export default function AccountPasswordChangeModal({
                 aria-modal="true"
                 aria-labelledby="password-change-title"
             >
-                <div className="bg-[var(--accent)] px-6 py-5 text-white">
+                <div className="bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-6 py-5 text-[var(--background)]">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-white/60">
+                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--background)]/60">
                                 Безопасность
                             </div>
                             <h2
@@ -145,7 +145,7 @@ export default function AccountPasswordChangeModal({
                             type="button"
                             onClick={onCloseAction}
                             disabled={isPending}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-xl leading-none text-white transition hover:bg-white/20 disabled:opacity-50"
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xl leading-none text-[var(--background)] transition hover:bg-black/20 disabled:opacity-50"
                             aria-label="Закрыть"
                         >
                             ×
@@ -195,7 +195,7 @@ export default function AccountPasswordChangeModal({
                                     type="button"
                                     onClick={handleRequestCode}
                                     disabled={isPending}
-                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:opacity-90 disabled:opacity-50"
                                 >
                                     {isPending ? "Отправка…" : "Подтвердить по SMS"}
                                 </button>
@@ -204,7 +204,7 @@ export default function AccountPasswordChangeModal({
                     ) : (
                         <div className="space-y-4">
                             {infoMessage ? (
-                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                                     {infoMessage}
                                 </div>
                             ) : null}
@@ -243,7 +243,7 @@ export default function AccountPasswordChangeModal({
                                     type="button"
                                     onClick={handleVerify}
                                     disabled={isPending || !code}
-                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:opacity-90 disabled:opacity-50"
                                 >
                                     {isPending ? "Проверка…" : "Сменить пароль"}
                                 </button>
@@ -252,7 +252,7 @@ export default function AccountPasswordChangeModal({
                     )}
 
                     {errorMessage ? (
-                        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {errorMessage}
                         </div>
                     ) : null}

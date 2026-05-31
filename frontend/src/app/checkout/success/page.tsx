@@ -32,7 +32,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
                 <div className="flex flex-col justify-center gap-3 sm:flex-row">
                     <Link
                         href="/catalog"
-                        className="rounded-xl bg-[var(--accent)] px-5 py-3 text-white"
+                        className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
                     >
                         Вернуться в каталог
                     </Link>
