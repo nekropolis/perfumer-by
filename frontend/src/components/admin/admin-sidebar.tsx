@@ -16,6 +16,7 @@ import {
     Package,
     PackageMinus,
     PanelsTopLeft,
+    Phone,
     ScrollText,
     Settings,
     ShieldUser,
@@ -108,6 +109,7 @@ const sections: SidebarSection[] = [
         label: "Система",
         items: [
             { type: "link", href: "/admin/users", label: "Пользователи", icon: ShieldUser },
+            { type: "link", href: "/admin/system/incoming-call-devices", label: "Телефоны CRM", icon: Phone },
             { type: "link", href: "/admin/system/audit-log", label: "Аудит", icon: ScrollText },
             { type: "link", href: "/admin/system/stock-receipts-import", label: "Импорт приходов XLS", icon: FolderSync },
         ],

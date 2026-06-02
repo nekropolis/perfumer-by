@@ -134,7 +134,134 @@ php artisan catalog:vanille-brand dolce-i-gabbana preflight|collect|parse|run --
 php artisan catalog:vanille-sync brands|links|parse
 ```
 
-## 6) Частые проблемы
+## 6) Входящие звонки (Android → Reverb → CRM)
+
+Ручной перевод звонка в админку: менеджер на телефоне нажимает **«Открыть в CRM»** → открывается создание заказа с подставленным телефоном.
+
+```text
+Android (CallScreeningService, локально)
+  → POST /api/incoming-calls/send-to-crm  (device token)
+  → Laravel broadcast (SendToCrmEvent)
+  → Reverb WebSocket
+  → Next.js admin (Echo) → /admin/orders/create?phone=...
+```
+
+Подробнее про Android: [`android/incoming-call-bridge/README.md`](./android/incoming-call-bridge/README.md).
+
+### Переменные окружения
+
+**Ключи Reverb не «берутся» снаружи** — задаёте сами (или `php artisan install:broadcasting --reverb`).  
+`REVERB_APP_KEY` в backend и `NEXT_PUBLIC_REVERB_APP_KEY` во frontend **должны совпадать**.
+
+**Важно:** в `REVERB_HOST` / `NEXT_PUBLIC_REVERB_HOST` — **только hostname**, без `http://` и без порта.
+
+```env
+# backend/.env
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=local-app-id
+REVERB_APP_KEY=local-app-key
+REVERB_APP_SECRET=local-app-secret
+REVERB_HOST=perfumer.test
+REVERB_BROADCAST_HOST=127.0.0.1
+REVERB_PORT=8080
+REVERB_SCHEME=http
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=8080
+```
+
+```env
+# frontend/.env.local
+NEXT_PUBLIC_REVERB_APP_KEY=local-app-key
+NEXT_PUBLIC_REVERB_HOST=perfumer.test
+NEXT_PUBLIC_REVERB_PORT=8080
+NEXT_PUBLIC_REVERB_SCHEME=http
+```
+
+**Два разных host:** браузер подключается к `NEXT_PUBLIC_REVERB_HOST` (perfumer.test). Laravel при `broadcast()` стучится в Reverb по `REVERB_BROADCAST_HOST` — на **сервере** это почти всегда `127.0.0.1`, иначе `Could not resolve host: perfumer.test` в логах.
+
+Если админка открывается **с другого ПК**, в `NEXT_PUBLIC_REVERB_HOST` укажите IP/домен **сервера**, а не `localhost`.
+
+После смены env: `php artisan config:clear`, `sudo supervisorctl restart perfumer-reverb`, перезапуск frontend (pm2 / `npm run dev`).
+
+### Локальная разработка
+
+```bash
+cd backend
+composer install
+php artisan migrate
+
+# вариант 1 — всё сразу (serve + queue + reverb + vite)
+composer run dev
+
+# вариант 2 — только Reverb
+php artisan reverb:start
+```
+
+Frontend: `npm install` (нужны `laravel-echo`, `pusher-js`; в проекте есть `frontend/.npmrc` с `legacy-peer-deps=true`).
+
+### Сервер: Supervisor (Reverb)
+
+Шаблон: [`scripts/supervisor/perfumer-reverb.conf`](./scripts/supervisor/perfumer-reverb.conf)
+
+```bash
+sudo cp /var/www/perfumer-by/scripts/supervisor/perfumer-reverb.conf /etc/supervisor/conf.d/
+# проверьте путь к php: which php → command= в конфиге
+sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start perfumer-reverb
+sudo supervisorctl status perfumer-reverb
+```
+
+Ожидается: **`RUNNING`**, uptime растёт.
+
+Типичные проблемы supervisor (**BACKOFF**): см. [`scripts/supervisor/README.md`](./scripts/supervisor/README.md) (порт 8080 занят, нет `laravel/reverb`, права на `.env`/`storage`).
+
+### Проверка, что Reverb жив
+
+```bash
+ss -tlnp | grep 8080
+# LISTEN ... php ... :8080
+
+curl -i http://127.0.0.1:8080
+# HTTP/1.1 404 Not Found — это нормально (не HTTP-сайт, а WebSocket)
+```
+
+Лог supervisor:
+
+```bash
+sudo tail -30 /var/log/supervisor/perfumer-reverb.log
+# INFO  Starting server on 0.0.0.0:8080 ...
+```
+
+**Не запускайте второй** `php artisan reverb:start` в SSH, если уже работает supervisor — порт будет занят, новый процесс упадёт с BACKOFF.
+
+### Проверка в браузере
+
+1. Админка под менеджером (`admin` / `manager` / `ceo`).
+2. DevTools → Network → **WS**.
+3. URL вида `ws://perfumer.test:8080/app/local-app-key?...` → статус **101 Switching Protocols**.
+
+С машины разработчика: `perfumer.test` в `/etc/hosts` → IP сервера; при необходимости `sudo ufw allow 8080/tcp` (в LAN). На production лучше **wss через nginx** на 443, без открытия 8080 в интернет.
+
+### Устройства и API
+
+- Админка: **Система → Телефоны CRM** (`/admin/system/incoming-call-devices`) — токен на каждый телефон (показывается один раз).
+- API: `POST /api/incoming-calls/send-to-crm` с `Authorization: Bearer {device_token}`, body: `phone`, `trigger: manual`, `received_at`.
+
+Тест с сервера:
+
+```bash
+# С сервера: perfumer.test в DNS нет — укажите Host из nginx (grep server_name ...)
+# и только :80 (не :8000). Иначе придёт HTML страница Next/Laravel вместо JSON.
+curl -v -X POST "http://127.0.0.1/api/incoming-calls/send-to-crm" \
+  -H "Host: perfumer.test" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer DEVICE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"375291234567","trigger":"manual","received_at":1717160000}'
+```
+
+Ожидается JSON `{"success":true}`. Если в ответе `<!DOCTYPE html>` — запрос не попал в Laravel API (см. ниже).
+
+## 7) Частые проблемы
 
 ### Permission denied на `storage/.../vanille/products_*.json`
 
@@ -152,7 +279,7 @@ php artisan catalog:parse-vanille-products --offset=<n>
 make backend-clear
 ```
 
-## 7) Операционное (сервер 4 ГБ RAM)
+## 8) Операционное (сервер 4 ГБ RAM)
 
 ### Диагностика «всё зависло»
 
@@ -241,7 +368,7 @@ sudo swapon /swapfile2
 echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-## 8) Очередь импорта Vanille
+## 9) Очередь импорта Vanille
 
 ### Быстрая диагностика
 

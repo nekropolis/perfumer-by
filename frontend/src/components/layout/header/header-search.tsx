@@ -239,7 +239,9 @@ export default function HeaderSearch({
                                                     </div>
                                                 ) : null}
                                                 <div className="truncate text-sm font-medium text-[var(--foreground)]">
-                                                    {renderHighlightedText(title, searchQuery)}
+                                                    {renderHighlightedText(title, searchQuery, {
+                                                        brandName: item.brand_name,
+                                                    })}
                                                 </div>
                                                 <div className="truncate text-xs text-[var(--text-secondary)]">
                                                     {formatSearchPrice(item)}

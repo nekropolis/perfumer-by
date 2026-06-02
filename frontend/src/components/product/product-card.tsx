@@ -117,7 +117,7 @@ export default function ProductCard({ product, eager = false, variant = "catalog
     return (
         <Link
             href={`/product/${product.slug}`}
-            className="group relative flex flex-col rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)] active:scale-[0.98]"
+            className="group relative flex h-full min-w-0 flex-col rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)] active:scale-[0.98]"
         >
             <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[16px] bg-[var(--surface)]">
                 <ProductStatusLabels
@@ -199,7 +199,7 @@ export default function ProductCard({ product, eager = false, variant = "catalog
 
                 {showVariants &&
                     (visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0)) && (
-                        <div className="mt-2 flex flex-wrap items-center gap-1">
+                        <div className="mt-2 flex min-h-[22px] flex-wrap items-center gap-1">
                             {visibleVariants.map((label, i) => (
                                 <span
                                     key={`${label}-${i}`}
@@ -216,8 +216,8 @@ export default function ProductCard({ product, eager = false, variant = "catalog
                         </div>
                     )}
 
-                <div className="mt-4 flex items-end justify-between gap-2">
-                    <div className="min-w-0">
+                <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+                    <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-end gap-2">
                             <div className="text-lg font-semibold text-[var(--foreground)]">{formatPrice(product)}</div>
                             {oldPrice ? (
@@ -233,7 +233,7 @@ export default function ProductCard({ product, eager = false, variant = "catalog
 
                     <span
                         aria-hidden
-                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface-2)] text-[var(--accent)] transition-all duration-150 group-hover:border-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--background)] group-hover:translate-x-0.5"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface-2)] text-[var(--accent)] transition-all duration-150 group-hover:translate-x-0.5 group-hover:border-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--background)]"
                         title="Перейти к товару"
                     >
                         <svg

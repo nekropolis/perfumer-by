@@ -85,11 +85,12 @@ function normalizeVariants(value: unknown): ProductVariantData[] {
 
 const SIMILAR_GAP_PX = 12;
 
+/** Сколько карточек видно в «окне» карусели (остальные — горизонтальный скролл). */
 function similarVisibleColumns(): 2 | 3 | 4 {
     if (typeof window === "undefined") {
         return 2;
     }
-    if (window.matchMedia("(min-width: 1024px)").matches) {
+    if (window.matchMedia("(min-width: 1280px)").matches) {
         return 4;
     }
     if (window.matchMedia("(min-width: 768px)").matches) {
@@ -101,10 +102,10 @@ function similarVisibleColumns(): 2 | 3 | 4 {
 function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) {
     const scrollerId = useId();
     const scrollerRef = useRef<HTMLDivElement>(null);
+    const slidesRef = useRef<HTMLDivElement[]>([]);
     const [overflow, setOverflow] = useState(false);
     const [edge, setEdge] = useState({ left: false, right: false });
-    /** До первого измерения; useLayoutEffect сразу подставит ширину под число колонок. */
-    const [slideWidthPx, setSlideWidthPx] = useState(200);
+    const [slideWidthPx, setSlideWidthPx] = useState<number | null>(null);
 
     const syncScrollState = useCallback(() => {
         const el = scrollerRef.current;
@@ -127,12 +128,17 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
         }
         const cols = similarVisibleColumns();
         const w = el.clientWidth;
-        const slide = Math.floor((w - SIMILAR_GAP_PX * (cols - 1)) / cols);
-        setSlideWidthPx(Math.max(132, slide));
+        if (w <= 0) {
+            return;
+        }
+        const gaps = SIMILAR_GAP_PX * (cols - 1);
+        const slide = (w - gaps) / cols;
+        setSlideWidthPx(Math.max(148, slide));
         syncScrollState();
     }, [syncScrollState]);
 
     useLayoutEffect(() => {
+        slidesRef.current = [];
         measureSlides();
     }, [products, measureSlides]);
 
@@ -146,36 +152,53 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
         const ro = new ResizeObserver(() => measureSlides());
         ro.observe(el);
         const onMq = () => measureSlides();
-        const mql1024 = window.matchMedia("(min-width: 1024px)");
+        const mql1280 = window.matchMedia("(min-width: 1280px)");
         const mql768 = window.matchMedia("(min-width: 768px)");
-        mql1024.addEventListener("change", onMq);
+        mql1280.addEventListener("change", onMq);
         mql768.addEventListener("change", onMq);
         return () => {
             el.removeEventListener("scroll", syncScrollState);
             ro.disconnect();
-            mql1024.removeEventListener("change", onMq);
+            mql1280.removeEventListener("change", onMq);
             mql768.removeEventListener("change", onMq);
         };
     }, [products, syncScrollState, measureSlides]);
 
-    const scrollByViewport = useCallback(
-        (dir: -1 | 1) => {
-            const el = scrollerRef.current;
-            if (!el) {
+    const scrollByViewport = useCallback((dir: -1 | 1) => {
+        const el = scrollerRef.current;
+        const slides = slidesRef.current.filter(Boolean);
+        if (!el || slides.length === 0) {
+            return;
+        }
+
+        const cols = similarVisibleColumns();
+        const scrollLeft = el.scrollLeft;
+        const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+
+        let activeIndex = 0;
+        for (let i = 0; i < slides.length; i++) {
+            if (slides[i].offsetLeft <= scrollLeft + 4) {
+                activeIndex = i;
+            }
+        }
+
+        if (dir > 0) {
+            const nextIndex = activeIndex + cols;
+            if (nextIndex >= slides.length) {
+                el.scrollTo({ left: maxScroll, behavior: "smooth" });
                 return;
             }
-            const cols = similarVisibleColumns();
-            const step = cols * slideWidthPx + (cols - 1) * SIMILAR_GAP_PX;
-            el.scrollBy({ left: dir * step, behavior: "smooth" });
-        },
-        [slideWidthPx],
-    );
+            const targetLeft = Math.min(slides[nextIndex].offsetLeft, maxScroll);
+            el.scrollTo({ left: targetLeft, behavior: "smooth" });
+            return;
+        }
+
+        const prevIndex = Math.max(0, activeIndex - cols);
+        el.scrollTo({ left: slides[prevIndex].offsetLeft, behavior: "smooth" });
+    }, []);
 
     return (
-        <section
-            className="col-span-1 min-w-0 border-t border-[var(--line)] pt-10 md:col-span-2 xl:col-span-3"
-            aria-labelledby={scrollerId}
-        >
+        <section className="min-w-0 border-t border-[var(--line)] pt-10" aria-labelledby={scrollerId}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 id={scrollerId} className="text-lg font-semibold text-[var(--foreground)]">
                     Похожие товары
@@ -219,14 +242,29 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
                             scrollByViewport(1);
                         }
                     }}
-                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
+                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${slideWidthPx === null ? "invisible" : ""}`}
                 >
-                    <div className="mt-2 flex w-max snap-x snap-mandatory gap-3">
-                        {products.map((item) => (
+                    <div className="flex w-max items-start gap-3">
+                        {products.map((item, index) => (
                             <div
                                 key={item.id}
-                                className="min-w-0 shrink-0 snap-start"
-                                style={{ width: slideWidthPx, flex: "0 0 auto" }}
+                                ref={(node) => {
+                                    if (node) {
+                                        slidesRef.current[index] = node;
+                                    }
+                                }}
+                                data-similar-slide
+                                className="shrink-0"
+                                style={
+                                    slideWidthPx !== null
+                                        ? {
+                                              width: slideWidthPx,
+                                              flexBasis: slideWidthPx,
+                                              flexGrow: 0,
+                                              flexShrink: 0,
+                                          }
+                                        : undefined
+                                }
                             >
                                 <ProductCard product={item} />
                             </div>
@@ -427,7 +465,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
-                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--image-plate)] p-2 shadow-sm sm:p-3">
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-white p-2 shadow-sm sm:p-3">
                         <ProductStatusLabels
                             isNew={Boolean(product.is_new)}
                             isHit={Boolean(product.is_hit)}

@@ -29,6 +29,14 @@ class ProductController extends Controller
     private const int SMART_SEARCH_MAX_LIMIT = 30;
     /** Товары с опечаткой в запросе (1 буква в слове) — после точных, не более 5. */
     private const int SMART_SEARCH_TYPO_EXTRA_LIMIT = 5;
+    private const int SMART_SEARCH_MATCH_EXACT = 0;
+    /** Слова запроса подряд в названии: «Azzaro Night …». */
+    private const int SMART_SEARCH_MATCH_CONSECUTIVE = 1;
+    /** Слова запроса по порядку, не обязательно рядом: «Azzaro … Night». */
+    private const int SMART_SEARCH_MATCH_SEQUENTIAL = 2;
+    /** Все слова запроса в названии, порядок любой. */
+    private const int SMART_SEARCH_MATCH_SCATTERED = 3;
+    private const int SMART_SEARCH_MATCH_TYPO = 4;
     private const array VOLUME_BUCKETS = [
         ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
         ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
@@ -518,6 +526,10 @@ class ProductController extends Controller
             );
         }
 
+        if (count($tokens) >= 2) {
+            $pool = $this->mergeSmartSearchPoolForAllTokens($pool, $baseProductQuery, $tokens);
+        }
+
         if ($codeOrSkuBoostIds !== []) {
             $existing = $pool->pluck('id')->all();
             $missingIds = array_values(array_diff($codeOrSkuBoostIds, $existing));
@@ -624,21 +636,23 @@ class ProductController extends Controller
                 $bestScore = max($bestScore, 1.0);
             }
 
-            $isExactMatch = $isCodeBoost
-                || $this->smartSearchProductIsExactMatch($normalizedQuery, $tokens, $normalizedName, $normalizedBrand)
-                || ($typoCorrectedQuery !== null
-                    && $this->smartSearchProductIsExactMatch($typoCorrectedQuery, array_values(array_filter(explode(' ', $typoCorrectedQuery))), $normalizedName, $normalizedBrand));
+            $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
+            $matchTier = $this->smartSearchResolveProductMatchTier(
+                $normalizedQuery,
+                $tokens,
+                $normalizedDisplay,
+                $typoCorrectedQuery,
+                $isCodeBoost,
+            );
             $typoPhrase = null;
-            $isTypoMatch = false;
-            if (!$isExactMatch) {
-                $typoPhrase = $this->smartSearchExtractTypoPhrase(
-                    $normalizedQuery,
-                    trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName),
-                );
-                $isTypoMatch = $typoPhrase !== null;
+            if ($matchTier === null && $typoCorrectedQuery === null) {
+                $typoPhrase = $this->smartSearchExtractTypoPhrase($normalizedQuery, $normalizedDisplay);
+                if ($typoPhrase !== null) {
+                    $matchTier = self::SMART_SEARCH_MATCH_TYPO;
+                }
             }
 
-            if (!$isExactMatch && !$isTypoMatch) {
+            if ($matchTier === null) {
                 return null;
             }
 
@@ -676,7 +690,7 @@ class ProductController extends Controller
                 'variant_labels' => $variantTitles->values()->all(),
                 'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
                 '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
-                '_match_tier' => $isExactMatch ? 0 : 1,
+                '_match_tier' => $matchTier,
                 '_typo_phrase' => $typoPhrase,
                 'score' => round($bestScore, 6),
             ];
@@ -685,17 +699,22 @@ class ProductController extends Controller
             ->filter();
 
         $sortRanked = static fn ($items) => $items->sortBy([
+            ['_match_tier', 'asc'],
             ['score', 'desc'],
             ['_availability_rank', 'desc'],
         ])->values();
 
-        $exactProducts = $sortRanked($rankedProducts->filter(static fn (array $item): bool => ($item['_match_tier'] ?? 1) === 0));
+        $sorted = $sortRanked($rankedProducts);
+        $nonTypo = $sorted->filter(
+            static fn (array $item): bool => (int) ($item['_match_tier'] ?? self::SMART_SEARCH_MATCH_TYPO) < self::SMART_SEARCH_MATCH_TYPO,
+        );
         $typoProducts = $typoCorrectedQuery !== null
             ? collect()
-            : $sortRanked($rankedProducts->filter(static fn (array $item): bool => ($item['_match_tier'] ?? 0) === 1))
-                ->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+            : $sorted->filter(
+                static fn (array $item): bool => (int) ($item['_match_tier'] ?? 0) === self::SMART_SEARCH_MATCH_TYPO,
+            )->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
 
-        $rankedProducts = $exactProducts
+        $rankedProducts = $nonTypo
             ->concat($typoProducts)
             ->take($limit)
             ->values()
@@ -1098,19 +1117,29 @@ class ProductController extends Controller
         )));
     }
 
-    private function smartSearchProductIsExactMatch(
+    /**
+     * @param  list<string>  $tokens
+     */
+    private function smartSearchResolveProductMatchTier(
         string $normalizedQuery,
         array $tokens,
-        string $normalizedName,
-        string $normalizedBrand,
-    ): bool {
-        if ($normalizedQuery === '') {
-            return false;
+        string $normalizedDisplay,
+        ?string $typoCorrectedQuery,
+        bool $isCodeBoost,
+    ): ?int {
+        if ($isCodeBoost) {
+            return self::SMART_SEARCH_MATCH_EXACT;
         }
 
-        $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
-        if ($normalizedDisplay !== '' && str_contains($normalizedDisplay, $normalizedQuery)) {
-            return true;
+        if ($normalizedDisplay === '' || $normalizedQuery === '') {
+            return null;
+        }
+
+        if (
+            ($typoCorrectedQuery !== null && str_contains($normalizedDisplay, $typoCorrectedQuery))
+            || str_contains($normalizedDisplay, $normalizedQuery)
+        ) {
+            return self::SMART_SEARCH_MATCH_EXACT;
         }
 
         $significantTokens = array_values(array_filter(
@@ -1118,14 +1147,126 @@ class ProductController extends Controller
             static fn (string $token): bool => mb_strlen($token, 'UTF-8') >= 2
         ));
         if ($significantTokens === []) {
+            return null;
+        }
+
+        if (count($significantTokens) === 1) {
+            return $this->matchesAllTokensAsWords($normalizedDisplay, $significantTokens)
+                ? self::SMART_SEARCH_MATCH_EXACT
+                : null;
+        }
+
+        if ($this->smartSearchTokensMatchConsecutive($significantTokens, $normalizedDisplay)) {
+            return self::SMART_SEARCH_MATCH_CONSECUTIVE;
+        }
+
+        if ($this->smartSearchTokensMatchInOrder($significantTokens, $normalizedDisplay)) {
+            return self::SMART_SEARCH_MATCH_SEQUENTIAL;
+        }
+
+        if ($this->matchesAllTokensAsWords($normalizedDisplay, $significantTokens)) {
+            return self::SMART_SEARCH_MATCH_SCATTERED;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<string>  $tokens
+     * @return list<string>
+     */
+    private function smartSearchDisplayWords(string $normalizedDisplay): array
+    {
+        return array_values(array_filter(explode(' ', $normalizedDisplay)));
+    }
+
+    /**
+     * Слова запроса подряд в названии.
+     *
+     * @param  list<string>  $tokens
+     */
+    private function smartSearchTokensMatchConsecutive(array $tokens, string $normalizedDisplay): bool
+    {
+        $displayWords = $this->smartSearchDisplayWords($normalizedDisplay);
+        $count = count($tokens);
+        if ($count === 0 || count($displayWords) < $count) {
             return false;
         }
 
-        if (count($significantTokens) >= 2) {
+        for ($i = 0; $i <= count($displayWords) - $count; $i++) {
+            if (array_slice($displayWords, $i, $count) === $tokens) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Слова запроса в том же порядке, между ними могут быть другие слова.
+     *
+     * @param  list<string>  $tokens
+     */
+    private function smartSearchTokensMatchInOrder(array $tokens, string $normalizedDisplay): bool
+    {
+        $displayWords = $this->smartSearchDisplayWords($normalizedDisplay);
+        if ($displayWords === []) {
             return false;
         }
 
-        return $this->matchesAllTokensAsWords($normalizedName, $significantTokens);
+        $tokenIndex = 0;
+        foreach ($displayWords as $word) {
+            if ($word !== $tokens[$tokenIndex]) {
+                continue;
+            }
+            $tokenIndex++;
+            if ($tokenIndex >= count($tokens)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $pool
+     * @param  list<string>  $tokens
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function mergeSmartSearchPoolForAllTokens(
+        $pool,
+        Builder $baseProductQuery,
+        array $tokens,
+    ) {
+        $significantTokens = array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => mb_strlen($token, 'UTF-8') >= 2
+        ));
+        if (count($significantTokens) < 2) {
+            return $pool;
+        }
+
+        $columns = ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+        $tokenPoolQuery = clone $baseProductQuery;
+        foreach ($significantTokens as $token) {
+            $like = '%'.$this->escapeLikeValue($token).'%';
+            $tokenPoolQuery->where(function (Builder $q) use ($like): void {
+                $q->where('name', 'like', $like)
+                    ->orWhere('slug', 'like', $like)
+                    ->orWhereHas('brand', function ($bq) use ($like): void {
+                        $bq->where('name', 'like', $like)
+                            ->orWhere('slug', 'like', $like);
+                    });
+                $this->orWhereBrandPlusProductNameLike($q, $like);
+            });
+        }
+
+        $tokenPool = $tokenPoolQuery
+            ->orderByDesc('id')
+            ->limit(self::SMART_SEARCH_POOL_LIMIT)
+            ->get($columns);
+
+        return $pool->concat($tokenPool)->unique('id')->values();
     }
 
     /**

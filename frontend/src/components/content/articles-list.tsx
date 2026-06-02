@@ -18,15 +18,15 @@ export default async function ArticlesList({ limit = 6 }: { limit?: number }) {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {items.map((item) => (
-                    <article key={item.id} className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] transition hover:border-[var(--accent-soft)]">
+                    <article key={item.id} className="flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] transition hover:border-[var(--accent-soft)]">
                         {item.cover_image ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={item.cover_image} alt={item.title} className="h-44 w-full object-cover" />
+                            <img src={item.cover_image} alt={item.title} className="h-44 w-full shrink-0 object-cover" />
                         ) : null}
-                        <div className="space-y-2 p-4">
+                        <div className="flex flex-1 flex-col gap-2 p-4">
                             <h3 className="line-clamp-2 text-base font-semibold text-[var(--foreground)]">{item.title}</h3>
                             <p className="line-clamp-3 text-sm text-[var(--text-secondary)]">{item.excerpt || "—"}</p>
-                            <div className="flex items-center justify-between pt-1 text-sm">
+                            <div className="mt-auto flex items-center justify-between pt-2 text-sm">
                                 <span className="text-[var(--text-secondary)]">{formatDate(item.created_at)}</span>
                                 <Link
                                     href={`/${encodeURIComponent(item.slug || String(item.id))}`}

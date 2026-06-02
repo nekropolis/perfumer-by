@@ -113,6 +113,19 @@ pm2 save
 - `NEXT_PUBLIC_API_URL` — базовый URL backend API
 - `NEXT_ALLOWED_DEV_ORIGINS` — список origins для dev/HMR (через запятую)
 - `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` — site key для Google reCAPTCHA v3
+- `NEXT_PUBLIC_REVERB_APP_KEY` — совпадает с `REVERB_APP_KEY` (см. Reverb ниже)
+- `NEXT_PUBLIC_REVERB_HOST` — hostname **без** `http://` (например `perfumer.test`)
+- `NEXT_PUBLIC_REVERB_PORT` — обычно `8080`
+- `NEXT_PUBLIC_REVERB_SCHEME` — `http` или `https`
+
+### Reverb (WebSocket для входящих звонков в CRM)
+
+- `BROADCAST_CONNECTION=reverb`
+- `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` — произвольные строки для своего сервера (не Pusher Cloud)
+- `REVERB_HOST` — hostname **без** протокола (`perfumer.test`, не `http://perfumer.test`)
+- `REVERB_PORT`, `REVERB_SCHEME`, `REVERB_SERVER_HOST`, `REVERB_SERVER_PORT`
+
+Полная инструкция: [`README-dev.md` §6 — Входящие звонки](./README-dev.md#6-входящие-звонки-android--reverb--crm), supervisor: [`scripts/supervisor/README.md`](./scripts/supervisor/README.md).
 
 ---
 
