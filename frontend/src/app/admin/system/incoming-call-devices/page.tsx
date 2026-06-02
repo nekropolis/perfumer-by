@@ -248,7 +248,7 @@ export default function AdminIncomingCallDevicesPage() {
             ) : null}
 
             {loading ? (
-                <AdminLoadingState label="Загрузка устройств..." />
+                <AdminLoadingState text="Загрузка устройств..." />
             ) : devices.length === 0 ? (
                 <AdminEmptyState title="Устройств пока нет" />
             ) : (
