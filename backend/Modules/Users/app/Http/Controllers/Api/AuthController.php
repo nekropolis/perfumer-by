@@ -55,7 +55,7 @@ class AuthController extends Controller
             'fallback_used' => $delivery['fallbackUsed'],
         ];
 
-        if (app()->isLocal() || $delivery['channel'] === 'manual') {
+        if ($this->shouldExposeDevCredentials($delivery)) {
             $payload['dev_code'] = $code;
         }
 
@@ -307,7 +307,7 @@ class AuthController extends Controller
                 'phone' => $phone,
             ];
 
-            if (app()->isLocal()) {
+            if ($this->shouldExposeDevCredentials()) {
                 $payload['dev_code'] = (string) $pending->code;
             }
 
@@ -345,7 +345,7 @@ class AuthController extends Controller
             'phone' => $phone,
         ];
 
-        if (app()->isLocal() || $delivery['channel'] === 'manual') {
+        if ($this->shouldExposeDevCredentials($delivery)) {
             $payload['dev_code'] = $code;
         }
 
@@ -454,7 +454,7 @@ class AuthController extends Controller
             'phone' => $phone,
         ];
 
-        if (app()->isLocal() || ($delivery['channel'] ?? '') === 'manual') {
+        if ($this->shouldExposeDevCredentials($delivery)) {
             $payload['dev_password'] = $newPassword;
         }
 
@@ -509,7 +509,7 @@ class AuthController extends Controller
             'phone' => $phone,
         ];
 
-        if (app()->isLocal() || $delivery['channel'] === 'manual') {
+        if ($this->shouldExposeDevCredentials($delivery)) {
             $payload['dev_code'] = $code;
         }
 
@@ -848,6 +848,25 @@ class AuthController extends Controller
      *   fallbackUsed: bool
      * }
      */
+    /**
+     * Показывать OTP/пароль в ответе API (для UI) на local и при mock/manual доставке (staging).
+     *
+     * @param array{channel?: string}|null $delivery
+     */
+    protected function shouldExposeDevCredentials(?array $delivery = null): bool
+    {
+        if (app()->isLocal()) {
+            return true;
+        }
+
+        if ($delivery !== null && ($delivery['channel'] ?? '') === 'manual') {
+            return true;
+        }
+
+        return config('communications.sms.driver') === 'mock'
+            || config('communications.viber.driver') === 'mock';
+    }
+
     protected function deliverOtp(string $phone, string $code): array
     {
         return $this->deliverText($phone, "Код подтверждения: {$code}. Никому не сообщайте этот код.");
