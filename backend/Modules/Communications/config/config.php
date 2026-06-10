@@ -33,4 +33,17 @@ return [
         'chat_id' => env('TELEGRAM_CHAT_ID'),
         'timeout' => (int) env('TELEGRAM_TIMEOUT', 10),
     ],
+
+    'server_monitor' => [
+        'enabled' => env('SERVER_MONITOR_ENABLED', true),
+        'log_tail_lines' => (int) env('SERVER_MONITOR_LOG_TAIL_LINES', 100),
+        'mem_warn_mb' => (int) env('SERVER_MONITOR_MEM_WARN_MB', 250),
+        'mem_critical_mb' => (int) env('SERVER_MONITOR_MEM_CRITICAL_MB', 120),
+        'disk_warn_percent' => (int) env('SERVER_MONITOR_DISK_WARN_PERCENT', 85),
+        'disk_critical_percent' => (int) env('SERVER_MONITOR_DISK_CRITICAL_PERCENT', 95),
+        'queue_name' => env('SERVER_MONITOR_QUEUE_NAME', 'default'),
+        'queue_warn_size' => (int) env('SERVER_MONITOR_QUEUE_WARN_SIZE', 100),
+        'pm2_process' => env('SERVER_MONITOR_PM2_PROCESS', 'frontend-staging'),
+        'supervisor_program' => env('SERVER_MONITOR_SUPERVISOR_PROGRAM', 'perfumer-queue'),
+    ],
 ];
