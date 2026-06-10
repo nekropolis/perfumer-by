@@ -4,6 +4,7 @@ import {
     buildDefinitionSearchFromHint,
     formatVariantOptionLabel,
     getConfidenceBadgeClass,
+    getDefinitionMatchFlags,
     getVariantMatchFlags,
     getVariantMatchRowClass,
     isFullVariantMatch,
@@ -136,8 +137,8 @@ export function ManualLinkModal({
     });
 
     const sortedDefinitions = [...manualLink.definitions].sort((a, b) => {
-        const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
-        const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
+        const scoreA = getDefinitionMatchFlags(a, manualLink.sourceHint).score;
+        const scoreB = getDefinitionMatchFlags(b, manualLink.sourceHint).score;
         return scoreB - scoreA || a.id - b.id;
     });
 
@@ -343,18 +344,7 @@ export function ManualLinkModal({
                                 {sortedDefinitions.length > 0 ? (
                                     <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
                                         {sortedDefinitions.map((def: VariantDefinitionItem) => {
-                                            const flags = getVariantMatchFlags(
-                                                {
-                                                    volume: def.volume_ml,
-                                                    concentration: def.concentration_code,
-                                                    definition: {
-                                                        volume_ml: def.volume_ml,
-                                                        concentration_code: def.concentration_code,
-                                                        is_tester: def.is_tester,
-                                                    },
-                                                },
-                                                manualLink.sourceHint,
-                                            );
+                                            const flags = getDefinitionMatchFlags(def, manualLink.sourceHint);
 
                                             return (
                                                 <button

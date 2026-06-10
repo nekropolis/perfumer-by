@@ -1,5 +1,5 @@
 import type { ProductAdminItem } from "@/lib/admin-products-api";
-import type { AdminProductVariantItem } from "@/lib/admin-product-variants-api";
+import type { AdminProductVariantItem, VariantDefinitionItem } from "@/lib/admin-product-variants-api";
 import type { SellerOneSupplierProductItem } from "@/types/Vanille";
 
 export function formatVariantOptionLabel(variant: AdminProductVariantItem): string {
@@ -195,6 +195,24 @@ export function getVariantMatchFlags(
     const score = (volume ? 70 : 0) + (concentration ? 30 : 0) + (tester ? 20 : 0);
 
     return { volume, concentration, tester, score };
+}
+
+export function getDefinitionMatchFlags(
+    definition: VariantDefinitionItem,
+    hint: SupplierVariantHint,
+): VariantMatchFlags {
+    return getVariantMatchFlags(
+        {
+            volume: definition.volume_ml,
+            concentration: definition.concentration_code,
+            definition: {
+                volume_ml: definition.volume_ml,
+                concentration_code: definition.concentration_code,
+                is_tester: definition.is_tester,
+            },
+        },
+        hint,
+    );
 }
 
 export function isFullVariantMatch(flags: VariantMatchFlags): boolean {
