@@ -46,7 +46,12 @@ import {
     SELLER_ONE_FILE_ACCEPT,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
 } from "@/components/admin/import-export/seller-one/constants";
-import { buildInitialSearchFromRow, isExactProductNameMatch } from "@/components/admin/import-export/seller-one/utils";
+import {
+    buildDefinitionSearchFromHint,
+    buildInitialSearchFromRow,
+    getVariantMatchFlags,
+    isExactProductNameMatch,
+} from "@/components/admin/import-export/seller-one/utils";
 import { type ManualLinkState } from "@/components/admin/import-export/seller-one/types";
 import {
     AlertMessage,
@@ -65,6 +70,8 @@ type ManualLinkSearchHostProps = {
     attachDefinitionFromDictionary: (definitionId: number) => Promise<void>;
     linkingRowId: number | null;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
+    onPickVariantAction: (variantId: number) => void;
+    onPickProductVariantAction: (productId: number, variantId: number) => Promise<void>;
 };
 
 function ManualLinkSearchHost({
@@ -75,6 +82,8 @@ function ManualLinkSearchHost({
     attachDefinitionFromDictionary,
     linkingRowId,
     onConfirmAction,
+    onPickVariantAction,
+    onPickProductVariantAction,
 }: ManualLinkSearchHostProps) {
     const debouncedProductSearch = useDebouncedValue(manualLink.productSearch, SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS);
     const debouncedDefinitionSearch = useDebouncedValue(manualLink.definitionSearch, SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS);
@@ -112,10 +121,46 @@ function ManualLinkSearchHost({
                         ...prev,
                         products,
                         productsLoading: false,
+                        previewVariantsByProductId: {},
+                        previewVariantsLoading: products.length > 0,
                         selectedProductId: keepProduct ? prev.selectedProductId : null,
                         selectedVariantId: keepProduct ? prev.selectedVariantId : null,
                         variants: keepProduct ? prev.variants : [],
                         variantsLoading: keepProduct ? prev.variantsLoading : false,
+                    };
+                });
+
+                if (products.length === 0) {
+                    return;
+                }
+
+                const previewIds = products.slice(0, 12).map((product) => product.id);
+                const previewEntries = await Promise.all(
+                    previewIds.map(async (productId) => {
+                        try {
+                            const res = await fetchProductVariants(productId);
+                            return [productId, res.data || []] as const;
+                        } catch {
+                            return [productId, []] as const;
+                        }
+                    }),
+                );
+
+                if (cancelled) {
+                    return;
+                }
+
+                const previewVariantsByProductId = Object.fromEntries(previewEntries);
+
+                setManualLink((prev) => {
+                    if (!prev || prev.rowId !== rowId) {
+                        return prev;
+                    }
+
+                    return {
+                        ...prev,
+                        previewVariantsByProductId,
+                        previewVariantsLoading: false,
                     };
                 });
             } catch (e: unknown) {
@@ -188,6 +233,8 @@ function ManualLinkSearchHost({
             setManualLink={setManualLink}
             onCloseAction={() => setManualLink(null)}
             onPickProductAction={loadManualVariants}
+            onPickVariantAction={onPickVariantAction}
+            onPickProductVariantAction={onPickProductVariantAction}
             onPickDefinitionAction={attachDefinitionFromDictionary}
             onConfirmAction={onConfirmAction}
         />
@@ -595,6 +642,8 @@ export default function SellerOneImportPage() {
             },
             products: [],
             productsLoading: false,
+            previewVariantsByProductId: {},
+            previewVariantsLoading: false,
             selectedProductId: null,
             variants: [],
             variantsLoading: false,
@@ -604,6 +653,14 @@ export default function SellerOneImportPage() {
             definitionsLoading: false,
             attachingDefinition: false,
         });
+    };
+
+    const pickManualVariant = (variantId: number) => {
+        setManualLink((prev) => (prev ? { ...prev, selectedVariantId: variantId } : prev));
+    };
+
+    const pickProductVariant = async (productId: number, variantId: number) => {
+        await loadManualVariants(productId, variantId);
     };
 
     const loadManualVariants = async (productId: number, preferVariantId?: number) => {
@@ -616,7 +673,7 @@ export default function SellerOneImportPage() {
                     selectedVariantId: null,
                     variantsLoading: true,
                     definitions: [],
-                    definitionSearch: "",
+                    definitionSearch: buildDefinitionSearchFromHint(prev.sourceHint),
                     definitionsLoading: false,
                 }
                 : prev
@@ -629,29 +686,11 @@ export default function SellerOneImportPage() {
                     return prev;
                 }
 
-                const normalizedHintConcentration = (prev.sourceHint.concentration || "").trim().toLowerCase();
-                const hintVolume = prev.sourceHint.volume;
-
                 let bestVariantId: number | null = null;
                 let bestScore = -1;
 
                 for (const variant of variants) {
-                    let score = 0;
-                    const variantVolume = variant.volume != null ? Number(variant.volume) : null;
-                    const variantConcentration = (variant.concentration || "").trim().toLowerCase();
-
-                    if (
-                        hintVolume != null &&
-                        variantVolume != null &&
-                        Math.abs(variantVolume - hintVolume) <= 0.01
-                    ) {
-                        score += 70;
-                    }
-
-                    if (normalizedHintConcentration && variantConcentration === normalizedHintConcentration) {
-                        score += 30;
-                    }
-
+                    const { score } = getVariantMatchFlags(variant, prev.sourceHint);
                     if (score > bestScore) {
                         bestScore = score;
                         bestVariantId = variant.id;
@@ -1107,6 +1146,8 @@ export default function SellerOneImportPage() {
                         attachDefinitionFromDictionary={attachDefinitionFromDictionary}
                         linkingRowId={linkingRowId}
                         onConfirmAction={doForceLink}
+                        onPickVariantAction={pickManualVariant}
+                        onPickProductVariantAction={pickProductVariant}
                     />
                 ) : null}
 

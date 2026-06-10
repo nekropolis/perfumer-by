@@ -118,7 +118,11 @@ function extractMlSearch(query: string): string | undefined {
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
     const hasStock = Number(item.main_available_stock ?? 0) > 0;
-    const hasSupplier = Number(item.active_supplier_offers_count ?? 0) > 0;
+    const storefrontAvailable = Boolean(item.is_available);
+    const hasSupplier =
+        storefrontAvailable &&
+        !hasStock &&
+        Number(item.active_supplier_offers_count ?? 0) > 0;
     const hasPreorder = Boolean(item.is_preorder);
     const onListingSwitch = Boolean(item.is_active);
 
@@ -522,8 +526,11 @@ export default function ProductVariantsEditor({
                                                 : "—"}
                                         </div>
 
-                                        <div className="text-sm text-admin-text-secondary whitespace-nowrap">
-                                            {item.main_available_stock ?? 0} шт.
+                                        <div
+                                            className="text-sm text-admin-text-secondary whitespace-nowrap"
+                                            title={item.fulfillment_tooltip?.trim() || undefined}
+                                        >
+                                            {item.available_stock ?? item.main_available_stock ?? 0} шт.
                                         </div>
                                     </div>
 

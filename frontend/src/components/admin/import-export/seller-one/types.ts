@@ -16,6 +16,9 @@ export type ManualLinkState = {
     };
     products: ProductAdminItem[];
     productsLoading: boolean;
+    /** Варианты для карточек в результатах поиска товара (product_id → variants). */
+    previewVariantsByProductId: Record<number, AdminProductVariantItem[]>;
+    previewVariantsLoading: boolean;
     selectedProductId: number | null;
     variants: AdminProductVariantItem[];
     variantsLoading: boolean;

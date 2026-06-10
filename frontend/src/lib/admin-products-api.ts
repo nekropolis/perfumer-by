@@ -52,7 +52,8 @@ export type ProductBrandOption = {
 export type ProductSmartSearchVariantPreview = {
     id?: number;
     title: string;
-    availability: string;
+    /** Канал отгрузки (ProductVariantResource::adminFulfillmentTooltip на бэке). */
+    fulfillment_tooltip: string;
     available_stock: number;
     is_available: boolean;
     is_preorder: boolean;
@@ -80,7 +81,7 @@ export function flattenProductSmartSearchHits(hits: ProductSmartSearchItem[]): P
             ? hit.variants_preview
             : (hit.variant_titles ?? []).map((title): ProductSmartSearchVariantPreview => ({
                   title,
-                  availability: "",
+                  fulfillment_tooltip: "",
                   available_stock: 0,
                   is_available: false,
                   is_preorder: false,
@@ -103,7 +104,7 @@ export function flattenProductSmartSearchHits(hits: ProductSmartSearchItem[]): P
 }
 
 export function productSmartSearchAvailabilityLabel(variant: ProductSmartSearchVariantPreview): string {
-    const tip = variant.availability?.trim();
+    const tip = variant.fulfillment_tooltip?.trim();
     if (tip) return tip;
     if (variant.is_preorder) return "предзаказ";
     if (variant.is_available) return "в наличии";
@@ -130,7 +131,7 @@ export type ProductSmartSearchItem = {
     name: string;
     brand_name: string | null;
     variant_titles: string[];
-    /** До 5 вариантов: название + канал наличия (см. ProductAdminController smartSearch). */
+    /** До 5 вариантов: название + канал отгрузки (см. CatalogProductLinkSearchService). */
     variants_preview?: ProductSmartSearchVariantPreview[];
     score: number;
 };
@@ -232,6 +233,10 @@ export type ProductVariantSupplierItem = {
     is_preorder?: boolean;
     site_price?: number | string | null;
     stock: number;
+    /** Как на витрине (CatalogVariantStockPresenter::forListing). */
+    available_stock?: number;
+    is_available?: boolean;
+    fulfillment_tooltip?: string;
     warehouses: Array<{
         warehouse_name: string | null;
         stock: number;

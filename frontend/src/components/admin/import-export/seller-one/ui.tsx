@@ -1,6 +1,14 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { SellerOneMatchRule, SellerOnePricingSettings } from "@/types/Vanille";
-import { getConfidenceBadgeClass, formatVariantOptionLabel } from "./utils";
+import {
+    buildDefinitionSearchFromHint,
+    formatVariantOptionLabel,
+    getConfidenceBadgeClass,
+    getVariantMatchFlags,
+    getVariantMatchRowClass,
+    isFullVariantMatch,
+    type VariantMatchFlags,
+} from "./utils";
 import type { VariantDefinitionItem } from "@/lib/admin-product-variants-api";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
 import type { ManualLinkState } from "./types";
@@ -43,6 +51,41 @@ export function SuccessMessage({
     );
 }
 
+function VariantMatchBadges({
+    flags,
+    inverted = false,
+}: {
+    flags: VariantMatchFlags;
+    inverted?: boolean;
+}) {
+    const okClass = inverted ? "bg-white/20 text-white" : "bg-green-100 text-green-700";
+    const missClass = inverted ? "bg-white/10 text-white/70" : "bg-gray-100 text-gray-500";
+    const partialClass = inverted ? "bg-white/15 text-white" : "bg-amber-100 text-amber-800";
+
+    const badge = (label: string, matched: boolean) => (
+        <span
+            key={label}
+            className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${matched ? okClass : missClass}`}
+        >
+            {label}
+            {matched ? " ✓" : ""}
+        </span>
+    );
+
+    return (
+        <div className="mt-1 flex flex-wrap gap-1">
+            {badge("Объём", flags.volume)}
+            {badge("Конц.", flags.concentration)}
+            {badge("Тестер", flags.tester)}
+            {isFullVariantMatch(flags) ? (
+                <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${partialClass}`}>
+                    Полное совпадение
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
 export function ConfidenceBadge({
     label,
     confidence,
@@ -63,6 +106,8 @@ export function ManualLinkModal({
     setManualLink,
     onCloseAction,
     onPickProductAction,
+    onPickVariantAction,
+    onPickProductVariantAction,
     onPickDefinitionAction,
     onConfirmAction,
 }: {
@@ -71,9 +116,31 @@ export function ManualLinkModal({
     setManualLink: Dispatch<SetStateAction<ManualLinkState | null>>;
     onCloseAction: () => void;
     onPickProductAction: (productId: number) => Promise<void>;
+    onPickVariantAction: (variantId: number) => void;
+    onPickProductVariantAction: (productId: number, variantId: number) => Promise<void>;
     onPickDefinitionAction: (definitionId: number) => Promise<void>;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
 }) {
+    const sortedProducts = [...manualLink.products].sort((a, b) => {
+        const variantsA = manualLink.previewVariantsByProductId[a.id] || [];
+        const variantsB = manualLink.previewVariantsByProductId[b.id] || [];
+        const bestA = Math.max(0, ...variantsA.map((v) => getVariantMatchFlags(v, manualLink.sourceHint).score));
+        const bestB = Math.max(0, ...variantsB.map((v) => getVariantMatchFlags(v, manualLink.sourceHint).score));
+        return bestB - bestA || a.name.localeCompare(b.name);
+    });
+
+    const sortedVariants = [...manualLink.variants].sort((a, b) => {
+        const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
+        const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
+        return scoreB - scoreA || a.id - b.id;
+    });
+
+    const sortedDefinitions = [...manualLink.definitions].sort((a, b) => {
+        const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
+        const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
+        return scoreB - scoreA || a.id - b.id;
+    });
+
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
@@ -109,29 +176,82 @@ export function ManualLinkModal({
                                 названия).
                             </div>
                         ) : null}
-                        {manualLink.products.length > 0 && !manualLink.selectedProductId ? (
-                            <>
-                                <div className="text-xs font-medium text-admin-text">Формулировка (поиск по мере ввода,
-                                    нажми строку — добавится к товару)</div>
-                                <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
-                                    {manualLink.products.map((product: ProductAdminItem) => {
-                                        const active = manualLink.selectedProductId === product.id;
+                        {manualLink.products.length > 0 ? (
+                            <div className="space-y-2 rounded-xl border bg-white p-3">
+                                <div className="text-xs font-medium text-admin-text">
+                                    Найденные товары
+                                    {manualLink.previewVariantsLoading ? " (загрузка вариантов…)" : ""}
+                                </div>
+                                {(manualLink.sourceHint.volume || manualLink.sourceHint.concentration) ? (
+                                    <div className="text-[11px] text-admin-text-secondary">
+                                        Из прайса:{" "}
+                                        {manualLink.sourceHint.volume != null ? `${manualLink.sourceHint.volume} ml` : "—"}
+                                        {manualLink.sourceHint.concentration
+                                            ? ` / ${manualLink.sourceHint.concentration.toUpperCase()}`
+                                            : ""}
+                                        {manualLink.sourceHint.isTester ? " / TESTER" : ""}
+                                    </div>
+                                ) : null}
+                                <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border bg-white p-1">
+                                    {sortedProducts.map((product: ProductAdminItem) => {
+                                        const productSelected = manualLink.selectedProductId === product.id;
+                                        const previewVariants = [
+                                            ...(manualLink.previewVariantsByProductId[product.id] || []),
+                                        ].sort((a, b) => {
+                                            const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
+                                            const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
+                                            return scoreB - scoreA || a.id - b.id;
+                                        });
+
                                         return (
-                                            <button
+                                            <div
                                                 key={product.id}
-                                                type="button"
-                                                onClick={() => void onPickProductAction(product.id)}
-                                                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? "bg-admin-primary text-white" : "hover:bg-admin-muted"
-                                                    }`}
+                                                className={`rounded-lg border p-2 ${productSelected ? "border-admin-primary bg-admin-muted/40" : "border-admin-border"}`}
                                             >
-                                                {product.brand?.name
-                                                    ? `${product.brand.name} ${product.name}`.trim()
-                                                    : product.name}
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void onPickProductAction(product.id)}
+                                                    className={`w-full rounded-lg px-2 py-1.5 text-left text-sm font-medium transition-colors ${productSelected ? "text-admin-primary" : "hover:bg-admin-muted"}`}
+                                                >
+                                                    {product.brand?.name
+                                                        ? `${product.brand.name} ${product.name}`.trim()
+                                                        : product.name}
+                                                </button>
+                                                {previewVariants.length > 0 ? (
+                                                    <div className="mt-1 space-y-1 pl-1">
+                                                        {previewVariants.map((variant) => {
+                                                            const flags = getVariantMatchFlags(variant, manualLink.sourceHint);
+                                                            const variantSelected =
+                                                                productSelected
+                                                                && manualLink.selectedVariantId === variant.id;
+
+                                                            return (
+                                                                <button
+                                                                    key={variant.id}
+                                                                    type="button"
+                                                                    onClick={() => void onPickProductVariantAction(product.id, variant.id)}
+                                                                    className={`w-full rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${getVariantMatchRowClass(flags, variantSelected)}`}
+                                                                >
+                                                                    <div>{formatVariantOptionLabel(variant)}</div>
+                                                                    <VariantMatchBadges flags={flags} inverted={variantSelected} />
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : manualLink.previewVariantsLoading ? (
+                                                    <div className="px-2 py-1 text-[11px] text-admin-text-secondary">
+                                                        Варианты загружаются…
+                                                    </div>
+                                                ) : (
+                                                    <div className="px-2 py-1 text-[11px] text-admin-text-secondary">
+                                                        Вариантов нет
+                                                    </div>
+                                                )}
+                                            </div>
                                         );
                                     })}
                                 </div>
-                            </>
+                            </div>
                         ) : null}
                         {manualLink.selectedProductId ? (
                             <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
@@ -150,6 +270,48 @@ export function ManualLinkModal({
                                         </>
                                     );
                                 })()}
+                            </div>
+                        ) : null}
+                        {manualLink.selectedProductId ? (
+                            <div className="space-y-2 rounded-xl border bg-white p-3">
+                                <div className="text-xs font-medium text-admin-text">
+                                    Варианты товара
+                                    {manualLink.variantsLoading ? " (загрузка…)" : ""}
+                                </div>
+                                {manualLink.sourceHint.volume || manualLink.sourceHint.concentration ? (
+                                    <div className="text-[11px] text-admin-text-secondary">
+                                        Из прайса:{" "}
+                                        {manualLink.sourceHint.volume != null ? `${manualLink.sourceHint.volume} ml` : "—"}
+                                        {manualLink.sourceHint.concentration
+                                            ? ` / ${manualLink.sourceHint.concentration.toUpperCase()}`
+                                            : ""}
+                                        {manualLink.sourceHint.isTester ? " / TESTER" : ""}
+                                    </div>
+                                ) : null}
+                                {!manualLink.variantsLoading && sortedVariants.length === 0 ? (
+                                    <div className="text-[11px] text-admin-text-secondary">
+                                        У товара пока нет вариантов — добавь формулировку ниже.
+                                    </div>
+                                ) : null}
+                                {sortedVariants.length > 0 ? (
+                                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
+                                        {sortedVariants.map((variant) => {
+                                            const flags = getVariantMatchFlags(variant, manualLink.sourceHint);
+                                            const selected = manualLink.selectedVariantId === variant.id;
+                                            return (
+                                                <button
+                                                    key={variant.id}
+                                                    type="button"
+                                                    onClick={() => onPickVariantAction(variant.id)}
+                                                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${getVariantMatchRowClass(flags, selected)}`}
+                                                >
+                                                    <div>{formatVariantOptionLabel(variant)}</div>
+                                                    <VariantMatchBadges flags={flags} inverted={selected} />
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
                             </div>
                         ) : null}
                         {manualLink.selectedProductId ? (
@@ -178,19 +340,35 @@ export function ManualLinkModal({
                                     && manualLink.definitions.length === 0 ? (
                                     <div className="text-xs text-amber-700">Ничего не найдено.</div>
                                 ) : null}
-                                {manualLink.definitions.length > 0 ? (
+                                {sortedDefinitions.length > 0 ? (
                                     <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
-                                        {manualLink.definitions.map((def: VariantDefinitionItem) => (
-                                            <button
-                                                key={def.id}
-                                                type="button"
-                                                disabled={manualLink.attachingDefinition}
-                                                onClick={() => void onPickDefinitionAction(def.id)}
-                                                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-admin-muted disabled:opacity-50"
-                                            >
-                                                {def.title}
-                                            </button>
-                                        ))}
+                                        {sortedDefinitions.map((def: VariantDefinitionItem) => {
+                                            const flags = getVariantMatchFlags(
+                                                {
+                                                    volume: def.volume_ml,
+                                                    concentration: def.concentration_code,
+                                                    definition: {
+                                                        volume_ml: def.volume_ml,
+                                                        concentration_code: def.concentration_code,
+                                                        is_tester: def.is_tester,
+                                                    },
+                                                },
+                                                manualLink.sourceHint,
+                                            );
+
+                                            return (
+                                                <button
+                                                    key={def.id}
+                                                    type="button"
+                                                    disabled={manualLink.attachingDefinition}
+                                                    onClick={() => void onPickDefinitionAction(def.id)}
+                                                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${getVariantMatchRowClass(flags, false)}`}
+                                                >
+                                                    <div>{def.title}</div>
+                                                    <VariantMatchBadges flags={flags} />
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 ) : null}
                                 <p className="text-[11px] text-admin-text-secondary">

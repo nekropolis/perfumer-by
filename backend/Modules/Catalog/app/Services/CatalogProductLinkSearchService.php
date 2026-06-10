@@ -399,7 +399,7 @@ class CatalogProductLinkSearchService
             $out[] = [
                 'id' => (int) $link->id,
                 'title' => (string) $link->title,
-                'availability' => \Modules\Catalog\Http\Resources\ProductVariantResource::adminFulfillmentTooltip($link, $mainStock, $supplierStock),
+                'fulfillment_tooltip' => \Modules\Catalog\Http\Resources\ProductVariantResource::adminFulfillmentTooltip($link, $mainStock, $supplierStock),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
                 'is_preorder' => (bool) $presented['is_preorder'],

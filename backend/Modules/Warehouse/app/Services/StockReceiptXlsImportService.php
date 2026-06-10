@@ -838,7 +838,12 @@ class StockReceiptXlsImportService
     {
         if ($this->productsIndex === null) {
             $products = Product::query()
-                ->with(['brand', 'variants.definition'])
+                ->with([
+                    'brand',
+                    'variants.definition',
+                    'attributeValues.productAttribute:id,name',
+                    'attributeValues.selectedOptions.productAttributeOption:id,name',
+                ])
                 ->get();
 
             $grouped = [];

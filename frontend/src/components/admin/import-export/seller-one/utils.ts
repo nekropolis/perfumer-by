@@ -135,3 +135,97 @@ export function getConfidenceBadgeClass(confidence: number): string {
     }
     return "bg-red-100 text-red-700";
 }
+
+export type SupplierVariantHint = {
+    volume: number | null;
+    concentration: string | null;
+    isTester: boolean;
+};
+
+export type VariantMatchFlags = {
+    volume: boolean;
+    concentration: boolean;
+    tester: boolean;
+    score: number;
+};
+
+export function normalizeConcentrationCode(value: string | null | undefined): string {
+    const normalized = (value || "").trim().toLowerCase();
+    if (!normalized) {
+        return "";
+    }
+    if (normalized.includes("extrait")) {
+        return "extrait de parfum";
+    }
+    if (normalized === "parfum") {
+        return "extrait de parfum";
+    }
+
+    return normalized;
+}
+
+export function getVariantMatchFlags(
+    variant: {
+        volume?: number | null;
+        concentration?: string | null;
+        definition?: {
+            volume_ml?: number;
+            concentration_code?: string;
+            is_tester?: boolean;
+        } | null;
+    },
+    hint: SupplierVariantHint,
+): VariantMatchFlags {
+    const variantVolume = variant.volume ?? variant.definition?.volume_ml ?? null;
+    const variantConcentration = variant.concentration ?? variant.definition?.concentration_code ?? null;
+    const variantIsTester = Boolean(variant.definition?.is_tester);
+
+    const volume =
+        hint.volume != null
+        && variantVolume != null
+        && Math.abs(Number(variantVolume) - hint.volume) <= 0.01;
+
+    const hintConcentration = normalizeConcentrationCode(hint.concentration);
+    const concentration =
+        hintConcentration !== ""
+        && normalizeConcentrationCode(variantConcentration) === hintConcentration;
+
+    const tester = variantIsTester === hint.isTester;
+
+    const score = (volume ? 70 : 0) + (concentration ? 30 : 0) + (tester ? 20 : 0);
+
+    return { volume, concentration, tester, score };
+}
+
+export function isFullVariantMatch(flags: VariantMatchFlags): boolean {
+    return flags.volume && flags.concentration && flags.tester;
+}
+
+export function getVariantMatchRowClass(flags: VariantMatchFlags, selected: boolean): string {
+    if (selected) {
+        return "bg-admin-primary text-white";
+    }
+    if (isFullVariantMatch(flags)) {
+        return "bg-green-50 ring-1 ring-green-200 hover:bg-green-100";
+    }
+    if (flags.score > 0) {
+        return "bg-amber-50 ring-1 ring-amber-200 hover:bg-amber-100";
+    }
+
+    return "hover:bg-admin-muted";
+}
+
+export function buildDefinitionSearchFromHint(hint: SupplierVariantHint): string {
+    const parts: string[] = [];
+    if (hint.volume != null) {
+        parts.push(String(hint.volume));
+    }
+    if (hint.concentration) {
+        parts.push(hint.concentration);
+    }
+    if (hint.isTester) {
+        parts.push("tester");
+    }
+
+    return parts.join(" ").trim();
+}

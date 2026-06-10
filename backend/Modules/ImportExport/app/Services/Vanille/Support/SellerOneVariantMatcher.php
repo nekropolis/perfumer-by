@@ -50,6 +50,16 @@ class SellerOneVariantMatcher
     private const VARIANT_BONUS_VOLUME = 12;
     private const VARIANT_BONUS_CONCENTRATION = 8;
 
+    /** product_attributes: «Для кого» */
+    private const GENDER_ATTRIBUTE_ID = 3;
+
+    /** product_attribute_options */
+    private const GENDER_OPTION_FEMALE_ID = 3;
+
+    private const GENDER_OPTION_MALE_ID = 35;
+
+    private const GENDER_OPTION_UNISEX_ID = 438;
+
     /**
      * @param  Collection<int, Brand>  $brands
      * @param  Collection<int, SellerOneMatchRule>  $rules
@@ -64,19 +74,82 @@ class SellerOneVariantMatcher
         $volume = $this->extractVolume($title);
         $concentration = $this->extractConcentration($title);
         $isTester = $this->extractIsTester($title);
-        $productName = $this->extractProductName($title, $matchedBrand['name'] ?? null);
+        $genderMarker = $this->extractGenderMarker($title);
+        $baseProductName = $this->extractBaseProductName($title, $matchedBrand['name'] ?? null);
+        $productName = $baseProductName;
 
         $match = null;
         if (!$hasSkipMarker) {
-            $match = $this->findBestMatch(
-                $matchedBrand['id'] ?? null,
-                $matchedBrand['name'] ?? null,
-                $productName,
-                $volume,
-                $concentration,
-                $isTester,
-                $productsIndex,
-            );
+            $brandId = $matchedBrand['id'] ?? null;
+            $brandName = $matchedBrand['name'] ?? null;
+
+            if ($genderMarker === 'l') {
+                $femaleSearchName = $baseProductName;
+                if ($baseProductName !== '' && !$this->containsFemaleMarker($baseProductName)) {
+                    $femaleSearchName = $baseProductName.' for Woman';
+                }
+                $productName = $femaleSearchName;
+                $match = $this->findBestMatch(
+                    $brandId,
+                    $brandName,
+                    $femaleSearchName,
+                    $volume,
+                    $concentration,
+                    $isTester,
+                    $productsIndex,
+                );
+                if (!$match && $baseProductName !== '') {
+                    $productName = $baseProductName;
+                    $match = $this->findBestMatch(
+                        $brandId,
+                        $brandName,
+                        $baseProductName,
+                        $volume,
+                        $concentration,
+                        $isTester,
+                        $productsIndex,
+                        'female_or_unisex',
+                    );
+                }
+            } elseif ($genderMarker === 'm') {
+                $maleSearchName = $baseProductName;
+                if ($baseProductName !== '' && ! $this->containsMaleMarker($baseProductName)) {
+                    $maleSearchName = $baseProductName.' for Man';
+                }
+                $productName = $maleSearchName;
+                $match = $this->findBestMatch(
+                    $brandId,
+                    $brandName,
+                    $maleSearchName,
+                    $volume,
+                    $concentration,
+                    $isTester,
+                    $productsIndex,
+                );
+                if (! $match && $baseProductName !== '') {
+                    $productName = $baseProductName;
+                    $match = $this->findBestMatch(
+                        $brandId,
+                        $brandName,
+                        $baseProductName,
+                        $volume,
+                        $concentration,
+                        $isTester,
+                        $productsIndex,
+                        'male',
+                    );
+                }
+            } else {
+                $match = $this->findBestMatch(
+                    $brandId,
+                    $brandName,
+                    $baseProductName,
+                    $volume,
+                    $concentration,
+                    $isTester,
+                    $productsIndex,
+                );
+            }
         }
 
         $breakdown = $this->makeBreakdown($match);
@@ -176,6 +249,7 @@ class SellerOneVariantMatcher
         ?string $concentration,
         bool $isTester,
         array $productsIndex,
+        ?string $requireGenderAttribute = null,
     ): ?array {
         if (!$brandId || $productName === '' || !isset($productsIndex[$brandId])) {
             return null;
@@ -213,6 +287,13 @@ class SellerOneVariantMatcher
                 && $this->tokensMultisetEqual($targetTokens, $candidateTokens);
 
             if (!$prefixOrdered && !$multisetExact) {
+                continue;
+            }
+
+            if (
+                $requireGenderAttribute !== null
+                && ! $this->productMatchesGenderAttribute($product, $requireGenderAttribute)
+            ) {
                 continue;
             }
 
@@ -460,28 +541,99 @@ class SellerOneVariantMatcher
         return $best;
     }
 
-    private function extractProductName(string $title, ?string $brandName): string
+    private function extractBaseProductName(string $title, ?string $brandName): string
     {
-        $name = $title;
-        $genderMarker = $this->extractGenderMarker($title);
+        $name = $this->truncateBeforeFirstVariantMarker($title);
 
         if ($brandName) {
             $strip = ProductDisplayName::stripBrandFromName($brandName, $name);
             $name = $strip['name'];
         }
 
-        $name = (string) preg_replace('/\b(test|tester|тестер)\b/iu', '', $name);
-        $name = (string) preg_replace('/\b(vial|пробник|sample)\b/iu', '', $name);
-        $name = (string) preg_replace('/\(\s*[a-zа-я]\s*\)/iu', '', $name);
-        $name = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', '', $name);
-        $name = (string) preg_replace('/\b(edp|edt|edc|parfum|extrait)\b/iu', '', $name);
-        $name = preg_replace('/\s+/', ' ', trim($name)) ?: '';
+        return preg_replace('/\s+/', ' ', trim($name)) ?: '';
+    }
 
-        if ($genderMarker === 'l' && $name !== '' && !$this->containsFemaleMarker($name)) {
-            $name .= ' for Women';
+    /**
+     * Название товара — только часть строки до первого вариантного маркера.
+     * Всё после (пол, тестер, объём, концентрация и т.п.) относится к варианту, не к продукту.
+     */
+    private function truncateBeforeFirstVariantMarker(string $title): string
+    {
+        $patterns = [
+            '/\(\s*[a-zа-я]\s*\)/iu',
+            '/\b(test|tester|тестер)\b/iu',
+            '/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu',
+            '/\b(edp|edt|edc|parfum|extrait)\b/iu',
+            '/\b(vial|пробник|sample)\b/iu',
+        ];
+
+        $cutAt = null;
+        foreach ($patterns as $pattern) {
+            if (! preg_match($pattern, $title, $matches)) {
+                continue;
+            }
+
+            $matched = (string) ($matches[0] ?? '');
+            if ($matched === '') {
+                continue;
+            }
+
+            $pos = mb_strpos($title, $matched);
+            if ($pos !== false && ($cutAt === null || $pos < $cutAt)) {
+                $cutAt = $pos;
+            }
         }
 
-        return $name;
+        if ($cutAt === null) {
+            return $title;
+        }
+
+        return mb_substr($title, 0, $cutAt);
+    }
+
+    private function productMatchesGenderAttribute(Product $product, string $expectedGender): bool
+    {
+        $optionIds = match ($expectedGender) {
+            'female' => [self::GENDER_OPTION_FEMALE_ID],
+            'male' => [self::GENDER_OPTION_MALE_ID],
+            'female_or_unisex' => [self::GENDER_OPTION_FEMALE_ID, self::GENDER_OPTION_UNISEX_ID],
+            default => [],
+        };
+
+        if ($optionIds === []) {
+            return false;
+        }
+
+        return $this->productHasGenderOption($product, $optionIds);
+    }
+
+    /**
+     * @param  list<int>  $optionIds
+     */
+    private function productHasGenderOption(Product $product, array $optionIds): bool
+    {
+        if (! $product->relationLoaded('attributeValues')) {
+            return false;
+        }
+
+        foreach ($product->attributeValues as $value) {
+            if ((int) $value->product_attribute_id !== self::GENDER_ATTRIBUTE_ID) {
+                continue;
+            }
+
+            if (! $value->relationLoaded('selectedOptions')) {
+                continue;
+            }
+
+            foreach ($value->selectedOptions as $selected) {
+                $selectedOptionId = (int) ($selected->product_attribute_option_id ?? 0);
+                if (in_array($selectedOptionId, $optionIds, true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function extractGenderMarker(string $title): ?string
@@ -497,6 +649,14 @@ class SellerOneVariantMatcher
     {
         return (bool) preg_match(
             '/\b(for\s*women|women|woman|lady|ladies|pour\s*femme|femme|female|жен(?:ский|ская|ское|щин))\b/iu',
+            $name
+        );
+    }
+
+    private function containsMaleMarker(string $name): bool
+    {
+        return (bool) preg_match(
+            '/\b(for\s*men|men|man|pour\s*homme|homme|male|муж(?:ской|ская|ское|чин))\b/iu',
             $name
         );
     }

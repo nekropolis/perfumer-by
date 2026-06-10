@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
+use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductVariantLink;
@@ -519,11 +520,23 @@ class ProductAdminController extends Controller
             ) {
                 $supplierWarehouses[] = [
                     'warehouse_name' => $supplierWarehouseName.' (по прайсу)',
-                    'stock' => 999,
-                    'available_stock' => 999,
+                    'stock' => CatalogVariantStockPresenter::SUPPLIER_LISTING_QTY,
+                    'available_stock' => CatalogVariantStockPresenter::SUPPLIER_LISTING_QTY,
                     'virtual_price_channel' => true,
                 ];
             }
+
+            $mainStock = null;
+            $supplierStock = null;
+            foreach ($variant->warehouseStocks as $stockRow) {
+                $wid = (int) ($stockRow->warehouse_id ?? 0);
+                if ($mainWarehouseId > 0 && $wid === $mainWarehouseId) {
+                    $mainStock = $stockRow;
+                } elseif ($supplierWarehouseId > 0 && $wid === $supplierWarehouseId) {
+                    $supplierStock = $stockRow;
+                }
+            }
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
 
             return [
                 'id' => $variant->id,
@@ -532,6 +545,9 @@ class ProductAdminController extends Controller
                 'is_preorder' => (bool) $variant->is_preorder,
                 'site_price' => $variant->price,
                 'stock' => (int) ($variant->stock ?? 0),
+                'available_stock' => (int) $presented['available_stock'],
+                'is_available' => (bool) $presented['is_available'],
+                'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
                 'warehouses' => $variant->warehouseStocks
                     ->filter(fn ($stock) => (int) ($stock->stock ?? 0) > 0)
                     ->map(function ($stock) {
@@ -609,28 +625,9 @@ class ProductAdminController extends Controller
             $q->where('stock', '>', 0)
                 ->orWhere('is_preorder', true)
                 ->orWhereHas('supplierOffers', static function (Builder $sq): void {
-                    self::applyAdminSupplierOfferListingFilters($sq);
+                    CatalogVariantStockPresenter::applySupplierOfferListingScope($sq);
                 });
         });
     }
 
-    /**
-     * @param  Builder<\Modules\Catalog\Models\SupplierVariantOffer>  $sq
-     */
-    private static function applyAdminSupplierOfferListingFilters(Builder $sq): void
-    {
-        $sq->where('is_active', true)
-            ->where(function ($w) {
-                $w->whereNull('payload->missing_in_latest_price')
-                    ->orWhere('payload->missing_in_latest_price', false);
-            })
-            ->where(function ($w) {
-                $w->whereNull('payload->out_of_stock_in_price_file')
-                    ->orWhere('payload->out_of_stock_in_price_file', false);
-            })
-            ->where(function ($w) {
-                $w->whereNull('payload->seller_one_listing_deferred')
-                    ->orWhere('payload->seller_one_listing_deferred', false);
-            });
-    }
 }

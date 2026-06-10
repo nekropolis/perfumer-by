@@ -29,6 +29,10 @@ export type AdminProductVariantItem = {
     old_price?: string | null;
     stock?: number;
     main_available_stock?: number;
+    /** Доступно для витрины/корзины (канал main → supplier прайс → supplier склад). */
+    available_stock?: number;
+    is_available?: boolean;
+    fulfillment_tooltip?: string;
     is_preorder?: boolean;
     is_active?: boolean;
     active_supplier_offers_count?: number;

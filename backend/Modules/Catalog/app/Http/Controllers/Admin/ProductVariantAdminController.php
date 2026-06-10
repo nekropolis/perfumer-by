@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -193,19 +194,7 @@ class ProductVariantAdminController extends Controller
             ->withCount([
                 'supplierOffers as supplier_offers_count',
                 'supplierOffers as active_supplier_offers_count' => static function ($query) {
-                    $query->where('is_active', true)
-                        ->where(function ($q) {
-                            $q->whereNull('payload->missing_in_latest_price')
-                                ->orWhere('payload->missing_in_latest_price', false);
-                        })
-                        ->where(function ($q) {
-                            $q->whereNull('payload->out_of_stock_in_price_file')
-                                ->orWhere('payload->out_of_stock_in_price_file', false);
-                        })
-                        ->where(function ($q) {
-                            $q->whereNull('payload->seller_one_listing_deferred')
-                                ->orWhere('payload->seller_one_listing_deferred', false);
-                        });
+                    CatalogVariantStockPresenter::applySupplierOfferListingScope($query);
                 },
             ])
             ->orderBy('sort_order')
@@ -234,6 +223,9 @@ class ProductVariantAdminController extends Controller
 
             return array_merge($variant->toArray(), [
                 'main_available_stock' => $mainAvailableStock,
+                'available_stock' => (int) $presented['available_stock'],
+                'is_available' => (bool) $presented['is_available'],
+                'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
                 'supplier_offers_count' => (int) ($variant->supplier_offers_count ?? 0),
                 'active_supplier_offers_count' => (int) ($variant->active_supplier_offers_count ?? 0),
                 'catalog_list_price' => $catalogListPrice,

@@ -2,6 +2,7 @@
 
 namespace Modules\Catalog\Support;
 
+use Illuminate\Database\Eloquent\Builder;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
@@ -49,6 +50,37 @@ final class CatalogVariantStockPresenter
         }
 
         return null;
+    }
+
+    /**
+     * Офферы поставщика, участвующие в канале прайса (как в {@see Product::activeVariants()}).
+     *
+     * @param  Builder<SupplierVariantOffer>  $query
+     */
+    public static function applySupplierOfferListingScope(Builder $query): void
+    {
+        $query->where('is_active', true)
+            ->where(function ($w) {
+                $w->whereNull('payload->missing_in_latest_price')
+                    ->orWhere('payload->missing_in_latest_price', false);
+            })
+            ->where(function ($w) {
+                $w->whereNull('payload->out_of_stock_in_price_file')
+                    ->orWhere('payload->out_of_stock_in_price_file', false);
+            })
+            ->where(function ($w) {
+                $w->whereNull('payload->seller_one_listing_deferred')
+                    ->orWhere('payload->seller_one_listing_deferred', false);
+            })
+            ->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('supplier_products as sp')
+                    ->whereColumn('sp.supplier_id', 'supplier_variant_offers.supplier_id')
+                    ->whereColumn('sp.product_id', 'product_variant_links.product_id')
+                    ->where('sp.is_linked', '=', true)
+                    ->where('sp.is_active', '=', true)
+                    ->where('sp.link_parsing_active', '=', true);
+            });
     }
 
     public static function supplierListingActive(ProductVariantLink $variant): bool

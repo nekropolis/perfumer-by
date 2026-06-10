@@ -63,6 +63,18 @@ export default function VariantSuppliersSummaryRow({
                     Предзаказ
                 </span>
             ) : null}
+            {variant.fulfillment_tooltip ? (
+                <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        variant.is_available
+                            ? "bg-emerald-50 text-emerald-800"
+                            : "bg-gray-100 text-admin-text-secondary"
+                    }`}
+                    title={variant.fulfillment_tooltip}
+                >
+                    {variant.is_available ? "В наличии" : "Нет в наличии"}
+                </span>
+            ) : null}
             <span className="shrink-0 text-gray-300" aria-hidden>
                 ·
             </span>
