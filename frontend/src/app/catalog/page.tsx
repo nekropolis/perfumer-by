@@ -5,6 +5,7 @@ import { buildCatalogProductsQuery } from "@/lib/catalog-listing-query";
 import { CatalogBrandsResponse, CatalogFiltersResponse, ProductsResponse } from "@/types/catalog";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
+import { cache } from "react";
 import {
     buildSeoMetadata,
     catalogCanonicalPath,
@@ -14,6 +15,17 @@ import {
 } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+/** Дедупликация fetch между generateMetadata и страницей (один запрос на query). */
+const getCatalogProducts = cache(async (queryString: string) =>
+    apiFetch<ProductsResponse>(`/catalog/products?${queryString}`));
+
+const getCatalogBrands = cache(async () => apiFetch<CatalogBrandsResponse>("/catalog/brands"));
+
+const getCatalogFilters = cache(async (filtersQueryString: string) =>
+    apiFetch<CatalogFiltersResponse>(
+        `/catalog/filters${filtersQueryString ? `?${filtersQueryString}` : ""}`,
+    ));
 
 export async function generateMetadata({
     searchParams,
@@ -27,7 +39,7 @@ export async function generateMetadata({
 
     let pagination: Metadata["pagination"] | undefined;
     try {
-        const products = await apiFetch<ProductsResponse>(`/catalog/products?${productsQuery.toString()}`);
+        const products = await getCatalogProducts(productsQuery.toString());
         const lastPage = Math.max(1, products.meta?.last_page ?? 1);
         pagination = resolveListingPaginationLinks({
             basePath: "/catalog",
@@ -77,10 +89,12 @@ export default async function CatalogPage({
     const paginationQuery = new URLSearchParams(query.toString());
     paginationQuery.delete("page");
 
+    const filtersQueryString = filtersQuery.toString();
+
     const [products, brands, filters] = await Promise.all([
-        apiFetch<ProductsResponse>(`/catalog/products?${query.toString()}`),
-        apiFetch<CatalogBrandsResponse>("/catalog/brands"),
-        apiFetch<CatalogFiltersResponse>(`/catalog/filters${filtersQuery.toString() ? `?${filtersQuery.toString()}` : ""}`),
+        getCatalogProducts(query.toString()),
+        getCatalogBrands(),
+        getCatalogFilters(filtersQueryString),
     ]);
 
     const catalogCrumbs = [
