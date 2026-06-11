@@ -38,6 +38,7 @@ import {
     createProductVariant,
     fetchProductVariants,
     fetchVariantDefinitions,
+    type AdminProductVariantItem,
 } from "@/lib/admin-product-variants-api";
 import {
     STATUS_OPTIONS,
@@ -157,7 +158,10 @@ function ManualLinkSearchHost({
                     return;
                 }
 
-                const previewVariantsByProductId = Object.fromEntries(previewEntries);
+                const previewVariantsByProductId = Object.fromEntries(previewEntries) as Record<
+                    number,
+                    AdminProductVariantItem[]
+                >;
 
                 setManualLink((prev) => {
                     if (!prev || prev.rowId !== rowId) {
