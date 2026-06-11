@@ -17,6 +17,7 @@ use Modules\Catalog\Models\SupplierPriceHistory;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SellerOneMatchRule;
+use Modules\Catalog\Models\SellerOneSetting;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
@@ -30,6 +31,8 @@ class SupplierPriceImportService
 {
     private const string DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
     private const string DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
+    public const SETTING_LAST_PRICE_APPLY_AT = 'seller_one.last_price_apply_at';
+    public const SETTING_LAST_PRICE_APPLY_FILE = 'seller_one.last_price_apply_file_name';
     public function __construct(
         private readonly SellerOneVariantMatcher $variantMatcher,
         private readonly SellerOneSpreadsheetParser $spreadsheetParser,
@@ -47,6 +50,40 @@ class SupplierPriceImportService
     public function updatePricingSettings(array $settings): array
     {
         return $this->pricingService->updateSettings($settings);
+    }
+
+    public function getLastPriceApplyMeta(): array
+    {
+        $stored = SellerOneSetting::query()
+            ->whereIn('key', [
+                self::SETTING_LAST_PRICE_APPLY_AT,
+                self::SETTING_LAST_PRICE_APPLY_FILE,
+            ])
+            ->pluck('value', 'key');
+
+        $appliedAt = trim((string) ($stored->get(self::SETTING_LAST_PRICE_APPLY_AT) ?? ''));
+
+        return [
+            'last_price_apply_at' => $appliedAt !== '' ? $appliedAt : null,
+            'last_price_apply_file_name' => trim((string) ($stored->get(self::SETTING_LAST_PRICE_APPLY_FILE) ?? '')) ?: null,
+        ];
+    }
+
+    public function recordLastPriceApply(?string $fileName = null): void
+    {
+        $now = now()->toDateTimeString();
+
+        SellerOneSetting::query()->updateOrCreate(
+            ['key' => self::SETTING_LAST_PRICE_APPLY_AT],
+            ['value' => $now],
+        );
+
+        if ($fileName !== null && trim($fileName) !== '') {
+            SellerOneSetting::query()->updateOrCreate(
+                ['key' => self::SETTING_LAST_PRICE_APPLY_FILE],
+                ['value' => trim($fileName)],
+            );
+        }
     }
 
     public function preview(UploadedFile $file, int $offset = 0, int $limit = 100): array
@@ -142,6 +179,7 @@ class SupplierPriceImportService
             );
             $markedPreorder = $this->previewSyncService->markMissingSupplierCodesAsPreorder($supplier, $allCodes);
             $markedAbsentUnlinked = $this->previewSyncService->markAbsentUnlinkedForSellerOne($supplier, $allCodes);
+            $this->previewSyncService->markLinkedMissingFromPriceFile($supplier, $allCodes);
         }
 
         return [
@@ -397,6 +435,7 @@ class SupplierPriceImportService
                 $allCodes,
             );
             $markedAbsentUnlinked = $this->previewSyncService->markAbsentUnlinkedForSellerOne($supplier, $allCodes);
+            $this->previewSyncService->markLinkedMissingFromPriceFile($supplier, $allCodes);
             unset($allCodes);
         }
 
@@ -486,6 +525,8 @@ class SupplierPriceImportService
         $updated = 0;
         $skipped = 0;
         $missingCodes = [];
+        /** @var list<int> */
+        $missingSupplierProductIds = [];
         $priceHistoryRows = 0;
         $priceChanged = 0;
         $becameOutOfStock = 0;
@@ -584,6 +625,7 @@ class SupplierPriceImportService
 
             if (!isset($rowByCode[$externalCode])) {
                 $missingCodes[] = $externalCode;
+                $missingSupplierProductIds[] = (int) $supplierProduct->id;
 
                 continue;
             }
@@ -591,12 +633,18 @@ class SupplierPriceImportService
             $row = $rowByCode[$externalCode];
             $supplierPrice = $this->toFloat($row['supplier_price'] ?? null);
             if ($supplierPrice === null) {
+                $this->markLinkedSupplierRowInPriceFile(
+                    $supplier,
+                    $supplierProduct,
+                    $externalCode,
+                    $deferStockCb,
+                );
                 $skipped++;
 
                 continue;
             }
 
-            $fileInStock = array_key_exists('in_stock', $row) ? $row['in_stock'] : null;
+            $fileInStock = true;
 
             $variantId = (int) ($payload['linked_variant_id'] ?? 0);
             if ($variantId <= 0) {
@@ -779,6 +827,25 @@ class SupplierPriceImportService
         $missingCodes = array_values(array_unique($missingCodes));
         $deactivatedOffers = 0;
         $clearedSupplierShelfVariants = 0;
+
+        if ($missingSupplierProductIds !== []) {
+            SupplierProduct::query()
+                ->where('supplier_id', $supplier->id)
+                ->whereIn('id', array_values(array_unique($missingSupplierProductIds)))
+                ->orderBy('id')
+                ->chunkById(200, function ($chunk): void {
+                    foreach ($chunk as $supplierProduct) {
+                        /** @var SupplierProduct $supplierProduct */
+                        $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+                        $supplierProduct->update([
+                            'payload' => [
+                                ...$payload,
+                                'price_file_in_stock' => false,
+                            ],
+                        ]);
+                    }
+                });
+        }
 
         if ($missingCodes !== []) {
             $missingStockCountedVariants = [];
@@ -1114,8 +1181,24 @@ class SupplierPriceImportService
     private function tryAutoCreateVariantLink(array $parsed, array $row, array $productsIndex): array
     {
         $product = $parsed['suggested_product'] ?? null;
-        if (!is_array($product) || !empty($parsed['suggested_variant'])) {
+        if (!is_array($product)) {
             return $parsed;
+        }
+
+        $suggestedVariantBreakdown = is_array($parsed['suggested_variant'] ?? null)
+            ? ($parsed['suggested_variant']['confidence_breakdown'] ?? null)
+            : null;
+        $breakdown = is_array($suggestedVariantBreakdown)
+            ? $suggestedVariantBreakdown
+            : ($product['confidence_breakdown'] ?? []);
+
+        if (!empty($parsed['suggested_variant']) && !empty($breakdown['volume_match'])) {
+            return $parsed;
+        }
+
+        if (!empty($parsed['suggested_variant'])) {
+            unset($parsed['suggested_variant'], $parsed['selected_variant_id']);
+            $parsed['suggested_product']['has_variant'] = false;
         }
 
         $breakdown = $product['confidence_breakdown'] ?? [];
@@ -1361,6 +1444,28 @@ class SupplierPriceImportService
     private function toFloat(mixed $value): ?float
     {
         return $this->variantMatcher->toFloat($value);
+    }
+
+    private function markLinkedSupplierRowInPriceFile(
+        Supplier $supplier,
+        SupplierProduct $supplierProduct,
+        string $externalCode,
+        ?callable $deferStockCb,
+    ): void {
+        $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+        $supplierProduct->update([
+            'payload' => [
+                ...$payload,
+                'price_file_in_stock' => true,
+            ],
+        ]);
+
+        $this->previewSyncService->applyPriceFilePresenceToOffers(
+            (int) $supplier->id,
+            $externalCode,
+            true,
+            $deferStockCb,
+        );
     }
 
     private function getOrCreateSellerOneSupplier(): Supplier

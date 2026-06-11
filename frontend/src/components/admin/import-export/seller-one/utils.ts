@@ -126,6 +126,96 @@ export function isExactProductNameMatch(sourceName: string, candidateName: strin
     return left !== "" && left === right;
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function pickOriginalPhrase(normalizedPhrase: string, ...originals: string[]): string {
+    const pattern = normalizedPhrase
+        .split(" ")
+        .filter(Boolean)
+        .map(escapeRegExp)
+        .join("\\s+");
+    if (!pattern) {
+        return "";
+    }
+
+    const re = new RegExp(pattern, "i");
+    for (const original of originals) {
+        const match = original.match(re);
+        if (match?.[0]) {
+            return match[0];
+        }
+    }
+
+    return "";
+}
+
+/**
+ * Общая фраза для подсветки в оригинальном регистре (напр. «Montale Wild Pears»).
+ */
+export function findProductNameMatchHighlight(supplierLabel: string, catalogLabel: string): string {
+    const supplierNorm = normalizeProductComparable(supplierLabel);
+    const catalogNorm = normalizeProductComparable(catalogLabel);
+    if (!supplierNorm || !catalogNorm) {
+        return "";
+    }
+
+    if (supplierNorm.includes(catalogNorm)) {
+        return pickOriginalPhrase(catalogNorm, catalogLabel, supplierLabel);
+    }
+
+    if (catalogNorm.includes(supplierNorm)) {
+        return pickOriginalPhrase(supplierNorm, catalogLabel, supplierLabel);
+    }
+
+    const supplierWords = supplierNorm.split(" ").filter(Boolean);
+    const catalogWords = catalogNorm.split(" ").filter(Boolean);
+    let commonLength = 0;
+    while (
+        commonLength < supplierWords.length
+        && commonLength < catalogWords.length
+        && supplierWords[commonLength] === catalogWords[commonLength]
+    ) {
+        commonLength += 1;
+    }
+
+    if (commonLength === 0) {
+        return "";
+    }
+
+    return pickOriginalPhrase(
+        supplierWords.slice(0, commonLength).join(" "),
+        catalogLabel,
+        supplierLabel,
+    );
+}
+
+export function buildSupplierParsedLabel(
+    parsed: SellerOneSupplierProductItem["parsed"],
+    externalName: string,
+): string {
+    const brand = parsed?.brand?.trim() || "";
+    const name = parsed?.product_name?.trim() || "";
+    const combined = [brand, name].filter(Boolean).join(" ").trim();
+
+    return combined || externalName;
+}
+
+export function getRowCatalogProductLabel(row: SellerOneSupplierProductItem): string | null {
+    if (row.linked_variant) {
+        return row.linked_variant.display_name || row.linked_variant.product_name || null;
+    }
+    if (row.suggested_variant) {
+        return row.suggested_variant.display_name || row.suggested_variant.product_name || null;
+    }
+    if (row.suggested_product) {
+        return row.suggested_product.display_name || row.suggested_product.name || null;
+    }
+
+    return null;
+}
+
 export function getConfidenceBadgeClass(confidence: number): string {
     if (confidence >= 95) {
         return "bg-green-100 text-green-700";
@@ -145,7 +235,10 @@ export type SupplierVariantHint = {
 export type VariantMatchFlags = {
     volume: boolean;
     concentration: boolean;
+    /** Совпадение флага тестера (только если {@see testerRelevant}). */
     tester: boolean;
+    /** Показывать и учитывать тестер: у поставщика test/tester или вариант — тестер. */
+    testerRelevant: boolean;
     score: number;
 };
 
@@ -190,11 +283,15 @@ export function getVariantMatchFlags(
         hintConcentration !== ""
         && normalizeConcentrationCode(variantConcentration) === hintConcentration;
 
+    const testerRelevant = hint.isTester || variantIsTester;
     const tester = variantIsTester === hint.isTester;
 
-    const score = (volume ? 70 : 0) + (concentration ? 30 : 0) + (tester ? 20 : 0);
+    const score =
+        (volume ? 70 : 0)
+        + (concentration ? 30 : 0)
+        + (testerRelevant && tester ? 20 : 0);
 
-    return { volume, concentration, tester, score };
+    return { volume, concentration, tester, testerRelevant, score };
 }
 
 export function getDefinitionMatchFlags(
@@ -216,7 +313,9 @@ export function getDefinitionMatchFlags(
 }
 
 export function isFullVariantMatch(flags: VariantMatchFlags): boolean {
-    return flags.volume && flags.concentration && flags.tester;
+    return flags.volume
+        && flags.concentration
+        && (!flags.testerRelevant || flags.tester);
 }
 
 export function getVariantMatchRowClass(flags: VariantMatchFlags, selected: boolean): string {

@@ -552,7 +552,7 @@ class VanilleImportController extends Controller
         ]);
     }
 
-    public function sellerOneSupplierProducts(Request $request)
+    public function sellerOneSupplierProducts(Request $request, SupplierPriceImportService $service)
     {
         $supplier = Supplier::query()->where('code', 'supplier-price-xls')->first();
         if (!$supplier) {
@@ -567,6 +567,7 @@ class VanilleImportController extends Controller
                     'new' => 0,
                     'unlinked' => 0,
                     'parsing_inactive' => 0,
+                    ...$service->getLastPriceApplyMeta(),
                 ],
             ]);
         }
@@ -587,6 +588,7 @@ class VanilleImportController extends Controller
         }
 
         $status = trim($request->string('status')->toString());
+        $stockFilter = trim($request->string('stock')->toString());
 
         $query = clone $baseQuery;
         if ($status === 'parsing_inactive') {
@@ -613,6 +615,15 @@ class VanilleImportController extends Controller
         } elseif ($status === 'unlinked') {
             $query->where('is_linked', false)->where(function ($q) {
                 $q->whereNull('payload->suggested_variant_id');
+            });
+        }
+
+        if ($stockFilter === 'in_stock') {
+            $query->where('payload->price_file_in_stock', true);
+        } elseif ($stockFilter === 'out_of_stock') {
+            $query->where(function ($q) {
+                $q->where('payload->price_file_in_stock', false)
+                    ->orWhereNull('payload->price_file_in_stock');
             });
         }
 
@@ -650,6 +661,7 @@ class VanilleImportController extends Controller
             'parsing_inactive' => (clone $baseQuery)
                 ->where('link_parsing_active', false)
                 ->count(),
+            ...$service->getLastPriceApplyMeta(),
         ];
 
         $externalCodes = collect($items->items())

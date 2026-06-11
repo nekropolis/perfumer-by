@@ -41,7 +41,9 @@ import {
 } from "@/lib/admin-product-variants-api";
 import {
     STATUS_OPTIONS,
+    STOCK_FILTER_OPTIONS,
     type SellerOneStatusFilter,
+    type SellerOneStockFilter,
     SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS,
     SELLER_ONE_FILE_ACCEPT,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
@@ -49,13 +51,18 @@ import {
 import {
     buildDefinitionSearchFromHint,
     buildInitialSearchFromRow,
+    buildSupplierParsedLabel,
+    findProductNameMatchHighlight,
+    getRowCatalogProductLabel,
     getVariantMatchFlags,
     isExactProductNameMatch,
+    isFullVariantMatch,
 } from "@/components/admin/import-export/seller-one/utils";
 import { type ManualLinkState } from "@/components/admin/import-export/seller-one/types";
 import {
     AlertMessage,
     ConfidenceBadge,
+    HighlightedNameText,
     ManualLinkModal,
     PricingSettingsModal,
     RulesModal,
@@ -157,10 +164,43 @@ function ManualLinkSearchHost({
                         return prev;
                     }
 
+                    let selectedProductId = prev.selectedProductId;
+                    let selectedVariantId = prev.selectedVariantId;
+                    let variants = prev.variants;
+
+                    for (const product of products) {
+                        const productVariants = previewVariantsByProductId[product.id] || [];
+                        const fullMatch = productVariants.find((variant) =>
+                            isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
+                        );
+                        if (!fullMatch) {
+                            continue;
+                        }
+                        selectedProductId = product.id;
+                        selectedVariantId = fullMatch.id;
+                        variants = productVariants;
+                        break;
+                    }
+
+                    if (selectedProductId && selectedVariantId == null) {
+                        const productVariants = previewVariantsByProductId[selectedProductId] || [];
+                        const fullMatch = productVariants.find((variant) =>
+                            isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
+                        );
+                        if (fullMatch) {
+                            selectedVariantId = fullMatch.id;
+                            variants = productVariants;
+                        }
+                    }
+
                     return {
                         ...prev,
                         previewVariantsByProductId,
                         previewVariantsLoading: false,
+                        selectedProductId,
+                        selectedVariantId,
+                        variants,
+                        variantsLoading: false,
                     };
                 });
             } catch (e: unknown) {
@@ -264,6 +304,7 @@ export default function SellerOneImportPage() {
         () => searchParamsFromUrl.get("search") ?? "",
     );
     const [status, setStatus] = useState<SellerOneStatusFilter>("");
+    const [stockFilter, setStockFilter] = useState<SellerOneStockFilter>("");
     const [page, setPage] = useUrlPage();
 
     const [manualLink, setManualLink] = useState<ManualLinkState | null>(null);
@@ -303,6 +344,7 @@ export default function SellerOneImportPage() {
             const data = await fetchSellerOneSupplierProducts({
                 search: debouncedSearch || undefined,
                 status: status || undefined,
+                stock: stockFilter || undefined,
                 page: targetPage,
             });
             setItems(data.data || []);
@@ -312,13 +354,13 @@ export default function SellerOneImportPage() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, page, status]);
+    }, [debouncedSearch, page, status, stockFilter]);
 
-    useResetPageOnChange(setPage, [debouncedSearch, status]);
+    useResetPageOnChange(setPage, [debouncedSearch, status, stockFilter]);
 
     useEffect(() => {
         void loadRows(page);
-    }, [loadRows, page, debouncedSearch, status]);
+    }, [loadRows, page, debouncedSearch, status, stockFilter]);
 
     useEffect(() => {
         if (!activeJobId) {
@@ -637,27 +679,32 @@ export default function SellerOneImportPage() {
 
     const openManualLink = (row: SellerOneSupplierProductItem) => {
         const initialSearch = buildInitialSearchFromRow(row);
+        const sourceHint = {
+            brand: row.parsed?.brand || "",
+            productName: row.parsed?.product_name || row.external_name || "",
+            volume: row.parsed?.volume ?? null,
+            concentration: row.parsed?.concentration ?? null,
+            isTester: Boolean(row.parsed?.is_tester),
+        };
+        const initialProductId =
+            row.suggested_variant?.product_id
+            ?? row.suggested_product?.id
+            ?? null;
         setManualLink({
             rowId: row.id,
             rowName: row.external_name,
             linkSearchBrandId: row.brand?.id ?? null,
             productSearch: initialSearch,
-            sourceHint: {
-                brand: row.parsed?.brand || "",
-                productName: row.parsed?.product_name || row.external_name || "",
-                volume: row.parsed?.volume ?? null,
-                concentration: row.parsed?.concentration ?? null,
-                isTester: Boolean(row.parsed?.is_tester),
-            },
+            sourceHint,
             products: [],
             productsLoading: false,
             previewVariantsByProductId: {},
             previewVariantsLoading: false,
-            selectedProductId: null,
+            selectedProductId: initialProductId,
             variants: [],
-            variantsLoading: false,
+            variantsLoading: Boolean(initialProductId),
             selectedVariantId: null,
-            definitionSearch: "",
+            definitionSearch: buildDefinitionSearchFromHint(sourceHint),
             definitions: [],
             definitionsLoading: false,
             attachingDefinition: false,
@@ -695,23 +742,14 @@ export default function SellerOneImportPage() {
                     return prev;
                 }
 
-                let bestVariantId: number | null = null;
-                let bestScore = -1;
-
-                for (const variant of variants) {
-                    const { score } = getVariantMatchFlags(variant, prev.sourceHint);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestVariantId = variant.id;
-                    }
-                }
+                const fullMatchVariant = variants.find((variant) =>
+                    isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
+                );
 
                 const preferred =
                     preferVariantId && variants.some((v) => v.id === preferVariantId)
                         ? preferVariantId
-                        : bestScore > 0
-                            ? bestVariantId
-                            : null;
+                        : fullMatchVariant?.id ?? null;
 
                 return {
                     ...prev,
@@ -837,6 +875,7 @@ export default function SellerOneImportPage() {
     const resetFilters = () => {
         setSearchInput("");
         setStatus("");
+        setStockFilter("");
         setPage(1);
     };
 
@@ -929,6 +968,7 @@ export default function SellerOneImportPage() {
                     <AdminSearchInput value={searchInput} onChangeAction={setSearchInput} placeholder="Поиск по товару поставщика" />
                     <div className="flex items-center gap-2">
                         <AdminFilterSelect value={status} onChangeAction={(value) => setStatus(value as SellerOneStatusFilter)} options={STATUS_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Все статусы" />
+                        <AdminFilterSelect value={stockFilter} onChangeAction={(value) => setStockFilter(value as SellerOneStockFilter)} options={STOCK_FILTER_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Наличие" />
                         <button
                             type="button"
                             onClick={resetFilters}
@@ -963,6 +1003,19 @@ export default function SellerOneImportPage() {
                                 <span>
                                     Парсинг выкл.: {meta?.stats?.parsing_inactive ?? 0}
                                 </span>
+                                {meta?.stats?.last_price_apply_at ? (
+                                    <span className="ml-auto text-admin-text-secondary">
+                                        Обновление цен:{" "}
+                                        {new Date(meta.stats.last_price_apply_at).toLocaleString("ru-RU")}
+                                        {meta.stats.last_price_apply_file_name
+                                            ? ` · ${meta.stats.last_price_apply_file_name}`
+                                            : ""}
+                                    </span>
+                                ) : (
+                                    <span className="ml-auto text-gray-400">
+                                        Обновление цен: ещё не применялось
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <div className="rounded-xl border">
@@ -991,7 +1044,20 @@ export default function SellerOneImportPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {items.map((row) => (
+                                    {items.map((row) => {
+                                        const catalogProductLabel = getRowCatalogProductLabel(row);
+                                        const supplierParsedLabel = buildSupplierParsedLabel(
+                                            row.parsed,
+                                            row.external_name,
+                                        );
+                                        const nameMatchHighlight = catalogProductLabel
+                                            ? findProductNameMatchHighlight(
+                                                supplierParsedLabel,
+                                                catalogProductLabel,
+                                            )
+                                            : "";
+
+                                        return (
                                         <tr key={row.id} className="border-t align-top">
                                             <td className="px-2 py-3 text-center">
                                                 <input
@@ -1024,7 +1090,11 @@ export default function SellerOneImportPage() {
                                                 )}
                                             </td>
                                             <td className="px-3 py-3">
-                                                <div className="break-words font-medium">{row.external_name}</div>
+                                                <HighlightedNameText
+                                                    text={row.external_name}
+                                                    highlight={nameMatchHighlight}
+                                                    className="break-words font-medium"
+                                                />
                                                 <div className="text-xs text-admin-text-secondary">Цена: {row.supplier_price ?? "—"}</div>
                                             </td>
                                             <td className="whitespace-nowrap px-2 py-3">
@@ -1040,22 +1110,10 @@ export default function SellerOneImportPage() {
                                             </td>
                                             <td className="px-2 py-3 text-xs text-admin-text">
                                                 {row.price_file_in_stock === true ? (
-                                                    <span className="text-green-700">В файле: да</span>
-                                                ) : row.price_file_in_stock === false ? (
-                                                    <span className="text-amber-800">В файле: нет</span>
+                                                    <span className="font-medium text-green-700">Да</span>
                                                 ) : (
-                                                    <span className="text-gray-400">В файле: —</span>
+                                                    <span className="font-medium text-amber-800">Нет</span>
                                                 )}
-                                                {row.is_linked && row.catalog_supplier_channel_available != null ? (
-                                                    <div className="mt-1 text-admin-text-secondary">
-                                                        Витрина:{" "}
-                                                        {row.catalog_supplier_channel_available ? (
-                                                            <span className="text-green-700">да</span>
-                                                        ) : (
-                                                            <span className="text-amber-800">нет</span>
-                                                        )}
-                                                    </div>
-                                                ) : null}
                                             </td>
                                             <td
                                                 className="cursor-pointer px-3 py-3 text-xs whitespace-normal break-words"
@@ -1065,9 +1123,15 @@ export default function SellerOneImportPage() {
                                             >
                                                 {row.is_linked && row.linked_variant ? (
                                                     <div>
-                                                        <div className="break-words font-medium">
-                                                            {row.linked_variant.display_name || row.linked_variant.product_name}
-                                                        </div>
+                                                        <HighlightedNameText
+                                                            text={
+                                                                row.linked_variant.display_name
+                                                                || row.linked_variant.product_name
+                                                                || ""
+                                                            }
+                                                            highlight={nameMatchHighlight}
+                                                            className="break-words font-medium"
+                                                        />
                                                         {isExactProductNameMatch(
                                                             row.parsed?.product_name || "",
                                                             row.linked_variant.product_name || ""
@@ -1082,9 +1146,15 @@ export default function SellerOneImportPage() {
                                                     </div>
                                                 ) : row.suggested_variant ? (
                                                     <div>
-                                                        <div className="break-words font-medium">
-                                                            {row.suggested_variant.display_name || row.suggested_variant.product_name}
-                                                        </div>
+                                                        <HighlightedNameText
+                                                            text={
+                                                                row.suggested_variant.display_name
+                                                                || row.suggested_variant.product_name
+                                                                || ""
+                                                            }
+                                                            highlight={nameMatchHighlight}
+                                                            className="break-words font-medium"
+                                                        />
                                                         {isExactProductNameMatch(
                                                             row.parsed?.product_name || "",
                                                             row.suggested_variant.product_name || ""
@@ -1099,9 +1169,15 @@ export default function SellerOneImportPage() {
                                                     </div>
                                                 ) : row.suggested_product ? (
                                                     <div>
-                                                        <div className="break-words font-medium">
-                                                            {row.suggested_product.display_name || row.suggested_product.name}
-                                                        </div>
+                                                        <HighlightedNameText
+                                                            text={
+                                                                row.suggested_product.display_name
+                                                                || row.suggested_product.name
+                                                                || ""
+                                                            }
+                                                            highlight={nameMatchHighlight}
+                                                            className="break-words font-medium"
+                                                        />
                                                         <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
                                                             Совпал продукт, вариантов пока нет
                                                         </div>
@@ -1123,9 +1199,15 @@ export default function SellerOneImportPage() {
                                                     </div>
                                                 ) : row.linked_variant ? (
                                                     <div>
-                                                        <div className="break-words font-medium">
-                                                            {row.linked_variant.display_name || row.linked_variant.product_name}
-                                                        </div>
+                                                        <HighlightedNameText
+                                                            text={
+                                                                row.linked_variant.display_name
+                                                                || row.linked_variant.product_name
+                                                                || ""
+                                                            }
+                                                            highlight={nameMatchHighlight}
+                                                            className="break-words font-medium"
+                                                        />
                                                         <div className="break-words text-admin-text-secondary">
                                                             {row.linked_variant.display || "Вариант без параметров"}
                                                         </div>
@@ -1135,7 +1217,8 @@ export default function SellerOneImportPage() {
                                                 )}
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

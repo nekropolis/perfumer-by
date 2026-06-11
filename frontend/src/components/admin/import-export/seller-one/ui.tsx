@@ -77,13 +77,49 @@ function VariantMatchBadges({
         <div className="mt-1 flex flex-wrap gap-1">
             {badge("Объём", flags.volume)}
             {badge("Конц.", flags.concentration)}
-            {badge("Тестер", flags.tester)}
+            {flags.testerRelevant ? badge("Тестер", flags.tester) : null}
             {isFullVariantMatch(flags) ? (
                 <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${partialClass}`}>
                     Полное совпадение
                 </span>
             ) : null}
         </div>
+    );
+}
+
+export function HighlightedNameText({
+    text,
+    highlight,
+    className,
+}: {
+    text: string;
+    highlight: string;
+    className?: string;
+}) {
+    if (!text) {
+        return null;
+    }
+
+    const trimmedHighlight = highlight.trim();
+    if (!trimmedHighlight) {
+        return <span className={className}>{text}</span>;
+    }
+
+    const lowerText = text.toLowerCase();
+    const lowerHighlight = trimmedHighlight.toLowerCase();
+    const index = lowerText.indexOf(lowerHighlight);
+    if (index === -1) {
+        return <span className={className}>{text}</span>;
+    }
+
+    return (
+        <span className={className}>
+            {text.slice(0, index)}
+            <mark className="rounded-sm bg-green-100 px-0.5 font-semibold text-green-900">
+                {text.slice(index, index + trimmedHighlight.length)}
+            </mark>
+            {text.slice(index + trimmedHighlight.length)}
+        </span>
     );
 }
 
@@ -273,22 +309,13 @@ export function ManualLinkModal({
                                 })()}
                             </div>
                         ) : null}
-                        {manualLink.selectedProductId ? (
+                        {manualLink.selectedProductId
+                            && (manualLink.previewVariantsByProductId[manualLink.selectedProductId] || []).length === 0 ? (
                             <div className="space-y-2 rounded-xl border bg-white p-3">
                                 <div className="text-xs font-medium text-admin-text">
                                     Варианты товара
                                     {manualLink.variantsLoading ? " (загрузка…)" : ""}
                                 </div>
-                                {manualLink.sourceHint.volume || manualLink.sourceHint.concentration ? (
-                                    <div className="text-[11px] text-admin-text-secondary">
-                                        Из прайса:{" "}
-                                        {manualLink.sourceHint.volume != null ? `${manualLink.sourceHint.volume} ml` : "—"}
-                                        {manualLink.sourceHint.concentration
-                                            ? ` / ${manualLink.sourceHint.concentration.toUpperCase()}`
-                                            : ""}
-                                        {manualLink.sourceHint.isTester ? " / TESTER" : ""}
-                                    </div>
-                                ) : null}
                                 {!manualLink.variantsLoading && sortedVariants.length === 0 ? (
                                     <div className="text-[11px] text-admin-text-secondary">
                                         У товара пока нет вариантов — добавь формулировку ниже.

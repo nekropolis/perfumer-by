@@ -403,6 +403,14 @@ class SellerOneVariantMatcher
                 continue;
             }
 
+            // Объём у поставщика задан — другие флаконы (100 мл vs 2 мл) не рассматриваем.
+            if (
+                $volume !== null
+                && ($variant->volume === null || abs((float) $variant->volume - $volume) > 0.01)
+            ) {
+                continue;
+            }
+
             $volumeMatch = false;
             $concMatch = false;
             $volumePoints = 0;
@@ -663,11 +671,15 @@ class SellerOneVariantMatcher
 
     private function extractVolume(string $title): ?float
     {
-        if (!preg_match('/(\d+(?:[.,]\d+)?)\s*(ml|мл)\b/iu', $title, $matches)) {
-            return null;
+        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(ml|мл)\b/iu', $title, $matches)) {
+            return $this->toFloat($matches[1]);
         }
 
-        return $this->toFloat($matches[1]);
+        if (preg_match('/(\d+(?:[.,]\d+)?)(ml|мл)\b/iu', $title, $matches)) {
+            return $this->toFloat($matches[1]);
+        }
+
+        return null;
     }
 
     private function extractConcentration(string $title): ?string

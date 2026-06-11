@@ -280,6 +280,8 @@ export type SellerOneSupplierProductsResponse = {
         new: number;
         unlinked: number;
         parsing_inactive: number;
+        last_price_apply_at: string | null;
+        last_price_apply_file_name: string | null;
     };
 };
 

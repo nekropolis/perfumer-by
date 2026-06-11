@@ -598,6 +598,7 @@ export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promi
 export async function fetchSellerOneSupplierProducts(params?: {
     search?: string;
     status?: "confirmed" | "found_unconfirmed" | "new" | "unlinked" | "parsing_inactive" | "";
+    stock?: "in_stock" | "out_of_stock" | "";
     page?: number;
 }): Promise<SellerOneSupplierProductsResponse> {
     const searchParams = new URLSearchParams();
@@ -608,6 +609,10 @@ export async function fetchSellerOneSupplierProducts(params?: {
 
     if (params?.status) {
         searchParams.set("status", params.status);
+    }
+
+    if (params?.stock) {
+        searchParams.set("stock", params.stock);
     }
 
     if (params?.page) {

@@ -48,7 +48,7 @@ class SellerOnePreviewSyncService
             'external_code' => $externalCode,
             'supplier_price' => $parsed['supplier_price'] ?? null,
             'min_price' => $parsed['supplier_price'] ?? null,
-            'price_file_in_stock' => $parsed['in_stock'] ?? null,
+            'price_file_in_stock' => true,
             'parsed' => $parsed['parsed'] ?? [],
             'suggested_variant_id' => $parsed['suggested_variant']['id'] ?? null,
             'suggested_product_id' => $parsed['suggested_product']['id'] ?? null,
@@ -95,8 +95,6 @@ class SellerOnePreviewSyncService
         $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
         $externalCode = trim((string) ($row['code'] ?? ($payload['external_code'] ?? '')));
 
-        $inStock = array_key_exists('in_stock', $row) ? $row['in_stock'] : null;
-
         $supplierProduct->update([
             'external_name' => (string) ($row['title'] ?? $supplierProduct->external_name),
             'external_slug' => Str::slug((string) ($row['title'] ?? $supplierProduct->external_name)),
@@ -107,16 +105,15 @@ class SellerOnePreviewSyncService
                 'external_code' => (string) ($row['code'] ?? ''),
                 'supplier_price' => $row['supplier_price'] ?? null,
                 'min_price' => $row['supplier_price'] ?? null,
-                'price_file_in_stock' => $inStock,
+                'price_file_in_stock' => true,
                 'last_parsed_at' => now()?->toDateTimeString(),
             ],
         ]);
-        // Наличие по прайсу на витрину — только из «Обновить цены», не при парсинге (см. applyPriceFilePresenceToOffers).
+        // Наличие на витрине — только из «Обновить цены» (см. applyPriceFilePresenceToOffers).
     }
 
     /**
-     * Код снова в файле парсинга: снимаем «нет в файле»; колонка «наличие» (если есть) управляет
-     * флагом «нет в наличии по прайсу» на оффере.
+     * Код в файле прайса: снимаем «нет в файле» и включаем канал поставщика на витрине.
      *
      * @param  (callable(int): void)|null  $deferStockFlagsForProduct Если задан — не дергать складской пересчёт
      *        сразу, а сообщить затронутый product_id (для пакета «Обновить цены» на тысячах строк это сильно быстрее).
@@ -254,8 +251,11 @@ class SellerOnePreviewSyncService
                     }
 
                     if (isset($normalized[$externalCode])) {
-                        if (!empty($payload['absent_from_parse_table_at'])) {
+                        $needsRestore = !empty($payload['absent_from_parse_table_at'])
+                            || ($payload['price_file_in_stock'] ?? null) !== true;
+                        if ($needsRestore) {
                             unset($payload['absent_from_parse_table_at']);
+                            $payload['price_file_in_stock'] = true;
                             $supplierProduct->update(['payload' => $payload]);
                         }
 
@@ -267,10 +267,59 @@ class SellerOnePreviewSyncService
                             'payload' => [
                                 ...$payload,
                                 'absent_from_parse_table_at' => now()->toDateTimeString(),
+                                'price_file_in_stock' => false,
                             ],
                         ]);
                         $flagged++;
                     }
+                }
+            });
+
+        return $flagged;
+    }
+
+    /**
+     * Связанные строки, которых нет в последнем файле: «нет в наличии» (остаются в таблице).
+     *
+     * @param  list<string>  $codesInLatestPrice
+     */
+    public function markLinkedMissingFromPriceFile(Supplier $supplier, array $codesInLatestPrice): int
+    {
+        $normalized = [];
+        foreach ($codesInLatestPrice as $code) {
+            $c = trim((string) $code);
+            if ($c !== '') {
+                $normalized[$c] = true;
+            }
+        }
+
+        $flagged = 0;
+
+        SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('is_linked', true)
+            ->where('link_parsing_active', true)
+            ->orderBy('id')
+            ->chunkById(400, function ($chunk) use ($normalized, &$flagged): void {
+                foreach ($chunk as $supplierProduct) {
+                    /** @var SupplierProduct $supplierProduct */
+                    $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+                    $externalCode = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
+                    if ($externalCode === '' || isset($normalized[$externalCode])) {
+                        continue;
+                    }
+
+                    if (($payload['price_file_in_stock'] ?? null) === false) {
+                        continue;
+                    }
+
+                    $supplierProduct->update([
+                        'payload' => [
+                            ...$payload,
+                            'price_file_in_stock' => false,
+                        ],
+                    ]);
+                    $flagged++;
                 }
             });
 

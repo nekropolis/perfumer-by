@@ -145,6 +145,11 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
             ], now()->addHours(24));
 
             try {
+                $service->recordLastPriceApply($this->originalFileName !== '' ? $this->originalFileName : null);
+            } catch (Throwable) {
+            }
+
+            try {
                 app(ImportTelegramNotificationService::class)->notifySellerOneRefreshFinished($this->jobId, [
                     'status' => 'completed',
                     'total_linked' => $linked,

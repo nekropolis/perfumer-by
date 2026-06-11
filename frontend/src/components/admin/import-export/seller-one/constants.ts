@@ -18,3 +18,10 @@ export type SellerOneStatusFilter =
     | "unlinked"
     | "new"
     | "parsing_inactive";
+
+export const STOCK_FILTER_OPTIONS = [
+    { value: "in_stock", label: "В наличии" },
+    { value: "out_of_stock", label: "Нет в наличии" },
+] as const;
+
+export type SellerOneStockFilter = "" | "in_stock" | "out_of_stock";
