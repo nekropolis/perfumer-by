@@ -26,23 +26,28 @@ class RunSellerOneParseJob implements ShouldQueue
      * интервал release ~45 с — нужен запас минимум на длительный sibling-job.
      */
     public int $tries = 90;
-    public int $timeout = 3600;
+
+    /** Таймаут одного chunk (продолжение — отдельный dispatch). */
+    public int $timeout = 7200;
+
     public bool $failOnTimeout = true;
+
+    /** Бюджет CPU на один chunk; по истечении ставим continuation job. */
+    private const CHUNK_TIME_BUDGET_SECONDS = 3300;
 
     public function __construct(
         public string $jobId,
         public string $storedFilePath,
+        public int $rowOffset = 0,
     ) {
     }
 
     public function handle(SupplierPriceImportService $service): void
     {
         $cacheKey = self::cacheKey($this->jobId);
-
-        // Контроллер кладёт файл на `local`, но исторически возможны аплоады
-        // с дефолтного FILESYSTEM_DISK (public). Ищем на обоих и используем тот,
-        // где файл реально есть.
+        $shouldCleanup = false;
         $disk = null;
+
         foreach (['local', 'public'] as $candidate) {
             if (Storage::disk($candidate)->exists($this->storedFilePath)) {
                 $disk = $candidate;
@@ -51,43 +56,58 @@ class RunSellerOneParseJob implements ShouldQueue
         }
 
         if ($disk === null) {
-            Cache::put($cacheKey, [
-                'job_id' => $this->jobId,
-                'status' => 'failed',
-                'message' => 'Файл для парсинга не найден',
-                'updated_at' => now()->toDateTimeString(),
-            ], now()->addHours(24));
+            self::markFailed($cacheKey, $this->jobId, 'Файл для парсинга не найден');
             self::clearActiveJobIfMatches($this->jobId);
+            $service->clearSellerOneParseArtifacts($this->jobId);
+
             return;
         }
 
         $absolutePath = Storage::disk($disk)->path($this->storedFilePath);
 
         try {
+            $publishProgress = function (array $progress) use ($cacheKey): void {
+                self::publishParseProgress($cacheKey, $this->jobId, $progress);
+            };
+
+            if ($this->rowOffset === 0) {
+                $publishProgress([
+                    'status' => 'running',
+                    'message' => 'Подготовка: чтение файла…',
+                    'processed' => 0,
+                    'total_rows' => 0,
+                ]);
+            }
+
             $result = $service->processAllRowsFromFile(
                 $absolutePath,
                 200,
-                function (array $progress) use ($cacheKey): void {
-                    $processed = (int) ($progress['processed'] ?? 0);
-                    $totalRows = (int) ($progress['total_rows'] ?? 0);
-                    $done = (bool) ($progress['done'] ?? false);
-
-                    Cache::put($cacheKey, [
-                        'job_id' => $this->jobId,
-                        'status' => $done ? 'completed' : 'running',
-                        'processed' => $processed,
-                        'total_rows' => $totalRows,
-                        'matched' => (int) ($progress['matched'] ?? 0),
-                        'inserted' => (int) ($progress['inserted'] ?? 0),
-                        'updated' => (int) ($progress['updated'] ?? 0),
-                        'skipped_linked' => (int) ($progress['skipped_linked'] ?? 0),
-                        'message' => $done
-                            ? "Готово: обработано {$processed}"
-                            : "Обработано {$processed}" . ($totalRows ? " / {$totalRows}" : ''),
-                        'updated_at' => now()->toDateTimeString(),
-                    ], now()->addHours(24));
-                },
+                $publishProgress,
+                $this->jobId,
+                $this->rowOffset,
+                self::CHUNK_TIME_BUDGET_SECONDS,
             );
+
+            if (! empty($result['has_more'])) {
+                $processed = (int) ($result['processed'] ?? 0);
+                $totalRows = (int) ($result['total_rows'] ?? 0);
+                $nextOffset = (int) ($result['next_offset'] ?? $this->rowOffset);
+
+                $publishProgress([
+                    'status' => 'running',
+                    'message' => "Продолжение: {$processed} / {$totalRows}",
+                    'processed' => $processed,
+                    'total_rows' => $totalRows,
+                    'matched' => (int) ($result['matched'] ?? 0),
+                    'inserted' => (int) ($result['inserted'] ?? 0),
+                    'updated' => (int) ($result['updated'] ?? 0),
+                    'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
+                ]);
+
+                self::dispatch($this->jobId, $this->storedFilePath, $nextOffset);
+
+                return;
+            }
 
             $processed = (int) ($result['processed'] ?? 0);
             Cache::put($cacheKey, [
@@ -104,6 +124,8 @@ class RunSellerOneParseJob implements ShouldQueue
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
 
+            $shouldCleanup = true;
+
             try {
                 app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
                     'status' => 'completed',
@@ -116,28 +138,19 @@ class RunSellerOneParseJob implements ShouldQueue
             } catch (Throwable) {
             }
         } catch (Throwable $e) {
-            Cache::put($cacheKey, [
-                'job_id' => $this->jobId,
-                'status' => 'failed',
-                'message' => $e->getMessage(),
-                'updated_at' => now()->toDateTimeString(),
-            ], now()->addHours(24));
-
-            try {
-                app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
-                    'status' => 'failed',
-                    'message' => $e->getMessage(),
-                ]);
-            } catch (Throwable) {
-            }
+            $shouldCleanup = true;
+            self::markFailed($cacheKey, $this->jobId, $e->getMessage());
         } finally {
-            // Снимаем флаг активности для discovery-эндпоинта (виджета в шапке),
-            // даже если была ошибка — иначе виджет будет показывать «зомби»-задачу.
-            self::clearActiveJobIfMatches($this->jobId);
+            if ($shouldCleanup) {
+                self::clearActiveJobIfMatches($this->jobId);
+                $service->clearSellerOneParseArtifacts($this->jobId);
 
-            try {
-                Storage::disk($disk)->delete($this->storedFilePath);
-            } catch (Throwable) {
+                if ($disk !== null) {
+                    try {
+                        Storage::disk($disk)->delete($this->storedFilePath);
+                    } catch (Throwable) {
+                    }
+                }
             }
         }
     }
@@ -145,11 +158,9 @@ class RunSellerOneParseJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            // Глобальный lock на heavy Seller One операции:
-            // parse и refresh не должны выполняться параллельно.
             (new WithoutOverlapping('seller_one_heavy_global'))
                 ->shared()
-                ->expireAfter(3900)
+                ->expireAfter(7500)
                 ->releaseAfter(45),
         ];
     }
@@ -157,27 +168,40 @@ class RunSellerOneParseJob implements ShouldQueue
     public function failed(?Throwable $exception): void
     {
         $message = $exception?->getMessage() ?: 'Seller One parse job failed unexpectedly.';
-
         $cacheKey = self::cacheKey($this->jobId);
-        $snap = Cache::get($cacheKey);
-        $st = is_array($snap) ? (string) ($snap['status'] ?? '') : '';
-        if (!in_array($st, ['completed', 'failed'], true)) {
-            Cache::put($cacheKey, [
-                'job_id' => $this->jobId,
-                'status' => 'failed',
-                'processed' => (int) (is_array($snap) ? ($snap['processed'] ?? 0) : 0),
-                'total_rows' => (int) (is_array($snap) ? ($snap['total_rows'] ?? 0) : 0),
-                'message' => $message,
-                'updated_at' => now()->toDateTimeString(),
-            ], now()->addHours(24));
-        }
+        self::markFailed($cacheKey, $this->jobId, $message);
         self::clearActiveJobIfMatches($this->jobId);
 
         try {
-            app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
-                'status' => 'failed',
-                'message' => $message,
-            ]);
+            app(SupplierPriceImportService::class)->clearSellerOneParseArtifacts($this->jobId);
+        } catch (Throwable) {
+        }
+    }
+
+    public static function markFailed(string $cacheKey, string $jobId, string $message): void
+    {
+        $snap = Cache::get($cacheKey);
+        $processed = (int) (is_array($snap) ? ($snap['processed'] ?? 0) : 0);
+        $totalRows = (int) (is_array($snap) ? ($snap['total_rows'] ?? 0) : 0);
+        $statusPayload = [
+            'job_id' => $jobId,
+            'status' => 'failed',
+            'processed' => $processed,
+            'total_rows' => $totalRows,
+            'matched' => (int) (is_array($snap) ? ($snap['matched'] ?? 0) : 0),
+            'inserted' => (int) (is_array($snap) ? ($snap['inserted'] ?? 0) : 0),
+            'updated' => (int) (is_array($snap) ? ($snap['updated'] ?? 0) : 0),
+            'skipped_linked' => (int) (is_array($snap) ? ($snap['skipped_linked'] ?? 0) : 0),
+            'message' => $processed > 0 && $totalRows > 0
+                ? "{$message} (обработано {$processed} / {$totalRows})"
+                : $message,
+            'updated_at' => now()->toDateTimeString(),
+        ];
+
+        Cache::put($cacheKey, $statusPayload, now()->addHours(24));
+
+        try {
+            app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($jobId, $statusPayload);
         } catch (Throwable) {
         }
     }
@@ -188,25 +212,44 @@ class RunSellerOneParseJob implements ShouldQueue
     }
 
     /**
-     * Общий ключ для discovery-эндпоинта: «какой Seller One job сейчас активен».
-     * Виджет активных задач в шапке админки читает именно его, чтобы не зависеть
-     * от localStorage конкретного браузера/вкладки (джоб мог быть запущен
-     * в другой сессии).
-     *
-     * Контроллер выставляет этот ключ при старте; сам джоб очищает его при
-     * завершении/ошибке (и ТОЛЬКО если значение всё ещё совпадает с нашим
-     * jobId — иначе другой, стартовавший позже, job затёрся бы).
+     * @param  array<string, mixed>  $progress
      */
+    public static function publishParseProgress(string $cacheKey, string $jobId, array $progress): void
+    {
+        $processed = (int) ($progress['processed'] ?? 0);
+        $totalRows = (int) ($progress['total_rows'] ?? 0);
+        $done = (bool) ($progress['done'] ?? false);
+        $explicitStatus = isset($progress['status']) ? (string) $progress['status'] : '';
+        $status = $done
+            ? 'completed'
+            : ($explicitStatus !== '' ? $explicitStatus : 'running');
+
+        $message = trim((string) ($progress['message'] ?? ''));
+        if ($message === '') {
+            $message = $done
+                ? "Готово: обработано {$processed}"
+                : ($totalRows > 0 ? "Обработано {$processed} / {$totalRows}" : 'Выполняется…');
+        }
+
+        Cache::put($cacheKey, [
+            'job_id' => $jobId,
+            'status' => $status,
+            'processed' => $processed,
+            'total_rows' => $totalRows,
+            'matched' => (int) ($progress['matched'] ?? 0),
+            'inserted' => (int) ($progress['inserted'] ?? 0),
+            'updated' => (int) ($progress['updated'] ?? 0),
+            'skipped_linked' => (int) ($progress['skipped_linked'] ?? 0),
+            'message' => $message,
+            'updated_at' => now()->toDateTimeString(),
+        ], now()->addHours(24));
+    }
+
     public static function activeKey(): string
     {
         return 'seller_one_parse_active_job';
     }
 
-    /**
-     * Атомарно сбрасывает `activeKey`, только если там наш jobId.
-     * Защищает от случая, когда параллельно уже стартовал следующий parse
-     * и мы не должны «отобрать» у него ключ активности.
-     */
     public static function clearActiveJobIfMatches(string $jobId): void
     {
         $current = Cache::get(self::activeKey());

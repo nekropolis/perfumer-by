@@ -32,6 +32,14 @@ php artisan catalog:search:reindex
 php artisan queue:work --queue=default
 ```
 
+### Seller One parse (большие прайсы)
+
+Парсинг разбивается на chunk-джобы (~55 мин каждый). Для продакшена у `queue:work`:
+
+- `--timeout=7500` (больше `RunSellerOneParseJob::$timeout` = 7200)
+- `--max-time=0` или `≥14400` (не `3600` — иначе воркер убивает job через час)
+- `--tries=3` (на случай кратковременных сбоев Redis/DB)
+
 ### Verify
 
 ```bash

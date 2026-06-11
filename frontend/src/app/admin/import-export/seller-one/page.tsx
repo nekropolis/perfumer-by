@@ -346,9 +346,18 @@ export default function SellerOneImportPage() {
                 }
                 const processed = Number(data.processed ?? 0);
                 const totalRows = Number(data.total_rows ?? 0);
-                const progressText = totalRows > 0
-                    ? `Обработано ${processed} / ${totalRows}`
-                    : data.message || "Выполняется...";
+                const statusMessage = data.message || "";
+                const isPrepMessage =
+                    data.status === "running"
+                    && statusMessage !== ""
+                    && (processed === 0
+                        || statusMessage.startsWith("Подготовка:")
+                        || statusMessage.startsWith("Продолжение:"));
+                const progressText = isPrepMessage
+                    ? statusMessage
+                    : totalRows > 0
+                        ? `Обработано ${processed} / ${totalRows}`
+                        : statusMessage || "Выполняется...";
                 setBatchProgress(progressText);
                 setSupplierPreviewLoading(data.status === "queued" || data.status === "running");
 

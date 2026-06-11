@@ -94,13 +94,27 @@ function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
     const isRefresh = status.job_type === "refresh_linked";
     const processed = Number(status.processed ?? 0);
     const totalRows = isRefresh ? Number(status.total_linked ?? 0) : Number(status.total_rows ?? 0);
+    const isRunning = status.status === "running";
+    const statusMessage = status.message?.trim() || "";
+    const isPrepMessage =
+        isRunning
+        && statusMessage !== ""
+        && (processed === 0 || statusMessage.startsWith("Подготовка:") || statusMessage.startsWith("Продолжение:"));
     const progress =
-        totalRows > 0 ? Math.round((processed / totalRows) * 100) : status.status === "running" ? 5 : 0;
-    const counter = totalRows > 0 ? `${processed} / ${totalRows}` : null;
+        totalRows > 0 && processed > 0
+            ? Math.round((processed / totalRows) * 100)
+            : isRunning
+                ? totalRows > 0
+                    ? 3
+                    : 5
+                : 0;
+    const counter = totalRows > 0 && processed > 0 ? `${processed} / ${totalRows}` : null;
     const message =
-        totalRows > 0
-            ? (isRefresh ? `Обновление цен ${processed} / ${totalRows}` : `Обработано ${processed} / ${totalRows}`)
-            : status.message || "Ожидание…";
+        isPrepMessage
+            ? statusMessage
+            : totalRows > 0
+                ? (isRefresh ? `Обновление цен ${processed} / ${totalRows}` : `Обработано ${processed} / ${totalRows}`)
+                : statusMessage || "Ожидание…";
     return {
         key: `seller-one:${status.job_id}:${status.job_type ?? "parse"}`,
         title: isRefresh ? "Цены Seller One" : "Парсинг Seller One",

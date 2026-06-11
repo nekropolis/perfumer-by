@@ -184,18 +184,68 @@ class SupplierPriceImportService
         string $absolutePath,
         int $batchSize = 200,
         ?callable $onBatch = null,
+        ?string $jobId = null,
+        int $startOffset = 0,
+        int $chunkTimeBudgetSeconds = 0,
     ): array {
         $batchSize = max($batchSize, 1);
+        $isContinuation = $startOffset > 0;
 
         $supplier = $this->getOrCreateSellerOneSupplier();
 
-        // XLSX читаем ОДИН раз.
+        $this->reportParseProgress($onBatch, [
+            'message' => $isContinuation ? 'Подготовка: продолжение парсинга…' : 'Подготовка: чтение файла…',
+            'processed' => 0,
+            'total_rows' => 0,
+        ]);
+
+        // XLSX читаем ОДИН раз за chunk (файл нужен до финальной пометки absent/preorder).
         $allRows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
         $totalRows = count($allRows);
 
-        // Общие кэши на весь прогон.
+        $totalMatched = 0;
+        $totalInserted = 0;
+        $totalUpdated = 0;
+        $totalSkippedLinked = 0;
+        $totalSkippedParsingInactive = 0;
+        $totalProcessed = 0;
+
+        if ($isContinuation && $jobId !== null) {
+            $snap = \Illuminate\Support\Facades\Cache::get(
+                \Modules\Catalog\Jobs\RunSellerOneParseJob::cacheKey($jobId)
+            );
+            if (is_array($snap)) {
+                $totalMatched = (int) ($snap['matched'] ?? 0);
+                $totalInserted = (int) ($snap['inserted'] ?? 0);
+                $totalUpdated = (int) ($snap['updated'] ?? 0);
+                $totalSkippedLinked = (int) ($snap['skipped_linked'] ?? 0);
+                $totalSkippedParsingInactive = (int) ($snap['skipped_parsing_inactive'] ?? 0);
+                $totalProcessed = (int) ($snap['processed'] ?? 0);
+            }
+        }
+
+        $this->reportParseProgress($onBatch, [
+            'message' => $isContinuation ? 'Подготовка: загрузка каталога…' : 'Загрузка каталога…',
+            'processed' => $totalProcessed,
+            'total_rows' => $totalRows,
+            'matched' => $totalMatched,
+            'inserted' => $totalInserted,
+            'updated' => $totalUpdated,
+            'skipped_linked' => $totalSkippedLinked,
+        ]);
+
+        // Общие кэши на весь прогон (между chunk-джобами — файл на диске).
         $brands = Brand::query()->select(['id', 'name'])->get();
-        $productsIndex = $this->buildProductsIndex();
+        $productsIndex = null;
+        if ($isContinuation && $jobId !== null) {
+            $productsIndex = $this->restoreProductsIndex($jobId);
+        }
+        if ($productsIndex === null) {
+            $productsIndex = $this->buildProductsIndex();
+            if ($jobId !== null) {
+                $this->persistProductsIndex($jobId, $productsIndex);
+            }
+        }
         $rules = SellerOneMatchRule::query()
             ->where('supplier_id', $supplier->id)
             ->where('is_active', true)
@@ -215,18 +265,23 @@ class SupplierPriceImportService
             }
         }
 
-        $totalMatched = 0;
-        $totalInserted = 0;
-        $totalUpdated = 0;
-        $totalSkippedLinked = 0;
-        $totalSkippedParsingInactive = 0;
-        $totalProcessed = 0;
+        $this->reportParseProgress($onBatch, [
+            'message' => $totalRows > 0
+                ? "Обработка: {$totalProcessed} / {$totalRows}"
+                : 'Обработка…',
+            'processed' => $totalProcessed,
+            'total_rows' => $totalRows,
+            'matched' => $totalMatched,
+            'inserted' => $totalInserted,
+            'updated' => $totalUpdated,
+            'skipped_linked' => $totalSkippedLinked,
+        ]);
 
-        for ($offset = 0; $offset < max($totalRows, 1); $offset += $batchSize) {
-            if ($offset >= $totalRows) {
-                break;
-            }
+        $chunkStartedAt = time();
+        $stoppedEarly = false;
+        $nextOffset = $totalRows;
 
+        for ($offset = $startOffset; $offset < $totalRows; $offset += $batchSize) {
             $rows = array_slice($allRows, $offset, $batchSize);
             $isFinalBatch = ($offset + $batchSize) >= $totalRows;
 
@@ -291,7 +346,7 @@ class SupplierPriceImportService
                     'updated' => $totalUpdated,
                     'skipped_linked' => $totalSkippedLinked,
                     'skipped_parsing_inactive' => $totalSkippedParsingInactive,
-                    'done' => $isFinalBatch,
+                    'done' => false,
                 ]);
             }
 
@@ -299,10 +354,39 @@ class SupplierPriceImportService
             if (function_exists('gc_collect_cycles')) {
                 gc_collect_cycles();
             }
+
+            if (
+                $chunkTimeBudgetSeconds > 0
+                && (time() - $chunkStartedAt) >= $chunkTimeBudgetSeconds
+                && ($offset + $batchSize) < $totalRows
+            ) {
+                $stoppedEarly = true;
+                $nextOffset = $offset + $batchSize;
+                break;
+            }
         }
 
         $markedPreorder = 0;
         $markedAbsentUnlinked = 0;
+        if ($stoppedEarly) {
+            unset($allRows, $brands, $productsIndex, $rules);
+
+            return [
+                'message' => 'Продолжение парсинга',
+                'total_rows' => $totalRows,
+                'processed' => $totalProcessed,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+                'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+                'marked_preorder' => 0,
+                'marked_absent_unlinked' => 0,
+                'has_more' => true,
+                'next_offset' => $nextOffset,
+            ];
+        }
+
         if ($totalRows > 0) {
             $allCodes = array_map(
                 static fn (array $row): string => (string) ($row['code'] ?? ''),
@@ -329,7 +413,18 @@ class SupplierPriceImportService
             'skipped_parsing_inactive' => $totalSkippedParsingInactive,
             'marked_preorder' => $markedPreorder,
             'marked_absent_unlinked' => $markedAbsentUnlinked,
+            'has_more' => false,
+            'next_offset' => $totalRows,
         ];
+    }
+
+    public function clearSellerOneParseArtifacts(?string $jobId): void
+    {
+        if ($jobId === null || $jobId === '') {
+            return;
+        }
+
+        $this->removeProductsIndexCache($jobId);
     }
 
     public function refreshLinkedPrices(UploadedFile $file): array
@@ -1309,6 +1404,66 @@ class SupplierPriceImportService
         }
 
         return $grouped;
+    }
+
+    /**
+     * @param  callable(array<string, mixed>): void|null  $onBatch
+     * @param  array<string, mixed>  $payload
+     */
+    private function reportParseProgress(?callable $onBatch, array $payload): void
+    {
+        if ($onBatch) {
+            $onBatch($payload);
+        }
+    }
+
+    /**
+     * @param  array<int, list<Product>>  $productsIndex
+     */
+    private function persistProductsIndex(string $jobId, array $productsIndex): void
+    {
+        $path = $this->productsIndexCachePath($jobId);
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, serialize($productsIndex));
+    }
+
+    /**
+     * @return array<int, list<Product>>|null
+     */
+    private function restoreProductsIndex(string $jobId): ?array
+    {
+        $path = $this->productsIndexCachePath($jobId);
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+
+        $index = @unserialize($raw);
+        if (! is_array($index)) {
+            return null;
+        }
+
+        return $index;
+    }
+
+    private function removeProductsIndexCache(string $jobId): void
+    {
+        $path = $this->productsIndexCachePath($jobId);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    private function productsIndexCachePath(string $jobId): string
+    {
+        return storage_path('app/seller-one-temp/catalog-index-'.$jobId.'.ser');
     }
 
 }
