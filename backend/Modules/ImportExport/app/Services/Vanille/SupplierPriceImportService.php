@@ -159,7 +159,8 @@ class SupplierPriceImportService
                 $parsed,
                 function (SupplierProduct $supplierProduct, array $parsedRow) use ($supplier): void {
                     $this->tryAutoConfirmLink($supplier, $supplierProduct, $parsedRow);
-                }
+                },
+                $existing,
             );
             if ($upsert === 'inserted') {
                 $inserted++;
@@ -237,8 +238,18 @@ class SupplierPriceImportService
             'total_rows' => 0,
         ]);
 
-        // XLSX читаем ОДИН раз за chunk (файл нужен до финальной пометки absent/preorder).
-        $allRows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
+        // XLSX парсим один раз за весь прогон: continuation-chunk'и читают строки
+        // из сериализованного кэша (PhpSpreadsheet на слабом сервере — минуты на файл).
+        $allRows = null;
+        if ($isContinuation && $jobId !== null) {
+            $allRows = $this->restoreParsedRows($jobId);
+        }
+        if ($allRows === null) {
+            $allRows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
+            if ($jobId !== null) {
+                $this->persistParsedRows($jobId, $allRows);
+            }
+        }
         $totalRows = count($allRows);
 
         $totalMatched = 0;
@@ -363,7 +374,8 @@ class SupplierPriceImportService
                     $parsed,
                     function (SupplierProduct $supplierProduct, array $parsedRow) use ($supplier): void {
                         $this->tryAutoConfirmLink($supplier, $supplierProduct, $parsedRow);
-                    }
+                    },
+                    $existing,
                 );
                 if ($upsert === 'inserted') {
                     $totalInserted++;
@@ -464,6 +476,7 @@ class SupplierPriceImportService
         }
 
         $this->removeProductsIndexCache($jobId);
+        $this->removeParsedRowsCache($jobId);
     }
 
     public function refreshLinkedPrices(UploadedFile $file): array
@@ -1487,6 +1500,10 @@ class SupplierPriceImportService
      * suggested_product даже для продуктов без вариантов — поставщик всё равно совпадает,
      * а админ потом создаст нужный вариант.
      *
+     * attributeValues грузим ТОЛЬКО для атрибута «Для кого»: матчеру другие атрибуты
+     * не нужны, а полный eager-load всех атрибутов раздувал индекс в разы
+     * (память + время сериализации на диск между chunk-джобами).
+     *
      * @return array<int, \Illuminate\Support\Collection<int, \Modules\Catalog\Models\Product>>
      */
     private function buildProductsIndex(): array
@@ -1495,8 +1512,11 @@ class SupplierPriceImportService
             ->with([
                 'brand',
                 'variants.definition',
-                'attributeValues.productAttribute:id,name',
-                'attributeValues.selectedOptions.productAttributeOption:id,name',
+                'attributeValues' => static fn ($q) => $q->where(
+                    'product_attribute_id',
+                    SellerOneVariantMatcher::GENDER_ATTRIBUTE_ID,
+                ),
+                'attributeValues.selectedOptions',
             ])
             ->get();
 
@@ -1571,4 +1591,49 @@ class SupplierPriceImportService
         return storage_path('app/seller-one-temp/catalog-index-'.$jobId.'.ser');
     }
 
+    /**
+     * @param  list<array{code: string, title: string, supplier_price: ?float, in_stock: ?bool}>  $rows
+     */
+    private function persistParsedRows(string $jobId, array $rows): void
+    {
+        $path = $this->parsedRowsCachePath($jobId);
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, serialize($rows));
+    }
+
+    /**
+     * @return list<array{code: string, title: string, supplier_price: ?float, in_stock: ?bool}>|null
+     */
+    private function restoreParsedRows(string $jobId): ?array
+    {
+        $path = $this->parsedRowsCachePath($jobId);
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+
+        $rows = @unserialize($raw);
+
+        return is_array($rows) ? $rows : null;
+    }
+
+    private function removeParsedRowsCache(string $jobId): void
+    {
+        $path = $this->parsedRowsCachePath($jobId);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    private function parsedRowsCachePath(string $jobId): string
+    {
+        return storage_path('app/seller-one-temp/rows-'.$jobId.'.ser');
+    }
 }

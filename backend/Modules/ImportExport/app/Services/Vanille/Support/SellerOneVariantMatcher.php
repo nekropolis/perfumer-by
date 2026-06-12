@@ -51,7 +51,19 @@ class SellerOneVariantMatcher
     private const VARIANT_BONUS_CONCENTRATION = 8;
 
     /** product_attributes: «Для кого» */
-    private const GENDER_ATTRIBUTE_ID = 3;
+    public const GENDER_ATTRIBUTE_ID = 3;
+
+    /**
+     * Кэши hot-path'а: при 25k+ строк прайса normalizeText по каждому бренду и
+     * токенизация имён продуктов на каждую строку — основной расход CPU парсинга.
+     * Имена брендов/продуктов в рамках одного прогона не меняются.
+     */
+
+    /** @var array<int, string> brand_id => нормализованное имя */
+    private array $brandNormalizedCache = [];
+
+    /** @var array<int, list<string>> product_id => токены имени */
+    private array $productTokensCache = [];
 
     /** product_attribute_options */
     private const GENDER_OPTION_FEMALE_ID = 3;
@@ -263,7 +275,8 @@ class SellerOneVariantMatcher
         $best = null;
 
         foreach ($productsIndex[$brandId] as $product) {
-            $candidateTokens = $this->productNameTokens((string) $product->name, $brandName);
+            $candidateTokens = $this->productTokensCache[(int) $product->id]
+                ??= $this->productNameTokens((string) $product->name, $brandName);
             if (empty($candidateTokens)) {
                 continue;
             }
@@ -530,12 +543,8 @@ class SellerOneVariantMatcher
         $bestLen = 0;
 
         foreach ($brands as $brand) {
-            $name = trim((string) $brand->name);
-            if ($name === '') {
-                continue;
-            }
-
-            $normalizedBrand = $this->normalizeText($name);
+            $normalizedBrand = $this->brandNormalizedCache[(int) $brand->id]
+                ??= $this->normalizeText(trim((string) $brand->name));
             if ($normalizedBrand === '') {
                 continue;
             }

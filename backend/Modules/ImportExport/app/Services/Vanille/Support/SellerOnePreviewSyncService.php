@@ -17,13 +17,23 @@ class SellerOnePreviewSyncService
     ) {
     }
 
-    public function upsertPreviewRow(Supplier $supplier, array $parsed, callable $autoConfirmCallback): string
-    {
+    /**
+     * @param  SupplierProduct|null  $preloadedExisting  строка, предзагруженная батчем
+     *         (whereIn по external_url) — экономит SELECT на каждую строку прайса.
+     *         null допустим и для новых строк: тогда выполняется одиночный запрос
+     *         (защита от дубля кода внутри одного батча).
+     */
+    public function upsertPreviewRow(
+        Supplier $supplier,
+        array $parsed,
+        callable $autoConfirmCallback,
+        ?SupplierProduct $preloadedExisting = null,
+    ): string {
         $externalCode = (string) ($parsed['code'] ?? '');
         $externalName = (string) ($parsed['title'] ?? '');
         $externalUrl = "supplier-xls://{$externalCode}";
 
-        $existing = SupplierProduct::query()
+        $existing = $preloadedExisting ?? SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
             ->where('external_url', $externalUrl)
             ->first();
