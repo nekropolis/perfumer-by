@@ -1210,7 +1210,9 @@ class SupplierPriceImportService
         }
 
         if (!empty($parsed['suggested_variant'])) {
-            unset($parsed['suggested_variant'], $parsed['selected_variant_id']);
+            // null, не unset: вызывающий код читает $parsed['suggested_variant'] без ?? (см. processAllRowsFromFile).
+            $parsed['suggested_variant'] = null;
+            $parsed['selected_variant_id'] = null;
             $parsed['suggested_product']['has_variant'] = false;
         }
 
