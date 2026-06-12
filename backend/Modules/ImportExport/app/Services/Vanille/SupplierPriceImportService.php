@@ -31,6 +31,10 @@ class SupplierPriceImportService
 {
     private const string DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
     private const string DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
+
+    /** product_attributes.id «Для кого» — должен совпадать с SellerOneVariantMatcher. */
+    private const int GENDER_ATTRIBUTE_ID = 3;
+
     public const SETTING_LAST_PRICE_APPLY_AT = 'seller_one.last_price_apply_at';
     public const SETTING_LAST_PRICE_APPLY_FILE = 'seller_one.last_price_apply_file_name';
     public function __construct(
@@ -1149,7 +1153,12 @@ class SupplierPriceImportService
         ];
     }
 
-    private function parseSupplierRow(array $row, $brands, $rules, array $productsIndex): array
+    /**
+     * @param  Collection<int, Brand>  $brands
+     * @param  Collection<int, SellerOneMatchRule>  $rules
+     * @param  array<int, list<Product>>  $productsIndex
+     */
+    private function parseSupplierRow(array $row, Collection $brands, Collection $rules, array $productsIndex): array
     {
         $parsed = $this->variantMatcher->parseSupplierRow($row, $brands, $rules, $productsIndex);
 
@@ -1506,7 +1515,7 @@ class SupplierPriceImportService
      * не нужны, а полный eager-load всех атрибутов раздувал индекс в разы
      * (память + время сериализации на диск между chunk-джобами).
      *
-     * @return array<int, \Illuminate\Support\Collection<int, \Modules\Catalog\Models\Product>>
+     * @return array<int, list<Product>>
      */
     private function buildProductsIndex(): array
     {
@@ -1516,7 +1525,7 @@ class SupplierPriceImportService
                 'variants.definition',
                 'attributeValues' => static fn ($q) => $q->where(
                     'product_attribute_id',
-                    SellerOneVariantMatcher::GENDER_ATTRIBUTE_ID,
+                    self::GENDER_ATTRIBUTE_ID,
                 ),
                 'attributeValues.selectedOptions',
             ])

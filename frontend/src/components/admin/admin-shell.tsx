@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useState, startTransition } from "react";
 import { X, Store, User } from "lucide-react";
 import AdminHeader from "@/components/admin/admin-header";
@@ -143,11 +142,13 @@ export default function AdminShell({ children }: Props) {
                         }}
                     />
 
-                    <div className="absolute left-0 top-0 flex h-full w-[min(88vw,300px)] flex-col border-r border-admin-border bg-admin-sidebar shadow-2xl">
+                    <div className="absolute left-0 top-0 flex h-full w-[min(92vw,340px)] flex-col border-r border-admin-border bg-admin-sidebar shadow-2xl">
                         <div className="relative flex flex-none items-center justify-between gap-2 border-b border-admin-border px-4 py-3">
-                            <div className="text-sm font-semibold tracking-tight text-admin-text">Меню</div>
+                            <div className="min-w-0 shrink truncate text-sm font-semibold tracking-tight text-admin-text">
+                                Меню
+                            </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-1.5">
                                 <AdminActiveTasksWidget compact className="flex items-center gap-2" />
                                 <button
                                     type="button"
@@ -192,14 +193,6 @@ export default function AdminShell({ children }: Props) {
                                             <Store size={18} />
                                             Магазин
                                         </a>
-
-                                        <Link
-                                            href="/account"
-                                            className={adminBtnSecondary}
-                                            onClick={() => setMobileMenuOpen(false)}
-                                        >
-                                            Личный кабинет
-                                        </Link>
 
                                         <button
                                             type="button"

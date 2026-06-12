@@ -1,13 +1,23 @@
-import type { Dispatch, SetStateAction } from "react";
+"use client";
+
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { SellerOneMatchRule, SellerOnePricingSettings } from "@/types/Vanille";
 import {
     buildDefinitionSearchFromHint,
+    buildSupplierLabelFromHint,
+    findNameMatchHighlightRanges,
+    formatCatalogProductLabel,
     formatVariantOptionLabel,
+    findProductNameMatchInfo,
     getConfidenceBadgeClass,
+    definitionMatchesVolumeHint,
     getDefinitionMatchFlags,
     getVariantMatchFlags,
     getVariantMatchRowClass,
     isFullVariantMatch,
+    rankProducts,
+    variantMatchesVolumeHint,
+    type ProductNameMatchInfo,
     type VariantMatchFlags,
 } from "./utils";
 import type { VariantDefinitionItem } from "@/lib/admin-product-variants-api";
@@ -89,38 +99,49 @@ function VariantMatchBadges({
 
 export function HighlightedNameText({
     text,
-    highlight,
+    matchInfo,
     className,
 }: {
     text: string;
-    highlight: string;
+    matchInfo?: ProductNameMatchInfo | null;
     className?: string;
 }) {
     if (!text) {
         return null;
     }
 
-    const trimmedHighlight = highlight.trim();
-    if (!trimmedHighlight) {
+    const words = matchInfo?.words ?? [];
+    if (words.length === 0) {
         return <span className={className}>{text}</span>;
     }
 
-    const lowerText = text.toLowerCase();
-    const lowerHighlight = trimmedHighlight.toLowerCase();
-    const index = lowerText.indexOf(lowerHighlight);
-    if (index === -1) {
+    const ranges = findNameMatchHighlightRanges(text, words, matchInfo?.exact ?? false);
+    if (ranges.length === 0) {
         return <span className={className}>{text}</span>;
     }
 
-    return (
-        <span className={className}>
-            {text.slice(0, index)}
-            <mark className="rounded-sm bg-green-100 px-0.5 font-semibold text-green-900">
-                {text.slice(index, index + trimmedHighlight.length)}
-            </mark>
-            {text.slice(index + trimmedHighlight.length)}
-        </span>
-    );
+    const markClass = matchInfo?.exact
+        ? "rounded-sm bg-green-100 px-0.5 font-semibold text-green-900"
+        : "rounded-sm bg-amber-100 px-0.5 font-semibold text-amber-900";
+
+    const parts: ReactNode[] = [];
+    let cursor = 0;
+    ranges.forEach((range, index) => {
+        if (range.start > cursor) {
+            parts.push(text.slice(cursor, range.start));
+        }
+        parts.push(
+            <mark key={`${range.start}-${range.end}-${index}`} className={markClass}>
+                {text.slice(range.start, range.end)}
+            </mark>,
+        );
+        cursor = range.end;
+    });
+    if (cursor < text.length) {
+        parts.push(text.slice(cursor));
+    }
+
+    return <span className={className}>{parts}</span>;
 }
 
 export function ConfidenceBadge({
@@ -139,85 +160,166 @@ export function ConfidenceBadge({
 
 export function ManualLinkModal({
     manualLink,
+    isProductSearchDebouncing = false,
     linkingRowId,
     setManualLink,
     onCloseAction,
     onPickProductAction,
     onPickVariantAction,
-    onPickProductVariantAction,
     onPickDefinitionAction,
     onConfirmAction,
 }: {
     manualLink: ManualLinkState;
+    isProductSearchDebouncing?: boolean;
     linkingRowId: number | null;
     setManualLink: Dispatch<SetStateAction<ManualLinkState | null>>;
     onCloseAction: () => void;
-    onPickProductAction: (productId: number) => Promise<void>;
+    onPickProductAction: (product: ProductAdminItem) => Promise<void>;
     onPickVariantAction: (variantId: number) => void;
-    onPickProductVariantAction: (productId: number, variantId: number) => Promise<void>;
     onPickDefinitionAction: (definitionId: number) => Promise<void>;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
 }) {
-    const sortedProducts = [...manualLink.products].sort((a, b) => {
-        const variantsA = manualLink.previewVariantsByProductId[a.id] || [];
-        const variantsB = manualLink.previewVariantsByProductId[b.id] || [];
-        const bestA = Math.max(0, ...variantsA.map((v) => getVariantMatchFlags(v, manualLink.sourceHint).score));
-        const bestB = Math.max(0, ...variantsB.map((v) => getVariantMatchFlags(v, manualLink.sourceHint).score));
-        return bestB - bestA || a.name.localeCompare(b.name);
-    });
+    const supplierLabel = buildSupplierLabelFromHint(manualLink.sourceHint) || manualLink.rowName;
 
-    const sortedVariants = [...manualLink.variants].sort((a, b) => {
+    const selectedProduct = manualLink.products.find((p) => p.id === manualLink.selectedProductId);
+    const selectedProductLabel = selectedProduct ? formatCatalogProductLabel(selectedProduct) : "";
+
+    const productQuery = manualLink.productSearch.trim();
+    const showProductSearchStatus =
+        manualLink.selectedProductId === null
+        && productQuery.length >= 2
+        && (manualLink.productsLoading || isProductSearchDebouncing);
+
+    const showProductDropdown =
+        manualLink.selectedProductId === null
+        && manualLink.products.length > 0
+        && productQuery.length >= 2;
+
+    const showProductEmptyState =
+        manualLink.selectedProductId === null
+        && !manualLink.productsLoading
+        && !isProductSearchDebouncing
+        && productQuery.length >= 2
+        && manualLink.products.length === 0;
+
+    const rankedProducts = rankProducts(manualLink.products, manualLink.productSearch);
+
+    const variantsForHint = manualLink.variants.filter((variant) =>
+        variantMatchesVolumeHint(variant, manualLink.sourceHint),
+    );
+
+    const sortedVariants = [...variantsForHint].sort((a, b) => {
         const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
         const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
         return scoreB - scoreA || a.id - b.id;
     });
 
-    const sortedDefinitions = [...manualLink.definitions].sort((a, b) => {
+    const definitionsForHint = manualLink.definitions.filter((definition) =>
+        definitionMatchesVolumeHint(definition, manualLink.sourceHint),
+    );
+
+    const sortedDefinitions = [...definitionsForHint].sort((a, b) => {
         const scoreA = getDefinitionMatchFlags(a, manualLink.sourceHint).score;
         const scoreB = getDefinitionMatchFlags(b, manualLink.sourceHint).score;
         return scoreB - scoreA || a.id - b.id;
     });
 
+    const handleProductSearchChange = (value: string) => {
+        setManualLink((prev) => {
+            if (!prev) {
+                return prev;
+            }
+
+            const clearingSelection =
+                prev.selectedProductId !== null && value.trim() !== selectedProductLabel.trim();
+
+            return {
+                ...prev,
+                productSearch: value,
+                ...(clearingSelection
+                    ? {
+                        selectedProductId: null,
+                        selectedVariantId: null,
+                        variants: [],
+                        variantsLoading: false,
+                        definitions: [],
+                        definitionSearch: buildDefinitionSearchFromHint(prev.sourceHint),
+                        definitionsLoading: false,
+                    }
+                    : {}),
+            };
+        });
+    };
+
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
-                <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
-                    <div className="flex items-center justify-between border-b px-5 py-4">
-                        <div className="text-sm font-medium">Принудительная связка для товара: <strong>{manualLink.rowName}</strong></div>
+                <div className="flex max-h-full min-h-0 w-full flex-col rounded-2xl bg-white shadow-xl">
+                    <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+                        <div className="text-sm font-medium">
+                            Принудительная связка для товара: <strong>{manualLink.rowName}</strong>
+                        </div>
                         <button type="button" onClick={onCloseAction} className="text-xs text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
-                    <div className="space-y-3 overflow-y-auto px-5 py-4">
+                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                         <div>
-                            <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Локальный товар (поиск
-                                по мере ввода)</label>
-                            <input
-                                type="text"
-                                value={manualLink.productSearch}
-                                onChange={(e) =>
-                                    setManualLink((prev) =>
-                                        prev ? { ...prev, productSearch: e.target.value } : prev
-                                    )
-                                }
-                                className="w-full rounded-xl border px-3 py-2 text-sm"
-                                placeholder="Бренд, название…"
-                            />
-                        </div>
-                        {manualLink.productsLoading ? (
-                            <div className="text-xs text-admin-text-secondary">Поиск товаров…</div>
-                        ) : null}
-                        {!manualLink.productsLoading && manualLink.products.length === 0 ? (
-                            <div className="rounded-xl border bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                Товары не найдены. Попробуй упростить запрос (например, только бренд + часть
-                                названия).
+                            <label className="mb-1 block text-xs font-medium text-admin-text-secondary">
+                                Локальный товар (поиск по мере ввода)
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={manualLink.productSearch}
+                                    onChange={(e) => handleProductSearchChange(e.target.value)}
+                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    placeholder="Бренд, название…"
+                                />
+                                {showProductSearchStatus ? (
+                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-admin-text-secondary">
+                                        …
+                                    </span>
+                                ) : null}
                             </div>
-                        ) : null}
-                        {manualLink.products.length > 0 ? (
-                            <div className="space-y-2 rounded-xl border bg-white p-3">
+                            <div className="mt-1 min-h-8">
+                                {showProductEmptyState ? (
+                                    <div className="rounded-xl border bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                        Товары не найдены. Попробуй упростить запрос.
+                                    </div>
+                                ) : null}
+                                {showProductDropdown ? (
+                                    <div
+                                        className={`max-h-64 overflow-y-auto rounded-xl border bg-white p-1 shadow-sm ${manualLink.productsLoading || isProductSearchDebouncing ? "opacity-70" : ""}`}
+                                    >
+                                    {rankedProducts.map((product) => {
+                                        const label = formatCatalogProductLabel(product);
+                                        const matchInfo = findProductNameMatchInfo(supplierLabel, label);
+
+                                        return (
+                                            <button
+                                                key={product.id}
+                                                type="button"
+                                                onClick={() => void onPickProductAction(product)}
+                                                className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-admin-muted"
+                                            >
+                                                <HighlightedNameText
+                                                    text={label}
+                                                    matchInfo={matchInfo}
+                                                    className="font-medium"
+                                                />
+                                            </button>
+                                        );
+                                    })}
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        {manualLink.selectedProductId ? (
+                            <div className="space-y-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/80 p-3">
                                 <div className="text-xs font-medium text-admin-text">
-                                    Найденные товары
-                                    {manualLink.previewVariantsLoading ? " (загрузка вариантов…)" : ""}
+                                    Формулировка (поиск по мере ввода, нажми строку — добавится к товару)
                                 </div>
                                 {(manualLink.sourceHint.volume || manualLink.sourceHint.concentration) ? (
                                     <div className="text-[11px] text-admin-text-secondary">
@@ -229,103 +331,26 @@ export function ManualLinkModal({
                                         {manualLink.sourceHint.isTester ? " / TESTER" : ""}
                                     </div>
                                 ) : null}
-                                <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border bg-white p-1">
-                                    {sortedProducts.map((product: ProductAdminItem) => {
-                                        const productSelected = manualLink.selectedProductId === product.id;
-                                        const previewVariants = [
-                                            ...(manualLink.previewVariantsByProductId[product.id] || []),
-                                        ].sort((a, b) => {
-                                            const scoreA = getVariantMatchFlags(a, manualLink.sourceHint).score;
-                                            const scoreB = getVariantMatchFlags(b, manualLink.sourceHint).score;
-                                            return scoreB - scoreA || a.id - b.id;
-                                        });
-
-                                        return (
-                                            <div
-                                                key={product.id}
-                                                className={`rounded-lg border p-2 ${productSelected ? "border-admin-primary bg-admin-muted/40" : "border-admin-border"}`}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void onPickProductAction(product.id)}
-                                                    className={`w-full rounded-lg px-2 py-1.5 text-left text-sm font-medium transition-colors ${productSelected ? "text-admin-primary" : "hover:bg-admin-muted"}`}
-                                                >
-                                                    {product.brand?.name
-                                                        ? `${product.brand.name} ${product.name}`.trim()
-                                                        : product.name}
-                                                </button>
-                                                {previewVariants.length > 0 ? (
-                                                    <div className="mt-1 space-y-1 pl-1">
-                                                        {previewVariants.map((variant) => {
-                                                            const flags = getVariantMatchFlags(variant, manualLink.sourceHint);
-                                                            const variantSelected =
-                                                                productSelected
-                                                                && manualLink.selectedVariantId === variant.id;
-
-                                                            return (
-                                                                <button
-                                                                    key={variant.id}
-                                                                    type="button"
-                                                                    onClick={() => void onPickProductVariantAction(product.id, variant.id)}
-                                                                    className={`w-full rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${getVariantMatchRowClass(flags, variantSelected)}`}
-                                                                >
-                                                                    <div>{formatVariantOptionLabel(variant)}</div>
-                                                                    <VariantMatchBadges flags={flags} inverted={variantSelected} />
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                ) : manualLink.previewVariantsLoading ? (
-                                                    <div className="px-2 py-1 text-[11px] text-admin-text-secondary">
-                                                        Варианты загружаются…
-                                                    </div>
-                                                ) : (
-                                                    <div className="px-2 py-1 text-[11px] text-admin-text-secondary">
-                                                        Вариантов нет
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ) : null}
-                        {manualLink.selectedProductId ? (
-                            <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
-                                {(() => {
-                                    const selectedProduct = manualLink.products.find(
-                                        (product) => product.id === manualLink.selectedProductId
-                                    );
-                                    const selectedLabel = `${selectedProduct?.name}`
-
-                                    return (
-                                        <>
-                                            <div>
-                                                Выбранный продукт: <strong className="text-sm">{selectedLabel}</strong>
-                                            </div>
-
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        ) : null}
-                        {manualLink.selectedProductId
-                            && (manualLink.previewVariantsByProductId[manualLink.selectedProductId] || []).length === 0 ? (
-                            <div className="space-y-2 rounded-xl border bg-white p-3">
-                                <div className="text-xs font-medium text-admin-text">
-                                    Варианты товара
-                                    {manualLink.variantsLoading ? " (загрузка…)" : ""}
-                                </div>
-                                {!manualLink.variantsLoading && sortedVariants.length === 0 ? (
-                                    <div className="text-[11px] text-admin-text-secondary">
-                                        У товара пока нет вариантов — добавь формулировку ниже.
-                                    </div>
+                                <input
+                                    type="text"
+                                    value={manualLink.definitionSearch}
+                                    onChange={(e) =>
+                                        setManualLink((prev) =>
+                                            prev ? { ...prev, definitionSearch: e.target.value } : prev
+                                        )
+                                    }
+                                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                                    placeholder="Объём, концентрация или часть названия"
+                                />
+                                {manualLink.variantsLoading ? (
+                                    <div className="text-xs text-admin-text-secondary">Загрузка вариантов…</div>
                                 ) : null}
-                                {sortedVariants.length > 0 ? (
-                                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
+                                {!manualLink.variantsLoading && sortedVariants.length > 0 ? (
+                                    <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
                                         {sortedVariants.map((variant) => {
                                             const flags = getVariantMatchFlags(variant, manualLink.sourceHint);
                                             const selected = manualLink.selectedVariantId === variant.id;
+
                                             return (
                                                 <button
                                                     key={variant.id}
@@ -340,36 +365,27 @@ export function ManualLinkModal({
                                         })}
                                     </div>
                                 ) : null}
-                            </div>
-                        ) : null}
-                        {manualLink.selectedProductId ? (
-                            <div className="space-y-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/80 p-3">
-                                <div className="text-xs font-medium text-admin-text">Формулировка (поиск по мере ввода,
-                                    нажми строку — добавится к товару)</div>
-                                <input
-                                    type="text"
-                                    value={manualLink.definitionSearch}
-                                    onChange={(e) =>
-                                        setManualLink((prev) =>
-                                            prev ? { ...prev, definitionSearch: e.target.value } : prev
-                                        )
-                                    }
-                                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
-                                    placeholder="Объём, концентрация или часть названия"
-                                />
+                                {!manualLink.variantsLoading
+                                    && sortedVariants.length === 0
+                                    && manualLink.definitionSearch.trim() === "" ? (
+                                    <div className="text-[11px] text-admin-text-secondary">
+                                        {manualLink.sourceHint.volume != null
+                                            && manualLink.variants.length > 0
+                                            ? `Нет вариантов с объёмом ${manualLink.sourceHint.volume} ml — найди формулировку в справочнике ниже.`
+                                            : "У товара пока нет вариантов — введи формулировку ниже."}
+                                    </div>
+                                ) : null}
                                 {manualLink.definitionsLoading ? (
                                     <div className="text-xs text-admin-text-secondary">Поиск в справочнике…</div>
                                 ) : null}
-                                {!manualLink.definitionsLoading && manualLink.definitionSearch.trim() === "" ? (
-                                    <div className="text-[11px] text-admin-text-secondary">Введи запрос — список обновится сам.</div>
-                                ) : null}
                                 {!manualLink.definitionsLoading
+                                    && !manualLink.variantsLoading
                                     && manualLink.definitionSearch.trim() !== ""
-                                    && manualLink.definitions.length === 0 ? (
-                                    <div className="text-xs text-amber-700">Ничего не найдено.</div>
+                                    && sortedDefinitions.length === 0 ? (
+                                    <div className="text-xs text-amber-700">В справочнике ничего не найдено.</div>
                                 ) : null}
                                 {sortedDefinitions.length > 0 ? (
-                                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
+                                    <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border bg-white p-1">
                                         {sortedDefinitions.map((def: VariantDefinitionItem) => {
                                             const flags = getDefinitionMatchFlags(def, manualLink.sourceHint);
 
@@ -394,6 +410,7 @@ export function ManualLinkModal({
                                 </p>
                             </div>
                         ) : null}
+
                         {manualLink.selectedVariantId ? (
                             <div className="space-y-2 rounded-xl border border-green-200 bg-green-50/60 p-3">
                                 <div className="text-xs font-medium text-green-900">Готово к связке</div>
@@ -420,7 +437,7 @@ export function ManualLinkModal({
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
@@ -38,7 +38,6 @@ import {
     createProductVariant,
     fetchProductVariants,
     fetchVariantDefinitions,
-    type AdminProductVariantItem,
 } from "@/lib/admin-product-variants-api";
 import {
     STATUS_OPTIONS,
@@ -53,11 +52,12 @@ import {
     buildDefinitionSearchFromHint,
     buildInitialSearchFromRow,
     buildSupplierParsedLabel,
-    findProductNameMatchHighlight,
+    findProductNameMatchInfo,
+    formatCatalogProductLabel,
     getRowCatalogProductLabel,
     getVariantMatchFlags,
-    isExactProductNameMatch,
     isFullVariantMatch,
+    variantMatchesVolumeHint,
 } from "@/components/admin/import-export/seller-one/utils";
 import { type ManualLinkState } from "@/components/admin/import-export/seller-one/types";
 import {
@@ -74,141 +74,96 @@ type ManualLinkSearchHostProps = {
     manualLink: ManualLinkState;
     setManualLink: Dispatch<SetStateAction<ManualLinkState | null>>;
     setSupplierError: Dispatch<SetStateAction<string>>;
-    loadManualVariants: (productId: number, preferVariantId?: number) => Promise<void>;
+    pickProduct: (product: ProductAdminItem) => Promise<void>;
     attachDefinitionFromDictionary: (definitionId: number) => Promise<void>;
     linkingRowId: number | null;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
     onPickVariantAction: (variantId: number) => void;
-    onPickProductVariantAction: (productId: number, variantId: number) => Promise<void>;
 };
 
 function ManualLinkSearchHost({
     manualLink,
     setManualLink,
     setSupplierError,
-    loadManualVariants,
+    pickProduct,
     attachDefinitionFromDictionary,
     linkingRowId,
     onConfirmAction,
     onPickVariantAction,
-    onPickProductVariantAction,
 }: ManualLinkSearchHostProps) {
     const debouncedProductSearch = useDebouncedValue(manualLink.productSearch, SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS);
     const debouncedDefinitionSearch = useDebouncedValue(manualLink.definitionSearch, SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS);
+    const isProductSearchDebouncing = manualLink.productSearch.trim() !== debouncedProductSearch.trim();
+    const lastFetchedProductQueryRef = useRef<string | null>(null);
+    const inFlightProductQueryRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        lastFetchedProductQueryRef.current = null;
+        inFlightProductQueryRef.current = null;
+    }, [manualLink.rowId]);
 
     useEffect(() => {
         const rowId = manualLink.rowId;
+        const linkSearchBrandId = manualLink.linkSearchBrandId;
+
+        if (manualLink.selectedProductId !== null) {
+            return;
+        }
+
+        const query = debouncedProductSearch.trim();
+        if (query.length < 2) {
+            lastFetchedProductQueryRef.current = null;
+            inFlightProductQueryRef.current = null;
+            setManualLink((prev) =>
+                prev && prev.rowId === rowId
+                    ? { ...prev, products: [], productsLoading: false }
+                    : prev,
+            );
+            return;
+        }
+
+        if (query === lastFetchedProductQueryRef.current || query === inFlightProductQueryRef.current) {
+            return;
+        }
+
         let cancelled = false;
+        inFlightProductQueryRef.current = query;
 
         const run = async () => {
-            setManualLink((prev) => (prev && prev.rowId === rowId ? { ...prev, productsLoading: true } : prev));
+            setManualLink((prev) =>
+                prev && prev.rowId === rowId && prev.selectedProductId === null
+                    ? { ...prev, productsLoading: true }
+                    : prev,
+            );
             try {
-                const query = debouncedProductSearch.trim();
-                let products: ProductAdminItem[] = [];
-                if (query.length >= 2) {
-                    const data = await fetchProductLinkSearch({
-                        q: query,
-                        brand_id: manualLink.linkSearchBrandId ?? undefined,
-                        limit: 40,
-                    });
-                    products = data.data || [];
-                }
-
-                if (cancelled) {
-                    return;
-                }
-
-                setManualLink((prev) => {
-                    if (!prev || prev.rowId !== rowId) {
-                        return prev;
-                    }
-                    const keepProduct =
-                        prev.selectedProductId != null
-                        && products.some((p) => p.id === prev.selectedProductId);
-                    return {
-                        ...prev,
-                        products,
-                        productsLoading: false,
-                        previewVariantsByProductId: {},
-                        previewVariantsLoading: products.length > 0,
-                        selectedProductId: keepProduct ? prev.selectedProductId : null,
-                        selectedVariantId: keepProduct ? prev.selectedVariantId : null,
-                        variants: keepProduct ? prev.variants : [],
-                        variantsLoading: keepProduct ? prev.variantsLoading : false,
-                    };
+                const data = await fetchProductLinkSearch({
+                    q: query,
+                    brand_id: linkSearchBrandId ?? undefined,
+                    limit: 40,
                 });
-
-                if (products.length === 0) {
-                    return;
-                }
-
-                const previewIds = products.slice(0, 12).map((product) => product.id);
-                const previewEntries = await Promise.all(
-                    previewIds.map(async (productId) => {
-                        try {
-                            const res = await fetchProductVariants(productId);
-                            return [productId, res.data || []] as const;
-                        } catch {
-                            return [productId, []] as const;
-                        }
-                    }),
-                );
+                const nextProducts = data.data || [];
 
                 if (cancelled) {
                     return;
                 }
 
-                const previewVariantsByProductId = Object.fromEntries(previewEntries) as Record<
-                    number,
-                    AdminProductVariantItem[]
-                >;
+                lastFetchedProductQueryRef.current = query;
+                inFlightProductQueryRef.current = null;
 
                 setManualLink((prev) => {
-                    if (!prev || prev.rowId !== rowId) {
+                    if (!prev || prev.rowId !== rowId || prev.selectedProductId !== null) {
                         return prev;
-                    }
-
-                    let selectedProductId = prev.selectedProductId;
-                    let selectedVariantId = prev.selectedVariantId;
-                    let variants = prev.variants;
-
-                    for (const product of products) {
-                        const productVariants = previewVariantsByProductId[product.id] || [];
-                        const fullMatch = productVariants.find((variant) =>
-                            isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
-                        );
-                        if (!fullMatch) {
-                            continue;
-                        }
-                        selectedProductId = product.id;
-                        selectedVariantId = fullMatch.id;
-                        variants = productVariants;
-                        break;
-                    }
-
-                    if (selectedProductId && selectedVariantId == null) {
-                        const productVariants = previewVariantsByProductId[selectedProductId] || [];
-                        const fullMatch = productVariants.find((variant) =>
-                            isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
-                        );
-                        if (fullMatch) {
-                            selectedVariantId = fullMatch.id;
-                            variants = productVariants;
-                        }
                     }
 
                     return {
                         ...prev,
-                        previewVariantsByProductId,
-                        previewVariantsLoading: false,
-                        selectedProductId,
-                        selectedVariantId,
-                        variants,
-                        variantsLoading: false,
+                        products: nextProducts,
+                        productsLoading: false,
                     };
                 });
             } catch (e: unknown) {
                 if (!cancelled) {
+                    inFlightProductQueryRef.current = null;
                     setManualLink((prev) => (prev && prev.rowId === rowId ? { ...prev, productsLoading: false } : prev));
                     setSupplierError(e instanceof Error ? e.message : "Ошибка поиска товаров");
                 }
@@ -218,8 +173,18 @@ function ManualLinkSearchHost({
         void run();
         return () => {
             cancelled = true;
+            if (inFlightProductQueryRef.current === query) {
+                inFlightProductQueryRef.current = null;
+            }
         };
-    }, [manualLink.rowId, manualLink.linkSearchBrandId, debouncedProductSearch, setManualLink, setSupplierError]);
+    }, [
+        manualLink.rowId,
+        manualLink.linkSearchBrandId,
+        manualLink.selectedProductId,
+        debouncedProductSearch,
+        setManualLink,
+        setSupplierError,
+    ]);
 
     useEffect(() => {
         const rowId = manualLink.rowId;
@@ -273,12 +238,12 @@ function ManualLinkSearchHost({
     return (
         <ManualLinkModal
             manualLink={manualLink}
+            isProductSearchDebouncing={isProductSearchDebouncing}
             linkingRowId={linkingRowId}
             setManualLink={setManualLink}
             onCloseAction={() => setManualLink(null)}
-            onPickProductAction={loadManualVariants}
+            onPickProductAction={pickProduct}
             onPickVariantAction={onPickVariantAction}
-            onPickProductVariantAction={onPickProductVariantAction}
             onPickDefinitionAction={attachDefinitionFromDictionary}
             onConfirmAction={onConfirmAction}
         />
@@ -690,10 +655,6 @@ export default function SellerOneImportPage() {
             concentration: row.parsed?.concentration ?? null,
             isTester: Boolean(row.parsed?.is_tester),
         };
-        const initialProductId =
-            row.suggested_variant?.product_id
-            ?? row.suggested_product?.id
-            ?? null;
         setManualLink({
             rowId: row.id,
             rowName: row.external_name,
@@ -702,11 +663,9 @@ export default function SellerOneImportPage() {
             sourceHint,
             products: [],
             productsLoading: false,
-            previewVariantsByProductId: {},
-            previewVariantsLoading: false,
-            selectedProductId: initialProductId,
+            selectedProductId: null,
             variants: [],
-            variantsLoading: Boolean(initialProductId),
+            variantsLoading: false,
             selectedVariantId: null,
             definitionSearch: buildDefinitionSearchFromHint(sourceHint),
             definitions: [],
@@ -719,25 +678,37 @@ export default function SellerOneImportPage() {
         setManualLink((prev) => (prev ? { ...prev, selectedVariantId: variantId } : prev));
     };
 
-    const pickProductVariant = async (productId: number, variantId: number) => {
-        await loadManualVariants(productId, variantId);
-    };
+    const loadManualVariants = async (
+        productId: number,
+        preferVariantId?: number,
+        pickedProduct?: ProductAdminItem,
+    ) => {
+        setManualLink((prev) => {
+            if (!prev) {
+                return prev;
+            }
 
-    const loadManualVariants = async (productId: number, preferVariantId?: number) => {
-        setManualLink((prev) =>
-            prev
-                ? {
-                    ...prev,
-                    selectedProductId: productId,
-                    variants: [],
-                    selectedVariantId: null,
-                    variantsLoading: true,
-                    definitions: [],
-                    definitionSearch: buildDefinitionSearchFromHint(prev.sourceHint),
-                    definitionsLoading: false,
-                }
-                : prev
-        );
+            const productSearch = pickedProduct
+                ? formatCatalogProductLabel(pickedProduct)
+                : prev.productSearch;
+            const products =
+                pickedProduct && !prev.products.some((p) => p.id === pickedProduct.id)
+                    ? [pickedProduct, ...prev.products]
+                    : prev.products;
+
+            return {
+                ...prev,
+                productSearch,
+                products,
+                selectedProductId: productId,
+                variants: [],
+                selectedVariantId: null,
+                variantsLoading: true,
+                definitions: [],
+                definitionSearch: buildDefinitionSearchFromHint(prev.sourceHint),
+                definitionsLoading: false,
+            };
+        });
         try {
             const data = await fetchProductVariants(productId);
             const variants = data.data || [];
@@ -751,7 +722,10 @@ export default function SellerOneImportPage() {
                 );
 
                 const preferred =
-                    preferVariantId && variants.some((v) => v.id === preferVariantId)
+                    preferVariantId
+                    && variants.some(
+                        (v) => v.id === preferVariantId && variantMatchesVolumeHint(v, prev.sourceHint),
+                    )
                         ? preferVariantId
                         : fullMatchVariant?.id ?? null;
 
@@ -766,6 +740,10 @@ export default function SellerOneImportPage() {
             setManualLink((prev) => (prev ? { ...prev, variantsLoading: false } : prev));
             setSupplierError(e instanceof Error ? e.message : "Ошибка загрузки вариантов");
         }
+    };
+
+    const pickProduct = async (product: ProductAdminItem) => {
+        await loadManualVariants(product.id, undefined, product);
     };
 
     const attachDefinitionFromDictionary = async (definitionId: number) => {
@@ -883,6 +861,9 @@ export default function SellerOneImportPage() {
         setPage(1);
     };
 
+    const hasActiveFilters =
+        searchInput.trim() !== "" || status !== "" || stockFilter !== "";
+
     return (
         <AdminPageCard>
             <div className="space-y-4 rounded-2xl border bg-white p-6">
@@ -892,8 +873,8 @@ export default function SellerOneImportPage() {
                         <p className="mt-1 text-sm text-admin-text-secondary">Пасринг парйса и сопоставление товаров с каталогом</p>
                     </div>
 
-                    <div className="flex flex-col items-start gap-1 md:items-end">
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-admin-text shadow-sm transition hover:border-gray-400 hover:bg-admin-muted focus-within:ring-2 focus-within:ring-blue-200">
+                    <div className="flex w-full min-w-0 flex-row items-center gap-2 md:w-auto md:justify-end">
+                        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-admin-text shadow-sm transition hover:border-gray-400 hover:bg-admin-muted focus-within:ring-2 focus-within:ring-blue-200">
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-admin-text-secondary">
                                 +
                             </span>
@@ -905,7 +886,7 @@ export default function SellerOneImportPage() {
                                 className="sr-only"
                             />
                         </label>
-                        <span className="max-w-[320px] truncate rounded-xl bg-gray-100 px-3 py-1 text-xs text-admin-text-secondary">
+                        <span className="min-w-0 max-w-[200px] truncate rounded-xl bg-gray-100 px-3 py-1 text-xs text-admin-text-secondary sm:max-w-[320px]">
                             {supplierFile ? `Файл: ${supplierFile.name}` : "Файл не выбран"}
                         </span>
                     </div>
@@ -970,16 +951,20 @@ export default function SellerOneImportPage() {
 
                 <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
                     <AdminSearchInput value={searchInput} onChangeAction={setSearchInput} placeholder="Поиск по товару поставщика" />
-                    <div className="flex items-center gap-2">
-                        <AdminFilterSelect value={status} onChangeAction={(value) => setStatus(value as SellerOneStatusFilter)} options={STATUS_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Все статусы" />
-                        <AdminFilterSelect value={stockFilter} onChangeAction={(value) => setStockFilter(value as SellerOneStockFilter)} options={STOCK_FILTER_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Наличие" />
-                        <button
-                            type="button"
-                            onClick={resetFilters}
-                            className="rounded-xl border px-3 py-2 text-xs text-admin-text-secondary hover:bg-admin-muted"
-                        >
-                            Сбросить фильтры
-                        </button>
+                    <div
+                        className={`grid w-full items-end gap-2 md:flex md:w-auto md:items-center ${hasActiveFilters ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" : "grid-cols-2"}`}
+                    >
+                        <AdminFilterSelect className="min-w-0" value={status} onChangeAction={(value) => setStatus(value as SellerOneStatusFilter)} options={STATUS_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Статусы" />
+                        <AdminFilterSelect className="min-w-0" value={stockFilter} onChangeAction={(value) => setStockFilter(value as SellerOneStockFilter)} options={STOCK_FILTER_OPTIONS as unknown as Array<{ value: string; label: string }>} placeholder="Наличие" />
+                        {hasActiveFilters ? (
+                            <button
+                                type="button"
+                                onClick={resetFilters}
+                                className="shrink-0 self-end rounded-xl border px-2 py-2 text-xs whitespace-nowrap text-admin-text-secondary hover:bg-admin-muted sm:px-3"
+                            >
+                                Сбросить
+                            </button>
+                        ) : null}
                     </div>
                 </div>
 
@@ -1022,8 +1007,8 @@ export default function SellerOneImportPage() {
                                 )}
                             </div>
                         </div>
-                        <div className="rounded-xl border">
-                            <table className="w-full table-fixed text-sm">
+                        <div className="min-w-0 overflow-x-auto rounded-xl border">
+                            <table className="w-full min-w-[920px] table-fixed text-sm">
                                 <colgroup>
                                     <col style={{ width: "44px" }} />
                                     <col style={{ width: "52px" }} />
@@ -1054,12 +1039,12 @@ export default function SellerOneImportPage() {
                                             row.parsed,
                                             row.external_name,
                                         );
-                                        const nameMatchHighlight = catalogProductLabel
-                                            ? findProductNameMatchHighlight(
+                                        const nameMatchInfo = catalogProductLabel
+                                            ? findProductNameMatchInfo(
                                                 supplierParsedLabel,
                                                 catalogProductLabel,
                                             )
-                                            : "";
+                                            : { words: [], exact: false };
 
                                         return (
                                         <tr key={row.id} className="border-t align-top">
@@ -1096,7 +1081,7 @@ export default function SellerOneImportPage() {
                                             <td className="px-3 py-3">
                                                 <HighlightedNameText
                                                     text={row.external_name}
-                                                    highlight={nameMatchHighlight}
+                                                    matchInfo={nameMatchInfo}
                                                     className="break-words font-medium"
                                                 />
                                                 <div className="text-xs text-admin-text-secondary">Цена: {row.supplier_price ?? "—"}</div>
@@ -1133,17 +1118,9 @@ export default function SellerOneImportPage() {
                                                                 || row.linked_variant.product_name
                                                                 || ""
                                                             }
-                                                            highlight={nameMatchHighlight}
+                                                            matchInfo={nameMatchInfo}
                                                             className="break-words font-medium"
                                                         />
-                                                        {isExactProductNameMatch(
-                                                            row.parsed?.product_name || "",
-                                                            row.linked_variant.product_name || ""
-                                                        ) ? (
-                                                            <div className="mt-1 inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[11px] text-green-700">
-                                                                Точное совпадение названия
-                                                            </div>
-                                                        ) : null}
                                                         <div className="break-words text-admin-text-secondary">
                                                             {row.linked_variant.display || "Вариант без параметров"}
                                                         </div>
@@ -1156,17 +1133,9 @@ export default function SellerOneImportPage() {
                                                                 || row.suggested_variant.product_name
                                                                 || ""
                                                             }
-                                                            highlight={nameMatchHighlight}
+                                                            matchInfo={nameMatchInfo}
                                                             className="break-words font-medium"
                                                         />
-                                                        {isExactProductNameMatch(
-                                                            row.parsed?.product_name || "",
-                                                            row.suggested_variant.product_name || ""
-                                                        ) ? (
-                                                            <div className="mt-1 inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[11px] text-green-700">
-                                                                Точное совпадение названия
-                                                            </div>
-                                                        ) : null}
                                                         <div className="break-words text-admin-text-secondary">
                                                             {row.suggested_variant.display || "Вариант без параметров"}
                                                         </div>
@@ -1179,7 +1148,7 @@ export default function SellerOneImportPage() {
                                                                 || row.suggested_product.name
                                                                 || ""
                                                             }
-                                                            highlight={nameMatchHighlight}
+                                                            matchInfo={nameMatchInfo}
                                                             className="break-words font-medium"
                                                         />
                                                         <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
@@ -1209,7 +1178,7 @@ export default function SellerOneImportPage() {
                                                                 || row.linked_variant.product_name
                                                                 || ""
                                                             }
-                                                            highlight={nameMatchHighlight}
+                                                            matchInfo={nameMatchInfo}
                                                             className="break-words font-medium"
                                                         />
                                                         <div className="break-words text-admin-text-secondary">
@@ -1238,12 +1207,11 @@ export default function SellerOneImportPage() {
                         manualLink={manualLink}
                         setManualLink={setManualLink}
                         setSupplierError={setSupplierError}
-                        loadManualVariants={loadManualVariants}
+                        pickProduct={pickProduct}
                         attachDefinitionFromDictionary={attachDefinitionFromDictionary}
                         linkingRowId={linkingRowId}
                         onConfirmAction={doForceLink}
                         onPickVariantAction={pickManualVariant}
-                        onPickProductVariantAction={pickProductVariant}
                     />
                 ) : null}
 

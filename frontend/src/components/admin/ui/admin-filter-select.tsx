@@ -28,7 +28,7 @@ export default function AdminFilterSelect({
             <select
                 value={value}
                 onChange={(e) => onChangeAction(e.target.value)}
-                className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition outline-none focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20 md:w-56"
+                className="min-w-0 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition outline-none focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20 md:w-56"
             >
                 <option value="">{placeholder}</option>
                 {options.map((item) => (

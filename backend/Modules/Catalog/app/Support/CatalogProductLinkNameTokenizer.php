@@ -46,7 +46,10 @@ final class CatalogProductLinkNameTokenizer
 
         $normalized = self::applyGenderCanonicalTokens($normalized);
         $normalized = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $normalized);
-        $normalized = (string) preg_replace('/\b(edp|edt|edc|parfum|extrait)\b/iu', ' ', $normalized);
+        // «Parfum» в прайсе (Pasha Parfum) = линия «… de Parfum» в каталоге — оставляем токен «de».
+        $normalized = (string) preg_replace('/\bde\s+parfum\b/iu', ' de ', $normalized);
+        $normalized = (string) preg_replace('/\bparfum\b/iu', ' de ', $normalized);
+        $normalized = (string) preg_replace('/\b(edp|edt|edc|extrait)\b/iu', ' ', $normalized);
         $normalized = (string) preg_replace('/\b(test|tester|тестер|vial|sample|пробник)\b/iu', ' ', $normalized);
         $normalized = preg_replace('/\s+/u', ' ', trim($normalized)) ?: '';
 

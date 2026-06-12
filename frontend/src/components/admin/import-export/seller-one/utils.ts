@@ -49,7 +49,9 @@ export function buildInitialSearchFromRow(row: SellerOneSupplierProductItem): st
 
 export function normalizeSearchText(value: string): string {
     return value
-        .replace(/\([^)]*\)/g, " ")
+        .replace(/\(([^)]*)\)/g, " $1 ")
+        // L'Envol, L'Homme — не разбивать на отдельную «L» до удаления маркеров пола.
+        .replace(/(\p{L})[''\u2019](?=\p{L})/gu, "$1")
         .replace(/\b(m|w|l|men|women|man|woman)\b/gi, " ")
         .replace(/\b(test|tester)\b/gi, " ")
         .replace(/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/gi, " ")
@@ -80,6 +82,19 @@ export function buildSearchCandidates(query: string): string[] {
     }
 
     return Array.from(candidates).filter((item) => item.length >= 3);
+}
+
+export function formatCatalogProductLabel(product: ProductAdminItem): string {
+    return product.brand?.name
+        ? `${product.brand.name} ${product.name}`.trim()
+        : product.name;
+}
+
+export function buildSupplierLabelFromHint(hint: {
+    brand: string;
+    productName: string;
+}): string {
+    return [hint.brand.trim(), hint.productName.trim()].filter(Boolean).join(" ").trim();
 }
 
 export function rankProducts(products: ProductAdminItem[], query: string): ProductAdminItem[] {
@@ -130,65 +145,137 @@ function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function pickOriginalPhrase(normalizedPhrase: string, ...originals: string[]): string {
-    const pattern = normalizedPhrase
-        .split(" ")
-        .filter(Boolean)
-        .map(escapeRegExp)
-        .join("\\s+");
-    if (!pattern) {
+/** Между словами в оригинале могут быть &, :, /, дефисы и прочие разделители. */
+const FLEXIBLE_WORD_GAP = "(?:[^\\p{L}\\p{N}]|\\s)+";
+
+const FLEXIBLE_APOSTROPHE = "[''\u2019]?";
+
+/** Сопоставляет L'Envol с нормализованным lenvol. */
+function normalizedWordToFlexiblePattern(normalizedWord: string): string {
+    if (!normalizedWord) {
         return "";
     }
 
-    const re = new RegExp(pattern, "i");
-    for (const original of originals) {
-        const match = original.match(re);
-        if (match?.[0]) {
-            return match[0];
-        }
+    return normalizedWord
+        .split("")
+        .map((char) => escapeRegExp(char))
+        .join(FLEXIBLE_APOSTROPHE);
+}
+
+export type NameMatchHighlightRange = {
+    start: number;
+    end: number;
+};
+
+/** Включает « )» после совпадения вида «( Gold )». */
+function extendParenWrappedSuffix(text: string, start: number, end: number): number {
+    if (!text.slice(start, end).includes("(")) {
+        return end;
     }
 
-    return "";
+    let next = end;
+    while (next < text.length && /\s/.test(text[next])) {
+        next += 1;
+    }
+    if (text[next] === ")") {
+        return next + 1;
+    }
+
+    return end;
+}
+
+function mergeHighlightRanges(ranges: NameMatchHighlightRange[]): NameMatchHighlightRange[] {
+    ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+    const merged: NameMatchHighlightRange[] = [];
+    for (const range of ranges) {
+        const last = merged[merged.length - 1];
+        if (!last || range.start >= last.end) {
+            merged.push({ ...range });
+            continue;
+        }
+        last.end = Math.max(last.end, range.end);
+    }
+    return merged;
 }
 
 /**
- * Общая фраза для подсветки в оригинальном регистре (напр. «Montale Wild Pears»).
+ * Подсветка в конкретном отображаемом тексте: exact — одна фраза с гибкими разделителями,
+ * partial — отдельные общие слова.
  */
-export function findProductNameMatchHighlight(supplierLabel: string, catalogLabel: string): string {
+export function findNameMatchHighlightRanges(
+    text: string,
+    normalizedWords: string[],
+    exact: boolean,
+): NameMatchHighlightRange[] {
+    if (!text || normalizedWords.length === 0) {
+        return [];
+    }
+
+    const ranges: NameMatchHighlightRange[] = [];
+
+    if (exact) {
+        const pattern = normalizedWords.map(normalizedWordToFlexiblePattern).join(FLEXIBLE_WORD_GAP);
+        const re = new RegExp(pattern, "giu");
+        let match: RegExpExecArray | null;
+        while ((match = re.exec(text)) !== null) {
+            const start = match.index;
+            const end = extendParenWrappedSuffix(text, start, start + match[0].length);
+            ranges.push({ start, end });
+            if (match[0].length === 0) {
+                re.lastIndex += 1;
+            }
+        }
+        return mergeHighlightRanges(ranges);
+    }
+
+    for (const word of normalizedWords) {
+        if (word.length < 2) {
+            continue;
+        }
+        const re = new RegExp(
+            `\\b${normalizedWordToFlexiblePattern(word)}\\b`,
+            "giu",
+        );
+        let match: RegExpExecArray | null;
+        while ((match = re.exec(text)) !== null) {
+            ranges.push({ start: match.index, end: match.index + match[0].length });
+            if (match[0].length === 0) {
+                re.lastIndex += 1;
+            }
+        }
+    }
+
+    return mergeHighlightRanges(ranges);
+}
+
+export type ProductNameMatchInfo = {
+    words: string[];
+    exact: boolean;
+};
+
+/**
+ * Нормализованные слова для подсветки в обеих колонках.
+ * exact — зелёная фраза; иначе жёлтые общие слова.
+ */
+export function findProductNameMatchInfo(supplierLabel: string, catalogLabel: string): ProductNameMatchInfo {
     const supplierNorm = normalizeProductComparable(supplierLabel);
     const catalogNorm = normalizeProductComparable(catalogLabel);
     if (!supplierNorm || !catalogNorm) {
-        return "";
+        return { words: [], exact: false };
     }
 
-    if (supplierNorm.includes(catalogNorm)) {
-        return pickOriginalPhrase(catalogNorm, catalogLabel, supplierLabel);
+    if (isExactProductNameMatch(supplierLabel, catalogLabel)) {
+        return { words: supplierNorm.split(" ").filter(Boolean), exact: true };
     }
 
-    if (catalogNorm.includes(supplierNorm)) {
-        return pickOriginalPhrase(supplierNorm, catalogLabel, supplierLabel);
-    }
-
-    const supplierWords = supplierNorm.split(" ").filter(Boolean);
-    const catalogWords = catalogNorm.split(" ").filter(Boolean);
-    let commonLength = 0;
-    while (
-        commonLength < supplierWords.length
-        && commonLength < catalogWords.length
-        && supplierWords[commonLength] === catalogWords[commonLength]
-    ) {
-        commonLength += 1;
-    }
-
-    if (commonLength === 0) {
-        return "";
-    }
-
-    return pickOriginalPhrase(
-        supplierWords.slice(0, commonLength).join(" "),
-        catalogLabel,
-        supplierLabel,
+    const catalogWordSet = new Set(
+        catalogNorm.split(" ").filter((word) => word.length >= 2),
     );
+    const words = [...new Set(
+        supplierNorm.split(" ").filter((word) => word.length >= 2 && catalogWordSet.has(word)),
+    )];
+
+    return { words, exact: false };
 }
 
 export function buildSupplierParsedLabel(
@@ -250,11 +337,63 @@ export function normalizeConcentrationCode(value: string | null | undefined): st
     if (normalized.includes("extrait")) {
         return "extrait de parfum";
     }
-    if (normalized === "parfum") {
+    if (normalized === "parfum" || normalized === "parfume" || normalized === "parfums") {
         return "extrait de parfum";
     }
 
     return normalized;
+}
+
+export function getVariantVolumeMl(variant: {
+    volume?: number | null;
+    definition?: {
+        volume_ml?: number;
+    } | null;
+}): number | null {
+    const raw = variant.volume ?? variant.definition?.volume_ml ?? null;
+    if (raw == null) {
+        return null;
+    }
+
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Если в прайсе известен объём — показываем только варианты с тем же volume_ml. */
+export function variantMatchesVolumeHint(
+    variant: {
+        volume?: number | null;
+        definition?: {
+            volume_ml?: number;
+        } | null;
+    },
+    hint: SupplierVariantHint,
+): boolean {
+    if (hint.volume == null) {
+        return true;
+    }
+
+    const variantVolume = getVariantVolumeMl(variant);
+    if (variantVolume == null) {
+        return false;
+    }
+
+    return Math.abs(variantVolume - hint.volume) <= 0.01;
+}
+
+export function definitionMatchesVolumeHint(
+    definition: Pick<VariantDefinitionItem, "volume_ml">,
+    hint: SupplierVariantHint,
+): boolean {
+    if (hint.volume == null) {
+        return true;
+    }
+
+    if (definition.volume_ml == null) {
+        return false;
+    }
+
+    return Math.abs(Number(definition.volume_ml) - hint.volume) <= 0.01;
 }
 
 export function getVariantMatchFlags(
@@ -269,7 +408,7 @@ export function getVariantMatchFlags(
     },
     hint: SupplierVariantHint,
 ): VariantMatchFlags {
-    const variantVolume = variant.volume ?? variant.definition?.volume_ml ?? null;
+    const variantVolume = getVariantVolumeMl(variant);
     const variantConcentration = variant.concentration ?? variant.definition?.concentration_code ?? null;
     const variantIsTester = Boolean(variant.definition?.is_tester);
 
@@ -333,10 +472,11 @@ export function getVariantMatchRowClass(flags: VariantMatchFlags, selected: bool
 }
 
 export function buildDefinitionSearchFromHint(hint: SupplierVariantHint): string {
-    const parts: string[] = [];
     if (hint.volume != null) {
-        parts.push(String(hint.volume));
+        return String(hint.volume);
     }
+
+    const parts: string[] = [];
     if (hint.concentration) {
         parts.push(hint.concentration);
     }

@@ -51,7 +51,7 @@ class SellerOneVariantMatcher
     private const VARIANT_BONUS_CONCENTRATION = 8;
 
     /** product_attributes: «Для кого» */
-    public const GENDER_ATTRIBUTE_ID = 3;
+    private const GENDER_ATTRIBUTE_ID = 3;
 
     /**
      * Кэши hot-path'а: при 25k+ строк прайса normalizeText по каждому бренду и
@@ -75,7 +75,7 @@ class SellerOneVariantMatcher
     /**
      * @param  Collection<int, Brand>  $brands
      * @param  Collection<int, SellerOneMatchRule>  $rules
-     * @param  array<int, \Illuminate\Support\Collection<int, \Modules\Catalog\Models\Product>>  $productsIndex
+     * @param  array<int, list<\Modules\Catalog\Models\Product>>  $productsIndex
      *         Продукты, сгруппированные по brand_id. Предзагружены `brand` и `variants.definition`.
      */
     public function parseSupplierRow(array $row, Collection $brands, Collection $rules, array $productsIndex): array
@@ -424,6 +424,14 @@ class SellerOneVariantMatcher
                 continue;
             }
 
+            $targetConc = $concentration ? $this->normalizeConcentration($concentration) : null;
+            if ($targetConc !== null) {
+                $variantConc = $this->normalizeConcentration((string) ($variant->concentration ?? ''));
+                if ($variantConc === null || $variantConc !== $targetConc) {
+                    continue;
+                }
+            }
+
             $volumeMatch = false;
             $concMatch = false;
             $volumePoints = 0;
@@ -576,11 +584,16 @@ class SellerOneVariantMatcher
      */
     private function truncateBeforeFirstVariantMarker(string $title): string
     {
+        // (M)/(L)/(W) — маркер пола в середине строки, не отрезаем хвост («Pasha (M) Parfum 100ml»).
+        $title = (string) preg_replace('/\(\s*[mlw]\s*\)/iu', ' ', $title);
+        $title = preg_replace('/\s+/u', ' ', trim($title)) ?: '';
+
         $patterns = [
-            '/\(\s*[a-zа-я]\s*\)/iu',
             '/\b(test|tester|тестер)\b/iu',
             '/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu',
-            '/\b(edp|edt|edc|parfum|extrait)\b/iu',
+            '/\b\d+(?:[.,]\d+)?(ml|мл)\b/iu',
+            // edp/edt/edc — вариант; standalone parfum/extrait — часть линии («Pasha de Parfum»).
+            '/\b(edp|edt|edc)\b/iu',
             '/\b(vial|пробник|sample)\b/iu',
         ];
 
@@ -693,11 +706,42 @@ class SellerOneVariantMatcher
 
     private function extractConcentration(string $title): ?string
     {
-        if (!preg_match('/\b(extrait de parfum|edp|edt|edc|parfum|extrait)\b/iu', $title, $matches)) {
+        if (preg_match('/\b(extrait de parfum|extrait|edp|edt|edc)\b/iu', $title, $matches)) {
+            return $this->normalizeConcentration((string) $matches[1]);
+        }
+
+        // parfum/parfume — маркер концентрации после объёма («100ml Parfume») или в хвосте строки.
+        // Не матчим «de Parfum» в названии линии до объёма («Pasha de Parfum 100ml»).
+        if (preg_match(
+            '/\b\d+(?:[.,]\d+)?\s*(?:ml|мл)\b\s+(\p{L}+)/iu',
+            $title,
+            $matches,
+        ) || preg_match(
+            '/\b\d+(?:[.,]\d+)?(?:ml|мл)\b\s+(\p{L}+)/iu',
+            $title,
+            $matches,
+        )) {
+            $fromAlias = $this->concentrationFromParfumAlias((string) ($matches[1] ?? ''));
+            if ($fromAlias !== null) {
+                return $fromAlias;
+            }
+        }
+
+        if (preg_match('/\b(parfum(?:e)?)\s*$/iu', trim($title), $matches)) {
+            return $this->normalizeConcentration((string) $matches[1]);
+        }
+
+        return null;
+    }
+
+    private function concentrationFromParfumAlias(string $token): ?string
+    {
+        $normalized = Str::lower(trim($token));
+        if (! in_array($normalized, ['parfum', 'parfume', 'parfums'], true)) {
             return null;
         }
 
-        return $this->normalizeConcentration((string) $matches[1]);
+        return 'extrait de parfum';
     }
 
     private function extractIsTester(string $title): bool
@@ -726,7 +770,7 @@ class SellerOneVariantMatcher
         }
 
         return match ($normalized) {
-            'parfum' => 'extrait de parfum',
+            'parfum', 'parfume', 'parfums' => 'extrait de parfum',
             default => $normalized,
         };
     }
