@@ -491,8 +491,7 @@ export default function SellerOneImportPage() {
                     const msg =
                         (typeof data.message === "string" && data.message.trim() !== "")
                             ? data.message
-                            : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, стало «нет в наличии» — ${outStock}, «в наличии» — ${inStock}, нет кода в файле — ${data.missing_codes ?? 0}${
-                                shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
+                            : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, стало «нет в наличии» — ${outStock}, «в наличии» — ${inStock}, товар пропал у поставщика — ${data.missing_codes ?? 0}${shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
                             }`;
                     setSupplierSuccess(msg);
                     window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
@@ -723,9 +722,9 @@ export default function SellerOneImportPage() {
 
                 const preferred =
                     preferVariantId
-                    && variants.some(
-                        (v) => v.id === preferVariantId && variantMatchesVolumeHint(v, prev.sourceHint),
-                    )
+                        && variants.some(
+                            (v) => v.id === preferVariantId && variantMatchesVolumeHint(v, prev.sourceHint),
+                        )
                         ? preferVariantId
                         : fullMatchVariant?.id ?? null;
 
@@ -929,11 +928,10 @@ export default function SellerOneImportPage() {
 
                 {batchProgress ? (
                     <div
-                        className={`rounded-xl border px-3 py-2 text-sm ${
-                            supplierPreviewLoading || supplierRefreshPricesLoading
+                        className={`rounded-xl border px-3 py-2 text-sm ${supplierPreviewLoading || supplierRefreshPricesLoading
                                 ? "border-blue-200 bg-blue-50 text-blue-700"
                                 : "border-admin-border bg-admin-muted text-admin-text"
-                        }`}
+                            }`}
                     >
                         <span className="font-medium">
                             {supplierPreviewLoading
@@ -1008,28 +1006,30 @@ export default function SellerOneImportPage() {
                             </div>
                         </div>
                         <div className="min-w-0 overflow-x-auto rounded-xl border">
-                            <table className="w-full min-w-[920px] table-fixed text-sm">
+                            <table className="w-full min-w-[1000px] table-fixed text-sm">
                                 <colgroup>
-                                    <col style={{ width: "44px" }} />
-                                    <col style={{ width: "52px" }} />
-                                    <col style={{ width: "84px" }} />
-                                    <col style={{ width: "30%" }} />
-                                    {/* 180px чтобы поместился самый длинный бэйдж «Найдена связь (100%)» без overflow в колонку «Продукт каталога». */}
-                                    <col style={{ width: "160px" }} />
-                                    <col style={{ width: "120px" }} />
-                                    <col style={{ width: "38%" }} />
+                                    <col style={{ width: "64px" }} />
+                                    <col style={{ width: "72px" }} />
+                                    <col style={{ width: "88px" }} />
+                                    <col style={{ width: "28%" }} />
+                                    <col style={{ width: "150px" }} />
+                                    <col style={{ width: "72px" }} />
+                                    <col style={{ width: "32%" }} />
                                 </colgroup>
                                 <thead className="bg-admin-muted">
-                                    <tr className="text-left">
-                                        <th className="px-2 py-2 text-center">Связь</th>
-                                        <th className="px-1 py-2 text-center text-[11px] leading-tight" title="Участие в парсинге прайса">
+                                    <tr className="text-left text-xs">
+                                        <th className="px-2 py-2 text-center font-medium whitespace-nowrap">Связь</th>
+                                        <th
+                                            className="px-2 py-2 text-center font-medium whitespace-nowrap"
+                                            title="Участие в парсинге прайса"
+                                        >
                                             Парсинг
                                         </th>
-                                        <th className="px-2 py-2">Код</th>
-                                        <th className="px-3 py-2">Товар поставщика</th>
-                                        <th className="px-2 py-2 whitespace-nowrap">Статус</th>
-                                        <th className="px-2 py-2 whitespace-nowrap">Наличие</th>
-                                        <th className="px-3 py-2">Продукт каталога</th>
+                                        <th className="px-2 py-2 font-medium whitespace-nowrap">Код</th>
+                                        <th className="px-3 py-2 font-medium">Товар поставщика</th>
+                                        <th className="px-2 py-2 font-medium whitespace-nowrap">Статус</th>
+                                        <th className="px-2 py-2 text-center font-medium whitespace-nowrap">Наличие</th>
+                                        <th className="px-3 py-2 font-medium">Продукт каталога</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1047,149 +1047,149 @@ export default function SellerOneImportPage() {
                                             : { words: [], exact: false };
 
                                         return (
-                                        <tr key={row.id} className="border-t align-top">
-                                            <td className="px-2 py-3 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={Boolean(row.is_linked)}
-                                                    disabled={linkingRowId === row.id || (!row.is_linked && !row.suggested_variant)}
-                                                    onChange={(e) => void handleToggleLink(row, e.target.checked)}
-                                                    className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
-                                                />
-                                            </td>
-                                            <td className="px-1 py-3 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={row.link_parsing_active !== false}
-                                                    disabled={linkingRowId === row.id}
-                                                    title="Активное участие в парсинге (код из файла обрабатывается)"
-                                                    onChange={(e) => void handleToggleParsingActive(row, e.target.checked)}
-                                                    className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
-                                                />
-                                            </td>
-                                            <td className="whitespace-nowrap px-2 py-3 font-medium">
-                                                {row.code ? (
-                                                    <CopyText
-                                                        value={row.code}
-                                                        title="Скопировать код поставщика"
-                                                        iconSize={12}
+                                            <tr key={row.id} className="border-t align-top">
+                                                <td className="px-2 py-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={Boolean(row.is_linked)}
+                                                        disabled={linkingRowId === row.id || (!row.is_linked && !row.suggested_variant)}
+                                                        onChange={(e) => void handleToggleLink(row, e.target.checked)}
+                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
                                                     />
-                                                ) : (
-                                                    "—"
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-3">
-                                                <HighlightedNameText
-                                                    text={row.external_name}
-                                                    matchInfo={nameMatchInfo}
-                                                    className="break-words font-medium"
-                                                />
-                                                <div className="text-xs text-admin-text-secondary">Цена: {row.supplier_price ?? "—"}</div>
-                                            </td>
-                                            <td className="whitespace-nowrap px-2 py-3">
-                                                {row.status === "confirmed" ? (
-                                                    <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">Подтверждено</span>
-                                                ) : row.status === "found_unconfirmed" ? (
-                                                    <ConfidenceBadge label="Найдена связь" confidence={row.match_confidence} />
-                                                ) : row.status === "new" ? (
-                                                    <ConfidenceBadge label="Новый" confidence={row.match_confidence} />
-                                                ) : (
-                                                    <ConfidenceBadge label="Не связан" confidence={row.match_confidence} />
-                                                )}
-                                            </td>
-                                            <td className="px-2 py-3 text-xs text-admin-text">
-                                                {row.price_file_in_stock === true ? (
-                                                    <span className="font-medium text-green-700">Да</span>
-                                                ) : (
-                                                    <span className="font-medium text-amber-800">Нет</span>
-                                                )}
-                                            </td>
-                                            <td
-                                                className="cursor-pointer px-3 py-3 text-xs whitespace-normal break-words"
-                                                onClick={() => {
-                                                    openManualLink(row);
-                                                }}
-                                            >
-                                                {row.is_linked && row.linked_variant ? (
-                                                    <div>
-                                                        <HighlightedNameText
-                                                            text={
-                                                                row.linked_variant.display_name
-                                                                || row.linked_variant.product_name
-                                                                || ""
-                                                            }
-                                                            matchInfo={nameMatchInfo}
-                                                            className="break-words font-medium"
+                                                </td>
+                                                <td className="px-2 py-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={row.link_parsing_active !== false}
+                                                        disabled={linkingRowId === row.id}
+                                                        title="Активное участие в парсинге (код из файла обрабатывается)"
+                                                        onChange={(e) => void handleToggleParsingActive(row, e.target.checked)}
+                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
+                                                    />
+                                                </td>
+                                                <td className="whitespace-nowrap px-2 py-3 font-medium">
+                                                    {row.code ? (
+                                                        <CopyText
+                                                            value={row.code}
+                                                            title="Скопировать код поставщика"
+                                                            iconSize={12}
                                                         />
-                                                        <div className="break-words text-admin-text-secondary">
-                                                            {row.linked_variant.display || "Вариант без параметров"}
+                                                    ) : (
+                                                        "—"
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-3">
+                                                    <HighlightedNameText
+                                                        text={row.external_name}
+                                                        matchInfo={nameMatchInfo}
+                                                        className="break-words font-medium"
+                                                    />
+                                                    <div className="text-xs text-admin-text-secondary">Цена: {row.supplier_price ?? "—"}</div>
+                                                </td>
+                                                <td className="whitespace-nowrap px-2 py-3">
+                                                    {row.status === "confirmed" ? (
+                                                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">Подтверждено</span>
+                                                    ) : row.status === "found_unconfirmed" ? (
+                                                        <ConfidenceBadge label="Найдена связь" confidence={row.match_confidence} />
+                                                    ) : row.status === "new" ? (
+                                                        <ConfidenceBadge label="Новый" confidence={row.match_confidence} />
+                                                    ) : (
+                                                        <ConfidenceBadge label="Не связан" confidence={row.match_confidence} />
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-3 text-center text-xs text-admin-text">
+                                                    {row.price_file_in_stock === true ? (
+                                                        <span className="font-medium text-green-700">Да</span>
+                                                    ) : (
+                                                        <span className="font-medium text-amber-800">Нет</span>
+                                                    )}
+                                                </td>
+                                                <td
+                                                    className="cursor-pointer px-3 py-3 text-xs whitespace-normal break-words"
+                                                    onClick={() => {
+                                                        openManualLink(row);
+                                                    }}
+                                                >
+                                                    {row.is_linked && row.linked_variant ? (
+                                                        <div>
+                                                            <HighlightedNameText
+                                                                text={
+                                                                    row.linked_variant.display_name
+                                                                    || row.linked_variant.product_name
+                                                                    || ""
+                                                                }
+                                                                matchInfo={nameMatchInfo}
+                                                                className="break-words font-medium"
+                                                            />
+                                                            <div className="break-words text-admin-text-secondary">
+                                                                {row.linked_variant.display || "Вариант без параметров"}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ) : row.suggested_variant ? (
-                                                    <div>
-                                                        <HighlightedNameText
-                                                            text={
-                                                                row.suggested_variant.display_name
-                                                                || row.suggested_variant.product_name
-                                                                || ""
-                                                            }
-                                                            matchInfo={nameMatchInfo}
-                                                            className="break-words font-medium"
-                                                        />
-                                                        <div className="break-words text-admin-text-secondary">
-                                                            {row.suggested_variant.display || "Вариант без параметров"}
+                                                    ) : row.suggested_variant ? (
+                                                        <div>
+                                                            <HighlightedNameText
+                                                                text={
+                                                                    row.suggested_variant.display_name
+                                                                    || row.suggested_variant.product_name
+                                                                    || ""
+                                                                }
+                                                                matchInfo={nameMatchInfo}
+                                                                className="break-words font-medium"
+                                                            />
+                                                            <div className="break-words text-admin-text-secondary">
+                                                                {row.suggested_variant.display || "Вариант без параметров"}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ) : row.suggested_product ? (
-                                                    <div>
-                                                        <HighlightedNameText
-                                                            text={
-                                                                row.suggested_product.display_name
-                                                                || row.suggested_product.name
-                                                                || ""
-                                                            }
-                                                            matchInfo={nameMatchInfo}
-                                                            className="break-words font-medium"
-                                                        />
-                                                        <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
-                                                            Совпал продукт, вариантов пока нет
+                                                    ) : row.suggested_product ? (
+                                                        <div>
+                                                            <HighlightedNameText
+                                                                text={
+                                                                    row.suggested_product.display_name
+                                                                    || row.suggested_product.name
+                                                                    || ""
+                                                                }
+                                                                matchInfo={nameMatchInfo}
+                                                                className="break-words font-medium"
+                                                            />
+                                                            <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
+                                                                Совпал продукт, вариантов пока нет
+                                                            </div>
+                                                            <div className="mt-1 break-words text-admin-text-secondary">
+                                                                {row.parsed?.volume
+                                                                    ? `${row.parsed.volume} ml`
+                                                                    : "—"}
+                                                                {row.parsed?.concentration
+                                                                    ? ` / ${String(row.parsed.concentration).toUpperCase()}`
+                                                                    : ""}
+                                                                {row.parsed?.is_tester ? " / TESTER" : ""}
+                                                                {" · "}
+                                                                <span className="text-gray-400">
+                                                                    {row.suggested_product.variants_count
+                                                                        ? `есть ${row.suggested_product.variants_count} вар.`
+                                                                        : "вариантов нет"}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                        <div className="mt-1 break-words text-admin-text-secondary">
-                                                            {row.parsed?.volume
-                                                                ? `${row.parsed.volume} ml`
-                                                                : "—"}
-                                                            {row.parsed?.concentration
-                                                                ? ` / ${String(row.parsed.concentration).toUpperCase()}`
-                                                                : ""}
-                                                            {row.parsed?.is_tester ? " / TESTER" : ""}
-                                                            {" · "}
-                                                            <span className="text-gray-400">
-                                                                {row.suggested_product.variants_count
-                                                                    ? `есть ${row.suggested_product.variants_count} вар.`
-                                                                    : "вариантов нет"}
-                                                            </span>
+                                                    ) : row.linked_variant ? (
+                                                        <div>
+                                                            <HighlightedNameText
+                                                                text={
+                                                                    row.linked_variant.display_name
+                                                                    || row.linked_variant.product_name
+                                                                    || ""
+                                                                }
+                                                                matchInfo={nameMatchInfo}
+                                                                className="break-words font-medium"
+                                                            />
+                                                            <div className="break-words text-admin-text-secondary">
+                                                                {row.linked_variant.display || "Вариант без параметров"}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ) : row.linked_variant ? (
-                                                    <div>
-                                                        <HighlightedNameText
-                                                            text={
-                                                                row.linked_variant.display_name
-                                                                || row.linked_variant.product_name
-                                                                || ""
-                                                            }
-                                                            matchInfo={nameMatchInfo}
-                                                            className="break-words font-medium"
-                                                        />
-                                                        <div className="break-words text-admin-text-secondary">
-                                                            {row.linked_variant.display || "Вариант без параметров"}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    "Выбирете связь"
-                                                )}
-                                            </td>
-                                        </tr>
+                                                    ) : (
+                                                        "Выберите связь"
+                                                    )}
+                                                </td>
+                                            </tr>
                                         );
                                     })}
                                 </tbody>

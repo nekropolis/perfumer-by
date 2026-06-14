@@ -10,6 +10,7 @@ use Modules\ImportExport\Console\Commands\ImportLegacyOrdersCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
 use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
+use Modules\ImportExport\Console\Commands\ResetSellerOneLinksCommand;
 use Modules\ImportExport\Console\Commands\NormalizeOrderPhonesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -34,6 +35,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         NormalizeOrderPhonesCommand::class,
         ImportLegacyReviewsCommand::class,
         ImportLegacyPostsCommand::class,
+        ResetSellerOneLinksCommand::class,
     ];
 }
 

@@ -942,7 +942,7 @@ class SupplierPriceImportService
         }
 
         $message = sprintf(
-            'Готово: обработано %d связей, цена изменилась — %d, стало «нет в наличии» — %d, «в наличии» — %d, нет кода в файле — %d.',
+            'Готово: обработано %d связей, цена изменилась — %d, стало «нет в наличии» — %d, «в наличии» — %d, товар пропал у поставщика — %d.',
             $updated,
             $priceChanged,
             $becameOutOfStock,
@@ -1032,6 +1032,70 @@ class SupplierPriceImportService
 
         return [
             'message' => "Связка сброшена для supplier_product #{$supplierProduct->id}",
+        ];
+    }
+
+    /**
+     * Сбросить все связки Seller One (или все строки с подсказками) перед повторным парсингом.
+     *
+     * @return array{
+     *     supplier_id: int,
+     *     supplier_products_reset: int,
+     *     offers_deleted: int,
+     *     clear_suggestions: bool,
+     * }
+     */
+    public function resetAllLinks(bool $clearSuggestions = false, ?callable $onProgress = null): array
+    {
+        $supplier = $this->getOrCreateSellerOneSupplier();
+
+        $query = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id);
+
+        if (!$clearSuggestions) {
+            $query->where('is_linked', true);
+        }
+
+        $offersDeleted = SupplierVariantOffer::query()
+            ->where('supplier_id', $supplier->id)
+            ->delete();
+
+        $resetCount = 0;
+
+        $query->orderBy('id')->chunkById(500, function ($rows) use ($clearSuggestions, $onProgress, &$resetCount): void {
+            foreach ($rows as $supplierProduct) {
+                $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+                unset($payload['linked_variant_id'], $payload['link_type']);
+
+                if ($clearSuggestions) {
+                    unset(
+                        $payload['suggested_variant_id'],
+                        $payload['suggested_product_id'],
+                        $payload['match_confidence'],
+                        $payload['match_confidence_breakdown'],
+                    );
+                }
+
+                $supplierProduct->update([
+                    'brand_id' => null,
+                    'product_id' => null,
+                    'is_linked' => false,
+                    'payload' => $payload,
+                ]);
+
+                $resetCount++;
+            }
+
+            if ($onProgress) {
+                $onProgress($resetCount);
+            }
+        });
+
+        return [
+            'supplier_id' => (int) $supplier->id,
+            'supplier_products_reset' => $resetCount,
+            'offers_deleted' => $offersDeleted,
+            'clear_suggestions' => $clearSuggestions,
         ];
     }
 
@@ -1492,7 +1556,7 @@ class SupplierPriceImportService
         );
     }
 
-    private function getOrCreateSellerOneSupplier(): Supplier
+    public function getOrCreateSellerOneSupplier(): Supplier
     {
         return Supplier::query()->firstOrCreate(
             ['code' => self::DEFAULT_SUPPLIER_CODE],
