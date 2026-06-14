@@ -46,6 +46,7 @@ return [
         'async_updates' => env('CATALOG_SEARCH_ASYNC_UPDATES', true),
         'queue_name' => env('CATALOG_SEARCH_QUEUE_NAME', 'default'),
         'search_cache_ttl_seconds' => env('CATALOG_SEARCH_CACHE_TTL_SECONDS', 20),
+        'response_cache_ttl_seconds' => env('CATALOG_SEARCH_RESPONSE_CACHE_TTL_SECONDS', 45),
         'meilisearch' => [
             'url' => env('CATALOG_SEARCH_MEILI_URL'),
             'api_key' => env('CATALOG_SEARCH_MEILI_KEY'),

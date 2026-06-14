@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductListResource;
@@ -394,6 +395,21 @@ class ProductController extends Controller
             ]);
         }
 
+        $responseCacheKey = null;
+        $responseCacheTtl = 0;
+        if (!$debug) {
+            $responseCacheTtl = max(5, (int) config('services.catalog_search.response_cache_ttl_seconds', 45));
+            $responseCacheKey = sprintf(
+                'catalog:smart-search:response:%s:%d',
+                md5(mb_strtolower($query, 'UTF-8')),
+                $limit,
+            );
+            $cachedResponse = Cache::get($responseCacheKey);
+            if (is_array($cachedResponse)) {
+                return response()->json($cachedResponse);
+            }
+        }
+
         $normalizedQuery = $this->normalizeSearchText($query);
         $tokens = array_values(array_filter(explode(' ', $normalizedQuery)));
         $typoCorrectedQuery = $this->resolveTypoCorrectedQuery($normalizedQuery, $tokens);
@@ -545,181 +561,63 @@ class ProductController extends Controller
         $codeOrSkuBoostSet = array_fill_keys($codeOrSkuBoostIds, true);
         $matchedCodeByProductId = $this->matchedCodeByProductId($query, $pool->pluck('id')->map(static fn ($id): int => (int) $id)->all());
 
-        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
-        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
-        $activeVariantIds = $pool->flatMap(static function (Product $p): array {
-            return $p->activeVariants->pluck('id')->map(static fn ($id): int => (int) $id)->all();
-        })->unique()->values()->all();
+        $mainWarehouseId = $this->smartSearchWarehouseId(Warehouse::CODE_MAIN);
+        $supplierWarehouseId = $this->smartSearchWarehouseId(Warehouse::CODE_SUPPLIER);
 
-        $stocksByVariantId = collect();
-        if ($activeVariantIds !== []) {
-            $stocksByVariantId = WarehouseVariantStock::query()
-                ->whereIn('variant_id', $activeVariantIds)
-                ->whereIn('warehouse_id', array_values(array_filter([$mainWarehouseId, $supplierWarehouseId])))
-                ->get()
-                ->groupBy('variant_id');
+        $rankContext = [
+            'normalizedQuery' => $normalizedQuery,
+            'typoCorrectedQuery' => $typoCorrectedQuery,
+            'tokens' => $tokens,
+            'mainWarehouseId' => $mainWarehouseId,
+            'supplierWarehouseId' => $supplierWarehouseId,
+            'codeOrSkuBoostSet' => $codeOrSkuBoostSet,
+            'matchedCodeByProductId' => $matchedCodeByProductId,
+        ];
+        $candidateIds = [];
+
+        if ($usesLightweightPool) {
+            $phaseOneRanked = $this->smartSearchRankPoolProducts(
+                $pool,
+                $rankContext,
+                collect(),
+                roughAvailability: true,
+            );
+            $candidateIds = $this->smartSearchCandidateIdsFromRanked(
+                $phaseOneRanked,
+                $this->smartSearchCandidateLimit($limit),
+                $typoCorrectedQuery,
+            );
+            $candidatePool = $pool->filter(static fn (Product $product): bool => in_array((int) $product->id, $candidateIds, true));
+            $stocksByVariantId = $this->smartSearchLoadStocksByVariantId(
+                $candidatePool,
+                $mainWarehouseId,
+                $supplierWarehouseId,
+            );
+            $rankedProductsCollection = $this->smartSearchRankPoolProducts(
+                $candidatePool,
+                $rankContext,
+                $stocksByVariantId,
+                roughAvailability: false,
+            );
+        } else {
+            $stocksByVariantId = $this->smartSearchLoadStocksByVariantId(
+                $pool,
+                $mainWarehouseId,
+                $supplierWarehouseId,
+            );
+            $rankedProductsCollection = $this->smartSearchRankPoolProducts(
+                $pool,
+                $rankContext,
+                $stocksByVariantId,
+                roughAvailability: false,
+            );
         }
 
-        $rankedProducts = $pool->map(function (Product $product) use ($normalizedQuery, $typoCorrectedQuery, $tokens, $stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $codeOrSkuBoostSet, $matchedCodeByProductId) {
-            $name = (string) $product->name;
-            $slug = (string) $product->slug;
-            $brandName = (string) ($product->brand?->name ?? '');
-            $normalizedName = $this->normalizeSearchText($name);
-            $normalizedSlug = $this->normalizeSearchText($slug);
-            $normalizedBrand = $this->normalizeSearchText($brandName);
-            $variantTitles = $product->variants
-                ?->map(static fn ($variant) => (string) ($variant->definition?->title ?? ''))
-                ->filter()
-                ->unique()
-                ->values() ?? collect();
-            $prices = $product->variants
-                ?->pluck('price')
-                ->filter(static fn ($value) => $value !== null)
-                ->map(static fn ($value) => (float) $value)
-                ->values() ?? collect();
-            $oldPrices = $product->variants
-                ?->pluck('old_price')
-                ->filter(static fn ($value) => $value !== null)
-                ->map(static fn ($value) => (float) $value)
-                ->values() ?? collect();
-            $listingStockTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
-                $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
-                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-                $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
-
-                return (int) $row['stock'];
-            }) ?? 0);
-            $listingAvailableTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
-                $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
-                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-                $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
-
-                return (int) $row['available_stock'];
-            }) ?? 0);
-            $isPreorderAvailable = (bool) ($product->activeVariants?->contains(fn ($variant) => (bool) $variant->is_preorder) ?? false);
-            $mainImagePath = $product->images?->first()?->path;
-            $minPrice = $prices->isEmpty() ? null : number_format((float) $prices->min(), 2, '.', '');
-            $maxPrice = $prices->isEmpty() ? null : number_format((float) $prices->max(), 2, '.', '');
-            $minOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->min(), 2, '.', '');
-            $maxOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->max(), 2, '.', '');
-
-            $normalizedDisplay = $this->normalizeSearchText(trim($brandName.' '.$name));
-            $scoreDisplay = $normalizedDisplay !== ''
-                ? $this->similarityScore($normalizedQuery, $normalizedDisplay)
-                : 0.0;
-            if (
-                $normalizedDisplay !== ''
-                && $normalizedQuery !== ''
-                && str_contains($normalizedDisplay, $normalizedQuery)
-            ) {
-                $scoreDisplay = max($scoreDisplay, 0.98);
-            }
-
-            $scoreName = $this->similarityScore($normalizedQuery, $normalizedName);
-            $scoreSlug = $this->similarityScore($normalizedQuery, $normalizedSlug);
-            $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $normalizedBrand) : 0.0;
-            $scoreVariant = $variantTitles->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
-                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
-                return max($carry, $score);
-            }, 0.0);
-
-            $bestScore = max(
-                $scoreName,
-                $scoreSlug * 0.95,
-                $scoreBrand * 1.05, // запрос по бренду должен тянуть брендовые товары выше
-                $scoreVariant * 0.9,
-                $scoreDisplay * 1.08
-            );
-            $isCodeBoost = isset($codeOrSkuBoostSet[$product->id]);
-            if ($isCodeBoost) {
-                $bestScore = max($bestScore, 1.0);
-            }
-
-            $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
-            $matchTier = $this->smartSearchResolveProductMatchTier(
-                $normalizedQuery,
-                $tokens,
-                $normalizedDisplay,
-                $typoCorrectedQuery,
-                $isCodeBoost,
-            );
-            $typoPhrase = null;
-            if ($matchTier === null && $typoCorrectedQuery === null) {
-                $typoPhrase = $this->smartSearchExtractTypoPhrase($normalizedQuery, $normalizedDisplay);
-                if ($typoPhrase !== null) {
-                    $matchTier = self::SMART_SEARCH_MATCH_TYPO;
-                }
-            }
-
-            if ($matchTier === null) {
-                return null;
-            }
-
-            $payload = [
-                'id' => (int) $product->id,
-                'name' => $name,
-                'display_name' => \Modules\Catalog\Support\ProductDisplayName::format($brandName, $name),
-                'slug' => $slug,
-                'brand_name' => $brandName !== '' ? $brandName : null,
-                'variant_titles' => $variantTitles->take(3)->all(),
-                'h1' => null,
-                'short_description' => null,
-                'brand' => $product->brand ? [
-                    'id' => (int) $product->brand->id,
-                    'name' => (string) $product->brand->name,
-                ] : null,
-                'main_category' => null,
-                'image' => $mainImagePath ? (string) $mainImagePath : null,
-                'is_new' => (bool) $product->is_new,
-                'is_hit' => (bool) $product->is_hit,
-                'is_out_of_stock' => (bool) $product->is_out_of_stock,
-                'price_range' => [
-                    'min' => $minPrice,
-                    'max' => $maxPrice,
-                ],
-                'old_price_range' => [
-                    'min' => $minOldPrice,
-                    'max' => $maxOldPrice,
-                ],
-                'has_discount' => !$prices->isEmpty() && !$oldPrices->isEmpty() && (float) $oldPrices->min() > (float) $prices->min(),
-                'discount_percent' => null,
-                'stock_total' => $listingStockTotal,
-                'is_preorder_available' => $isPreorderAvailable,
-                'variants_count' => (int) ($product->variants?->count() ?? 0),
-                'variant_labels' => $variantTitles->values()->all(),
-                'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
-                '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
-                '_match_tier' => $matchTier,
-                '_typo_phrase' => $typoPhrase,
-                'score' => round($bestScore, 6),
-            ];
-            return $payload;
-        })
-            ->filter();
-
-        $sortRanked = static fn ($items) => $items->sortBy([
-            ['_match_tier', 'asc'],
-            ['score', 'desc'],
-            ['_availability_rank', 'desc'],
-        ])->values();
-
-        $sorted = $sortRanked($rankedProducts);
-        $nonTypo = $sorted->filter(
-            static fn (array $item): bool => (int) ($item['_match_tier'] ?? self::SMART_SEARCH_MATCH_TYPO) < self::SMART_SEARCH_MATCH_TYPO,
+        $rankedProducts = $this->smartSearchFinalizeRankedProducts(
+            $rankedProductsCollection,
+            $limit,
+            $typoCorrectedQuery,
         );
-        $typoProducts = $typoCorrectedQuery !== null
-            ? collect()
-            : $sorted->filter(
-                static fn (array $item): bool => (int) ($item['_match_tier'] ?? 0) === self::SMART_SEARCH_MATCH_TYPO,
-            )->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
-
-        $rankedProducts = $nonTypo
-            ->concat($typoProducts)
-            ->take($limit)
-            ->values()
-            ->all();
 
         if ($usesLightweightPool) {
             $rankedProducts = $this->smartSearchAttachImagesToRankedProducts($rankedProducts);
@@ -771,6 +669,7 @@ class ProductController extends Controller
                 'search_backend' => $searchBackend,
                 'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
                 'lightweight_pool' => $usesLightweightPool,
+                'candidate_pool_count' => $usesLightweightPool ? count($candidateIds) : null,
                 'search_backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
                 'total_elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
@@ -796,6 +695,7 @@ class ProductController extends Controller
                 'suggested_query' => $response['data']['suggested_query'],
                 'backend' => $searchBackend,
                 'lightweight_pool' => $usesLightweightPool,
+                'candidate_pool_count' => $usesLightweightPool ? count($candidateIds) : null,
                 'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
                 'backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
                 'total_elapsed_ms' => $totalElapsedMs,
@@ -803,6 +703,10 @@ class ProductController extends Controller
                 'slo_exceeded' => $totalElapsedMs > $targetP95Ms,
                 'quality_probe_query' => in_array($normalizedForProbe, $probeQueries, true),
             ]);
+        }
+
+        if ($responseCacheKey !== null && $responseCacheTtl > 0) {
+            Cache::put($responseCacheKey, $response, $responseCacheTtl);
         }
 
         return response()->json($response);
@@ -1693,6 +1597,301 @@ class ProductController extends Controller
             self::SMART_SEARCH_MEILI_POOL_MIN,
             min($computed, self::SMART_SEARCH_MEILI_POOL_MAX),
         );
+    }
+
+    private function smartSearchCandidateLimit(int $limit): int
+    {
+        return max($limit + 8, ($limit * 3) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+    }
+
+    private function smartSearchWarehouseId(string $code): int
+    {
+        static $cache = [];
+
+        if (!array_key_exists($code, $cache)) {
+            $cache[$code] = (int) Warehouse::query()->where('code', $code)->value('id');
+        }
+
+        return $cache[$code];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $pool
+     * @return \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, WarehouseVariantStock>>
+     */
+    private function smartSearchLoadStocksByVariantId(
+        $pool,
+        int $mainWarehouseId,
+        int $supplierWarehouseId,
+    ): \Illuminate\Support\Collection {
+        $activeVariantIds = $pool->flatMap(static function (Product $product): array {
+            return $product->activeVariants->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        })->unique()->values()->all();
+
+        if ($activeVariantIds === []) {
+            return collect();
+        }
+
+        return WarehouseVariantStock::query()
+            ->whereIn('variant_id', $activeVariantIds)
+            ->whereIn('warehouse_id', array_values(array_filter([$mainWarehouseId, $supplierWarehouseId])))
+            ->get()
+            ->groupBy('variant_id');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $rankedProducts
+     * @return list<int>
+     */
+    private function smartSearchCandidateIdsFromRanked(
+        $rankedProducts,
+        int $candidateLimit,
+        ?string $typoCorrectedQuery,
+    ): array {
+        return $this->smartSearchSortRankedProducts($rankedProducts)
+            ->pipe(function ($sorted) use ($typoCorrectedQuery, $candidateLimit) {
+                $nonTypo = $sorted->filter(
+                    static fn (array $item): bool => (int) ($item['_match_tier'] ?? self::SMART_SEARCH_MATCH_TYPO) < self::SMART_SEARCH_MATCH_TYPO,
+                );
+                $typoProducts = $typoCorrectedQuery !== null
+                    ? collect()
+                    : $sorted->filter(
+                        static fn (array $item): bool => (int) ($item['_match_tier'] ?? 0) === self::SMART_SEARCH_MATCH_TYPO,
+                    )->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+
+                return $nonTypo
+                    ->concat($typoProducts)
+                    ->take($candidateLimit);
+            })
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $rankedProducts
+     * @return list<array<string, mixed>>
+     */
+    private function smartSearchFinalizeRankedProducts(
+        $rankedProducts,
+        int $limit,
+        ?string $typoCorrectedQuery,
+    ): array {
+        $sorted = $this->smartSearchSortRankedProducts($rankedProducts);
+        $nonTypo = $sorted->filter(
+            static fn (array $item): bool => (int) ($item['_match_tier'] ?? self::SMART_SEARCH_MATCH_TYPO) < self::SMART_SEARCH_MATCH_TYPO,
+        );
+        $typoProducts = $typoCorrectedQuery !== null
+            ? collect()
+            : $sorted->filter(
+                static fn (array $item): bool => (int) ($item['_match_tier'] ?? 0) === self::SMART_SEARCH_MATCH_TYPO,
+            )->take(self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+
+        return $nonTypo
+            ->concat($typoProducts)
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $rankedProducts
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function smartSearchSortRankedProducts($rankedProducts): \Illuminate\Support\Collection
+    {
+        return $rankedProducts->sortBy([
+            ['_match_tier', 'asc'],
+            ['score', 'desc'],
+            ['_availability_rank', 'desc'],
+        ])->values();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $pool
+     * @param  array{
+     *   normalizedQuery: string,
+     *   typoCorrectedQuery: ?string,
+     *   tokens: list<string>,
+     *   mainWarehouseId: int,
+     *   supplierWarehouseId: int,
+     *   codeOrSkuBoostSet: array<int, bool>,
+     *   matchedCodeByProductId: array<int, string>
+     * } $context
+     * @param  \Illuminate\Support\Collection<int|string, \Illuminate\Support\Collection<int, WarehouseVariantStock>>  $stocksByVariantId
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function smartSearchRankPoolProducts(
+        $pool,
+        array $context,
+        \Illuminate\Support\Collection $stocksByVariantId,
+        bool $roughAvailability,
+    ): \Illuminate\Support\Collection {
+        $normalizedQuery = $context['normalizedQuery'];
+        $typoCorrectedQuery = $context['typoCorrectedQuery'];
+        $tokens = $context['tokens'];
+        $mainWarehouseId = $context['mainWarehouseId'];
+        $supplierWarehouseId = $context['supplierWarehouseId'];
+        $codeOrSkuBoostSet = $context['codeOrSkuBoostSet'];
+        $matchedCodeByProductId = $context['matchedCodeByProductId'];
+
+        return $pool->map(function (Product $product) use (
+            $normalizedQuery,
+            $typoCorrectedQuery,
+            $tokens,
+            $stocksByVariantId,
+            $mainWarehouseId,
+            $supplierWarehouseId,
+            $codeOrSkuBoostSet,
+            $matchedCodeByProductId,
+            $roughAvailability,
+        ) {
+            $name = (string) $product->name;
+            $slug = (string) $product->slug;
+            $brandName = (string) ($product->brand?->name ?? '');
+            $normalizedName = $this->normalizeSearchText($name);
+            $normalizedSlug = $this->normalizeSearchText($slug);
+            $normalizedBrand = $this->normalizeSearchText($brandName);
+            $variantTitles = $product->variants
+                ?->map(static fn ($variant) => (string) ($variant->definition?->title ?? ''))
+                ->filter()
+                ->unique()
+                ->values() ?? collect();
+            $prices = $product->variants
+                ?->pluck('price')
+                ->filter(static fn ($value) => $value !== null)
+                ->map(static fn ($value) => (float) $value)
+                ->values() ?? collect();
+            $oldPrices = $product->variants
+                ?->pluck('old_price')
+                ->filter(static fn ($value) => $value !== null)
+                ->map(static fn ($value) => (float) $value)
+                ->values() ?? collect();
+            $isPreorderAvailable = (bool) ($product->activeVariants?->contains(fn ($variant) => (bool) $variant->is_preorder) ?? false);
+
+            if ($roughAvailability) {
+                $listingStockTotal = (int) ($product->activeVariants?->sum(static fn ($variant): int => max(0, (int) $variant->stock)) ?? 0);
+                $listingAvailableTotal = (int) ($product->activeVariants?->sum(static function ($variant): int {
+                    return max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
+                }) ?? 0);
+            } else {
+                $listingStockTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
+                    $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                    $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                    $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                    $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+                    return (int) $row['stock'];
+                }) ?? 0);
+                $listingAvailableTotal = (int) ($product->activeVariants?->sum(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId): int {
+                    $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                    $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                    $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                    $row = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+                    return (int) $row['available_stock'];
+                }) ?? 0);
+            }
+
+            $mainImagePath = $product->images?->first()?->path;
+            $minPrice = $prices->isEmpty() ? null : number_format((float) $prices->min(), 2, '.', '');
+            $maxPrice = $prices->isEmpty() ? null : number_format((float) $prices->max(), 2, '.', '');
+            $minOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->min(), 2, '.', '');
+            $maxOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->max(), 2, '.', '');
+
+            $normalizedDisplay = $this->normalizeSearchText(trim($brandName.' '.$name));
+            $scoreDisplay = $normalizedDisplay !== ''
+                ? $this->similarityScore($normalizedQuery, $normalizedDisplay)
+                : 0.0;
+            if (
+                $normalizedDisplay !== ''
+                && $normalizedQuery !== ''
+                && str_contains($normalizedDisplay, $normalizedQuery)
+            ) {
+                $scoreDisplay = max($scoreDisplay, 0.98);
+            }
+
+            $scoreName = $this->similarityScore($normalizedQuery, $normalizedName);
+            $scoreSlug = $this->similarityScore($normalizedQuery, $normalizedSlug);
+            $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $normalizedBrand) : 0.0;
+            $scoreVariant = $variantTitles->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
+                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
+
+                return max($carry, $score);
+            }, 0.0);
+
+            $bestScore = max(
+                $scoreName,
+                $scoreSlug * 0.95,
+                $scoreBrand * 1.05,
+                $scoreVariant * 0.9,
+                $scoreDisplay * 1.08
+            );
+            $isCodeBoost = isset($codeOrSkuBoostSet[$product->id]);
+            if ($isCodeBoost) {
+                $bestScore = max($bestScore, 1.0);
+            }
+
+            $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
+            $matchTier = $this->smartSearchResolveProductMatchTier(
+                $normalizedQuery,
+                $tokens,
+                $normalizedDisplay,
+                $typoCorrectedQuery,
+                $isCodeBoost,
+            );
+            $typoPhrase = null;
+            if ($matchTier === null && $typoCorrectedQuery === null) {
+                $typoPhrase = $this->smartSearchExtractTypoPhrase($normalizedQuery, $normalizedDisplay);
+                if ($typoPhrase !== null) {
+                    $matchTier = self::SMART_SEARCH_MATCH_TYPO;
+                }
+            }
+
+            if ($matchTier === null) {
+                return null;
+            }
+
+            return [
+                'id' => (int) $product->id,
+                'name' => $name,
+                'display_name' => \Modules\Catalog\Support\ProductDisplayName::format($brandName, $name),
+                'slug' => $slug,
+                'brand_name' => $brandName !== '' ? $brandName : null,
+                'variant_titles' => $variantTitles->take(3)->all(),
+                'h1' => null,
+                'short_description' => null,
+                'brand' => $product->brand ? [
+                    'id' => (int) $product->brand->id,
+                    'name' => (string) $product->brand->name,
+                ] : null,
+                'main_category' => null,
+                'image' => $mainImagePath ? (string) $mainImagePath : null,
+                'is_new' => (bool) $product->is_new,
+                'is_hit' => (bool) $product->is_hit,
+                'is_out_of_stock' => (bool) $product->is_out_of_stock,
+                'price_range' => [
+                    'min' => $minPrice,
+                    'max' => $maxPrice,
+                ],
+                'old_price_range' => [
+                    'min' => $minOldPrice,
+                    'max' => $maxOldPrice,
+                ],
+                'has_discount' => !$prices->isEmpty() && !$oldPrices->isEmpty() && (float) $oldPrices->min() > (float) $prices->min(),
+                'discount_percent' => null,
+                'stock_total' => $listingStockTotal,
+                'is_preorder_available' => $isPreorderAvailable,
+                'variants_count' => (int) ($product->variants?->count() ?? 0),
+                'variant_labels' => $variantTitles->values()->all(),
+                'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
+                '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
+                '_match_tier' => $matchTier,
+                '_typo_phrase' => $typoPhrase,
+                'score' => round($bestScore, 6),
+            ];
+        })->filter();
     }
 
     /**
