@@ -31,8 +31,8 @@ class ProductController extends Controller
     /** Товары с опечаткой в запросе (1 буква в слове) — после точных, не более 5. */
     private const int SMART_SEARCH_TYPO_EXTRA_LIMIT = 5;
     /** Meili fast path: минимальный pool для PHP-ранжирования (не legacy 900). */
-    private const int SMART_SEARCH_MEILI_POOL_MIN = 80;
-    private const int SMART_SEARCH_MEILI_POOL_MAX = 200;
+    private const int SMART_SEARCH_MEILI_POOL_MIN = 48;
+    private const int SMART_SEARCH_MEILI_POOL_MAX = 120;
     private const int SMART_SEARCH_MATCH_EXACT = 0;
     /** Слова запроса подряд в названии: «Azzaro Night …». */
     private const int SMART_SEARCH_MATCH_CONSECUTIVE = 1;
@@ -398,7 +398,7 @@ class ProductController extends Controller
         $responseCacheKey = null;
         $responseCacheTtl = 0;
         if (!$debug) {
-            $responseCacheTtl = max(5, (int) config('services.catalog_search.response_cache_ttl_seconds', 45));
+            $responseCacheTtl = max(5, (int) config('services.catalog_search.response_cache_ttl_seconds', 120));
             $responseCacheKey = sprintf(
                 'catalog:smart-search:response:%s:%d',
                 md5(mb_strtolower($query, 'UTF-8')),
@@ -412,7 +412,6 @@ class ProductController extends Controller
 
         $normalizedQuery = $this->normalizeSearchText($query);
         $tokens = array_values(array_filter(explode(' ', $normalizedQuery)));
-        $typoCorrectedQuery = $this->resolveTypoCorrectedQuery($normalizedQuery, $tokens);
         $searchPatterns = collect($tokens)
             ->flatMap(function (string $token): array {
                 $variants = [$token];
@@ -441,7 +440,9 @@ class ProductController extends Controller
         $productColumns = $this->smartSearchProductColumns();
         $legacyProductQuery = $this->smartSearchLegacyProductQuery();
         $rankingProductQuery = $this->smartSearchRankingProductQuery();
+        $phaseOneProductQuery = $this->smartSearchPhaseOneProductQuery();
         $usesLightweightPool = false;
+        $typoCorrectedQuery = null;
 
         $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
         $isCodeLikeQuery = preg_match('/^[\p{L}\p{N}\-_]{2,}$/u', $query) === 1 && !str_contains($query, ' ');
@@ -466,12 +467,19 @@ class ProductController extends Controller
 
         $searchBackend = (string) ($meiliResult['source'] ?? 'legacy');
 
+        if (
+            !in_array($searchBackend, ['meilisearch', 'code_lookup'], true)
+            || $meiliIds === []
+        ) {
+            $typoCorrectedQuery = $this->resolveTypoCorrectedQuery($normalizedQuery, $tokens);
+        }
+
         if ($meiliIds !== []) {
             $usesLightweightPool = $searchBackend !== 'legacy';
             if ($usesLightweightPool) {
                 $meiliIds = array_slice($meiliIds, 0, $meiliPoolLimit);
             }
-            $poolQueryForIds = $usesLightweightPool ? $rankingProductQuery : $legacyProductQuery;
+            $poolQueryForIds = $usesLightweightPool ? $phaseOneProductQuery : $legacyProductQuery;
             $pool = $this->smartSearchFetchProductsByMeiliIds($poolQueryForIds, $meiliIds, $productColumns);
         } else {
             $poolQuery = (clone $legacyProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
@@ -559,7 +567,9 @@ class ProductController extends Controller
             }
         }
         $codeOrSkuBoostSet = array_fill_keys($codeOrSkuBoostIds, true);
-        $matchedCodeByProductId = $this->matchedCodeByProductId($query, $pool->pluck('id')->map(static fn ($id): int => (int) $id)->all());
+        $matchedCodeByProductId = ($isCodeLikeQuery || $isStrictNumericQuery || $codeOrSkuBoostIds !== [])
+            ? $this->matchedCodeByProductId($query, $pool->pluck('id')->map(static fn ($id): int => (int) $id)->all())
+            : [];
 
         $mainWarehouseId = $this->smartSearchWarehouseId(Warehouse::CODE_MAIN);
         $supplierWarehouseId = $this->smartSearchWarehouseId(Warehouse::CODE_SUPPLIER);
@@ -581,13 +591,18 @@ class ProductController extends Controller
                 $rankContext,
                 collect(),
                 roughAvailability: true,
+                phaseOneScoring: true,
             );
             $candidateIds = $this->smartSearchCandidateIdsFromRanked(
                 $phaseOneRanked,
                 $this->smartSearchCandidateLimit($limit),
                 $typoCorrectedQuery,
             );
-            $candidatePool = $pool->filter(static fn (Product $product): bool => in_array((int) $product->id, $candidateIds, true));
+            $candidatePool = $this->smartSearchFetchProductsByMeiliIds(
+                $rankingProductQuery,
+                $candidateIds,
+                $productColumns,
+            );
             $stocksByVariantId = $this->smartSearchLoadStocksByVariantId(
                 $candidatePool,
                 $mainWarehouseId,
@@ -598,6 +613,7 @@ class ProductController extends Controller
                 $rankContext,
                 $stocksByVariantId,
                 roughAvailability: false,
+                phaseOneScoring: false,
             );
         } else {
             $stocksByVariantId = $this->smartSearchLoadStocksByVariantId(
@@ -1591,7 +1607,7 @@ class ProductController extends Controller
     private function smartSearchMeiliPoolLimit(int $responseLimit): int
     {
         $responseLimit = max(1, min($responseLimit, self::SMART_SEARCH_MAX_LIMIT));
-        $computed = ($responseLimit * 6) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT + 20;
+        $computed = ($responseLimit * 3) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT + 16;
 
         return max(
             self::SMART_SEARCH_MEILI_POOL_MIN,
@@ -1601,7 +1617,7 @@ class ProductController extends Controller
 
     private function smartSearchCandidateLimit(int $limit): int
     {
-        return max($limit + 8, ($limit * 3) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
+        return max($limit + 6, ($limit * 2) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT);
     }
 
     private function smartSearchWarehouseId(string $code): int
@@ -1727,6 +1743,7 @@ class ProductController extends Controller
         array $context,
         \Illuminate\Support\Collection $stocksByVariantId,
         bool $roughAvailability,
+        bool $phaseOneScoring = false,
     ): \Illuminate\Support\Collection {
         $normalizedQuery = $context['normalizedQuery'];
         $typoCorrectedQuery = $context['typoCorrectedQuery'];
@@ -1746,6 +1763,7 @@ class ProductController extends Controller
             $codeOrSkuBoostSet,
             $matchedCodeByProductId,
             $roughAvailability,
+            $phaseOneScoring,
         ) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
@@ -1753,6 +1771,14 @@ class ProductController extends Controller
             $normalizedName = $this->normalizeSearchText($name);
             $normalizedSlug = $this->normalizeSearchText($slug);
             $normalizedBrand = $this->normalizeSearchText($brandName);
+            if ($phaseOneScoring) {
+                $variantTitles = collect();
+                $prices = collect();
+                $oldPrices = collect();
+                $isPreorderAvailable = false;
+                $listingStockTotal = 0;
+                $listingAvailableTotal = $product->is_out_of_stock ? 0 : 1;
+            } else {
             $variantTitles = $product->variants
                 ?->map(static fn ($variant) => (string) ($variant->definition?->title ?? ''))
                 ->filter()
@@ -1793,6 +1819,7 @@ class ProductController extends Controller
                     return (int) $row['available_stock'];
                 }) ?? 0);
             }
+            }
 
             $mainImagePath = $product->images?->first()?->path;
             $minPrice = $prices->isEmpty() ? null : number_format((float) $prices->min(), 2, '.', '');
@@ -1815,11 +1842,13 @@ class ProductController extends Controller
             $scoreName = $this->similarityScore($normalizedQuery, $normalizedName);
             $scoreSlug = $this->similarityScore($normalizedQuery, $normalizedSlug);
             $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $normalizedBrand) : 0.0;
-            $scoreVariant = $variantTitles->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
-                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
+            $scoreVariant = $phaseOneScoring
+                ? 0.0
+                : $variantTitles->reduce(function (float $carry, $variantTitle) use ($normalizedQuery) {
+                    $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText((string) $variantTitle));
 
-                return max($carry, $score);
-            }, 0.0);
+                    return max($carry, $score);
+                }, 0.0);
 
             $bestScore = max(
                 $scoreName,
@@ -1886,7 +1915,9 @@ class ProductController extends Controller
                 'variants_count' => (int) ($product->variants?->count() ?? 0),
                 'variant_labels' => $variantTitles->values()->all(),
                 'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
-                '_availability_rank' => ($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0,
+                '_availability_rank' => $phaseOneScoring
+                    ? ($product->is_out_of_stock ? 0 : 1)
+                    : (($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0),
                 '_match_tier' => $matchTier,
                 '_typo_phrase' => $typoPhrase,
                 'score' => round($bestScore, 6),
@@ -1914,6 +1945,13 @@ class ProductController extends Controller
         return Product::query()
             ->where('is_active', true)
             ->with($this->smartSearchProductRelations(includeImages: false));
+    }
+
+    private function smartSearchPhaseOneProductQuery(): Builder
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->with(['brand:id,name']);
     }
 
     /**
