@@ -29,6 +29,9 @@ class ProductController extends Controller
     private const int SMART_SEARCH_MAX_LIMIT = 30;
     /** Товары с опечаткой в запросе (1 буква в слове) — после точных, не более 5. */
     private const int SMART_SEARCH_TYPO_EXTRA_LIMIT = 5;
+    /** Meili fast path: минимальный pool для PHP-ранжирования (не legacy 900). */
+    private const int SMART_SEARCH_MEILI_POOL_MIN = 80;
+    private const int SMART_SEARCH_MEILI_POOL_MAX = 200;
     private const int SMART_SEARCH_MATCH_EXACT = 0;
     /** Слова запроса подряд в названии: «Azzaro Night …». */
     private const int SMART_SEARCH_MATCH_CONSECUTIVE = 1;
@@ -418,15 +421,11 @@ class ProductController extends Controller
             $searchPatterns
         );
 
-        $baseProductQuery = Product::query()
-            ->where('is_active', true)
-            ->with(['brand:id,name', 'images' => ProductListResource::imagesForListingEagerLoad(), 'variants' => static function ($q): void {
-                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
-                    ->with(['definition:id,title']);
-            }, 'activeVariants' => static function ($q): void {
-                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
-                    ->with(['definition:id,title']);
-            }]);
+        $meiliPoolLimit = $this->smartSearchMeiliPoolLimit($limit);
+        $productColumns = $this->smartSearchProductColumns();
+        $legacyProductQuery = $this->smartSearchLegacyProductQuery();
+        $rankingProductQuery = $this->smartSearchRankingProductQuery();
+        $usesLightweightPool = false;
 
         $codeOrSkuBoostIds = $this->activeProductIdsMatchingCodeOrSku($query);
         $isCodeLikeQuery = preg_match('/^[\p{L}\p{N}\-_]{2,}$/u', $query) === 1 && !str_contains($query, ' ');
@@ -445,21 +444,21 @@ class ProductController extends Controller
             $meiliResult['ids'] = $meiliIds;
             $meiliResult['source'] = 'code_lookup';
         } elseif (!$isStrictNumericQuery) {
-            $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, self::SMART_SEARCH_POOL_LIMIT);
+            $meiliResult = app(ProductSearchRetrievalService::class)->searchProductIds($query, $meiliPoolLimit);
             $meiliIds = $meiliResult['ids'] ?? [];
         }
 
+        $searchBackend = (string) ($meiliResult['source'] ?? 'legacy');
+
         if ($meiliIds !== []) {
-            $pool = (clone $baseProductQuery)
-                ->whereIn('id', $meiliIds)
-                ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'])
-                ->sortBy(static function (Product $product) use ($meiliIds): int {
-                    $index = array_search((int) $product->id, $meiliIds, true);
-                    return $index === false ? PHP_INT_MAX : (int) $index;
-                })
-                ->values();
+            $usesLightweightPool = $searchBackend !== 'legacy';
+            if ($usesLightweightPool) {
+                $meiliIds = array_slice($meiliIds, 0, $meiliPoolLimit);
+            }
+            $poolQueryForIds = $usesLightweightPool ? $rankingProductQuery : $legacyProductQuery;
+            $pool = $this->smartSearchFetchProductsByMeiliIds($poolQueryForIds, $meiliIds, $productColumns);
         } else {
-            $poolQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
+            $poolQuery = (clone $legacyProductQuery)->where(function ($q) use ($queryLike, $patternLikes, $query): void {
                 $q->where('name', 'like', $queryLike)
                     ->orWhere('slug', 'like', $queryLike)
                     ->orWhereHas('brand', function ($bq) use ($queryLike): void {
@@ -486,7 +485,7 @@ class ProductController extends Controller
                 $this->orWhereProductIdOrSupplierSku($q, $query, $queryLike);
             });
 
-            $directMatchQuery = (clone $baseProductQuery)->where(function ($q) use ($queryLike, $query): void {
+            $directMatchQuery = (clone $legacyProductQuery)->where(function ($q) use ($queryLike, $query): void {
                 $q->where('name', 'like', $queryLike)
                     ->orWhere('slug', 'like', $queryLike)
                     ->orWhereHas('brand', function ($bq) use ($queryLike): void {
@@ -520,24 +519,26 @@ class ProductController extends Controller
         if ($typoCorrectedQuery !== null) {
             $pool = $this->mergeSmartSearchPoolForQuery(
                 $pool,
-                $baseProductQuery,
+                $usesLightweightPool ? $rankingProductQuery : $legacyProductQuery,
                 $typoCorrectedQuery,
                 $isStrictNumericQuery,
+                $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
             );
         }
 
-        if (count($tokens) >= 2) {
-            $pool = $this->mergeSmartSearchPoolForAllTokens($pool, $baseProductQuery, $tokens);
+        if (count($tokens) >= 2 && !$usesLightweightPool) {
+            $pool = $this->mergeSmartSearchPoolForAllTokens($pool, $legacyProductQuery, $tokens);
         }
 
         if ($codeOrSkuBoostIds !== []) {
             $existing = $pool->pluck('id')->all();
             $missingIds = array_values(array_diff($codeOrSkuBoostIds, $existing));
             if ($missingIds !== []) {
-                $extraPool = (clone $baseProductQuery)
+                $extraPoolQuery = $usesLightweightPool ? $rankingProductQuery : $legacyProductQuery;
+                $extraPool = (clone $extraPoolQuery)
                     ->whereIn('id', $missingIds)
                     ->orderByDesc('id')
-                    ->get(['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock']);
+                    ->get($productColumns);
                 $pool = $pool->concat($extraPool)->unique('id');
             }
         }
@@ -720,6 +721,10 @@ class ProductController extends Controller
             ->values()
             ->all();
 
+        if ($usesLightweightPool) {
+            $rankedProducts = $this->smartSearchAttachImagesToRankedProducts($rankedProducts);
+        }
+
         $rankedBrands = $this->buildSmartSearchRankedBrands($query, $tokens, $normalizedQuery);
 
         if (!$debug) {
@@ -763,7 +768,9 @@ class ProductController extends Controller
                 'product_pool_count' => $pool->count(),
                 'brand_result_count' => count($rankedBrands),
                 'product_result_count' => count($rankedProducts),
-                'search_backend' => $meiliResult['source'] ?? 'legacy',
+                'search_backend' => $searchBackend,
+                'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
+                'lightweight_pool' => $usesLightweightPool,
                 'search_backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
                 'total_elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
@@ -787,7 +794,9 @@ class ProductController extends Controller
                 'brand_count' => count($rankedBrands),
                 'product_count' => count($rankedProducts),
                 'suggested_query' => $response['data']['suggested_query'],
-                'backend' => $meiliResult['source'] ?? 'legacy',
+                'backend' => $searchBackend,
+                'lightweight_pool' => $usesLightweightPool,
+                'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
                 'backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
                 'total_elapsed_ms' => $totalElapsedMs,
                 'slo_target_ms' => $targetP95Ms,
@@ -979,8 +988,9 @@ class ProductController extends Controller
         Builder $baseProductQuery,
         string $normalizedQuery,
         bool $isStrictNumericQuery,
+        int $meiliPoolLimit = self::SMART_SEARCH_POOL_LIMIT,
     ) {
-        $columns = ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+        $columns = $this->smartSearchProductColumns();
         $correctedLike = '%'.$this->escapeLikeValue($normalizedQuery).'%';
 
         $sqlPool = (clone $baseProductQuery)
@@ -998,19 +1008,11 @@ class ProductController extends Controller
         if (!$isStrictNumericQuery) {
             $correctedMeili = app(ProductSearchRetrievalService::class)->searchProductIds(
                 $normalizedQuery,
-                self::SMART_SEARCH_POOL_LIMIT,
+                $meiliPoolLimit,
             );
-            $correctedIds = $correctedMeili['ids'] ?? [];
+            $correctedIds = array_slice($correctedMeili['ids'] ?? [], 0, $meiliPoolLimit);
             if ($correctedIds !== []) {
-                $meiliPool = (clone $baseProductQuery)
-                    ->whereIn('id', $correctedIds)
-                    ->get($columns)
-                    ->sortBy(static function (Product $product) use ($correctedIds): int {
-                        $index = array_search((int) $product->id, $correctedIds, true);
-
-                        return $index === false ? PHP_INT_MAX : (int) $index;
-                    })
-                    ->values();
+                $meiliPool = $this->smartSearchFetchProductsByMeiliIds($baseProductQuery, $correctedIds, $columns);
                 $pool = $pool->concat($meiliPool);
             }
         }
@@ -1246,7 +1248,7 @@ class ProductController extends Controller
             return $pool;
         }
 
-        $columns = ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+        $columns = $this->smartSearchProductColumns();
         $tokenPoolQuery = clone $baseProductQuery;
         foreach ($significantTokens as $token) {
             $like = '%'.$this->escapeLikeValue($token).'%';
@@ -1680,6 +1682,124 @@ class ProductController extends Controller
                 }
             });
         });
+    }
+
+    private function smartSearchMeiliPoolLimit(int $responseLimit): int
+    {
+        $responseLimit = max(1, min($responseLimit, self::SMART_SEARCH_MAX_LIMIT));
+        $computed = ($responseLimit * 6) + self::SMART_SEARCH_TYPO_EXTRA_LIMIT + 20;
+
+        return max(
+            self::SMART_SEARCH_MEILI_POOL_MIN,
+            min($computed, self::SMART_SEARCH_MEILI_POOL_MAX),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function smartSearchProductColumns(): array
+    {
+        return ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+    }
+
+    private function smartSearchLegacyProductQuery(): Builder
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->with($this->smartSearchProductRelations(includeImages: true));
+    }
+
+    private function smartSearchRankingProductQuery(): Builder
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->with($this->smartSearchProductRelations(includeImages: false));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function smartSearchProductRelations(bool $includeImages): array
+    {
+        $relations = [
+            'brand:id,name',
+            'variants' => static function ($q): void {
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
+                    ->with(['definition:id,title']);
+            },
+            'activeVariants' => static function ($q): void {
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
+                    ->with(['definition:id,title']);
+            },
+        ];
+
+        if ($includeImages) {
+            $relations['images'] = ProductListResource::imagesForListingEagerLoad();
+        }
+
+        return $relations;
+    }
+
+    /**
+     * @param  list<int>  $meiliIds
+     * @param  list<string>  $columns
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function smartSearchFetchProductsByMeiliIds(Builder $query, array $meiliIds, array $columns): \Illuminate\Support\Collection
+    {
+        if ($meiliIds === []) {
+            return collect();
+        }
+
+        return (clone $query)
+            ->whereIn('id', $meiliIds)
+            ->get($columns)
+            ->sortBy(static function (Product $product) use ($meiliIds): int {
+                $index = array_search((int) $product->id, $meiliIds, true);
+
+                return $index === false ? PHP_INT_MAX : (int) $index;
+            })
+            ->values();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rankedProducts
+     * @return list<array<string, mixed>>
+     */
+    private function smartSearchAttachImagesToRankedProducts(array $rankedProducts): array
+    {
+        if ($rankedProducts === []) {
+            return $rankedProducts;
+        }
+
+        $productIds = array_values(array_unique(array_map(
+            static fn (array $item): int => (int) ($item['id'] ?? 0),
+            $rankedProducts,
+        )));
+        $productIds = array_values(array_filter($productIds, static fn (int $id): bool => $id > 0));
+        if ($productIds === []) {
+            return $rankedProducts;
+        }
+
+        $pathsByProductId = Product::query()
+            ->whereIn('id', $productIds)
+            ->with(['images' => ProductListResource::imagesForListingEagerLoad()])
+            ->get(['id'])
+            ->mapWithKeys(static function (Product $product): array {
+                $path = $product->images?->first()?->path;
+
+                return [(int) $product->id => $path ? (string) $path : null];
+            });
+
+        return array_map(static function (array $item) use ($pathsByProductId): array {
+            $productId = (int) ($item['id'] ?? 0);
+            if ($productId > 0) {
+                $item['image'] = $pathsByProductId->get($productId);
+            }
+
+            return $item;
+        }, $rankedProducts);
     }
 
 }
