@@ -19,6 +19,12 @@ type SearchResponse = {
         products: ProductListItem[];
         suggested_query?: string | null;
     };
+    meta?: {
+        total: number;
+        per_page: number;
+        current_page: number;
+        last_page: number;
+    };
     debug?: {
         query: string;
         normalized_query: string;
@@ -33,13 +39,19 @@ type SearchResponse = {
     } | null;
 };
 
+function parsePage(raw: string | undefined): number {
+    const page = Number.parseInt(raw ?? "1", 10);
+    return Number.isFinite(page) && page > 0 ? page : 1;
+}
+
 export default async function SearchPage({
     searchParams,
 }: {
-    searchParams?: Promise<{ query?: string; debug?: string }>;
+    searchParams?: Promise<{ query?: string; page?: string; debug?: string }>;
 }) {
     const params = await searchParams;
     const query = (params?.query || "").trim();
+    const currentPage = parsePage(params?.page);
     const debug = params?.debug === "1";
 
     let data: SearchResponse | null = null;
@@ -50,6 +62,7 @@ export default async function SearchPage({
             const sp = new URLSearchParams();
             sp.set("q", query);
             sp.set("limit", "24");
+            sp.set("page", String(currentPage));
             if (debug) {
                 sp.set("debug", "1");
             }
@@ -57,6 +70,14 @@ export default async function SearchPage({
         } catch (e) {
             error = e instanceof Error ? e.message : "Неизвестная ошибка";
         }
+    }
+
+    const paginationQuery = new URLSearchParams();
+    if (query) {
+        paginationQuery.set("query", query);
+    }
+    if (debug) {
+        paginationQuery.set("debug", "1");
     }
 
     const crumbs = [
@@ -69,10 +90,15 @@ export default async function SearchPage({
             <JsonLd data={breadcrumbListJsonLd([...crumbs])} />
             <Breadcrumbs className="mb-4" items={[...crumbs]} />
 
-            <h1 className="text-3xl font-semibold sm:text-4xl">Поиск</h1>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                Запрос: <span className="font-medium text-[var(--foreground)]">{query || "—"}</span>
-            </p>
+            <h1 className="text-3xl font-semibold sm:text-4xl">
+                {query ? (
+                    <>
+                        Поиск: <span className="text-[var(--text-secondary)]">{query}</span>
+                    </>
+                ) : (
+                    "Поиск"
+                )}
+            </h1>
 
             {!query ? (
                 <div className="mt-6 rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--text-secondary)]">
@@ -81,11 +107,13 @@ export default async function SearchPage({
             ) : null}
 
             <SearchResultsClient
-                key={query}
+                key={`${query}:${currentPage}`}
                 initialQuery={query}
                 initialData={data}
                 initialError={error}
                 debugEnabled={debug}
+                currentPage={currentPage}
+                queryString={paginationQuery.toString()}
             />
         </main>
     );

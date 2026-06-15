@@ -250,8 +250,67 @@ export function findNameMatchHighlightRanges(
 
 export type ProductNameMatchInfo = {
     words: string[];
+    /** Слова каталога по подпоследовательности (без лишних дублей вроде второго «Armani»). */
+    catalogWords: string[];
     exact: boolean;
 };
+
+function subsequenceMatchedCatalogWords(supplierNorm: string, catalogNorm: string): string[] {
+    const supplierTokens = supplierNorm.split(" ").filter((word) => word.length >= 2);
+    const catalogTokens = catalogNorm.split(" ").filter((word) => word.length >= 2);
+    const matched: string[] = [];
+    let supplierIndex = 0;
+
+    for (const catalogToken of catalogTokens) {
+        if (
+            supplierIndex < supplierTokens.length
+            && catalogToken === supplierTokens[supplierIndex]
+        ) {
+            matched.push(catalogToken);
+            supplierIndex += 1;
+        }
+    }
+
+    return matched;
+}
+
+/**
+ * Подсветка каталога: по одному вхождению каждого слова, слева направо (подпоследовательность).
+ */
+export function findSubsequenceHighlightRanges(
+    text: string,
+    normalizedWords: string[],
+): NameMatchHighlightRange[] {
+    if (!text || normalizedWords.length === 0) {
+        return [];
+    }
+
+    const ranges: NameMatchHighlightRange[] = [];
+    let searchFrom = 0;
+
+    for (const word of normalizedWords) {
+        if (word.length < 2) {
+            continue;
+        }
+
+        const re = new RegExp(
+            `\\b${normalizedWordToFlexiblePattern(word)}\\b`,
+            "giu",
+        );
+        re.lastIndex = searchFrom;
+        const match = re.exec(text);
+        if (!match) {
+            continue;
+        }
+
+        const start = match.index;
+        const end = extendParenWrappedSuffix(text, start, start + match[0].length);
+        ranges.push({ start, end });
+        searchFrom = end;
+    }
+
+    return ranges;
+}
 
 /**
  * Нормализованные слова для подсветки в обеих колонках.
@@ -261,11 +320,12 @@ export function findProductNameMatchInfo(supplierLabel: string, catalogLabel: st
     const supplierNorm = normalizeProductComparable(supplierLabel);
     const catalogNorm = normalizeProductComparable(catalogLabel);
     if (!supplierNorm || !catalogNorm) {
-        return { words: [], exact: false };
+        return { words: [], catalogWords: [], exact: false };
     }
 
     if (isExactProductNameMatch(supplierLabel, catalogLabel)) {
-        return { words: supplierNorm.split(" ").filter(Boolean), exact: true };
+        const words = supplierNorm.split(" ").filter(Boolean);
+        return { words, catalogWords: words, exact: true };
     }
 
     const catalogWordSet = new Set(
@@ -274,8 +334,9 @@ export function findProductNameMatchInfo(supplierLabel: string, catalogLabel: st
     const words = [...new Set(
         supplierNorm.split(" ").filter((word) => word.length >= 2 && catalogWordSet.has(word)),
     )];
+    const catalogWords = subsequenceMatchedCatalogWords(supplierNorm, catalogNorm);
 
-    return { words, exact: false };
+    return { words, catalogWords, exact: false };
 }
 
 export function buildSupplierParsedLabel(
@@ -309,6 +370,9 @@ export function getConfidenceBadgeClass(confidence: number): string {
     }
     if (confidence >= 80) {
         return "bg-amber-100 text-amber-700";
+    }
+    if (confidence >= 50) {
+        return "bg-orange-100 text-orange-800";
     }
     return "bg-red-100 text-red-700";
 }

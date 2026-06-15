@@ -113,14 +113,14 @@ class ProductSearchIndexer
         ]);
     }
 
-    public function queueProductSync(int $productId): void
+    public function queueProductSync(int $productId, bool $forceSync = false): void
     {
         if (!$this->isEnabled() || $productId <= 0) {
             return;
         }
 
-        $run = function () use ($productId): void {
-            if ((bool) config('services.catalog_search.async_updates', true)) {
+        $run = function () use ($productId, $forceSync): void {
+            if (!$forceSync && (bool) config('services.catalog_search.async_updates', true)) {
                 SyncProductSearchIndexJob::dispatch($productId, false);
 
                 return;

@@ -103,15 +103,30 @@ class VanilleImportController extends Controller
             ], 422);
         }
 
-        $importResult = $service->importFromJsonFile((string) ($result['file_path'] ?? ''));
+        $importResult = $service->importFromJsonFile((string) ($result['file_path'] ?? ''), true);
         $importOk = (bool) ($importResult['success'] ?? false);
         $payload = array_merge($result, ['import' => $importResult]);
+
+        $importedProduct = collect($importResult['created_products'] ?? [])
+            ->merge($importResult['updated_products'] ?? [])
+            ->first();
 
         $message = $importOk
             ? 'Карточка сохранена и импортирована в каталог.'
             : (($importResult['message'] ?? '') !== ''
                 ? (string) $importResult['message']
                 : 'Карточка сохранена, но импорт в каталог завершился с ошибками.');
+
+        if ($importOk && is_array($importedProduct)) {
+            $slug = trim((string) ($importedProduct['slug'] ?? ''));
+            $productId = (int) ($importedProduct['product_id'] ?? 0);
+            if ($slug !== '') {
+                $message .= ' Slug: '.$slug.'.';
+            }
+            if ($productId > 0) {
+                $message .= ' ID: '.$productId.'.';
+            }
+        }
 
         return response()->json([
             'message' => $message,

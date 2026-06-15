@@ -262,6 +262,20 @@ export type VanilleParseSingleProductImportSummary = {
     errors?: number;
     items?: number;
     log?: string[];
+    created_products?: Array<{
+        product_id: number;
+        name: string;
+        slug: string;
+        is_active: boolean;
+        url: string;
+    }>;
+    updated_products?: Array<{
+        product_id: number;
+        name: string;
+        slug: string;
+        is_active: boolean;
+        url: string;
+    }>;
 };
 
 export type VanilleParseSingleProductResponse = {

@@ -28,11 +28,13 @@ class ProductController extends Controller
     private const int SMART_SEARCH_DIRECT_MATCH_LIMIT = 600;
     private const int SMART_SEARCH_RESULT_LIMIT = 10;
     private const int SMART_SEARCH_MAX_LIMIT = 30;
+    private const int SMART_SEARCH_PAGE_PER_PAGE = 24;
     /** Товары с опечаткой в запросе (1 буква в слове) — после точных, не более 5. */
     private const int SMART_SEARCH_TYPO_EXTRA_LIMIT = 5;
     /** Meili fast path: минимальный pool для PHP-ранжирования (не legacy 900). */
     private const int SMART_SEARCH_MEILI_POOL_MIN = 48;
     private const int SMART_SEARCH_MEILI_POOL_MAX = 120;
+    private const int SMART_SEARCH_MEILI_REQUEST_MAX = 200;
     private const int SMART_SEARCH_MATCH_EXACT = 0;
     /** Слова запроса подряд в названии: «Azzaro Night …». */
     private const int SMART_SEARCH_MATCH_CONSECUTIVE = 1;
@@ -382,7 +384,12 @@ class ProductController extends Controller
     {
         $startedAt = microtime(true);
         $query = trim($request->string('q')->toString());
-        $limit = max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_MAX_LIMIT));
+        $paginationRequested = $request->has('page');
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = $paginationRequested
+            ? max(1, min((int) $request->input('limit', self::SMART_SEARCH_PAGE_PER_PAGE), self::SMART_SEARCH_PAGE_PER_PAGE))
+            : max(1, min((int) $request->input('limit', self::SMART_SEARCH_RESULT_LIMIT), self::SMART_SEARCH_MAX_LIMIT));
+        $finalizeLimit = $paginationRequested ? self::SMART_SEARCH_POOL_LIMIT : $perPage;
         $debug = $request->boolean('debug') && (bool) config('app.debug');
 
         if (mb_strlen($query, 'UTF-8') < 2) {
@@ -400,9 +407,9 @@ class ProductController extends Controller
         if (!$debug) {
             $responseCacheTtl = max(5, (int) config('services.catalog_search.response_cache_ttl_seconds', 120));
             $responseCacheKey = sprintf(
-                'catalog:smart-search:response:%s:%d',
+                'catalog:smart-search:response:%s:%s',
                 md5(mb_strtolower($query, 'UTF-8')),
-                $limit,
+                $paginationRequested ? "{$perPage}:{$page}" : (string) $perPage,
             );
             $cachedResponse = Cache::get($responseCacheKey);
             if (is_array($cachedResponse)) {
@@ -436,7 +443,9 @@ class ProductController extends Controller
             $searchPatterns
         );
 
-        $meiliPoolLimit = $this->smartSearchMeiliPoolLimit($limit);
+        $meiliPoolLimit = $paginationRequested
+            ? min(self::SMART_SEARCH_POOL_LIMIT, self::SMART_SEARCH_MEILI_REQUEST_MAX)
+            : $this->smartSearchMeiliPoolLimit($perPage);
         $productColumns = $this->smartSearchProductColumns();
         $legacyProductQuery = $this->smartSearchLegacyProductQuery();
         $rankingProductQuery = $this->smartSearchRankingProductQuery();
@@ -566,6 +575,18 @@ class ProductController extends Controller
                 $pool = $pool->concat($extraPool)->unique('id');
             }
         }
+
+        if ($paginationRequested) {
+            $pool = $this->mergeSmartSearchPoolForMatchedBrands(
+                $pool,
+                $usesLightweightPool ? $phaseOneProductQuery : $legacyProductQuery,
+                $query,
+                $tokens,
+                $normalizedQuery,
+                $productColumns,
+            );
+        }
+
         $codeOrSkuBoostSet = array_fill_keys($codeOrSkuBoostIds, true);
         $matchedCodeByProductId = ($isCodeLikeQuery || $isStrictNumericQuery || $codeOrSkuBoostIds !== [])
             ? $this->matchedCodeByProductId($query, $pool->pluck('id')->map(static fn ($id): int => (int) $id)->all())
@@ -595,7 +616,7 @@ class ProductController extends Controller
             );
             $candidateIds = $this->smartSearchCandidateIdsFromRanked(
                 $phaseOneRanked,
-                $this->smartSearchCandidateLimit($limit),
+                $paginationRequested ? $finalizeLimit : $this->smartSearchCandidateLimit($perPage),
                 $typoCorrectedQuery,
             );
             $candidatePool = $this->smartSearchFetchProductsByMeiliIds(
@@ -631,12 +652,25 @@ class ProductController extends Controller
 
         $rankedProducts = $this->smartSearchFinalizeRankedProducts(
             $rankedProductsCollection,
-            $limit,
+            $finalizeLimit,
             $typoCorrectedQuery,
         );
 
         if ($usesLightweightPool) {
             $rankedProducts = $this->smartSearchAttachImagesToRankedProducts($rankedProducts);
+        }
+
+        $productResultCount = count($rankedProducts);
+        $productsMeta = null;
+        if ($paginationRequested) {
+            $offset = ($page - 1) * $perPage;
+            $rankedProducts = array_slice($rankedProducts, $offset, $perPage);
+            $productsMeta = [
+                'total' => $productResultCount,
+                'per_page' => $perPage,
+                'current_page' => $page,
+                'last_page' => max(1, (int) ceil($productResultCount / $perPage)),
+            ];
         }
 
         $rankedBrands = $this->buildSmartSearchRankedBrands($query, $tokens, $normalizedQuery);
@@ -668,11 +702,14 @@ class ProductController extends Controller
                 'products' => $rankedProducts,
                 'suggested_query' => ($typoCorrectedQuery !== null
                     && $typoCorrectedQuery !== $normalizedQuery
-                    && count($rankedProducts) > 0)
+                    && $productResultCount > 0)
                     ? $typoCorrectedQuery
                     : null,
             ],
         ];
+        if ($productsMeta !== null) {
+            $response['meta'] = $productsMeta;
+        }
         if ($debug) {
             $response['debug'] = [
                 'query' => $query,
@@ -681,7 +718,7 @@ class ProductController extends Controller
                 'search_patterns' => $searchPatterns,
                 'product_pool_count' => $pool->count(),
                 'brand_result_count' => count($rankedBrands),
-                'product_result_count' => count($rankedProducts),
+                'product_result_count' => $productResultCount,
                 'search_backend' => $searchBackend,
                 'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
                 'lightweight_pool' => $usesLightweightPool,
@@ -699,15 +736,15 @@ class ProductController extends Controller
                 ->filter(static fn (string $item): bool => $item !== '')
                 ->values()
                 ->all();
-            $targetP95Ms = $limit <= 16
+            $targetP95Ms = !$paginationRequested && $perPage <= 16
                 ? (int) config('catalog_search.slo.header_p95_ms', 250)
                 : (int) config('catalog_search.slo.search_page_p95_ms', 450);
 
             Log::info('catalog.smart_search', [
                 'query' => $query,
-                'has_results' => (count($rankedProducts) + count($rankedBrands)) > 0,
+                'has_results' => ($productResultCount + count($rankedBrands)) > 0,
                 'brand_count' => count($rankedBrands),
-                'product_count' => count($rankedProducts),
+                'product_count' => $productResultCount,
                 'suggested_query' => $response['data']['suggested_query'],
                 'backend' => $searchBackend,
                 'lightweight_pool' => $usesLightweightPool,
@@ -892,14 +929,50 @@ class ProductController extends Controller
     }
 
     /**
+     * Страница поиска: все активные товары брендов, совпавших по названию (например «Dolce» → Dolce&Gabbana).
+     *
+     * @param  \Illuminate\Support\Collection<int, Product>  $pool
+     * @param  list<string>  $tokens
+     * @param  list<string>  $productColumns
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function mergeSmartSearchPoolForMatchedBrands(
+        $pool,
+        Builder $baseProductQuery,
+        string $query,
+        array $tokens,
+        string $normalizedQuery,
+        array $productColumns,
+    ) {
+        $matchedBrands = $this->smartSearchBrandsDirectMatch($query, $tokens, $normalizedQuery, 5);
+        if ($matchedBrands === []) {
+            return $pool;
+        }
+
+        $remaining = self::SMART_SEARCH_POOL_LIMIT - $pool->count();
+        if ($remaining <= 0) {
+            return $pool;
+        }
+
+        $brandIds = array_map(static fn (array $brand): int => (int) $brand['id'], $matchedBrands);
+        $existingIds = $pool->pluck('id')->all();
+
+        $brandProducts = (clone $baseProductQuery)
+            ->whereIn('brand_id', $brandIds)
+            ->when($existingIds !== [], fn (Builder $q) => $q->whereKeyNot($existingIds))
+            ->orderByDesc('id')
+            ->limit($remaining)
+            ->get($productColumns);
+
+        return $pool->concat($brandProducts)->unique('id')->values();
+    }
+
+    /**
      * Товар в выдаче: запрос как подстрока в «бренд + название» (как на витрине).
      * Для однословного запроса — отдельное слово в названии товара.
      * Для нескольких слов — только целая фраза, не разрозненные токены
      * (иначе «the one» матчит «Take One To The Moon»).
      *
-     * @param  list<string>  $tokens
-     */
-    /**
      * @param  \Illuminate\Support\Collection<int, Product>  $pool
      * @return \Illuminate\Support\Collection<int, Product>
      */
@@ -1094,7 +1167,7 @@ class ProductController extends Controller
     }
 
     /**
-     * @param  list<string>  $tokens
+     * @param  string  $normalizedDisplay
      * @return list<string>
      */
     private function smartSearchDisplayWords(string $normalizedDisplay): array

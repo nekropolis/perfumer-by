@@ -9,7 +9,8 @@ use RuntimeException;
 
 class VanilleHttpClient
 {
-    private const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    // DDOS-Guard на vanille.by отдаёт 403 на Chrome/WebKit UA без полного браузерного fingerprint.
+    private const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0';
 
     public function createCookieJar(): CookieJar
     {
@@ -32,6 +33,7 @@ class VanilleHttpClient
             'cookies' => $jar,
             'verify' => false,
             'timeout' => $timeout,
+            'allow_redirects' => true,
         ])
             ->withHeaders($this->defaultRequestHeaders())
             ->get($url);
@@ -91,6 +93,7 @@ class VanilleHttpClient
             'cookies' => $jar,
             'verify' => false,
             'timeout' => $timeout,
+            'allow_redirects' => true,
         ])
             ->withHeaders([
                 ...$this->defaultRequestHeaders(),

@@ -1044,7 +1044,7 @@ export default function SellerOneImportPage() {
                                                 supplierParsedLabel,
                                                 catalogProductLabel,
                                             )
-                                            : { words: [], exact: false };
+                                            : { words: [], catalogWords: [], exact: false };
 
                                         return (
                                             <tr key={row.id} className="border-t align-top">
@@ -1119,6 +1119,7 @@ export default function SellerOneImportPage() {
                                                                     || ""
                                                                 }
                                                                 matchInfo={nameMatchInfo}
+                                                                highlightSource="catalog"
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="break-words text-admin-text-secondary">
@@ -1134,6 +1135,7 @@ export default function SellerOneImportPage() {
                                                                     || ""
                                                                 }
                                                                 matchInfo={nameMatchInfo}
+                                                                highlightSource="catalog"
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="break-words text-admin-text-secondary">
@@ -1149,6 +1151,7 @@ export default function SellerOneImportPage() {
                                                                     || ""
                                                                 }
                                                                 matchInfo={nameMatchInfo}
+                                                                highlightSource="catalog"
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
@@ -1179,6 +1182,7 @@ export default function SellerOneImportPage() {
                                                                     || ""
                                                                 }
                                                                 matchInfo={nameMatchInfo}
+                                                                highlightSource="catalog"
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="break-words text-admin-text-secondary">

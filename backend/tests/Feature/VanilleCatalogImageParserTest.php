@@ -70,6 +70,27 @@ HTML;
         );
     }
 
+    public function test_parse_product_page_catalog_image_urls_falls_back_to_large_when_no_medium(): void
+    {
+        $html = <<<'HTML'
+<div class="product-photo">
+  <a class="product-photo__item product-photo__item--lg" href="/assets/images/products/75093/largewebp/giorgio-armani-emporio-armani-diamonds-for-men-summer-edition-1.webp">
+    <img class="product-photo__img" src="/assets/images/products/75093/largewebp/giorgio-armani-emporio-armani-diamonds-for-men-summer-edition-1.webp">
+    <img class="product-brend__img" src="assets/images/brends/giorgio_armani.png">
+  </a>
+</div>
+<div class="other-block"></div>
+HTML;
+        $parser = new VanilleCatalogImageParser;
+        $urls = $parser->parseProductPageCatalogImageUrls($html);
+
+        $this->assertCount(1, $urls);
+        $this->assertSame(
+            'https://vanille.by/assets/images/products/75093/mediumwebp/giorgio-armani-emporio-armani-diamonds-for-men-summer-edition-1.webp',
+            $urls[0]
+        );
+    }
+
     public function test_parse_listing_extracts_up_to_two_images_from_card(): void
     {
         $html = '<a href="/stephane-humbert-lucas-777-khol-de-bahrein">'

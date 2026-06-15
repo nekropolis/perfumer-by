@@ -6,6 +6,7 @@ import {
     buildDefinitionSearchFromHint,
     buildSupplierLabelFromHint,
     findNameMatchHighlightRanges,
+    findSubsequenceHighlightRanges,
     formatCatalogProductLabel,
     formatVariantOptionLabel,
     findProductNameMatchInfo,
@@ -101,21 +102,29 @@ export function HighlightedNameText({
     text,
     matchInfo,
     className,
+    highlightSource = "supplier",
 }: {
     text: string;
     matchInfo?: ProductNameMatchInfo | null;
     className?: string;
+    highlightSource?: "supplier" | "catalog";
 }) {
     if (!text) {
         return null;
     }
 
-    const words = matchInfo?.words ?? [];
+    const words = highlightSource === "catalog"
+        ? (matchInfo?.catalogWords ?? matchInfo?.words ?? [])
+        : (matchInfo?.words ?? []);
     if (words.length === 0) {
         return <span className={className}>{text}</span>;
     }
 
-    const ranges = findNameMatchHighlightRanges(text, words, matchInfo?.exact ?? false);
+    const ranges = matchInfo?.exact
+        ? findNameMatchHighlightRanges(text, words, true)
+        : highlightSource === "catalog"
+            ? findSubsequenceHighlightRanges(text, words)
+            : findNameMatchHighlightRanges(text, words, false);
     if (ranges.length === 0) {
         return <span className={className}>{text}</span>;
     }
@@ -306,6 +315,7 @@ export function ManualLinkModal({
                                                 <HighlightedNameText
                                                     text={label}
                                                     matchInfo={matchInfo}
+                                                    highlightSource="catalog"
                                                     className="font-medium"
                                                 />
                                             </button>

@@ -175,11 +175,26 @@ class VanilleCatalogImageParser
     }
 
     /**
-     * Только medium/mediumwebp (как на листинге), без large/largewebp с карточки.
+     * Превью листинга: medium/mediumwebp. На части карточек (редирект, одно фото) — только large/largewebp.
      *
      * @return list<string>
      */
     private function findCatalogListingUrlsInHtml(string $fragment): array
+    {
+        $listingSized = $this->collectProductImageUrlsFromFragment($fragment, true);
+        if ($listingSized !== []) {
+            return $listingSized;
+        }
+
+        $largeSized = $this->collectProductImageUrlsFromFragment($fragment, false);
+
+        return array_map(fn (string $url): string => $this->preferListingSizeUrl($url), $largeSized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectProductImageUrlsFromFragment(string $fragment, bool $listingSizeOnly): array
     {
         $primary = [];
         $secondary = [];
@@ -198,7 +213,11 @@ class VanilleCatalogImageParser
             if ($url === '' || isset($seen[$url])) {
                 continue;
             }
-            if (! preg_match('#/assets/images/products/\d+/(medium|mediumwebp)/#i', $url)) {
+
+            $sizePattern = $listingSizeOnly
+                ? '#/assets/images/products/\d+/(medium|mediumwebp)/#i'
+                : '#/assets/images/products/\d+/(medium|mediumwebp|large|largewebp)/#i';
+            if (! preg_match($sizePattern, $url)) {
                 continue;
             }
 
@@ -228,6 +247,21 @@ class VanilleCatalogImageParser
         }
 
         return array_keys($out);
+    }
+
+    private function preferListingSizeUrl(string $url): string
+    {
+        $converted = preg_replace('#/largewebp/#i', '/mediumwebp/', $url);
+        if (is_string($converted) && $converted !== $url) {
+            return $converted;
+        }
+
+        $converted = preg_replace('#/large/#i', '/medium/', $url);
+        if (is_string($converted) && $converted !== $url) {
+            return $converted;
+        }
+
+        return $url;
     }
 
     private function normalizeUrl(string $url): string

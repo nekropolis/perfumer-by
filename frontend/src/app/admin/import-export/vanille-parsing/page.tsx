@@ -6,6 +6,7 @@ import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import { Loader2 } from "lucide-react";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
@@ -141,6 +142,8 @@ export default function VanilleProductsPage() {
     const [importingParsed, setImportingParsed] = useState(false);
     const [singleUrlInput, setSingleUrlInput] = useState("");
     const [singleUrlBusy, setSingleUrlBusy] = useState(false);
+    const [singleUrlBusyLabel, setSingleUrlBusyLabel] = useState("");
+    const [lastImportedProductId, setLastImportedProductId] = useState<number | null>(null);
     /** После успешного импорта по URL — те же фоновые задачи, что и кнопки выше (весь каталог). */
     const [singleUrlChainCatalog, setSingleUrlChainCatalog] = useState(false);
     const [singleUrlChainGallery, setSingleUrlChainGallery] = useState(false);
@@ -382,6 +385,7 @@ export default function VanilleProductsPage() {
         }
 
         setSingleUrlBusy(true);
+        setSingleUrlBusyLabel("Спарсинг страницы Vanille и импорт в каталог…");
         setParsingError("");
         setCompletionNotice("");
 
@@ -393,6 +397,8 @@ export default function VanilleProductsPage() {
                     ? " Вариантов (offers) на странице не найдено — товар может быть без цен/в ожидании; импорт всё равно создаст карточку без вариантов."
                     : "";
             const imp = d?.import;
+            const importedRow =
+                imp?.created_products?.[0] ?? imp?.updated_products?.[0];
             let importLine = "";
             if (
                 imp &&
@@ -401,6 +407,9 @@ export default function VanilleProductsPage() {
                 (imp.success === true || imp.imported > 0 || imp.updated > 0)
             ) {
                 importLine = ` В каталоге: новых ${imp.imported}, обновлено ${imp.updated}.`;
+                if (importedRow?.slug) {
+                    importLine += ` Slug: ${importedRow.slug}.`;
+                }
             }
             const importOk =
                 !!imp &&
@@ -418,6 +427,20 @@ export default function VanilleProductsPage() {
                 importOk &&
                 (chainCatalog || chainGallery || chainDescriptions)
             ) {
+                const stepLabels: string[] = [];
+                if (chainCatalog) {
+                    stepLabels.push("каталожные фото");
+                }
+                if (chainGallery) {
+                    stepLabels.push("галерея");
+                }
+                if (chainDescriptions) {
+                    stepLabels.push("описание");
+                }
+                setSingleUrlBusyLabel(
+                    `Дополнительно: ${stepLabels.join(", ")}…`,
+                );
+
                 try {
                     const followUp = await vanilleSingleUrlMediaFollowUp({
                         url,
@@ -440,6 +463,11 @@ export default function VanilleProductsPage() {
             }
 
             setCompletionNotice(notice);
+            setLastImportedProductId(
+                importedRow?.product_id && importedRow.product_id > 0
+                    ? importedRow.product_id
+                    : null,
+            );
             setSingleUrlInput("");
             void loadItems(1);
         } catch (e: unknown) {
@@ -448,6 +476,7 @@ export default function VanilleProductsPage() {
             );
         } finally {
             setSingleUrlBusy(false);
+            setSingleUrlBusyLabel("");
         }
     };
 
@@ -455,14 +484,23 @@ export default function VanilleProductsPage() {
         <AdminPageCard>
             <>
                 {completionNotice ? (
-                    <div className="mb-4">
+                    <div className="mb-4 space-y-2">
                         <DismissibleSuccessBanner
                             message={completionNotice}
                             onCloseAction={() => {
                                 setCompletionNotice("");
+                                setLastImportedProductId(null);
                                 completionBannerConsumedRef.current = true;
                             }}
                         />
+                        {lastImportedProductId ? (
+                            <Link
+                                href={`/admin/products/${lastImportedProductId}/edit`}
+                                className="inline-flex text-sm text-blue-700 underline hover:text-blue-900"
+                            >
+                                Открыть товар в админке →
+                            </Link>
+                        ) : null}
                     </div>
                 ) : null}
 
@@ -587,15 +625,26 @@ export default function VanilleProductsPage() {
                                         type="button"
                                         onClick={() => void handleParseSingleUrl()}
                                         disabled={singleUrlBusy || hasActiveParse}
-                                        className="shrink-0 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
+                                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"
                                     >
+                                        {singleUrlBusy ? (
+                                            <Loader2
+                                                size={16}
+                                                className="animate-spin text-admin-primary"
+                                                aria-hidden
+                                            />
+                                        ) : null}
                                         {singleUrlBusy
-                                            ? "Парсинг и импорт…"
+                                            ? "Выполняется…"
                                             : hasActiveParse
                                                 ? "Дождитесь задачи…"
                                                 : "Спарсить и импортировать товар"}
                                     </button>
                                 </div>
+
+                                {singleUrlBusy && singleUrlBusyLabel ? (
+                                    <AdminLoadingState text={singleUrlBusyLabel} />
+                                ) : null}
 
                                 <p className="text-[11px] leading-snug text-admin-text-secondary">
                                     Введите URL или slug товара vanille.by и нажмите «Спарсить и импортировать товар». Перед парсингом можно выбрать опциональные действия для этого товара.

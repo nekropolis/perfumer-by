@@ -22,7 +22,10 @@ use Modules\Catalog\Support\ProductDisplayName;
  *   4) иначе, если набор токенов совпадает как мультимножество и длины равны
  *      (другой порядок слов, напр. «Pour Homme Dylan Blue» vs «Dylan Blue Pour Homme»)
  *      → base = 80% («exact_multiset»), как при полном совпадении по словам;
- *   5) иначе → совпадения нет.
+ *   5) иначе, если в каталоге ровно на 1 токен больше, а токены поставщика — подпоследовательность
+ *      (напр. «Stronger With You Tobacco» vs «Armani Stronger With You Tobacco» в имени продукта)
+ *      → base = 50% («catalog_extra»);
+ *   6) иначе → совпадения нет.
  *
  * Варианты:
  *   • is_tester — ЖЁСТКИЙ фильтр: флаг тестера у поставщика и у варианта
@@ -36,9 +39,8 @@ use Modules\Catalog\Support\ProductDisplayName;
  *       — совпала концентрация     → +8
  *     Суммарный score ограничен 100.
  *
- *   • При base 70% («partial») итог всегда 70%: бонусы за объём/концентрацию не
- *     добавляются и suggested_variant не выбирается (чтобы не разгонять до 90%
- *     другой флакон той же линии вроде «… Ispahan» vs «… Ispahan Silver»).
+ *   • При base 70% («partial») и base 50% («catalog_extra») итог без бонусов варианта:
+ *     suggested_variant не выбирается (лишнее слово в supplier или в каталоге).
  *
  * Если у подходящего продукта вариантов нет (или ни один не прошёл tester-фильтр) —
  * всё равно возвращаем `suggested_product` с базовыми 80/70%. UI в этом случае
@@ -46,6 +48,9 @@ use Modules\Catalog\Support\ProductDisplayName;
  */
 class SellerOneVariantMatcher
 {
+    /** База при лишнем токене в имени каталога (подпоследовательность, diff +1 в catalog). */
+    private const BASE_POINTS_CATALOG_EXTRA = 50;
+
     /** Бонусы варианта (см. doc-блок класса). */
     private const VARIANT_BONUS_VOLUME = 12;
     private const VARIANT_BONUS_CONCENTRATION = 8;
@@ -249,7 +254,7 @@ class SellerOneVariantMatcher
      * Основная точка входа: ищет лучший продукт и (опционально) его вариант-бонус.
      *
      * @return array{product: Product, variant: ProductVariantLink|null, base_points: int,
-     *               name_level: 'exact'|'exact_multiset'|'partial', name_percent: float, volume_match: bool,
+     *               name_level: 'exact'|'exact_multiset'|'partial'|'catalog_extra', name_percent: float, volume_match: bool,
      *               volume_points: int, concentration_match: bool, concentration_points: int,
      *               tester_match: bool, tester_points: int, total: int}|null
      */
@@ -299,7 +304,15 @@ class SellerOneVariantMatcher
                 && count($targetTokens) === count($candidateTokens)
                 && $this->tokensMultisetEqual($targetTokens, $candidateTokens);
 
-            if (!$prefixOrdered && !$multisetExact) {
+            $multisetExact = !$prefixOrdered
+                && count($targetTokens) === count($candidateTokens)
+                && $this->tokensMultisetEqual($targetTokens, $candidateTokens);
+
+            $catalogExtraToken = !$prefixOrdered
+                && !$multisetExact
+                && $this->supplierMatchesCatalogWithOneExtraCatalogToken($targetTokens, $candidateTokens);
+
+            if (!$prefixOrdered && !$multisetExact && !$catalogExtraToken) {
                 continue;
             }
 
@@ -310,7 +323,22 @@ class SellerOneVariantMatcher
                 continue;
             }
 
-            if ($prefixOrdered && $diff === 1) {
+            if ($catalogExtraToken) {
+                $basePoints = self::BASE_POINTS_CATALOG_EXTRA;
+                $nameLevel = 'catalog_extra';
+                $namePercent = (float) self::BASE_POINTS_CATALOG_EXTRA;
+                $variantBonus = [
+                    'variant' => null,
+                    'bonus' => 0,
+                    'volume_match' => false,
+                    'volume_points' => 0,
+                    'concentration_match' => false,
+                    'concentration_points' => 0,
+                    'tester_match' => false,
+                    'tester_points' => 0,
+                ];
+                $total = self::BASE_POINTS_CATALOG_EXTRA;
+            } elseif ($prefixOrdered && $diff === 1) {
                 $extraToken = $targetTokens[count($targetTokens) - 1] ?? '';
                 if (
                     CatalogProductLinkNameTokenizer::isGenderCanonToken((string) $extraToken)
@@ -488,6 +516,40 @@ class SellerOneVariantMatcher
     private function productNameTokens(string $name, ?string $brandName): array
     {
         return CatalogProductLinkNameTokenizer::variantMatchTokens($name, $brandName);
+    }
+
+    /**
+     * Токены поставщика — подпоследовательность каталога, в каталоге ровно на 1 токен больше.
+     *
+     * @param  list<string>  $supplier
+     * @param  list<string>  $catalog
+     */
+    private function supplierMatchesCatalogWithOneExtraCatalogToken(array $supplier, array $catalog): bool
+    {
+        if (count($catalog) !== count($supplier) + 1 || $supplier === []) {
+            return false;
+        }
+
+        $supplierIndex = 0;
+        $skipped = 0;
+
+        foreach ($catalog as $catalogToken) {
+            if (
+                $supplierIndex < count($supplier)
+                && $supplier[$supplierIndex] === $catalogToken
+            ) {
+                $supplierIndex++;
+
+                continue;
+            }
+
+            $skipped++;
+            if ($skipped > 1) {
+                return false;
+            }
+        }
+
+        return $supplierIndex === count($supplier) && $skipped === 1;
     }
 
     /**
@@ -787,7 +849,26 @@ class SellerOneVariantMatcher
             if ($pattern === '') {
                 continue;
             }
-            $result = str_ireplace($pattern, $replacement, $result);
+
+            $normalizedTitle = $this->normalizeText($result);
+            $normalizedReplacement = $this->normalizeText($replacement);
+            if (
+                $normalizedReplacement !== ''
+                && Str::startsWith($normalizedTitle, $normalizedReplacement)
+            ) {
+                continue;
+            }
+
+            $replaced = (string) preg_replace(
+                '/\b'.preg_quote($pattern, '/').'\b/iu',
+                $replacement,
+                $result,
+                1,
+                $count,
+            );
+            if ($count > 0) {
+                $result = $replaced;
+            }
         }
 
         return $result;

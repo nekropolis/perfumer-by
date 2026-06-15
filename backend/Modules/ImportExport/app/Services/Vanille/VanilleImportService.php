@@ -71,7 +71,7 @@ class VanilleImportService
     ) {
     }
 
-    public function importFromJsonFile(string $path): array
+    public function importFromJsonFile(string $path, bool $publishExisting = false): array
     {
         if (!file_exists($path)) {
             return [
@@ -144,7 +144,7 @@ class VanilleImportService
             try {
                 $newProductIdForLlm = null;
                 $productIdForSearch = null;
-                DB::transaction(function () use ($item, $supplier, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$brandByEquivalentKey, &$newProductIdForLlm, &$productIdForSearch) {
+                DB::transaction(function () use ($item, $supplier, $publishExisting, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$brandByEquivalentKey, &$newProductIdForLlm, &$productIdForSearch) {
                     $fullTitle = $this->resolveProductName($item);
                     $brand = null;
                     $brandName = trim((string) ($item['brand'] ?? ''));
@@ -199,9 +199,17 @@ class VanilleImportService
                     );
 
                     if ($existingProduct) {
-                        // Существующий товар: не перезаписываем название, H1, бренд, активность,
+                        // Массовый импорт: не перезаписываем название, H1, бренд, активность,
                         // описания, SEO, цены/наличие — только характеристики и недостающие варианты ниже.
                         $product = $existingProduct;
+                        if ($publishExisting) {
+                            $product->update([
+                                'is_active' => true,
+                                'name' => $productShortName,
+                                'h1' => $displayName,
+                            ]);
+                            $log[] = 'INFO: одиночный импорт — товар опубликован и обновлены name/h1: ' . $displayName;
+                        }
                     } else {
                         $product = Product::create([
                             'slug' => $slug,
@@ -244,15 +252,19 @@ class VanilleImportService
                     if ($existingProduct) {
                         $updated++;
                         $updatedProducts[] = [
+                            'product_id' => (int) $product->id,
                             'name' => $displayName,
                             'slug' => (string) $product->slug,
+                            'is_active' => (bool) $product->is_active,
                             'url' => trim((string) ($item['url'] ?? '')),
                         ];
                     } else {
                         $imported++;
                         $createdProducts[] = [
+                            'product_id' => (int) $product->id,
                             'name' => $displayName,
                             'slug' => (string) $product->slug,
+                            'is_active' => (bool) $product->is_active,
                             'url' => trim((string) ($item['url'] ?? '')),
                         ];
                     }
@@ -278,7 +290,7 @@ class VanilleImportService
                     && $productIdForSearch > 0
                     && (bool) config('services.catalog_search.enabled', false)
                 ) {
-                    app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch);
+                    app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch, $publishExisting);
                 }
 
                 if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {
