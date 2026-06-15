@@ -316,7 +316,8 @@ export type VanilleSingleUrlMediaFollowUpResponse = {
 };
 
 export async function vanilleSingleUrlMediaFollowUp(body: {
-    url: string;
+    url?: string;
+    product_id?: number;
     catalog?: boolean;
     gallery?: boolean;
     descriptions?: boolean;
@@ -326,7 +327,9 @@ export async function vanilleSingleUrlMediaFollowUp(body: {
         {
             method: "POST",
             body: JSON.stringify({
-                url: body.url.trim(),
+                ...(body.product_id && body.product_id > 0
+                    ? { product_id: body.product_id }
+                    : { url: (body.url ?? "").trim() }),
                 catalog: Boolean(body.catalog),
                 gallery: Boolean(body.gallery),
                 descriptions: Boolean(body.descriptions),

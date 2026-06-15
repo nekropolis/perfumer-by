@@ -104,7 +104,8 @@ class VanilleImportController extends Controller
         }
 
         $importResult = $service->importFromJsonFile((string) ($result['file_path'] ?? ''), true);
-        $importOk = (bool) ($importResult['success'] ?? false);
+        $touched = (int) ($importResult['imported'] ?? 0) + (int) ($importResult['updated'] ?? 0);
+        $importOk = (bool) ($importResult['success'] ?? false) && $touched > 0;
         $payload = array_merge($result, ['import' => $importResult]);
 
         $importedProduct = collect($importResult['created_products'] ?? [])
@@ -143,7 +144,8 @@ class VanilleImportController extends Controller
         VanilleMediaImportService $mediaService
     ): \Illuminate\Http\JsonResponse {
         $validated = $request->validate([
-            'url' => ['required', 'string', 'max:2048'],
+            'url' => ['required_without:product_id', 'nullable', 'string', 'max:2048'],
+            'product_id' => ['required_without:url', 'nullable', 'integer', 'min:1'],
             'catalog' => ['sometimes', 'boolean'],
             'gallery' => ['sometimes', 'boolean'],
             'descriptions' => ['sometimes', 'boolean'],
@@ -157,7 +159,18 @@ class VanilleImportController extends Controller
             return response()->json(['message' => 'Отметьте хотя бы один шаг.'], 422);
         }
 
-        $productId = $importService->resolveLinkedVanilleProductId($validated['url']);
+        $productId = null;
+        $productIdInput = (int) ($validated['product_id'] ?? 0);
+        if ($productIdInput > 0) {
+            $productId = $importService->resolveLinkedVanilleProductIdByProductId($productIdInput);
+        }
+        if ($productId === null) {
+            $url = trim((string) ($validated['url'] ?? ''));
+            if ($url === '') {
+                return response()->json(['message' => 'Укажите URL или product_id.'], 422);
+            }
+            $productId = $importService->resolveLinkedVanilleProductId($url);
+        }
         if ($productId === null) {
             return response()->json([
                 'message' => 'Не найден связанный товар Vanille по этому URL. Сначала импортируйте карточку.',

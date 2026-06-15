@@ -413,9 +413,18 @@ export default function VanilleProductsPage() {
             }
             const importOk =
                 !!imp &&
-                (imp.success === true ||
-                    (typeof imp.imported === "number" && imp.imported > 0) ||
+                ((typeof imp.imported === "number" && imp.imported > 0) ||
                     (typeof imp.updated === "number" && imp.updated > 0));
+
+            if (!importOk && imp?.log?.length) {
+                const skipLine = imp.log.find((line) => line.startsWith("SKIP:"));
+                if (skipLine) {
+                    setParsingError(
+                        `Импорт в каталог не выполнен: ${skipLine.replace(/^SKIP:\s*/, "")}`,
+                    );
+                    return;
+                }
+            }
 
             let notice =
                 (data.message || "Готово.") +
@@ -444,6 +453,7 @@ export default function VanilleProductsPage() {
                 try {
                     const followUp = await vanilleSingleUrlMediaFollowUp({
                         url,
+                        product_id: importedRow?.product_id,
                         catalog: chainCatalog,
                         gallery: chainGallery,
                         descriptions: chainDescriptions,

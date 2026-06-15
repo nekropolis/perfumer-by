@@ -234,7 +234,9 @@ class VanilleImportService
                     SupplierProduct::updateOrCreate(
                         [
                             'supplier_id' => $supplier->id,
-                            'external_url' => $item['url'] ?? null,
+                            'external_url' => $vanilleUrl !== ''
+                                ? $this->normalizeVanilleProductInputToUrl($vanilleUrl)
+                                : ($item['url'] ?? null),
                         ],
                         [
                             'brand_id' => $brand?->id,
@@ -307,9 +309,13 @@ class VanilleImportService
             }
         }
 
+        $touched = $imported + $updated;
+
         return [
-            'success' => $errors === 0,
-            'message' => $errors === 0 ? 'Импорт завершён' : 'Импорт завершён с ошибками',
+            'success' => $errors === 0 && ($touched > 0 || count($items) === 0),
+            'message' => $errors === 0
+                ? ($touched > 0 ? 'Импорт завершён' : 'Ни одна карточка не импортирована (см. log)')
+                : 'Импорт завершён с ошибками',
             'imported' => $imported,
             'updated' => $updated,
             'errors' => $errors,
@@ -2165,10 +2171,37 @@ class VanilleImportService
             return null;
         }
 
+        return $this->resolveLinkedVanilleProductIdByCanonicalUrl($canonicalUrl);
+    }
+
+    public function resolveLinkedVanilleProductIdByProductId(int $productId): ?int
+    {
+        if ($productId <= 0) {
+            return null;
+        }
+
+        $supplierId = (int) Supplier::query()->where('code', 'vanille')->value('id');
+        if ($supplierId <= 0) {
+            return null;
+        }
+
+        $linkedId = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->where('product_id', $productId)
+            ->where('is_linked', true)
+            ->value('product_id');
+
+        return $linkedId !== null ? (int) $linkedId : null;
+    }
+
+    private function resolveLinkedVanilleProductIdByCanonicalUrl(string $canonicalUrl): ?int
+    {
         $key = $this->normalizeLinkUrl($canonicalUrl);
         if ($key === '') {
             return null;
         }
+
+        $pathSlug = $this->vanilleUrlPathSlug($canonicalUrl);
 
         $supplierId = (int) Supplier::query()->where('code', 'vanille')->value('id');
         if ($supplierId <= 0) {
@@ -2183,7 +2216,11 @@ class VanilleImportService
             ->get(['product_id', 'external_url']);
 
         foreach ($rows as $row) {
-            if ($this->normalizeLinkUrl((string) $row->external_url) === $key) {
+            $externalUrl = (string) $row->external_url;
+            if ($this->normalizeLinkUrl($externalUrl) === $key) {
+                return (int) $row->product_id;
+            }
+            if ($pathSlug !== '' && $this->vanilleUrlPathSlug($externalUrl) === $pathSlug) {
                 return (int) $row->product_id;
             }
         }
@@ -2269,7 +2306,17 @@ class VanilleImportService
             $normalized = rtrim($normalized, '/');
         }
 
+        $normalized = preg_replace('#^https?://www\.vanille\.by#i', 'https://vanille.by', $normalized) ?? $normalized;
+        $normalized = preg_replace('#^https?://vanille\.by#i', 'https://vanille.by', $normalized) ?? $normalized;
+
         return mb_strtolower($normalized);
+    }
+
+    private function vanilleUrlPathSlug(string $url): string
+    {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return $path !== '' ? mb_strtolower($path, 'UTF-8') : '';
     }
 
     /**
