@@ -57,7 +57,46 @@ class ProductDisplayNameTest extends TestCase
         $this->assertSame($a, $b);
     }
 
-    public function test_resolve_canonical_short_name_from_either_url(): void
+    public function test_armani_diamonds_urls_have_distinct_path_slugs(): void
+    {
+        $paths = [
+            'giorgio-armani-emporio-diamonds-for-men',
+            'giorgio-armani-emporio-armani-diamonds-for-men',
+            'giorgio-armani-emporio-armani-diamonds-for-men-summer-edition',
+        ];
+
+        $this->assertCount(3, array_unique($paths));
+    }
+
+    public function test_armani_diamonds_path_identity_keys_are_not_used_for_import_dedup(): void
+    {
+        $brand = 'giorgio-armani';
+        $diamonds = ProductDisplayName::vanilleProductPathIdentityKey(
+            $brand,
+            'giorgio-armani-emporio-diamonds-for-men',
+        );
+        $armaniLine = ProductDisplayName::vanilleProductPathIdentityKey(
+            $brand,
+            'giorgio-armani-emporio-armani-diamonds-for-men',
+        );
+
+        $this->assertSame('emporio-diamonds-for-men', $diamonds);
+        $this->assertSame($diamonds, $armaniLine);
+    }
+
+    public function test_resolve_canonical_short_name_prefers_h1_over_url_slug_words(): void
+    {
+        $name = ProductDisplayName::resolveCanonicalShortName(
+            'Giorgio Armani',
+            'giorgio-armani',
+            'Giorgio Armani Emporio Diamonds for Men',
+            'https://vanille.by/giorgio-armani-emporio-diamonds-for-men',
+        );
+
+        $this->assertSame('Emporio Diamonds for Men', $name);
+    }
+
+    public function test_resolve_canonical_short_name_from_kenzo_title(): void
     {
         $name = ProductDisplayName::resolveCanonicalShortName(
             'Kenzo',
@@ -66,6 +105,6 @@ class ProductDisplayNameTest extends TestCase
             'https://vanille.by/kenzo-tokyo-by-ryoko',
         );
 
-        $this->assertSame('tokyo by ryoko', $name);
+        $this->assertSame('Tokyo By Ryoko', $name);
     }
 }

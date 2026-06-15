@@ -256,7 +256,7 @@ final class ProductDisplayName
     }
 
     /**
-     * Каноническое короткое имя: сначала URL Vanille, иначе заголовок (с полным снятием бренда).
+     * Каноническое короткое имя: сначала h1/заголовок Vanille (с регистром), иначе path URL.
      */
     public static function resolveCanonicalShortName(
         string $brandName,
@@ -265,22 +265,22 @@ final class ProductDisplayName
         string $vanilleUrl,
     ): string {
         $brandSlug = VanilleHelper::slugify($brandSlug);
+        $fullTitle = trim($fullTitle);
+
+        if ($fullTitle !== '') {
+            $strip = self::stripBrandFromName($brandName, $fullTitle);
+            $fromTitle = $strip['found'] ? $strip['name'] : $fullTitle;
+            if ($fromTitle !== '' && ! self::brandNamesEquivalent($brandName, $fromTitle)) {
+                return $fromTitle;
+            }
+        }
+
         $urlKey = $vanilleUrl !== '' ? self::vanilleProductPathIdentityKey($brandSlug, $vanilleUrl) : '';
         if ($urlKey !== '') {
             return self::shortNameFromPathIdentityKey($urlKey);
         }
 
-        $strip = self::stripBrandFromName($brandName, trim($fullTitle));
-        $fromTitle = $strip['found'] ? $strip['name'] : trim($fullTitle);
-        if ($fromTitle === '' || self::brandNamesEquivalent($brandName, $fromTitle)) {
-            return '';
-        }
-
-        $titleKey = self::vanilleProductPathIdentityKey($brandSlug, VanilleHelper::slugify($fromTitle));
-
-        return $titleKey !== ''
-            ? self::shortNameFromPathIdentityKey($titleKey)
-            : $fromTitle;
+        return '';
     }
 
     private static function pathToSlug(string $urlOrSlugPath): string

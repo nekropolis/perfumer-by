@@ -169,6 +169,9 @@ class VanilleImportService
 
                     $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
                     $vanilleUrl = trim((string) ($item['url'] ?? ''));
+                    $urlPathSlug = $vanilleUrl !== ''
+                        ? $this->vanilleUrlPathSlug($this->normalizeVanilleProductInputToUrl($vanilleUrl))
+                        : '';
                     $productShortName = ProductDisplayName::resolveCanonicalShortName(
                         $brandName,
                         $brandSlugForPath,
@@ -181,9 +184,11 @@ class VanilleImportService
                     }
                     $displayName = ProductDisplayName::format($brand?->name ?? $brandName, $productShortName);
 
-                    $baseSlug = $brand
-                        ? ProductDisplayName::buildSlug((string) $brand->slug, $productShortName)
-                        : VanilleHelper::slugify($productShortName);
+                    $baseSlug = $urlPathSlug !== ''
+                        ? $urlPathSlug
+                        : ($brand
+                            ? ProductDisplayName::buildSlug((string) $brand->slug, $productShortName)
+                            : VanilleHelper::slugify($productShortName));
                     if ($baseSlug === '' || $baseSlug === (string) $brand?->slug) {
                         $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
                         $baseSlug = VanilleHelper::slugify($urlTail) ?: 'product';
@@ -2396,14 +2401,18 @@ class VanilleImportService
         string $pathIdentityKey,
         string $vanilleUrl,
     ): ?Product {
-        $normalizedUrl = $vanilleUrl !== '' ? $this->normalizeLinkUrl($vanilleUrl) : '';
-        if ($normalizedUrl !== '') {
+        if ($vanilleUrl !== '') {
             $linkedId = $this->resolveLinkedVanilleProductId($vanilleUrl);
             if ($linkedId !== null && $linkedId > 0) {
                 $linked = Product::query()->find($linkedId);
-                if ($linked !== null) {
+                if ($linked !== null && $this->vanilleProductMatchesUrlPath($linked, $vanilleUrl)) {
                     return $linked;
                 }
+            }
+
+            $byExactPath = $this->findExistingProductByExactVanillePath($supplier, $brand, $vanilleUrl);
+            if ($byExactPath !== null) {
+                return $byExactPath;
             }
         }
 
@@ -2412,68 +2421,66 @@ class VanilleImportService
             return $bySlug;
         }
 
-        if ($brand === null || $pathIdentityKey === '') {
-            return null;
-        }
-
-        $byIdentity = $this->findProductByPathIdentityKey((int) $brand->id, (string) $brand->slug, $pathIdentityKey);
-        if ($byIdentity !== null) {
-            return $byIdentity;
-        }
-
-        return $this->findProductBySupplierPathIdentity($supplier, (int) $brand->id, (string) $brand->slug, $pathIdentityKey);
-    }
-
-    private function findProductByPathIdentityKey(int $brandId, string $brandSlug, string $pathIdentityKey): ?Product
-    {
-        if ($pathIdentityKey === '') {
-            return null;
-        }
-
-        $products = Product::query()
-            ->where('brand_id', $brandId)
-            ->get(['id', 'slug', 'name']);
-
-        foreach ($products as $product) {
-            $productKey = ProductDisplayName::vanilleProductPathIdentityKey($brandSlug, (string) $product->slug);
-            if ($productKey === $pathIdentityKey) {
-                return $product;
-            }
-        }
-
         return null;
     }
 
-    private function findProductBySupplierPathIdentity(
+    private function vanilleProductMatchesUrlPath(Product $product, string $vanilleUrl): bool
+    {
+        try {
+            $canonicalUrl = $this->normalizeVanilleProductInputToUrl($vanilleUrl);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $urlPathSlug = $this->vanilleUrlPathSlug($canonicalUrl);
+        if ($urlPathSlug === '') {
+            return false;
+        }
+
+        return mb_strtolower((string) $product->slug) === $urlPathSlug;
+    }
+
+    private function findExistingProductByExactVanillePath(
         Supplier $supplier,
-        int $brandId,
-        string $brandSlug,
-        string $pathIdentityKey,
+        ?Brand $brand,
+        string $vanilleUrl,
     ): ?Product {
-        if ($pathIdentityKey === '') {
+        try {
+            $canonicalUrl = $this->normalizeVanilleProductInputToUrl($vanilleUrl);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $pathSlug = $this->vanilleUrlPathSlug($canonicalUrl);
+        if ($pathSlug === '') {
             return null;
         }
 
         $rows = SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
-            ->where('brand_id', $brandId)
             ->whereNotNull('product_id')
             ->whereNotNull('external_url')
             ->get(['product_id', 'external_url']);
 
         foreach ($rows as $row) {
-            $rowKey = ProductDisplayName::vanilleProductPathIdentityKey($brandSlug, (string) $row->external_url);
-            if ($rowKey !== $pathIdentityKey) {
+            if ($this->vanilleUrlPathSlug((string) $row->external_url) !== $pathSlug) {
                 continue;
             }
 
             $product = Product::query()->find((int) $row->product_id);
-            if ($product !== null) {
+            if ($product !== null && $this->vanilleProductMatchesUrlPath($product, $vanilleUrl)) {
                 return $product;
             }
         }
 
-        return null;
+        if ($brand === null) {
+            return null;
+        }
+
+        return Product::query()
+            ->where('brand_id', (int) $brand->id)
+            ->whereRaw('LOWER(slug) = ?', [$pathSlug])
+            ->first();
     }
 
     private function resolveUniqueSlugInMemory(string $baseSlug, array $primarySet, array $foreignSet): string
