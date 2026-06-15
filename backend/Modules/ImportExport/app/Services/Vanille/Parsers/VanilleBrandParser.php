@@ -459,4 +459,95 @@ class VanilleBrandParser
 
         return false;
     }
+
+    private const BRENDYI_URL = 'https://vanille.by/brendyi';
+
+    /**
+     * Суммирует счётчики товаров со страницы /brendyi (span.brend-count у ссылок на бренды).
+     *
+     * @return array{
+     *     source_url: string,
+     *     brands: list<array{name: string, slug: string, count: int}>,
+     *     unique_brands: int,
+     *     total_product_count: int,
+     *     total_including_duplicate_slugs: int,
+     *     duplicate_slug_entries: int,
+     * }
+     */
+    public function parseBrendyiProductCounts(?string $html = null): array
+    {
+        if ($html === null) {
+            $html = $this->httpClient->fetchUrl(self::BRENDYI_URL, 25);
+        }
+
+        $pattern = '/<a\s+href="(https:\/\/vanille\.by\/[^"#?]+|\/[^"#?\/][^"#?]*)"[^>]*>\s*([^<]+?)\s*<span[^>]*class="[^"]*brend-count[^"]*"[^>]*>\s*(\d+)\s*<\/span>\s*<\/a>/iu';
+        preg_match_all($pattern, $html, $matches, PREG_SET_ORDER);
+
+        $bySlug = [];
+        $totalIncludingDuplicates = 0;
+        $duplicateSlugEntries = 0;
+
+        foreach ($matches as $match) {
+            $href = html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $name = html_entity_decode(trim(strip_tags($match[2])), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $count = (int) $match[3];
+
+            if ($name === '' || $count < 0) {
+                continue;
+            }
+
+            $slug = $this->resolveBrandSlugFromHref($href);
+            if ($slug === '' || !self::isValidBrandSlug($slug)) {
+                continue;
+            }
+
+            if (self::isGarbageBrandRow($name, $slug, $href)) {
+                continue;
+            }
+
+            $totalIncludingDuplicates += $count;
+
+            if (isset($bySlug[$slug])) {
+                $duplicateSlugEntries++;
+                continue;
+            }
+
+            $bySlug[$slug] = [
+                'name' => $name,
+                'slug' => $slug,
+                'count' => $count,
+            ];
+        }
+
+        $brands = array_values($bySlug);
+        usort($brands, static fn (array $a, array $b): int => $b['count'] <=> $a['count']);
+
+        return [
+            'source_url' => self::BRENDYI_URL,
+            'brands' => $brands,
+            'unique_brands' => count($brands),
+            'total_product_count' => array_sum(array_column($brands, 'count')),
+            'total_including_duplicate_slugs' => $totalIncludingDuplicates,
+            'duplicate_slug_entries' => $duplicateSlugEntries,
+        ];
+    }
+
+    private function resolveBrandSlugFromHref(string $href): string
+    {
+        if (str_starts_with($href, '/poisk?') || str_contains($href, 'query=')) {
+            $queryString = parse_url($href, PHP_URL_QUERY) ?? '';
+            parse_str($queryString, $query);
+            $slug = trim((string) ($query['query'] ?? ''));
+
+            return mb_strtolower($slug, 'UTF-8');
+        }
+
+        $path = parse_url($href, PHP_URL_PATH) ?? '';
+        $path = trim($path, '/');
+        if ($path === '' || str_contains($path, '/')) {
+            return '';
+        }
+
+        return mb_strtolower($path, 'UTF-8');
+    }
 }

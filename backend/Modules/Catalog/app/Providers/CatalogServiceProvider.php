@@ -24,6 +24,7 @@ use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
 use Modules\Catalog\Console\Commands\VanilleBrandCommand;
 use Modules\Catalog\Console\Commands\VanilleSyncCommand;
+use Modules\Catalog\Console\Commands\VanilleBrendyiTotalCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
@@ -79,6 +80,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         ReindexProductSearchCommand::class,
         StripBrandFromProductNamesCommand::class,
         VanilleImportQueueCommand::class,
+        VanilleBrendyiTotalCommand::class,
         VanilleBrandCommand::class,
         VanilleSyncCommand::class,
     ];

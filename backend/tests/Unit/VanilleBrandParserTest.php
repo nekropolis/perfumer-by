@@ -71,4 +71,22 @@ class VanilleBrandParserTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame('dolce-i-gabbana', $rows[0]['slug']);
     }
+
+    public function test_parse_brendyi_product_counts_sums_unique_brand_slugs(): void
+    {
+        $html = <<<'HTML'
+<a href="https://vanille.by/guerlain">Guerlain<span class="brend-count">305</span></a>
+<a href="https://vanille.by/lattafa">Lattafa<span class="brend-count">304</span></a>
+<a href="https://vanille.by/guerlain">Guerlain<span class="brend-count">305</span></a>
+<a href="https://vanille.by/brendyi">Бренды<span class="brend-count">999</span></a>
+HTML;
+
+        $parser = new VanilleBrandParser(new \Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient());
+        $stats = $parser->parseBrendyiProductCounts($html);
+
+        $this->assertSame(2, $stats['unique_brands']);
+        $this->assertSame(609, $stats['total_product_count']);
+        $this->assertSame(914, $stats['total_including_duplicate_slugs']);
+        $this->assertSame(1, $stats['duplicate_slug_entries']);
+    }
 }
