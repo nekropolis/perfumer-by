@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo } from "react";
 import CatalogPagination from "@/components/catalog/catalog-pagination";
 import ProductCard from "@/components/product/product-card";
+import {
+    siteBtnSecondary,
+    siteCard,
+    siteFilterChip,
+    siteFilterChipInactive,
+} from "@/lib/site-ui-classes";
 import type { ProductListItem } from "@/types/catalog";
 
 type SearchBrandItem = {
@@ -74,14 +80,14 @@ export default function SearchResultsClient({
     return (
         <div className="mt-6 space-y-6">
             {error ? (
-                <div className="rounded-3xl border border-red-200 bg-red-50 px-6 py-10 text-sm text-red-700">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-sm text-red-700">
                     Ошибка поиска: {error}
                 </div>
             ) : null}
 
             {!error && showBrands && brands.length > 0 ? (
                 <section>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Бренды
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -89,10 +95,10 @@ export default function SearchResultsClient({
                             <Link
                                 key={brand.id}
                                 href={`/brands/${encodeURIComponent(brand.slug)}`}
-                                className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2 text-sm transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)]"
+                                className={`${siteFilterChip} ${siteFilterChipInactive} gap-2`}
                             >
                                 <span className="truncate font-medium">{brand.name}</span>
-                                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] px-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-admin-muted px-1.5 text-xs font-medium text-admin-text-secondary">
                                     {brand.products_count}
                                 </span>
                             </Link>
@@ -104,12 +110,12 @@ export default function SearchResultsClient({
             {!error ? (
                 <section>
                     {products.length === 0 ? (
-                        <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--text-secondary)]">
+                        <div className={`${siteCard} px-6 py-10 text-sm text-admin-text-secondary`}>
                             <div>Ничего не найдено</div>
                             {suggestedQuery ? (
                                 <Link
                                     href={`/search?query=${encodeURIComponent(suggestedQuery)}`}
-                                    className="mt-2 inline-block rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--surface-2)]"
+                                    className={`${siteBtnSecondary} mt-3 inline-flex`}
                                 >
                                     Возможно, вы имели в виду: <span className="font-medium">{suggestedQuery}</span>
                                 </Link>
@@ -117,8 +123,9 @@ export default function SearchResultsClient({
                         </div>
                     ) : (
                         <>
-                            <p className="mb-4 text-sm text-[var(--text-secondary)]">
-                                Найдено товаров: <span className="font-medium text-[var(--foreground)]">{totalProducts}</span>
+                            <p className="mb-4 text-sm text-admin-text-secondary">
+                                Найдено товаров:{" "}
+                                <span className="font-medium text-admin-text">{totalProducts}</span>
                             </p>
                             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                                 {products.map((product, index) => (
@@ -137,7 +144,7 @@ export default function SearchResultsClient({
             ) : null}
 
             {debugEnabled && data?.debug ? (
-                <section className="rounded-3xl border border-[var(--line)] bg-black p-4 text-xs text-white/90">
+                <section className="rounded-xl border border-admin-border bg-admin-text p-4 text-xs text-white/90">
                     <div className="mb-2 font-semibold">Debug search</div>
                     <pre className="overflow-auto whitespace-pre-wrap">{JSON.stringify(data.debug, null, 2)}</pre>
                 </section>

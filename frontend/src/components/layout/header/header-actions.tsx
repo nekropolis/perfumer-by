@@ -6,6 +6,7 @@ import HeaderAccountMenu from "@/components/layout/header/account-menu";
 import HeaderCartButton from "@/components/layout/header/header-cart-button";
 import HeaderMobileToggle from "@/components/layout/header/header-mobile-toggle";
 import HeaderWishlistButton from "@/components/layout/header/header-wishlist-button";
+import { siteBtnIcon } from "@/lib/site-ui-classes";
 
 type HeaderActionsProps = {
     wishlistQty: number;
@@ -55,7 +56,7 @@ export default function HeaderActions({
 
             <button
                 type="button"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)] md:hidden"
+                className={`${siteBtnIcon} md:hidden`}
                 onClick={onOpenMobileSearchAction}
                 aria-label="Открыть поиск"
             >

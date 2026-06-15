@@ -71,25 +71,25 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
             onClick={onCloseOrderAction}
         >
             <div
-                className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl"
+                className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-3 flex items-center justify-between gap-4">
-                    <div className="text-[var(--text-secondary)]">
+                    <div className="text-admin-text-secondary">
                         Заказ #{orderId}
                     </div>
 
                     <button
                         type="button"
                         onClick={onCloseOrderAction}
-                        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--background)] text-xl"
+                        className="flex h-11 w-11 items-center justify-center rounded-2xl bg-admin-bg text-xl"
                     >
                         ×
                     </button>
                 </div>
 
-                <div className="rounded-3xl bg-[var(--background)] p-6 text-center text-[var(--text-secondary)]">
-                    {loading && <div className="text-[var(--text-secondary)]">Загрузка заказа...</div>}
+                <div className="rounded-3xl bg-admin-bg p-6 text-center text-admin-text-secondary">
+                    {loading && <div className="text-admin-text-secondary">Загрузка заказа...</div>}
 
                     {!loading && errorMessage && (
                         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -110,31 +110,31 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                             {order.comment && (
                                 <div
-                                    className="mb-6 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4">
-                                    <div className="mb-2 text-sm text-[var(--text-secondary)]">Комментарий</div>
+                                    className="mb-6 rounded-2xl border border-admin-border bg-admin-bg p-4">
+                                    <div className="mb-2 text-sm text-admin-text-secondary">Комментарий</div>
                                     <div>{order.comment}</div>
                                 </div>
                             )}
 
-                            <div className="mb-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left">
+                            <div className="mb-6 rounded-2xl border border-admin-border bg-admin-surface p-4 text-left">
                                 <dl className="grid gap-2 text-sm sm:grid-cols-2">
                                     <div>
-                                        <dt className="text-[var(--text-secondary)]">Тип</dt>
-                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                        <dt className="text-admin-text-secondary">Тип</dt>
+                                        <dd className="mt-0.5 font-medium text-admin-text">
                                             {order.delivery_method_label?.trim() ||
                                                 order.delivery_method?.trim() ||
                                                 "—"}
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt className="text-[var(--text-secondary)]">Стоимость доставки</dt>
-                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                        <dt className="text-admin-text-secondary">Стоимость доставки</dt>
+                                        <dd className="mt-0.5 font-medium text-admin-text">
                                             {formatMoneyRub(order.delivery_fee ?? "0")}
                                         </dd>
                                     </div>
                                     <div className="sm:col-span-2">
-                                        <dt className="text-[var(--text-secondary)]">Адрес</dt>
-                                        <dd className="mt-0.5 font-medium text-[var(--foreground)]">
+                                        <dt className="text-admin-text-secondary">Адрес</dt>
+                                        <dd className="mt-0.5 font-medium text-admin-text">
                                             {[
                                                 order.delivery_city?.trim(),
                                                 order.delivery_address?.trim(),
@@ -152,12 +152,12 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                     return (
                                     <div
                                         key={item.id}
-                                        className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 sm:p-4"
+                                        className="rounded-2xl border border-admin-border bg-admin-surface p-3 sm:p-4"
                                     >
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="flex min-w-0 items-start gap-3">
                                                 {item.image ? (
-                                                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-[var(--background)] sm:h-14 sm:w-14">
+                                                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-admin-bg sm:h-14 sm:w-14">
                                                         <Image
                                                             src={normalizeProductImageUrl(item.image)}
                                                             loader={productImageLoader}
@@ -168,29 +168,29 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--background)] text-[10px] font-semibold text-[var(--text-secondary)] sm:h-14 sm:w-14 sm:text-xs">
+                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-admin-bg text-[10px] font-semibold text-admin-text-secondary sm:h-14 sm:w-14 sm:text-xs">
                                                         Товар
                                                     </div>
                                                 )}
 
                                                 <div className="min-w-0 flex-1 text-left">
-                                                    <div className="break-words text-sm font-medium leading-snug text-[var(--foreground)] sm:text-base">
+                                                    <div className="break-words text-sm font-medium leading-snug text-admin-text sm:text-base">
                                                         {productTitle}
                                                         {item.variant_title && (
-                                                            <span className="text-[var(--text-secondary)]">
+                                                            <span className="text-admin-text-secondary">
                                                                 {" "}— {item.variant_title}
                                                             </span>
                                                         )}
                                                     </div>
 
-                                                    <div className="mt-1 flex flex-col gap-0.5 text-xs leading-relaxed text-[var(--text-secondary)] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:text-sm">
+                                                    <div className="mt-1 flex flex-col gap-0.5 text-xs leading-relaxed text-admin-text-secondary sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:text-sm">
                                                         <span>Код товара: {item.sku || item.id}</span>
                                                         <span>Цена: {formatMoneyRub(item.price)}</span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between rounded-xl bg-[var(--background)] px-3 py-2 text-sm font-medium text-[var(--foreground)] sm:block sm:bg-transparent sm:p-0 sm:text-right">
+                                            <div className="flex items-center justify-between rounded-xl bg-admin-bg px-3 py-2 text-sm font-medium text-admin-text sm:block sm:bg-transparent sm:p-0 sm:text-right">
                                                 <div>Кол-во: {item.qty}</div>
                                                 <div className="sm:mt-1">Сумма: {formatMoneyRub(item.total)}</div>
                                             </div>
@@ -201,15 +201,15 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                 {order.gift_certificate_purchases?.map((row) => (
                                     <div
                                         key={row.id}
-                                        className="rounded-2xl border border-[var(--accent-soft)] bg-[var(--accent-soft)] p-4"
+                                        className="rounded-2xl border border-admin-primary/20 bg-admin-primary/10 p-4"
                                     >
                                         <div className="mt-1 text-lg font-medium">
                                             Подарочный сертификат: {row.template_title}
                                         </div>
-                                        <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                                        <div className="mt-2 text-sm text-admin-text-secondary">
                                             Номинал {formatMoneyRub(row.amount)} × {row.qty} шт. — {formatMoneyRub(row.total)}
                                         </div>
-                                        <div className="mt-2 text-xs text-[var(--text-secondary)]">
+                                        <div className="mt-2 text-xs text-admin-text-secondary">
                                             Остаток по сертификату уточняйте у менеджера.
                                         </div>
                                     </div>
@@ -218,8 +218,8 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
 
                             <OrderDiscountSummary order={order}/>
 
-                            <div className="mt-6 border-t border-[var(--line)] pt-4 text-right">
-                                <div className="text-sm text-[var(--text-secondary)]">К оплате</div>
+                            <div className="mt-6 border-t border-admin-border pt-4 text-right">
+                                <div className="text-sm text-admin-text-secondary">К оплате</div>
                                 <div className="text-2xl font-semibold">{formatMoneyRub(order.total)}</div>
                             </div>
                         </div>

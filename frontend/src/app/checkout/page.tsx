@@ -30,6 +30,7 @@ import {
 import { useCart } from "@/components/cart/cart-provider";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useAuth } from "@/components/auth/auth-provider";
+import { authUserCheckoutName } from "@/lib/auth-api";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
 import PhoneInput, {
@@ -49,6 +50,7 @@ import {
     sanitizeCheckoutLineSelectionForCart,
     selectionSignature,
 } from "@/lib/checkout-line-selection";
+import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
 const DELIVERY_HINTS: Record<CheckoutDeliveryMethod, string> = {
     minsk_courier:
@@ -66,7 +68,7 @@ const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
 
 export default function CheckoutPage() {
     const router = useRouter();
-    const { cart, setCartState, refreshCart } = useCart();
+    const { cart, loading, setCartState, refreshCart } = useCart();
     const { user, isAuthenticated } = useAuth();
 
     const [customerName, setCustomerName] = useState("");
@@ -97,8 +99,15 @@ export default function CheckoutPage() {
     const [discountCardConflict, setDiscountCardConflict] = useState<string | null>(null);
     const [discountCardApplyError, setDiscountCardApplyError] = useState("");
     const [checkoutLineFilter, setCheckoutLineFilter] = useState<CheckoutLineSelectionStored | null>(null);
+    const [phoneTouched, setPhoneTouched] = useState(false);
+    const [addressTouched, setAddressTouched] = useState(false);
+    const [submitAttempted, setSubmitAttempted] = useState(false);
 
     const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
+    const addressRequired = deliveryMethod !== "pickup";
+    const addressIsValid = !addressRequired || deliveryAddress.trim().length > 0;
+    const showPhoneError = (phoneTouched || submitAttempted) && !phoneIsValid;
+    const showAddressError = (addressTouched || submitAttempted) && addressRequired && !addressIsValid;
 
     useEffect(() => {
         try {
@@ -177,11 +186,21 @@ export default function CheckoutPage() {
     }, [effectiveCheckoutLineSelection, deliveryMethod, paymentMethod]);
 
     useEffect(() => {
-        if (!phone && user?.phone) {
+        if (!user) {
+            return;
+        }
+        if (!phone && user.phone) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- однократная инициализация из auth/me
             setPhone(user.phone);
         }
-    }, [user?.phone, phone]);
+        if (!customerName) {
+            const name = authUserCheckoutName(user);
+            if (name) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- однократная инициализация из auth/me
+                setCustomerName(name);
+            }
+        }
+    }, [user, phone, customerName]);
 
     useEffect(() => {
         void fetchCheckoutShopSettings()
@@ -255,6 +274,11 @@ export default function CheckoutPage() {
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
         setErrorMessage("");
+        setSubmitAttempted(true);
+        setPhoneTouched(true);
+        if (addressRequired) {
+            setAddressTouched(true);
+        }
 
         if (!phoneIsValid) {
             setErrorMessage(
@@ -266,7 +290,7 @@ export default function CheckoutPage() {
         }
 
         if (deliveryMethod !== "pickup" && !deliveryAddress.trim()) {
-            setErrorMessage("Укажите адрес доставки или комментарий для самовывоза");
+            setErrorMessage("Укажите адрес доставки");
             return;
         }
 
@@ -314,6 +338,14 @@ export default function CheckoutPage() {
         });
     };
 
+    if (loading) {
+        return (
+            <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+                <p className="text-sm text-admin-text-secondary">Загрузка корзины…</p>
+            </main>
+        );
+    }
+
     if (
         !cart ||
         (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)
@@ -324,14 +356,14 @@ export default function CheckoutPage() {
                     <h1 className="text-3xl font-semibold">Оформление заказа</h1>
                     <Link
                         href="/cart"
-                        className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                        className={`${siteBtnSecondary} gap-1.5 self-start`}
                     >
-                        <ChevronLeft className="h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
+                        <ChevronLeft className="h-4 w-4 shrink-0 text-admin-primary" aria-hidden />
                         В корзину
                     </Link>
                 </div>
-                <p className="mb-6 text-[var(--text-secondary)]">Корзина пуста.</p>
-                <Link href="/catalog" className="inline-block rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2">
+                <p className="mb-6 text-admin-text-secondary">Корзина пуста.</p>
+                <Link href="/catalog" className={siteBtnPrimary}>
                     Перейти в каталог
                 </Link>
             </main>
@@ -353,31 +385,28 @@ export default function CheckoutPage() {
         <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
             <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h1 className="text-3xl font-semibold">Оформление заказа</h1>
-                <Link
-                    href="/cart"
-                    className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                >
-                    <ChevronLeft className="h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
+                <Link href="/cart" className={`${siteBtnSecondary} gap-1.5 self-start`}>
+                    <ChevronLeft className="h-4 w-4 shrink-0 text-admin-primary" aria-hidden />
                     В корзину
                 </Link>
             </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-                <form onSubmit={handleSubmit} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
+                <form onSubmit={handleSubmit} className={`${siteCard} p-5`}>
                     <div className="mb-5">
-                        <label className="mb-2 block text-sm font-medium">Имя</label>
+                        <label className="mb-2 block text-sm font-medium text-admin-text">Имя</label>
                         <input
                             type="text"
                             value={customerName}
                             onChange={(e) => setCustomerName(e.target.value)}
-                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)]"
+                            className={siteInput}
                             placeholder="Ваше имя"
                         />
                     </div>
 
                     <div className="mb-5">
                         <div className="mb-2 flex items-center justify-between gap-3">
-                            <label className="text-sm font-medium">Телефон *</label>
+                            <label className="text-sm font-medium text-admin-text">Телефон *</label>
                             <label className="inline-flex cursor-pointer items-center">
                                 <input
                                     type="checkbox"
@@ -393,39 +422,58 @@ export default function CheckoutPage() {
                                 <span
                                     className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                                         allowPlainPhone
-                                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
-                                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+                                            ? "border-admin-primary bg-admin-primary text-white"
+                                            : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted"
                                     }`}
                                 >
                                     Нет мобильного
                                 </span>
                             </label>
                         </div>
-                        <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
+                        <div onBlur={() => setPhoneTouched(true)}>
+                            <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
+                        </div>
+                        {showPhoneError ? (
+                            <p className="mt-2 text-xs text-red-600">
+                                {allowPlainPhone
+                                    ? "Укажите номер: 375 и не менее 5 следующих цифр."
+                                    : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX"}
+                            </p>
+                        ) : null}
                     </div>
 
                     <fieldset className="mb-5">
-                        <legend className="mb-2 text-sm font-medium">Способ доставки *</legend>
-                        <div className="space-y-2 text-sm">
+                        <legend className="mb-2 text-sm font-medium text-admin-text">Способ доставки *</legend>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             {(
                                 [
                                     ["minsk_courier", "Курьер по Минску"],
                                     ["belarus_courier", "Курьер по РБ"],
                                     ["pickup", "Самовывоз"],
                                 ] as const
-                            ).map(([value, label]) => (
-                                <label key={value} className="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent px-1 py-1 hover:bg-[var(--background)]">
-                                    <input
-                                        type="radio"
-                                        name="delivery_method"
-                                        value={value}
-                                        checked={deliveryMethod === value}
-                                        onChange={() => handleDeliveryMethodChange(value)}
-                                        className="mt-1"
-                                    />
-                                    <span>{label}</span>
-                                </label>
-                            ))}
+                            ).map(([value, label]) => {
+                                const active = deliveryMethod === value;
+                                return (
+                                    <label
+                                        key={value}
+                                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition ${
+                                            active
+                                                ? "border-admin-primary bg-admin-muted text-admin-text"
+                                                : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="delivery_method"
+                                            value={value}
+                                            checked={active}
+                                            onChange={() => handleDeliveryMethodChange(value)}
+                                            className="accent-admin-primary"
+                                        />
+                                        <span>{label}</span>
+                                    </label>
+                                );
+                            })}
                         </div>
                         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{DELIVERY_HINTS[deliveryMethod]}</p>
                         {shopSettings && deliveryMethod === "minsk_courier" ? (
@@ -460,7 +508,7 @@ export default function CheckoutPage() {
                                         setCityLookupFailed(false);
                                     }}
                                     onFocus={() => setCityOpen(true)}
-                                    className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm"
+                                    className={siteInput}
                                     placeholder="Поиск по Беларуси"
                                 />
                                 {cityOpen && cityHits.length > 0 ? (
@@ -509,40 +557,52 @@ export default function CheckoutPage() {
                             <textarea
                                 value={deliveryAddress}
                                 onChange={(e) => setDeliveryAddress(e.target.value)}
-                                className="min-h-24 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm"
+                                onBlur={() => setAddressTouched(true)}
+                                className={`${siteInput} min-h-24`}
                                 placeholder="Улица, дом, подъезд, этаж, домофон…"
-                                required
+                                required={addressRequired}
                             />
+                            {showAddressError ? (
+                                <p className="mt-2 text-xs text-red-600">Укажите адрес доставки</p>
+                            ) : null}
                         </div>
                     )}
 
                     <fieldset className="mb-5">
-                        <legend className="mb-2 text-sm font-medium">Способ оплаты *</legend>
-                        <div className="space-y-2 text-sm">
+                        <legend className="mb-2 text-sm font-medium text-admin-text">Способ оплаты *</legend>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {(
                                 [
                                     ["cash", "Наличными"],
                                     ["card", "Картой (Visa и MasterCard)"],
                                 ] as const
-                            ).map(([value, label]) => (
-                                <label
-                                    key={value}
-                                    className={`flex cursor-pointer items-start gap-2 rounded-lg px-1 py-1 hover:bg-[var(--background)] ${
-                                        value === "card" && deliveryMethod === "belarus_courier" ? "opacity-40" : ""
-                                    }`}
-                                >
-                                    <input
-                                        type="radio"
-                                        name="payment_method"
-                                        value={value}
-                                        checked={paymentMethod === value}
-                                        disabled={value === "card" && deliveryMethod === "belarus_courier"}
-                                        onChange={() => setPaymentMethod(value)}
-                                        className="mt-1"
-                                    />
-                                    <span>{label}</span>
-                                </label>
-                            ))}
+                            ).map(([value, label]) => {
+                                const disabled = value === "card" && deliveryMethod === "belarus_courier";
+                                const active = paymentMethod === value;
+                                return (
+                                    <label
+                                        key={value}
+                                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition ${
+                                            disabled
+                                                ? "cursor-not-allowed border-admin-border bg-admin-muted/40 opacity-50"
+                                                : active
+                                                  ? "border-admin-primary bg-admin-muted text-admin-text"
+                                                  : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="payment_method"
+                                            value={value}
+                                            checked={active}
+                                            disabled={disabled}
+                                            onChange={() => setPaymentMethod(value)}
+                                            className="accent-admin-primary"
+                                        />
+                                        <span>{label}</span>
+                                    </label>
+                                );
+                            })}
                         </div>
                         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{PAYMENT_HINTS[paymentMethod]}</p>
                     </fieldset>
@@ -552,15 +612,15 @@ export default function CheckoutPage() {
                         <textarea
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
-                            className="min-h-28 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-[var(--foreground)] outline-none placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)]"
+                            className={`${siteInput} min-h-28`}
                             placeholder="Комментарий к заказу"
                         />
                     </div>
 
                     <button
                         type="submit"
-                        disabled={isPending || !phoneIsValid}
-                        className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                        disabled={isPending || !phoneIsValid || !addressIsValid}
+                        className={`${siteBtnPrimary} w-full px-5 py-3 text-base sm:w-auto`}
                     >
                         {isPending ? "Оформление..." : "Подтвердить заказ"}
                     </button>
@@ -572,8 +632,8 @@ export default function CheckoutPage() {
                     )}
                 </form>
 
-                <aside className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
-                    <div className="mb-4 text-lg font-medium">Ваш заказ</div>
+                <aside className={`${siteCard} p-5`}>
+                    <div className="mb-4 text-lg font-medium text-admin-text">Ваш заказ</div>
 
                     <div className="space-y-4">
                         {effectiveCheckoutLineSelection ? (

@@ -21,9 +21,7 @@ type Props = {
     total: string;
     discountCard: DiscountCardLine | null;
     giftCertificate: GiftLine | null;
-    /** Стоимость доставки (строка с руб.); если «0.00» — покажем «Бесплатно» */
     deliveryFee?: string | null;
-    /** Итог к оплате с учётом доставки; если не задан — используется `total` */
     grandTotal?: string | null;
     className?: string;
 };
@@ -52,21 +50,21 @@ export default function CartPricingBreakdown({
     const hasCert = giftCertificate && certAmt > 0;
 
     return (
-        <div className={`space-y-2 text-sm text-[var(--text-secondary)] ${className}`}>
+        <div className={`space-y-2 text-sm text-admin-text-secondary ${className}`}>
             {itemsQty !== undefined ? (
                 <div className="flex items-center justify-between">
                     <span>Товаров</span>
-                    <span className="text-[var(--foreground)]">{itemsQty} шт.</span>
+                    <span className="text-admin-text">{itemsQty} шт.</span>
                 </div>
             ) : null}
 
             <div className="flex items-center justify-between">
                 <span>Сумма товаров</span>
-                <span className="text-[var(--foreground)]">{formatMoneyRub(subtotal)}</span>
+                <span className="text-admin-text">{formatMoneyRub(subtotal)}</span>
             </div>
 
             {hasCard ? (
-                <div className="flex flex-col gap-0.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
+                <div className="flex flex-col gap-0.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
                     <div className="flex items-center justify-between gap-2">
                         <span>
                             Скидка по карте <span className="font-mono font-medium">{discountCard!.number}</span>
@@ -89,7 +87,7 @@ export default function CartPricingBreakdown({
             ) : null}
 
             {savings > 0.004 ? (
-                <div className="flex items-center justify-between rounded-lg bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--foreground)]">
+                <div className="flex items-center justify-between rounded-lg bg-admin-muted px-2 py-1.5 text-xs text-admin-text">
                     <span>Выгода по скидкам</span>
                     <span className="font-semibold text-emerald-700">{formatMoneyRub(savings.toFixed(2))}</span>
                 </div>
@@ -108,7 +106,7 @@ export default function CartPricingBreakdown({
                 </div>
             ) : null}
 
-            <div className="flex items-center justify-between border-t border-[var(--line)] pt-3 text-base font-semibold text-[var(--foreground)]">
+            <div className="flex items-center justify-between border-t border-admin-border pt-3 text-base font-semibold text-admin-text">
                 <span>К оплате</span>
                 <span>
                     {grandTotal && grandTotal.trim() !== "" ? formatMoneyRub(grandTotal) : formatMoneyRub(total)}

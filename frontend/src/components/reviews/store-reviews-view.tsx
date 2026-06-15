@@ -10,6 +10,7 @@ import {
     type ReviewItem,
 } from "@/lib/reviews-api";
 import { formatReviewDateRu, normalizeReviewItem } from "@/lib/review-text-display";
+import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
 import { executeRecaptchaV3, loadRecaptchaScript } from "@/lib/recaptcha-v3";
 import { useReviewFormModalEffects } from "@/hooks/use-review-form-modal-effects";
 import ReviewFormModal from "@/components/reviews/review-form-modal";
@@ -273,11 +274,11 @@ export default function StoreReviewsView({
     return (
         <div className="space-y-10">
             {!hideHero ? (
-                <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6">
+                <section className={`${siteCard} p-5 sm:p-6`}>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                         <div className="min-w-0 flex-1 space-y-2">
-                            <h2 className="text-lg font-semibold text-[var(--foreground)]">Оставить отзыв о магазине</h2>
-                            <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+                            <h2 className="text-lg font-semibold text-admin-text">Оставить отзыв о магазине</h2>
+                            <p className="text-sm leading-relaxed text-admin-text-secondary">
                                 Поделитесь впечатлением о сервисе, доставке или ассортименте. Отзыв появится после проверки модератором.
                             </p>
                         </div>
@@ -285,7 +286,7 @@ export default function StoreReviewsView({
                             <button
                                 type="button"
                                 onClick={openForm}
-                                className="w-full rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] sm:w-auto"
+                                className={`${siteBtnPrimary} w-full sm:w-auto`}
                             >
                                 Написать отзыв
                             </button>
@@ -303,15 +304,15 @@ export default function StoreReviewsView({
                     : { "aria-labelledby": `${formId}-list-title` })}
             >
                 {hideHero && starsFilter !== null && onClearStarsFilterAction ? (
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm">
-                        <span className="text-[var(--foreground)]">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-admin-border bg-admin-surface px-4 py-2.5 text-sm">
+                        <span className="text-admin-text">
                             Показаны отзывы:{" "}
                             <span className="font-semibold">{starsFilterLabel(starsFilter)}</span>
                         </span>
                         <button
                             type="button"
                             onClick={onClearStarsFilterAction}
-                            className="shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                            className="shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-admin-primary underline-offset-2 hover:underline"
                         >
                             Показать все
                         </button>
@@ -322,12 +323,12 @@ export default function StoreReviewsView({
                         className={`mb-4 flex flex-wrap items-end gap-3 ${hideHero ? "justify-end" : "justify-between"}`}
                     >
                         {!hideHero ? (
-                            <h2 id={`${formId}-list-title`} className="text-lg font-semibold text-[var(--foreground)]">
+                            <h2 id={`${formId}-list-title`} className="text-lg font-semibold text-admin-text">
                                 Отзывы покупателей
                             </h2>
                         ) : null}
                         {listLoading ? (
-                            <span className="text-sm text-[var(--accent)] underline-offset-2 hover:underline disabled:opacity-50">
+                            <span className="text-sm text-admin-primary underline-offset-2 hover:underline disabled:opacity-50">
                                 Обновление…
                             </span>
                         ) : null}
@@ -335,7 +336,7 @@ export default function StoreReviewsView({
                 ) : null}
 
                 {reviews.length === 0 ? (
-                    <p className="text-sm text-[var(--text-secondary)]">
+                    <p className="text-sm text-admin-text-secondary">
                         {starsFilter !== null
                             ? "Нет опубликованных отзывов с выбранной оценкой."
                             : "Пока нет опубликованных отзывов."}
@@ -346,11 +347,11 @@ export default function StoreReviewsView({
                             <li
                                 key={item.id}
                                 id={`store-review-${item.id}`}
-                                className="scroll-mt-24 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6"
+                                className={`${siteCard} scroll-mt-24 p-5 sm:p-6`}
                             >
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-sm font-semibold text-[var(--foreground)]">{item.name}</span>
-                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDateRu(item.created_at)}</span>
+                                    <span className="text-sm font-semibold text-admin-text">{item.name}</span>
+                                    <span className="text-xs text-admin-text-secondary">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
                                 <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
@@ -362,19 +363,19 @@ export default function StoreReviewsView({
                                         />
                                     ))}
                                 </div>
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{item.text}</p>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed text-admin-text">{item.text}</p>
 
                                 {item.reply?.text ? (
-                                    <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4">
-                                        <div className="mb-1 text-xs font-medium text-[var(--text-secondary)]">
+                                    <div className="mt-4 rounded-xl border border-admin-border bg-admin-muted p-4">
+                                        <div className="mb-1 text-xs font-medium text-admin-text-secondary">
                                             Ответ магазина
                                         </div>
                                         {item.reply.replied_at ? (
-                                            <p className="mb-2 text-xs text-[var(--text-secondary)]">
+                                            <p className="mb-2 text-xs text-admin-text-secondary">
                                                 {formatReviewDateRu(item.reply.replied_at)}
                                             </p>
                                         ) : null}
-                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{item.reply.text}</p>
+                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-admin-text">{item.reply.text}</p>
                                     </div>
                                 ) : null}
                             </li>
@@ -385,7 +386,7 @@ export default function StoreReviewsView({
                     <div ref={sentinelRef} className="h-px w-full" aria-hidden />
                 ) : null}
                 {loadingMore ? (
-                    <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">Загрузка отзывов…</p>
+                    <p className="mt-6 text-center text-sm text-admin-text-secondary">Загрузка отзывов…</p>
                 ) : null}
             </section>
 

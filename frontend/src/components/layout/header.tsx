@@ -46,6 +46,7 @@ export default function Header() {
     const [mainRowHeight, setMainRowHeight] = useState(78);
     const [viewportTopOffset, setViewportTopOffset] = useState(0);
     const [menuTopOffset, setMenuTopOffset] = useState(64);
+    const [menuAnchorBottom, setMenuAnchorBottom] = useState(0);
 
     const headerRef = useRef<HTMLElement | null>(null);
     const mainRowRef = useRef<HTMLDivElement | null>(null);
@@ -214,6 +215,30 @@ export default function Header() {
             return;
         }
 
+        const measureAnchor = () => {
+            const bottom = mainRowRef.current?.getBoundingClientRect().bottom ?? menuTopOffset;
+            setMenuAnchorBottom(bottom);
+        };
+
+        measureAnchor();
+        window.addEventListener("resize", measureAnchor);
+        const row = mainRowRef.current;
+        const ro = row ? new ResizeObserver(measureAnchor) : null;
+        if (row && ro) {
+            ro.observe(row);
+        }
+
+        return () => {
+            window.removeEventListener("resize", measureAnchor);
+            ro?.disconnect();
+        };
+    }, [isMobileOpen, menuTopOffset, mainRowHeight, searchOpen, viewportTopOffset, isMainRowPinned]);
+
+    useEffect(() => {
+        if (!isMobileOpen) {
+            return;
+        }
+
         const body = document.body;
         const html = document.documentElement;
         const scrollY = window.scrollY;
@@ -310,7 +335,7 @@ export default function Header() {
     return (
         <header
             ref={headerRef}
-            className="relative z-[140] border-b border-[var(--header-line)] bg-[var(--header-bg)] shadow-[0_8px_24px_rgba(36,28,21,0.05)]"
+            className={`relative z-[140] bg-admin-surface ${isMobileOpen ? "shadow-none" : "border-b border-admin-border shadow-admin-header"}`}
         >
             <HeaderServiceBar
                 isCompact={false}
@@ -335,7 +360,7 @@ export default function Header() {
             ) : null}
             <div
                 ref={mainRowRef}
-                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120] shadow-[0_8px_24px_rgba(36,28,21,0.05)]" : "relative z-30"} border-b border-[var(--header-line)] bg-[var(--header-bg)]`}
+                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120] shadow-admin-header" : "relative z-30"} ${isMobileOpen ? "" : "border-b border-admin-border"} bg-admin-surface`}
                 style={isMainRowPinned ? { top: `${viewportTopOffset}px` } : undefined}
             >
                 <HeaderMainRow
@@ -385,8 +410,9 @@ export default function Header() {
             <HeaderMobileMenu
                 isOpen={isMobileOpen}
                 menuRootRef={mobileMenuRootRef}
-                topOffset={menuTopOffset}
+                anchorBottom={menuAnchorBottom}
                 wishlistQty={wishlistQty}
+                catalogSections={HEADER_CATALOG_DRAWER_SECTIONS}
                 phoneLinks={phoneLinks}
                 contactLinks={contactLinks}
                 isAuthenticated={isAuthenticated}

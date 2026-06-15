@@ -2,6 +2,7 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import JsonLd from "@/components/seo/json-ld";
 import { apiFetch } from "@/lib/api";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
+import { siteCard } from "@/lib/site-ui-classes";
 import type { ProductListItem } from "@/types/catalog";
 import SearchResultsClient from "@/app/search/search-results-client";
 
@@ -86,35 +87,37 @@ export default async function SearchPage({
     ] as const;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
-            <JsonLd data={breadcrumbListJsonLd([...crumbs])} />
-            <Breadcrumbs className="mb-4" items={[...crumbs]} />
+        <main className="min-h-screen bg-admin-bg text-admin-text">
+            <div className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
+                <JsonLd data={breadcrumbListJsonLd([...crumbs])} />
+                <Breadcrumbs className="mb-4" items={[...crumbs]} />
 
-            <h1 className="text-3xl font-semibold sm:text-4xl">
-                {query ? (
-                    <>
-                        Поиск: <span className="text-[var(--text-secondary)]">{query}</span>
-                    </>
-                ) : (
-                    "Поиск"
-                )}
-            </h1>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {query ? (
+                        <>
+                            Поиск: <span className="text-admin-text-secondary">{query}</span>
+                        </>
+                    ) : (
+                        "Поиск"
+                    )}
+                </h1>
 
-            {!query ? (
-                <div className="mt-6 rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--text-secondary)]">
-                    Введите поисковый запрос в шапке сайта и нажмите Enter.
-                </div>
-            ) : null}
+                {!query ? (
+                    <div className={`${siteCard} mt-6 px-6 py-10 text-sm text-admin-text-secondary`}>
+                        Введите поисковый запрос в шапке сайта и нажмите Enter.
+                    </div>
+                ) : null}
 
-            <SearchResultsClient
-                key={`${query}:${currentPage}`}
-                initialQuery={query}
-                initialData={data}
-                initialError={error}
-                debugEnabled={debug}
-                currentPage={currentPage}
-                queryString={paginationQuery.toString()}
-            />
+                <SearchResultsClient
+                    key={`${query}:${currentPage}`}
+                    initialQuery={query}
+                    initialData={data}
+                    initialError={error}
+                    debugEnabled={debug}
+                    currentPage={currentPage}
+                    queryString={paginationQuery.toString()}
+                />
+            </div>
         </main>
     );
 }

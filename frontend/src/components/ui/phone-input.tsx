@@ -107,16 +107,16 @@ export default function PhoneInput({
     const rootClass = ["w-full", className].filter(Boolean).join(" ");
     const hintText = plainDigitsMode ? PHONE_INPUT_HINT_PLAIN : PHONE_INPUT_HINT_MOBILE;
     const hintEl = showHint ? (
-        <p className="mt-1 text-xs text-[var(--text-secondary)]">{hintText}</p>
+        <p className="mt-1.5 text-xs text-admin-text-muted">{hintText}</p>
     ) : null;
 
     if (plainDigitsMode) {
         const rest = extractPlainRestFromStored(value);
         return (
             <div className={rootClass}>
-                <div className="flex min-h-[48px] w-full items-stretch overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]">
+                <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
                     <span
-                        className="flex shrink-0 select-none items-center border-r border-[var(--line)] bg-[var(--background)] px-3 py-3 font-mono text-sm font-medium tabular-nums text-[var(--text-secondary)]"
+                        className="flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary"
                         aria-hidden
                     >
                         +375
@@ -135,7 +135,7 @@ export default function PhoneInput({
                             const nextRest = e.target.value.replace(/\D/g, "").slice(0, 14);
                             onChangeAction(COUNTRY_PREFIX + nextRest);
                         }}
-                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 outline-none ring-0 placeholder:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-soft)]"
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 outline-none ring-0 placeholder:text-admin-text-muted"
                     />
                 </div>
                 {hintEl}
@@ -309,9 +309,9 @@ export default function PhoneInput({
 
     return (
         <div className={rootClass}>
-            <div className="flex min-h-[48px] w-full items-stretch overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]">
+            <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
                 <span
-                    className="flex shrink-0 select-none items-center border-r border-[var(--line)] bg-[var(--background)] px-3 py-3 font-mono text-sm font-medium tabular-nums text-[var(--text-secondary)]"
+                    className="flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary"
                     aria-hidden
                 >
                     +375
@@ -331,7 +331,7 @@ export default function PhoneInput({
                     onClick={handleClick}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-3 font-mono text-[var(--foreground)] outline-none ring-0 placeholder:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-soft)]"
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-admin-text outline-none ring-0 placeholder:text-admin-text-muted"
                 />
             </div>
             {hintEl}

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { HomePageReviewSnippet } from "@/lib/json-ld";
+import { siteBtnIcon, siteCard, siteNavLink } from "@/lib/site-ui-classes";
 
 const SIMILAR_GAP_PX = 12;
 
@@ -41,10 +41,10 @@ function StoreReviewCard({ review }: { review: HomePageReviewSnippet }) {
     }, [review.text]);
 
     return (
-        <div className="flex h-full min-h-[168px] max-h-[220px] flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <div className={`${siteCard} flex h-full min-h-[168px] max-h-[220px] flex-col p-4`}>
             <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 text-sm font-semibold leading-tight text-[var(--foreground)]">{review.name}</div>
-                {review.date ? <div className="shrink-0 text-xs text-gray-400">{review.date}</div> : null}
+                <div className="min-w-0 text-sm font-semibold leading-tight text-admin-text">{review.name}</div>
+                {review.date ? <div className="shrink-0 text-xs text-admin-text-muted">{review.date}</div> : null}
             </div>
             <p className="sr-only">Оценка {review.rating} из 5</p>
             <div className="mt-1.5 flex gap-0.5 text-amber-500" aria-hidden>
@@ -60,16 +60,13 @@ function StoreReviewCard({ review }: { review: HomePageReviewSnippet }) {
             <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
                 <p
                     ref={textRef}
-                    className="line-clamp-3 min-h-0 text-sm leading-relaxed text-[var(--text-secondary)]"
+                    className="line-clamp-3 min-h-0 text-sm leading-relaxed text-admin-text-secondary"
                 >
                     {review.text}
                 </p>
                 {textClamped ? (
-                    <Link
-                        href={readMoreHref}
-                        className="mt-2 shrink-0 text-sm font-medium text-[var(--accent)] hover:underline"
-                    >
-                    - читать весь отзыв
+                    <Link href={readMoreHref} className={`${siteNavLink} mt-2 shrink-0 text-sm font-medium hover:underline`}>
+                        Читать весь отзыв
                     </Link>
                 ) : null}
             </div>
@@ -77,7 +74,6 @@ function StoreReviewCard({ review }: { review: HomePageReviewSnippet }) {
     );
 }
 
-/** Одна горизонтальная карусель, как «Похожие товары» на карточке товара. */
 function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] }) {
     const headingId = useId();
     const scrollerId = useId();
@@ -152,16 +148,13 @@ function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] })
     );
 
     return (
-        <div className="mt-5 min-w-0 border-t border-[var(--line)] pt-10">
+        <div className="mt-5 min-w-0 border-t border-admin-border pt-10">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                    <h2 id={headingId} className="text-lg font-semibold text-[var(--foreground)]">
+                    <h2 id={headingId} className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Отзывы клиентов
                     </h2>
-                    <Link
-                        href="/reviews"
-                        className="mt-0.5 inline-block text-sm font-medium text-[var(--accent)] underline-offset-4 hover:underline"
-                    >
+                    <Link href="/reviews" className={`${siteNavLink} mt-1 inline-block text-sm font-medium hover:underline`}>
                         Все отзывы
                     </Link>
                 </div>
@@ -173,7 +166,7 @@ function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] })
                             aria-label="Прокрутить отзывы назад"
                             disabled={!edge.left}
                             onClick={() => scrollByViewport(-1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                            className={`${siteBtnIcon} h-9 w-9 disabled:pointer-events-none disabled:opacity-35`}
                         >
                             <ChevronLeft className="h-5 w-5" aria-hidden />
                         </button>
@@ -183,7 +176,7 @@ function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] })
                             aria-label="Прокрутить отзывы вперёд"
                             disabled={!edge.right}
                             onClick={() => scrollByViewport(1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                            className={`${siteBtnIcon} h-9 w-9 disabled:pointer-events-none disabled:opacity-35`}
                         >
                             <ChevronRight className="h-5 w-5" aria-hidden />
                         </button>
@@ -204,7 +197,7 @@ function StoreReviewsCarousel({ reviews }: { reviews: HomePageReviewSnippet[] })
                             scrollByViewport(1);
                         }
                     }}
-                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [contain:layout_paint] [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)]"
+                    className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [contain:layout_paint] [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
                 >
                     <div className="mt-2 flex w-max snap-x snap-mandatory gap-3">
                         {reviews.map((review) => (
@@ -232,12 +225,12 @@ export default function HomeStoreReviewsSection({ storeReviews }: Props) {
         <section className="mt-10">
             {storeReviews.length === 0 ? (
                 <>
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Отзывы клиентов
                     </h2>
-                    <p className="mt-5 text-sm leading-7 text-[var(--text-secondary)]">
+                    <p className="mt-5 text-sm leading-7 text-admin-text-secondary">
                         Пока нет опубликованных отзывов о магазине.{" "}
-                        <Link href="/reviews" className="font-medium text-[var(--accent)] hover:underline">
+                        <Link href="/reviews" className="font-medium text-admin-primary hover:underline">
                             Оставить отзыв
                         </Link>
                     </p>

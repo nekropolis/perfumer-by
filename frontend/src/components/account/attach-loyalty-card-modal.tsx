@@ -1,8 +1,10 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { attachMyLoyaltyCardByNumber } from "@/lib/loyalty-me-api";
 import { ApiRequestError } from "@/lib/auth-api";
+import { siteBtnGhost, siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
 type Props = {
     onCloseAction: () => void;
@@ -61,54 +63,46 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-admin-text/40 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="w-full max-w-md overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_30px_90px_rgba(31,23,34,0.22)]"
+                className={`${siteCard} w-full max-w-md overflow-hidden shadow-2xl`}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="attach-loyalty-title"
             >
-                <div className="bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-6 py-5 text-[var(--background)]">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="border-b border-admin-border px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+                    <div className="flex items-start justify-between gap-3">
                         <div>
-                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--background)]/60">
-                                Loyalty Card
-                            </div>
-
-                            <h2
-                                id="attach-loyalty-title"
-                                className="mt-2 font-display text-2xl font-semibold leading-tight"
-                            >
+                            <h2 id="attach-loyalty-title" className="text-lg font-semibold tracking-tight text-admin-text">
                                 Добавить карту
                             </h2>
+                            <p className="mt-1 text-sm text-admin-text-secondary">
+                                Накопительная скидка будет применяться к заказам
+                            </p>
                         </div>
-
                         <button
                             type="button"
                             onClick={onCloseAction}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xl leading-none text-[var(--background)] transition hover:bg-black/20"
+                            className={`${siteBtnGhost} h-9 w-9 shrink-0 p-0`}
                             aria-label="Закрыть"
                         >
-                            ×
+                            <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                         </button>
                     </div>
 
-                    <div className="mt-6 rounded-2xl border border-black/15 bg-black/10 px-4 py-3">
-                        <div className="font-mono text-lg font-semibold tracking-[0.16em]">
+                    <div className="mt-4 rounded-lg border border-dashed border-admin-border bg-admin-muted/60 px-4 py-3">
+                        <div className="font-mono text-lg font-semibold tracking-[0.16em] text-admin-text">
                             •••• •••• ••••
-                        </div>
-                        <div className="mt-1 text-sm text-[var(--background)]/70">
-                            Накопительная скидка будет применяться к заказам.
                         </div>
                     </div>
                 </div>
 
-                <div className="p-6">
-                    <p className="mb-5 text-sm leading-6 text-[var(--text-secondary)]">
+                <div className="p-5 sm:p-6">
+                    <p className="mb-5 text-sm leading-6 text-admin-text-secondary">
                         Введите номер карты, выданной в магазине. Карта должна быть активна.
                     </p>
 
@@ -116,7 +110,7 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                         <div>
                             <label
                                 htmlFor="loyalty-card-number"
-                                className="mb-2 block text-sm font-medium text-[var(--foreground)]"
+                                className="mb-1.5 block text-sm font-medium text-admin-text"
                             >
                                 Номер карты
                             </label>
@@ -127,14 +121,14 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                                 autoComplete="off"
                                 value={number}
                                 onChange={(e) => setNumber(e.target.value)}
-                                className="w-full rounded-2xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)]/60 focus:border-[var(--accent)] focus:bg-[var(--surface)] focus:ring-4 focus:ring-[var(--accent-soft)]/45"
+                                className={siteInput}
                                 placeholder="Например, 1234567890"
                                 disabled={submitting}
                             />
                         </div>
 
                         {error ? (
-                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                                 {error}
                             </div>
                         ) : null}
@@ -143,17 +137,13 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className={siteBtnSecondary}
                                 disabled={submitting}
                             >
                                 Отмена
                             </button>
 
-                            <button
-                                type="submit"
-                                className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                                disabled={submitting}
-                            >
+                            <button type="submit" className={siteBtnPrimary} disabled={submitting}>
                                 {submitting ? "Проверка…" : "Привязать карту"}
                             </button>
                         </div>

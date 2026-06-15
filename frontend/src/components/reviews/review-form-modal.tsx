@@ -3,6 +3,7 @@
 import { Star, X } from "lucide-react";
 import type { FormEventHandler, RefObject } from "react";
 import RecaptchaNotice from "@/components/ui/recaptcha-notice";
+import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
 export type ReviewFormFieldErrors = {
     name?: string;
@@ -71,20 +72,20 @@ export default function ReviewFormModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
-                className="max-h-[min(90vh,640px)] w-full max-w-lg overflow-y-auto rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-xl sm:p-6"
+                className={`${siteCard} max-h-[min(90vh,640px)] w-full max-w-lg overflow-y-auto p-5 shadow-xl sm:p-6`}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                        <h2 id={titleId} className="text-lg font-semibold text-[var(--foreground)]">
+                        <h2 id={titleId} className="text-lg font-semibold text-admin-text">
                             {modalTitle}
                         </h2>
-                        <p className="mt-1 text-xs text-[var(--text-secondary)]">{modalSubtitle}</p>
+                        <p className="mt-1 text-xs text-admin-text-secondary">{modalSubtitle}</p>
                     </div>
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="shrink-0 rounded-xl border border-[var(--line)] p-2 text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                        className="shrink-0 rounded-lg border border-admin-border p-2 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                         aria-label="Закрыть"
                     >
                         <X className="h-5 w-5" />
@@ -93,7 +94,7 @@ export default function ReviewFormModal({
 
                 <form onSubmit={onSubmitAction} className="space-y-4" noValidate>
                     <div>
-                        <label htmlFor={nameId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                        <label htmlFor={nameId} className="mb-1 block text-xs text-admin-text-secondary">
                             Имя
                         </label>
                         <input
@@ -104,13 +105,13 @@ export default function ReviewFormModal({
                             value={name}
                             onChange={(ev) => onNameChangeAction(ev.target.value)}
                             maxLength={maxName}
-                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm outline-none ring-[var(--accent)] focus:ring-2"
+                            className={siteInput}
                         />
                         {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
                     </div>
 
                     <div>
-                        <span className="mb-1 block text-xs text-[var(--text-secondary)]">Оценка</span>
+                        <span className="mb-1 block text-xs text-admin-text-secondary">Оценка</span>
                         <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map((value) => (
                                 <button
@@ -132,7 +133,7 @@ export default function ReviewFormModal({
                     </div>
 
                     <div>
-                        <label htmlFor={textId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                        <label htmlFor={textId} className="mb-1 block text-xs text-admin-text-secondary">
                             Отзыв
                         </label>
                         <textarea
@@ -141,9 +142,9 @@ export default function ReviewFormModal({
                             onChange={(ev) => onTextChangeAction(ev.target.value)}
                             rows={5}
                             maxLength={maxText}
-                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm outline-none ring-[var(--accent)] focus:ring-2"
+                            className={siteInput}
                         />
-                        <div className="mt-1 flex justify-between text-xs text-[var(--text-secondary)]">
+                        <div className="mt-1 flex justify-between text-xs text-admin-text-secondary">
                             <span>{text.trim().length}/{maxText}</span>
                             {fieldErrors.text ? <span className="text-red-600">{fieldErrors.text}</span> : null}
                         </div>
@@ -152,23 +153,15 @@ export default function ReviewFormModal({
                     {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
+                        <button type="submit" disabled={submitting} className={siteBtnPrimary}>
                             {submitting ? "Отправка…" : "Отправить отзыв"}
                         </button>
-                        <button
-                            type="button"
-                            onClick={onCloseAction}
-                            className="rounded-xl border border-[var(--line)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                        >
+                        <button type="button" onClick={onCloseAction} className={siteBtnSecondary}>
                             Отмена
                         </button>
                     </div>
                     {showRecaptchaNotice ? (
-                        <RecaptchaNotice className="pt-1 text-[10px] leading-4 text-[var(--text-secondary)]" />
+                        <RecaptchaNotice className="pt-1 text-[10px] leading-4 text-admin-text-secondary" />
                     ) : null}
                 </form>
             </div>

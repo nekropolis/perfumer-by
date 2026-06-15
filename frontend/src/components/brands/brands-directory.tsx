@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import type { CatalogBrandItem } from "@/types/catalog";
 import { orderedLettersWithBrands } from "@/lib/brand-letter-groups";
+import { siteCard } from "@/lib/site-ui-classes";
 
 type Props = {
     brandsByLetter: Record<string, CatalogBrandItem[]>;
@@ -26,13 +27,13 @@ export default function BrandsDirectory({ brandsByLetter }: Props) {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap gap-1 border-b border-[var(--line)] pb-3">
+            <div className="flex flex-wrap gap-1 border-b border-admin-border pb-3">
                 {sectionLetters.map((letter) => (
                     <button
                         key={`anchor-${letter}`}
                         type="button"
                         onClick={() => scrollToBrandLetter(letter)}
-                        className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                        className="rounded-lg border border-admin-border bg-admin-surface px-2.5 py-1.5 text-xs font-medium text-admin-text transition hover:bg-admin-muted"
                     >
                         {letter}
                     </button>
@@ -48,7 +49,7 @@ export default function BrandsDirectory({ brandsByLetter }: Props) {
                             id={`brand-letter-${letter}`}
                             className="scroll-mt-24 space-y-3"
                         >
-                            <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                            <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                                 {letter}
                             </h2>
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
@@ -56,7 +57,7 @@ export default function BrandsDirectory({ brandsByLetter }: Props) {
                                     <Link
                                         key={brand.id}
                                         href={`/brands/${brand.slug}`}
-                                        className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)] hover:shadow-sm"
+                                        className={`${siteCard} px-4 py-3 text-sm text-admin-text transition hover:border-admin-border-strong hover:bg-admin-muted`}
                                     >
                                         {brand.name}
                                     </Link>

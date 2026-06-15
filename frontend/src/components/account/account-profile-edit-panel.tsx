@@ -5,11 +5,9 @@ import { ApiRequestError, updateProfile, type AuthUserProfile } from "@/lib/auth
 import { getAuthToken } from "@/lib/auth-token";
 import SiteDatePicker from "@/components/ui/site-date-picker";
 import AccountPasswordChange from "@/components/account/account-password-change";
+import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
-const inputClassName =
-    "w-full rounded-xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)]";
-
-const labelClassName = "mb-2 block text-sm font-medium";
+const labelClassName = "mb-1.5 block text-sm font-medium text-admin-text";
 
 type AccountProfileEditPanelProps = {
     user: AuthUserProfile;
@@ -69,14 +67,14 @@ export default function AccountProfileEditPanel({
     };
 
     return (
-        <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
-            <div className="text-sm font-medium uppercase tracking-[0.22em] text-[var(--text-secondary)]">
+        <div className={`${siteCard} p-6`}>
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                 Редактирование
             </div>
 
-            <h2 className="mt-2 text-2xl font-semibold font-display">Профиль</h2>
+            <h2 className="mt-2 text-xl font-semibold tracking-tight">Профиль</h2>
 
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            <p className="mt-2 text-sm text-admin-text-secondary">
                 Все поля необязательны. Телефон изменить здесь нельзя.
             </p>
 
@@ -88,7 +86,7 @@ export default function AccountProfileEditPanel({
                             type="text"
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
-                            className={inputClassName}
+                            className={siteInput}
                             placeholder="Имя"
                             autoComplete="given-name"
                         />
@@ -100,7 +98,7 @@ export default function AccountProfileEditPanel({
                             type="text"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
-                            className={inputClassName}
+                            className={siteInput}
                             placeholder="Фамилия"
                             autoComplete="family-name"
                         />
@@ -112,7 +110,7 @@ export default function AccountProfileEditPanel({
                             type="text"
                             value={patronymic}
                             onChange={(e) => setPatronymic(e.target.value)}
-                            className={inputClassName}
+                            className={siteInput}
                             placeholder="Отчество"
                             autoComplete="additional-name"
                         />
@@ -126,7 +124,7 @@ export default function AccountProfileEditPanel({
                             type="text"
                             value={user.phone ?? ""}
                             readOnly
-                            className={`${inputClassName} cursor-not-allowed opacity-70`}
+                            className={`${siteInput} cursor-not-allowed opacity-70`}
                         />
                     </div>
 
@@ -136,7 +134,7 @@ export default function AccountProfileEditPanel({
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className={inputClassName}
+                            className={siteInput}
                             placeholder="email@example.com"
                             autoComplete="email"
                         />
@@ -166,7 +164,7 @@ export default function AccountProfileEditPanel({
                     type="button"
                     onClick={handleSubmit}
                     disabled={isPending}
-                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                    className={siteBtnPrimary}
                 >
                     {isPending ? "Сохранение..." : "Сохранить"}
                 </button>
@@ -175,7 +173,7 @@ export default function AccountProfileEditPanel({
                     type="button"
                     onClick={onCancelAction}
                     disabled={isPending}
-                    className="rounded-2xl border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:opacity-50"
+                    className={siteBtnSecondary}
                 >
                     Отмена
                 </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
+import { siteInput } from "@/lib/site-ui-classes";
 import { useId, useState } from "react";
 
 type PasswordInputProps = {
@@ -33,12 +34,12 @@ export default function PasswordInput({
                 onChange={(e) => onChangeAction(e.target.value)}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
-                className={`w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] py-3 pl-4 pr-11 text-[var(--foreground)] placeholder:text-[var(--text-secondary)] ${className}`.trim()}
+                className={`${siteInput} py-2.5 pl-3 pr-11 ${className}`.trim()}
             />
             <button
                 type="button"
                 onClick={() => setVisible((prev) => !prev)}
-                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                 aria-label={visible ? "Скрыть пароль" : "Показать пароль"}
                 aria-pressed={visible}
             >

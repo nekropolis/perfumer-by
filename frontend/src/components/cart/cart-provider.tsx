@@ -36,6 +36,14 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | null>(null);
 
+const cartSsrFallback: CartContextType = {
+    cart: null,
+    cartQty: 0,
+    loading: true,
+    refreshCart: async () => {},
+    setCartState: () => {},
+};
+
 type Props = {
     children: ReactNode;
 };
@@ -118,6 +126,9 @@ export function useCart() {
     const context = useContext(CartContext);
 
     if (!context) {
+        if (typeof window === "undefined") {
+            return cartSsrFallback;
+        }
         throw new Error("useCart must be used inside CartProvider");
     }
 

@@ -1,17 +1,21 @@
 "use client";
 
-//import Link from "next/link";
 import { useEffect, useState } from "react";
-import { fetchGiftCertificateTemplates, type GiftCertificateTemplatePublic } from "@/lib/cart-api";
-//import { useCart } from "@/components/cart/cart-provider";
+import Breadcrumbs from "@/components/ui/breadcrumbs";
+import GiftCertificateTemplateCard from "@/components/gift-certificates/gift-certificate-template-card";
 import CmsSnippet from "@/components/cms/cms-snippet";
+import { fetchGiftCertificateTemplates, type GiftCertificateTemplatePublic } from "@/lib/cart-api";
+import { siteCard } from "@/lib/site-ui-classes";
+
+const crumbs = [
+    { label: "Главная", href: "/" },
+    { label: "Подарочные сертификаты" },
+] as const;
 
 export default function GiftCertificatesCatalogPage() {
-    //const { setCartState } = useCart();
     const [templates, setTemplates] = useState<GiftCertificateTemplatePublic[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    // const [isPending, startTransition] = useTransition();
 
     useEffect(() => {
         let cancelled = false;
@@ -35,48 +39,39 @@ export default function GiftCertificatesCatalogPage() {
     }, []);
 
     return (
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-            <h1 className="mb-2 text-3xl font-semibold">Подарочные сертификаты</h1>
-            {/* <p className="mb-8 text-[var(--text-secondary)]">
-                Выберите номинал сертификата и добавьте его в корзину как отдельную позицию.
-            </p>*/}
+        <main className="min-h-screen bg-admin-bg text-admin-text">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+                <Breadcrumbs className="mb-6" items={[...crumbs]} />
 
-            {loading ? <div className="text-sm text-[var(--text-secondary)]">Загрузка...</div> : null}
-            {error ? <div className="text-sm text-red-600">{error}</div> : null}
+                <div className="mb-8">
+                    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Подарочные сертификаты</h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-admin-text-secondary">
+                        Выберите номинал и добавьте сертификат в корзину. После оплаты получатель сможет
+                        использовать его при покупке в магазине.
+                    </p>
+                </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {templates.map((template) => (
-                    <article key={template.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
-                        <div className="text-lg font-semibold">{template.title}</div>
-                        <div className="mt-1 text-sm text-[var(--text-secondary)]">Номинал: {template.amount} руб.</div>
-                        {/* <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() =>
-                                startTransition(async () => {
-                                    const response = await addGiftCertificateTemplateToCart(template.id, 1);
-                                    setCartState(response.data);
-                                })
-                            }
-                            className="mt-5 rounded-xl bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-                        >
-                            В корзину
-                        </button> */}
-                    </article>
-                ))}
+                {loading ? <div className="text-sm text-admin-text-secondary">Загрузка…</div> : null}
+                {error ? <div className="text-sm text-red-600">{error}</div> : null}
+
+                {!loading && !error && templates.length === 0 ? (
+                    <div className={`${siteCard} px-6 py-10 text-sm text-admin-text-secondary`}>
+                        Сертификаты временно недоступны.
+                    </div>
+                ) : null}
+
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                    {templates.map((template) => (
+                        <GiftCertificateTemplateCard key={template.id} template={template} />
+                    ))}
+                </div>
+
+                <CmsSnippet
+                    code="faq-sertifikaty"
+                    className={`${siteCard} mt-10 p-5 sm:p-6`}
+                    fallbackTitle="Вопросы по сертификатам"
+                />
             </div>
-
-            <div className="mt-8">
-                {/* <Link href="/cart" className="text-sm underline">
-                    Перейти в корзину
-                </Link> */}
-            </div>
-
-            <CmsSnippet
-                code="faq-sertifikaty"
-                className="mt-10 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5"
-                fallbackTitle="Вопросы по сертификатам"
-            />
         </main>
     );
 }

@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import CatalogFilters from "@/components/catalog/catalog-filters";
+import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
+import { siteBtnPrimary, siteBtnSecondary } from "@/lib/site-ui-classes";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -20,14 +23,21 @@ type Props = {
         label: string;
         products_count: number;
     }[];
+    productsCount: number;
     compact?: boolean;
 };
 
 function DrawerPanel({
     onClose,
+    onReset,
+    hasActiveFilters,
+    productsCount,
     children,
 }: {
     onClose: () => void;
+    onReset: () => void;
+    hasActiveFilters: boolean;
+    productsCount: number;
     children: ReactNode;
 }) {
     const closeRef = useRef<HTMLButtonElement>(null);
@@ -37,27 +47,24 @@ function DrawerPanel({
     }, []);
 
     return (
-        <div
-            className="fixed inset-0 isolate z-[150] lg:hidden"
-            role="presentation"
-        >
+        <div className="fixed inset-0 isolate z-[150] lg:hidden" role="presentation">
             <button
                 type="button"
                 aria-label="Закрыть фильтры"
-                className="absolute inset-0 z-0 bg-black/45"
+                className="absolute inset-0 z-0 bg-slate-900/40 backdrop-blur-[1px]"
                 onClick={onClose}
             />
 
             <aside
-                className="absolute inset-y-0 left-0 z-10 flex h-full w-[min(90vw,26rem)] max-w-full flex-col bg-[var(--surface)] shadow-2xl"
+                className="absolute inset-y-0 left-0 z-10 flex h-full w-[min(92vw,24rem)] max-w-full flex-col border-r border-admin-border bg-admin-surface shadow-2xl"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="catalog-mobile-filters-title"
             >
-                <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-3 py-3">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-admin-border px-4 py-3">
                     <h2
                         id="catalog-mobile-filters-title"
-                        className="min-w-0 flex-1 text-lg font-bold leading-tight text-[var(--foreground)]"
+                        className="min-w-0 flex-1 text-base font-semibold text-admin-text"
                     >
                         Фильтры
                     </h2>
@@ -65,24 +72,49 @@ function DrawerPanel({
                         ref={closeRef}
                         type="button"
                         onClick={onClose}
-                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-admin-surface text-admin-text transition hover:bg-admin-muted"
                         aria-label="Закрыть фильтры"
                     >
-                        <X className="h-6 w-6 shrink-0" strokeWidth={2.5} aria-hidden />
+                        <X className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
                     </button>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
                     {children}
                 </div>
+
+                <div className="shrink-0 border-t border-admin-border bg-admin-surface p-3">
+                    <div className="flex flex-col gap-2">
+                        {hasActiveFilters ? (
+                            <button type="button" onClick={onReset} className={`${siteBtnSecondary} w-full`}>
+                                Очистить фильтры
+                            </button>
+                        ) : null}
+                        <button type="button" onClick={onClose} className={`${siteBtnPrimary} w-full`}>
+                            Показать {productsCount} {productsCountLabel(productsCount)}
+                        </button>
+                    </div>
+                </div>
             </aside>
         </div>
     );
 }
 
+function productsCountLabel(count: number): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) return "товар";
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "товара";
+    return "товаров";
+}
+
 export default function CatalogMobileFiltersDrawer(props: Props) {
     const [open, setOpen] = useState(false);
     const compact = props.compact ?? false;
+    const searchParams = useSearchParams();
+    const { navigate } = useCatalogNavigation();
+
+    const hasActiveFilters = Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort");
 
     useEffect(() => {
         if (!open) {
@@ -108,10 +140,19 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
         return () => window.removeEventListener("keydown", onKey);
     }, [open]);
 
+    const resetFilters = () => {
+        navigate(props.basePath);
+    };
+
     const drawer =
         open && typeof document !== "undefined" ? (
             createPortal(
-                <DrawerPanel onClose={() => setOpen(false)}>
+                <DrawerPanel
+                    onClose={() => setOpen(false)}
+                    onReset={resetFilters}
+                    hasActiveFilters={hasActiveFilters}
+                    productsCount={props.productsCount}
+                >
                     <CatalogFilters
                         brands={props.brands}
                         basePath={props.basePath}
@@ -119,6 +160,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                         attributes={props.attributes}
                         priceRange={props.priceRange}
                         volumeOptions={props.volumeOptions}
+                        hideReset
                     />
                 </DrawerPanel>,
                 document.body
@@ -133,12 +175,12 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                     onClick={() => setOpen(true)}
                     className={
                         compact
-                            ? "inline-flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] [touch-action:manipulation] active:bg-[var(--background)]"
-                            : "w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 text-left text-sm font-semibold text-[var(--foreground)] shadow-sm transition [touch-action:manipulation] active:bg-[var(--background)]"
+                            ? `${siteBtnSecondary} h-11 w-full justify-between gap-2 px-3 [touch-action:manipulation]`
+                            : `${siteBtnSecondary} w-full justify-between px-4 py-3.5 [touch-action:manipulation]`
                     }
                 >
-                    <span>Фильтры</span>
-                    {compact ? <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden /> : null}
+                    <span>Фильтры{hasActiveFilters ? " •" : ""}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-admin-text-secondary" aria-hidden />
                 </button>
             </div>
 

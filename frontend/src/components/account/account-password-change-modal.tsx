@@ -1,14 +1,13 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { ApiRequestError, requestPasswordChange, verifyPasswordChange } from "@/lib/auth-api";
 import { getAuthToken } from "@/lib/auth-token";
 import SmsDevHint from "@/components/ui/sms-dev-hint";
 import PasswordInput from "@/components/ui/password-input";
-
-const inputClassName =
-    "w-full rounded-2xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)]/60 focus:border-[var(--accent)] focus:bg-[var(--surface)] focus:ring-4 focus:ring-[var(--accent-soft)]/45";
+import { siteBtnGhost, siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
 type AccountPasswordChangeModalProps = {
     phone: string;
@@ -116,54 +115,44 @@ export default function AccountPasswordChangeModal({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+            className="fixed inset-0 z-[200] flex items-end justify-center bg-admin-text/40 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="max-h-[min(92vh,640px)] w-full max-w-md overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_30px_90px_rgba(31,23,34,0.22)]"
+                className={`${siteCard} max-h-[min(92vh,640px)] w-full max-w-md overflow-hidden shadow-2xl`}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="password-change-title"
             >
-                <div className="bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-6 py-5 text-[var(--background)]">
-                    <div className="flex items-start justify-between gap-4">
+                <div className="border-b border-admin-border px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+                    <div className="flex items-start justify-between gap-3">
                         <div>
-                            <div className="text-xs font-medium uppercase tracking-[0.22em] text-[var(--background)]/60">
-                                Безопасность
-                            </div>
-                            <h2
-                                id="password-change-title"
-                                className="mt-2 font-display text-2xl font-semibold leading-tight"
-                            >
+                            <h2 id="password-change-title" className="text-lg font-semibold tracking-tight text-admin-text">
                                 Смена пароля
                             </h2>
+                            <p className="mt-1 text-sm text-admin-text-secondary">
+                                Подтверждение придёт по SMS на {phone}
+                            </p>
                         </div>
-
                         <button
                             type="button"
                             onClick={onCloseAction}
                             disabled={isPending}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black/10 text-xl leading-none text-[var(--background)] transition hover:bg-black/20 disabled:opacity-50"
+                            className={`${siteBtnGhost} h-9 w-9 shrink-0 p-0`}
                             aria-label="Закрыть"
                         >
-                            ×
+                            <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                         </button>
                     </div>
                 </div>
 
-                <div className="max-h-[calc(92vh-7rem)] overflow-y-auto p-6">
-                    <p className="mb-5 text-sm leading-6 text-[var(--text-secondary)]">
-                        Укажите новый пароль. Подтверждение придёт по SMS на {phone}.
-                    </p>
-
+                <div className="max-h-[calc(92vh-7rem)] overflow-y-auto p-5 sm:p-6">
                     {step === "form" ? (
                         <div className="space-y-4">
                             <div>
-                                <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                    Новый пароль
-                                </label>
+                                <label className="mb-1.5 block text-sm font-medium text-admin-text">Новый пароль</label>
                                 <PasswordInput
                                     value={password}
                                     onChangeAction={setPassword}
@@ -172,7 +161,7 @@ export default function AccountPasswordChangeModal({
                             </div>
 
                             <div>
-                                <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">
+                                <label className="mb-1.5 block text-sm font-medium text-admin-text">
                                     Повторите пароль
                                 </label>
                                 <PasswordInput
@@ -183,20 +172,10 @@ export default function AccountPasswordChangeModal({
                             </div>
 
                             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-                                <button
-                                    type="button"
-                                    onClick={onCloseAction}
-                                    disabled={isPending}
-                                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:opacity-50"
-                                >
+                                <button type="button" onClick={onCloseAction} disabled={isPending} className={siteBtnSecondary}>
                                     Отмена
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={handleRequestCode}
-                                    disabled={isPending}
-                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:opacity-90 disabled:opacity-50"
-                                >
+                                <button type="button" onClick={handleRequestCode} disabled={isPending} className={siteBtnPrimary}>
                                     {isPending ? "Отправка…" : "Подтвердить по SMS"}
                                 </button>
                             </div>
@@ -204,20 +183,18 @@ export default function AccountPasswordChangeModal({
                     ) : (
                         <div className="space-y-4">
                             {infoMessage ? (
-                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                                     {infoMessage}
                                 </div>
                             ) : null}
 
                             <div>
-                                <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                    Код из SMS
-                                </label>
+                                <label className="mb-1.5 block text-sm font-medium text-admin-text">Код из SMS</label>
                                 <input
                                     type="text"
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    className={inputClassName}
+                                    className={siteInput}
                                     placeholder="Введите код"
                                     inputMode="numeric"
                                     disabled={isPending}
@@ -235,7 +212,7 @@ export default function AccountPasswordChangeModal({
                                         setInfoMessage("");
                                     }}
                                     disabled={isPending}
-                                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:opacity-50"
+                                    className={siteBtnSecondary}
                                 >
                                     Назад
                                 </button>
@@ -243,7 +220,7 @@ export default function AccountPasswordChangeModal({
                                     type="button"
                                     onClick={handleVerify}
                                     disabled={isPending || !code}
-                                    className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:opacity-90 disabled:opacity-50"
+                                    className={siteBtnPrimary}
                                 >
                                     {isPending ? "Проверка…" : "Сменить пароль"}
                                 </button>
@@ -252,7 +229,7 @@ export default function AccountPasswordChangeModal({
                     )}
 
                     {errorMessage ? (
-                        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {errorMessage}
                         </div>
                     ) : null}

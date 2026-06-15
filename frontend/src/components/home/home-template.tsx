@@ -1,6 +1,8 @@
 import Link from "next/link";
 import HomeStoreReviewsSection from "@/components/home/home-store-reviews-section";
+import HomeFaqAccordion from "@/components/home/home-faq-accordion";
 import { HOME_PAGE_FAQ_ITEMS as faq, type HomePageReviewSnippet } from "@/lib/json-ld";
+import { siteBtnPrimary, siteBtnSecondary, siteCard, siteFilterChip, siteFilterChipInactive } from "@/lib/site-ui-classes";
 
 type HomeTemplateProps = {
     heroTitle: string;
@@ -65,13 +67,13 @@ function FeaturedProductCard({
     oldPrice: string | null;
 }) {
     return (
-        <div className="group cursor-pointer rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)]">
-            <div className="mb-4 aspect-square rounded-[16px] bg-[var(--surface)]" />
-            <div className="mb-1 text-sm text-[var(--text-secondary)]">{brand}</div>
-            <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-[var(--foreground)]">{name}</div>
+        <div className={`${siteCard} group cursor-pointer p-4 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md`}>
+            <div className="mb-4 aspect-square rounded-lg bg-admin-muted" />
+            <div className="mb-1 text-sm text-admin-text-secondary">{brand}</div>
+            <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-admin-text">{name}</div>
             <div className="mt-4 flex items-end gap-2">
-                <div className="text-lg font-semibold text-[var(--foreground)]">{price} BYN</div>
-                {oldPrice ? <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice} BYN</div> : null}
+                <div className="text-lg font-semibold text-admin-text">{price} BYN</div>
+                {oldPrice ? <div className="text-sm text-admin-text-secondary line-through">{oldPrice} BYN</div> : null}
             </div>
         </div>
     );
@@ -81,46 +83,48 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
     return (
         <>
             <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
-                <section className="relative overflow-hidden rounded-[28px] border border-[var(--line)] bg-[var(--surface)] px-5 py-7 md:px-8 md:py-9">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_85%_0%,rgba(201,164,92,0.12),transparent_55%)]" />
+                <section className={`${siteCard} relative overflow-hidden px-5 py-7 md:px-8 md:py-9`}>
                     <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
                         <div className="order-1 md:min-w-0 md:flex-[1.28]">
-                            <div className="mb-4 inline-flex rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)] px-3 py-1 text-xs uppercase tracking-[0.14em] text-[var(--accent)]">
-                                Dark Luxury Editorial
+                            <div className="mb-4 inline-flex rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
+                                Оригинальная парфюмерия
                             </div>
 
-                            <h1 className="font-display max-w-[19ch] text-5xl leading-[0.95] text-[var(--foreground)] sm:text-6xl">
+                            <h1 className="max-w-[20ch] text-3xl font-semibold leading-tight tracking-tight text-admin-text sm:text-4xl md:text-5xl">
                                 {heroTitle}
                             </h1>
 
-                            <p className="mt-4 max-w-[44ch] text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                            <p className="mt-4 max-w-[44ch] text-sm leading-7 text-admin-text-secondary sm:text-base">
                                 {heroDescription}
                             </p>
 
-                            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--text-secondary)]">
-                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">100% оригинал</span></span>
-                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">Доставка по Беларуси</span></span>
-                                <span className="text-[var(--accent)]">✦ <span className="text-[var(--text-secondary)]">Консультация эксперта</span></span>
+                            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-admin-text-secondary">
+                                <span>100% оригинал</span>
+                                <span className="text-admin-border-strong">·</span>
+                                <span>Доставка по Беларуси</span>
+                                <span className="text-admin-border-strong">·</span>
+                                <span>Консультация эксперта</span>
                             </div>
 
                             <div className="mt-7 flex flex-wrap gap-3">
-                                <Link href="/catalog" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]">
+                                <Link href="/catalog" className={siteBtnPrimary}>
                                     Смотреть каталог
                                 </Link>
-                                <Link href="/brands" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-transparent px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]">
+                                <Link href="/brands" className={siteBtnSecondary}>
                                     Популярные бренды
                                 </Link>
                             </div>
                         </div>
 
-                        <div className="order-2 relative mx-auto w-full max-w-[360px] md:mx-0 md:ml-auto md:flex-[0.72]">
-                            <div className="rounded-[28px] border border-[var(--accent-soft)] bg-[var(--image-plate)] bg-gradient-to-b from-[#F8F4ED] to-[#E9DECF] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-                                <div className="relative h-72">
-                                    <div className="absolute left-1/2 top-5 h-56 w-36 -translate-x-1/2 rounded-[28px] border border-[#C9A45C]/40 bg-gradient-to-b from-[#2a2320] to-[#14110F] shadow-[0_26px_40px_rgba(0,0,0,0.4)]" />
-                                    <div className="absolute left-1/2 top-[-2px] h-16 w-14 -translate-x-1/2 rounded-[16px] border border-[#C9A45C]/60 bg-gradient-to-b from-[#E4C786] to-[#C9A45C]" />
-                                    <div className="absolute left-1/2 top-16 h-16 w-24 -translate-x-1/2 rounded-[16px] border border-[#C9A45C]/40 bg-white/30" />
-                                    <div className="absolute bottom-4 right-4 rounded-[16px] bg-[var(--accent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--background)]">
-                                        bestseller
+                        <div className="order-2 relative mx-auto w-full max-w-[320px] md:mx-0 md:ml-auto md:flex-[0.72]">
+                            <div className="rounded-xl border border-admin-border bg-admin-muted p-6">
+                                <div className="flex aspect-[4/5] items-center justify-center rounded-lg bg-admin-surface text-center">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-admin-text-secondary">
+                                            Perfumer
+                                        </div>
+                                        <div className="mt-2 font-display text-2xl text-admin-text">Ароматы</div>
+                                        <div className="mt-1 text-sm text-admin-text-secondary">для вашего стиля</div>
                                     </div>
                                 </div>
                             </div>
@@ -129,7 +133,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                 </section>
 
                 <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Быстрый выбор категорий
                     </h2>
 
@@ -138,15 +142,15 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                             <Link
                                 key={category.title}
                                 href={category.href}
-                                className="group rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 transition hover:-translate-y-[2px] hover:shadow-[0_16px_30px_rgba(31,23,34,0.08)]"
+                                className={`${siteCard} group p-5 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md`}
                             >
-                                <div className="font-display text-2xl font-semibold text-[var(--foreground)]">
+                                <div className="text-lg font-semibold text-admin-text sm:text-xl">
                                     {category.title}
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                                <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
                                     {category.description}
                                 </p>
-                                <span className="mt-4 inline-flex text-sm font-semibold text-[var(--accent)] transition group-hover:translate-x-1">
+                                <span className="mt-4 inline-flex text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
                                     Смотреть →
                                 </span>
                             </Link>
@@ -155,7 +159,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                 </section>
 
                 <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Популярные бренды
                     </h2>
 
@@ -164,7 +168,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                             <Link
                                 key={brand}
                                 href={`/brands/${encodeURIComponent(brand.toLowerCase().replace(/\s+/g, "-"))}`}
-                                className="flex min-h-[82px] items-center justify-center rounded-[20px] border border-[var(--line)] bg-[var(--surface)] px-4 text-center text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
+                                className={`${siteCard} flex min-h-[72px] items-center justify-center px-4 text-center text-sm font-semibold text-admin-text transition hover:border-admin-border-strong hover:bg-admin-muted`}
                             >
                                 {brand}
                             </Link>
@@ -172,9 +176,8 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                     </div>
                 </section>
 
-                <section className="relative mt-10 overflow-hidden rounded-[28px] border border-[var(--accent-soft)] bg-[var(--surface)] p-6 sm:p-8">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_130%_at_0%_0%,var(--accent-soft),transparent_55%)]" />
-                    <h2 className="relative font-display text-3xl font-semibold text-[var(--accent)] sm:text-4xl">
+                <section className={`${siteCard} relative mt-10 overflow-hidden p-6 sm:p-8`}>
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Акцентная подборка
                     </h2>
 
@@ -183,21 +186,24 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                             <Link
                                 key={promo.title}
                                 href={promo.href}
-                                className="rounded-[20px] border border-[var(--line)] bg-[var(--background)] p-5 transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)]"
+                                className="group rounded-xl border border-admin-border bg-admin-muted/40 p-5 transition hover:border-admin-border-strong hover:bg-admin-muted"
                             >
-                                <div className="font-display text-3xl font-semibold leading-tight text-[var(--foreground)]">
+                                <div className="text-xl font-semibold leading-tight text-admin-text sm:text-2xl">
                                     {promo.title}
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                                <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
                                     {promo.description}
                                 </p>
+                                <span className="mt-4 inline-flex text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
+                                    Смотреть →
+                                </span>
                             </Link>
                         ))}
                     </div>
                 </section>
 
                 <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Рекомендуемые товары
                     </h2>
 
@@ -208,12 +214,12 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                     </div>
                 </section>
 
-                <section className="mt-10 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-8">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                <section className={`${siteCard} mt-10 p-6 sm:p-8`}>
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Интернет-магазин оригинальной парфюмерии
                     </h2>
 
-                    <div className="mt-4 space-y-4 text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                    <div className="mt-4 space-y-4 text-sm leading-7 text-admin-text-secondary sm:text-base">
                         <p>
                             В нашем интернет-магазине вы можете купить оригинальную парфюмерию для женщин и мужчин:
                             популярные ароматы, нишевые композиции, тестеры, миниатюры и лимитированные релизы.
@@ -231,17 +237,17 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                 </section>
 
                 <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Почему нам доверяют
                     </h2>
 
                     <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {trustItems.map((item) => (
-                            <div key={item.title} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-                                <div className="font-display text-2xl font-semibold text-[var(--foreground)]">
+                            <div key={item.title} className={`${siteCard} p-5`}>
+                                <div className="text-lg font-semibold text-admin-text sm:text-xl">
                                     {item.title}
                                 </div>
-                                <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
+                                <p className="mt-2 text-sm leading-7 text-admin-text-secondary">
                                     {item.description}
                                 </p>
                             </div>
@@ -251,61 +257,41 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
 
                 <HomeStoreReviewsSection storeReviews={storeReviews} />
 
-                <section className="mt-10 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-8">
+                <section className={`${siteCard} mt-10 p-6 sm:p-8`}>
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.05fr_0.95fr] md:items-center">
                         <div>
-                            <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                            <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                                 Подбор аромата и консультация
                             </h2>
-                            <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">
+                            <p className="mt-3 text-sm leading-7 text-admin-text-secondary">
                                 Если сомневаетесь в выборе, расскажите о предпочтениях, и мы соберём 3-5 вариантов под ваш стиль, бюджет и повод.
                             </p>
                         </div>
 
                         <div className="flex flex-wrap gap-3">
-                            <Link href="/contacts" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]">
+                            <Link href="/contacts" className={siteBtnPrimary}>
                                 Получить консультацию
                             </Link>
-                            <Link href="/catalog?sort=hit" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--accent-soft)] bg-transparent px-5 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]">
+                            <Link href="/catalog?sort=hit" className={siteBtnSecondary}>
                                 Смотреть хиты
                             </Link>
                         </div>
                     </div>
                 </section>
 
-                <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
-                        Вопросы и ответы
-                    </h2>
-
-                    <div className="mt-5 space-y-4">
-                        {faq.map((item) => (
-                            <div
-                                key={item.question}
-                                className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"
-                            >
-                                <h3 className="text-base font-semibold text-[var(--foreground)]">
-                                    {item.question}
-                                </h3>
-                                <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                                    {item.answer}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                <HomeFaqAccordion items={faq} />
 
                 <section className="mt-10">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         Популярные запросы
                     </h2>
 
-                    <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-5 flex flex-wrap gap-2">
                         {popularSearches.map((item) => (
                             <Link
                                 key={item.title}
                                 href={item.href}
-                                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
+                                className={`${siteFilterChip} ${siteFilterChipInactive}`}
                             >
                                 {item.title}
                             </Link>
@@ -313,8 +299,8 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                     </div>
                 </section>
 
-                <section className="mt-10 rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_10px_25px_rgba(31,23,34,0.06)] sm:p-8">
-                    <h2 className="font-display text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                <section className={`${siteCard} mt-10 p-6 sm:p-8`}>
+                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
                         О магазине
                     </h2>
 
@@ -324,7 +310,7 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                             dangerouslySetInnerHTML={{ __html: contentHtml }}
                         />
                     ) : (
-                        <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">
+                        <p className="mt-3 text-sm leading-7 text-admin-text-secondary">
                             Контент главной управляется из админки: раздел `Страницы`, slug `glavnaya`.
                         </p>
                     )}

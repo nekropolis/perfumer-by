@@ -13,13 +13,16 @@ type Props = {
     className?: string;
 };
 
+const defaultLinkClass =
+    "inline-flex items-center gap-2.5 text-base font-medium text-admin-text transition duration-200 ease-out hover:scale-110 hover:text-admin-primary";
+
 export default function CallbackRequestTrigger({
     productId,
     productName,
     variantId,
     variantTitle,
     label = "Заказать звонок",
-    className = "inline-flex items-center gap-1.5 text-sm text-[var(--accent)]",
+    className = defaultLinkClass,
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -30,19 +33,10 @@ export default function CallbackRequestTrigger({
                 onClick={() => setIsOpen(true)}
                 title={label}
                 aria-label={label}
-                style={{ transition: "transform 200ms ease-out" }}
-                onMouseEnter={(event) => {
-                    event.currentTarget.style.transform = "scale(1.1)";
-                }}
-                onMouseLeave={(event) => {
-                    event.currentTarget.style.transform = "scale(1)";
-                }}
                 className={className}
             >
-                <PhoneCall className="h-4 w-4" />
-                <span className="underline underline-offset-4 decoration-[var(--accent-soft)]">
-                    {label}
-                </span>
+                <PhoneCall className="h-5 w-5 shrink-0" strokeWidth={1.75} aria-hidden />
+                <span className="underline underline-offset-4 decoration-admin-border-strong">{label}</span>
             </button>
 
             <CallbackRequestModal

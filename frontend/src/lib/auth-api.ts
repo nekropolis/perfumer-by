@@ -56,6 +56,18 @@ export type MeResponse = {
     data: AuthUserProfile | null;
 };
 
+/** Имя для оформления заказа из профиля (без плейсхолдера «Пользователь»). */
+export function authUserCheckoutName(
+    user: Pick<AuthUserProfile, "name" | "first_name"> | null | undefined,
+): string {
+    const firstName = user?.first_name?.trim();
+    if (firstName) {
+        return firstName;
+    }
+    const name = user?.name?.trim() ?? "";
+    return name && name !== "Пользователь" ? name : "";
+}
+
 export type UpdateProfilePayload = {
     first_name?: string | null;
     last_name?: string | null;

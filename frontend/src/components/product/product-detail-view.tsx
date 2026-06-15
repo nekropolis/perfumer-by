@@ -198,9 +198,9 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
     }, []);
 
     return (
-        <section className="min-w-0 border-t border-[var(--line)] pt-10" aria-labelledby={scrollerId}>
+        <section className="min-w-0 border-t border-admin-border pt-10" aria-labelledby={scrollerId}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 id={scrollerId} className="text-lg font-semibold text-[var(--foreground)]">
+                <h2 id={scrollerId} className="text-lg font-semibold text-admin-text">
                     Похожие товары
                 </h2>
                 {overflow ? (
@@ -211,7 +211,7 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
                             aria-label="Прокрутить похожие товары назад"
                             disabled={!edge.left}
                             onClick={() => scrollByViewport(-1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-admin-border bg-admin-surface text-admin-text shadow-sm transition hover:bg-admin-bg disabled:pointer-events-none disabled:opacity-35"
                         >
                             <ChevronLeft className="h-5 w-5" aria-hidden />
                         </button>
@@ -221,7 +221,7 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
                             aria-label="Прокрутить похожие товары вперёд"
                             disabled={!edge.right}
                             onClick={() => scrollByViewport(1)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm transition hover:bg-[var(--background)] disabled:pointer-events-none disabled:opacity-35"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-admin-border bg-admin-surface text-admin-text shadow-sm transition hover:bg-admin-bg disabled:pointer-events-none disabled:opacity-35"
                         >
                             <ChevronRight className="h-5 w-5" aria-hidden />
                         </button>
@@ -242,7 +242,7 @@ function SimilarProductsCarousel({ products }: { products: ProductListItem[] }) 
                             scrollByViewport(1);
                         }
                     }}
-                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${slideWidthPx === null ? "invisible" : ""}`}
+                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${slideWidthPx === null ? "invisible" : ""}`}
                 >
                     <div className="flex w-max items-start gap-3">
                         {products.map((item, index) => (
@@ -465,7 +465,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <section>
-                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--line)] bg-white p-2 shadow-sm sm:p-3">
+                    <div className="relative aspect-square overflow-hidden rounded-3xl border border-admin-border bg-white p-2 shadow-sm sm:p-3">
                         <ProductStatusLabels
                             isNew={Boolean(product.is_new)}
                             isHit={Boolean(product.is_hit)}
@@ -492,8 +492,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-[var(--background)] to-[var(--surface)] text-[var(--text-secondary)]">
-                                <div className="mb-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+                            <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-admin-bg to-admin-surface text-admin-text-secondary">
+                                <div className="mb-4 rounded-2xl border border-admin-border bg-admin-surface p-4 shadow-sm">
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 24 24"
@@ -510,8 +510,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                     </svg>
                                 </div>
 
-                                <div className="text-base font-medium text-[var(--text-secondary)]">Фото появится позже</div>
-                                <div className="mt-1 text-sm text-[var(--text-secondary)]">Изображение товара загружается</div>
+                                <div className="text-base font-medium text-admin-text-secondary">Фото появится позже</div>
+                                <div className="mt-1 text-sm text-admin-text-secondary">Изображение товара загружается</div>
                             </div>
                         )}
                     </div>
@@ -529,7 +529,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                         key={image.id}
                                         type="button"
                                         onClick={() => setSelectedImageId(image.id)}
-                                        className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-[var(--accent)] ring-1 ring-[var(--accent-soft)]" : "border-[var(--line)]"}`}
+                                        className={`relative aspect-square overflow-hidden rounded-xl border ${isActive ? "border-admin-primary ring-1 ring-admin-primary/20" : "border-admin-border"}`}
                                     >
                                         <div className="relative h-full w-full bg-[var(--image-plate)] p-1">
                                             <Image
@@ -550,7 +550,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                 </section>
 
                 <section className="min-w-0">
-                    <div className="mb-2 flex items-center gap-1 text-sm text-[var(--text-secondary)]">
+                    <div className="mb-2 flex items-center gap-1 text-sm text-admin-text-secondary">
                         <span>Код товара:</span>
                         <CopyText
                             value={String(product.id)}
@@ -567,8 +567,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         type="button"
                         onClick={() => void toggleWishlist(product.id)}
                         className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${isInWishlist(product.id)
-                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)] hover:bg-[var(--accent-hover)]"
-                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+                            ? "border-admin-primary bg-admin-primary text-white hover:bg-admin-primary-hover"
+                            : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted"
                             }`}
                     >
                         <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
@@ -579,8 +579,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                     {variants.length > 0 ? (
                         <>
 
-                            <div className="mb-3 text-sm font-medium text-[var(--foreground)]">Выбор вариантов</div>
-                            <div className="mb-6 rounded-3xl border border-[var(--line)] bg-[var(--background)] p-3">
+                            <div className="mb-3 text-sm font-medium text-admin-text">Выбор вариантов</div>
+                            <div className="mb-6 rounded-3xl border border-admin-border bg-admin-bg p-3">
                                 <div className="flex flex-wrap gap-2">
                                     {variants.map((variant) => {
                                         const isSelected = variant.id === selectedVariantId;
@@ -607,8 +607,8 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
                                                 className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${isSelected
-                                                    ? "bg-[var(--surface)] border-[var(--accent)] shadow-[0_0_0_2px_var(--accent-soft)]"
-                                                    : "bg-[var(--surface)] border-[var(--line)] hover:bg-[var(--background)] hover:border-[var(--accent-soft)] hover:-translate-y-[1px] active:scale-[0.97]"
+                                                    ? "bg-admin-surface border-admin-primary shadow-[0_0_0_2px_rgba(36,28,21,0.12)]"
+                                                    : "bg-admin-surface border-admin-border hover:bg-admin-bg hover:border-admin-primary/40 hover:-translate-y-[1px] active:scale-[0.97]"
                                                     }`}
                                             >
                                                 <div className="flex flex-col gap-0.5">
@@ -618,7 +618,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
                                                     <div className="flex items-center gap-2">
                                                         {variant.price && (
-                                                            <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--foreground)]">
+                                                            <span className="text-xs text-admin-text-secondary group-hover:text-admin-text">
                                                                 {formatPrice(
                                                                     isAuthenticated && loyaltyCard
                                                                         ? applyPercentDiscount(variant.price, loyaltyCard.discountPercent)
@@ -679,16 +679,16 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                 </section>
 
                 <section className="min-w-0 md:col-span-2 xl:col-span-2">
-                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)]">
-                        <div className="flex overflow-x-auto border-b border-[var(--line)]" role="tablist" aria-label="Информация о товаре">
+                    <div className="rounded-3xl border border-admin-border bg-admin-surface">
+                        <div className="flex overflow-x-auto border-b border-admin-border" role="tablist" aria-label="Информация о товаре">
                             <button
                                 type="button"
                                 role="tab"
                                 aria-selected={activeTab === "attributes"}
                                 onClick={() => setActiveTab("attributes")}
                                 className={`shrink-0 whitespace-nowrap px-6 py-4 text-sm font-medium ${activeTab === "attributes"
-                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
-                                    : "text-[var(--text-secondary)]"
+                                    ? "border-b-2 border-admin-primary text-admin-text"
+                                    : "text-admin-text-secondary"
                                     }`}
                             >
                                 Характеристики
@@ -700,13 +700,13 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
                                 className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-6 py-4 text-sm font-medium ${activeTab === "reviews"
-                                    ? "border-b-2 border-[var(--accent)] text-[var(--foreground)]"
-                                    : "text-[var(--text-secondary)]"
+                                    ? "border-b-2 border-admin-primary text-admin-text"
+                                    : "text-admin-text-secondary"
                                     }`}
                             >
                                 <span>Отзывы</span>
                                 <span
-                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--background)]"
+                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-admin-primary px-1.5 text-[11px] font-semibold tabular-nums text-white"
                                     aria-label={`${reviewsTabCount} отзывов`}
                                 >
                                     {reviewsTabCount}
@@ -736,16 +736,16 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                             return (
                                                 <div
                                                     key={item.id}
-                                                    className="grid grid-cols-1 gap-1 border-b border-[var(--line)] pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr] sm:gap-4"
+                                                    className="grid grid-cols-1 gap-1 border-b border-admin-border pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[180px_1fr] sm:gap-4"
                                                 >
-                                                    <dt className="text-sm text-[var(--text-secondary)]">{label}</dt>
-                                                    <dd className="text-sm text-[var(--foreground)]">{valueText}</dd>
+                                                    <dt className="text-sm text-admin-text-secondary">{label}</dt>
+                                                    <dd className="text-sm text-admin-text">{valueText}</dd>
                                                 </div>
                                             );
                                         })}
                                     </dl>
                                 ) : (
-                                    <div className="text-sm text-[var(--text-secondary)]">Характеристики отсутствуют</div>
+                                    <div className="text-sm text-admin-text-secondary">Характеристики отсутствуют</div>
                                 )}
                             </div>
 
@@ -763,17 +763,17 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
 
                             {product.description ? (
                                 <section
-                                    className="mt-8 border-t border-[var(--line)] pt-8"
+                                    className="mt-8 border-t border-admin-border pt-8"
                                     aria-labelledby="product-description-heading"
                                 >
                                     <h2
                                         id="product-description-heading"
-                                        className="mt-3 mb-3 text-base font-semibold text-[var(--foreground)]"
+                                        className="mt-3 mb-3 text-base font-semibold text-admin-text"
                                     >
                                         Описание продукта
                                     </h2>
                                     <div
-                                        className="prose prose-sm max-w-none text-[var(--foreground)] sm:prose-base"
+                                        className="prose prose-sm max-w-none text-admin-text sm:prose-base"
                                         dangerouslySetInnerHTML={{ __html: product.description }}
                                     />
                                 </section>
@@ -784,7 +784,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
             </div>
             {showMobileBuyBar ? (
                 <div
-                    className="fixed inset-x-0 bottom-0 z-[130] border-t border-[var(--line)] bg-[var(--surface)]/95 px-3 pt-3 backdrop-blur xl:hidden"
+                    className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-3 backdrop-blur xl:hidden"
                     style={{
                         bottom: `${mobileBarBottomOffset}px`,
                         paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
@@ -792,13 +792,13 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                 >
                     <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
                         <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-[var(--foreground)]">
+                            <div className="truncate text-sm font-medium text-admin-text">
                                 {product.h1 || productDisplayName(product)}
                             </div>
-                            <div className="truncate text-xs text-[var(--text-secondary)]">
+                            <div className="truncate text-xs text-admin-text-secondary">
                                 {selectedVariant?.display_name || "Вариант не выбран"}
                             </div>
-                            <div className="text-base font-semibold text-[var(--foreground)]">
+                            <div className="text-base font-semibold text-admin-text">
                                 {selectedVariant
                                     ? formatPrice(
                                         isAuthenticated && loyaltyPrice ? loyaltyPrice : selectedVariant.price
@@ -809,7 +809,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                         {isSelectedVariantInCart ? (
                             <Link
                                 href="/cart"
-                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-[var(--accent-soft)] bg-[var(--background)] px-4 text-sm font-medium text-[var(--accent)]"
+                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-admin-muted px-4 text-sm font-medium text-admin-primary"
                             >
                                 В корзине (оформить)
                             </Link>
@@ -818,7 +818,7 @@ export default function ProductDetailView({ product, initialProductReviews }: Pr
                                 type="button"
                                 onClick={handleAddToCart}
                                 disabled={!selectedVariant?.is_available || isPending}
-                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-semibold text-white transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isPending ? "Добавление..." : "В корзину"}
                             </button>

@@ -15,10 +15,12 @@ export default function NewsPage() {
     const crumbs = [{ label: "Главная", href: "/" }, { label: "Новости" }];
 
     return (
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-            <JsonLd data={breadcrumbListJsonLd(crumbs)} />
-            <Breadcrumbs className="mb-6" items={crumbs} />
-            <NewsList limit={12} />
+        <main className="min-h-screen bg-admin-bg text-admin-text">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+                <JsonLd data={breadcrumbListJsonLd(crumbs)} />
+                <Breadcrumbs className="mb-6" items={crumbs} />
+                <NewsList limit={12} />
+            </div>
         </main>
     );
 }

@@ -17,14 +17,14 @@ export default function AccountPasswordChange({ phone }: AccountPasswordChangePr
     };
 
     return (
-        <div className="border-t border-[var(--line)] pt-4">
+        <div className="border-t border-admin-border pt-4">
             <button
                 type="button"
                 onClick={() => {
                     setSuccessMessage("");
                     setModalOpen(true);
                 }}
-                className="text-sm font-medium text-[var(--accent)] underline decoration-[var(--accent-soft)] underline-offset-[3px] transition hover:opacity-80"
+                className="text-sm font-medium text-admin-primary hover:underline"
             >
                 Сменить пароль
             </button>

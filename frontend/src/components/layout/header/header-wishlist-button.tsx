@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Heart } from "lucide-react";
+import { siteBtnIcon } from "@/lib/site-ui-classes";
 
 type HeaderWishlistButtonProps = {
     qty: number;
@@ -8,16 +10,13 @@ type HeaderWishlistButtonProps = {
 
 export default function HeaderWishlistButton({ qty }: HeaderWishlistButtonProps) {
     return (
-        <Link
-            href="/wishlist"
-            className="relative hidden h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)] md:inline-flex md:h-11 md:w-11"
-        >
-            <span aria-hidden>♡</span>
-            {qty > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-[var(--background)]">
+        <Link href="/wishlist" className={`${siteBtnIcon} relative hidden md:inline-flex`}>
+            <Heart className="h-4 w-4 shrink-0" aria-hidden />
+            {qty > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-admin-primary px-1.5 text-[10px] font-semibold text-white">
                     {qty}
                 </span>
-            )}
+            ) : null}
         </Link>
     );
 }

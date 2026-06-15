@@ -3,6 +3,23 @@
 import Link from "next/link";
 import { useSiteContent } from "@/components/layout/site-content-context";
 import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
+import { siteNavLink } from "@/lib/site-ui-classes";
+
+const INFO_LINKS = [
+    { label: "Дисконтная программа", href: "#" },
+    { label: "Подарочные сертификаты", href: "/gift-certificates" },
+    { label: "Отзывы о магазине", href: "/reviews" },
+    { label: "О нас", href: "#" },
+    { label: "Доставка", href: "#" },
+    { label: "Акции и скидки", href: "/catalog?sale=1" },
+] as const;
+
+const EXTRA_LINKS = [
+    { label: "Бренды", href: "/brands" },
+    { label: "Новости", href: "/news" },
+    { label: "Статьи", href: "/articles" },
+    { label: "Карта сайта", href: "/sitemap" },
+] as const;
 
 export default function Footer() {
     const site = useSiteContent();
@@ -13,97 +30,95 @@ export default function Footer() {
         { label: "life", value: site.contact_phone_life },
     ];
 
+    const threshold = Number.isFinite(site.delivery_minsk_free_threshold)
+        ? site.delivery_minsk_free_threshold
+        : 50;
+
     return (
-        <footer className="border-t border-[var(--line)] bg-[var(--background)]">
-            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <footer className="mt-auto border-t border-admin-border bg-admin-surface">
+            <div className="border-b border-admin-border bg-admin-muted/60">
+                <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-3 text-center text-sm text-admin-text sm:flex-row sm:px-6 sm:text-left">
+                    <span className="font-medium text-admin-text">
+                        Бесплатная доставка по Минску от {threshold} BYN
+                    </span>
+                    <Link
+                        href="/catalog"
+                        className="text-sm font-medium text-admin-primary underline-offset-4 transition hover:text-admin-primary-hover hover:underline"
+                    >
+                        Перейти в каталог →
+                    </Link>
+                </div>
+            </div>
 
-                {/* GRID */}
-                <div className="grid grid-cols-1 gap-10 md:grid-cols-3 text-center md:text-left">
+            <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+                <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="sm:col-span-2 lg:col-span-1">
+                        <Link href="/" className="font-display text-xl font-semibold tracking-tight text-admin-text">
+                            Perfumer
+                        </Link>
+                        <p className="mt-3 max-w-xs text-sm leading-relaxed text-admin-text-secondary">
+                            Интернет-магазин парфюмерии с доставкой по Беларуси.
+                        </p>
+                    </div>
 
-                    {/* 1. Контакты */}
-                    <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+                    <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                             Связаться с нами
                         </div>
-
-                        <div className="space-y-2 text-sm text-[var(--foreground)]">
+                        <div className="space-y-2">
                             {phones.map(({ label, value }) => (
-                                <a key={label} href={telHref(value)} className="block transition hover:text-[var(--accent)]">
-                                    Perfumer{" "}
-                                    <span className="text-[var(--text-secondary)]">{label}</span>{" "}
+                                <a
+                                    key={label}
+                                    href={telHref(value)}
+                                    className="flex items-center gap-2 text-sm text-admin-text transition hover:text-admin-primary"
+                                >
+                                    <span className="inline-flex shrink-0 rounded px-1 py-px text-[9px] font-semibold uppercase leading-none text-admin-text-secondary bg-admin-muted">
+                                        {label}
+                                    </span>
                                     {formatBelarusDisplay(value)}
                                 </a>
                             ))}
                         </div>
                     </div>
 
-                    {/* 2. Информация */}
-                    <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
+                    <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                             Информация
                         </div>
-
-                        <div className="flex flex-col gap-2 text-sm text-[var(--foreground)]">
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Дисконтная программа
-                            </Link>
-                            <Link href="/gift-certificates" className="transition hover:text-[var(--accent)]">
-                                Подарочные сертификаты
-                            </Link>
-                            <Link href="/reviews" className="transition hover:text-[var(--accent)]">
-                                Отзывы о магазине
-                            </Link>
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                О нас
-                            </Link>
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Информация о доставке
-                            </Link>
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Акции и скидки
-                            </Link>
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Наши партнеры
-                            </Link>
-                        </div>
+                        <nav className="flex flex-col gap-2">
+                            {INFO_LINKS.map((item) => (
+                                <Link key={item.href + item.label} href={item.href} className={siteNavLink}>
+                                    {item.label}
+                                </Link>
+                            ))}
+                        </nav>
                     </div>
 
-                    {/* 3. Дополнительно */}
-                    <div className="flex flex-col items-center md:items-start">
-                        <div className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-                            Дополнительно
+                    <div>
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                            Каталог
                         </div>
-
-                        <div className="flex flex-col gap-2 text-sm text-[var(--foreground)]">
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Производители
-                            </Link>
-                            <Link href="#" className="transition hover:text-[var(--accent)]">
-                                Партнёры
-                            </Link>
-                            <Link href="/sitemap" className="transition hover:text-[var(--accent)]">
-                                Карта сайта
-                            </Link>
-                        </div>
+                        <nav className="flex flex-col gap-2">
+                            {EXTRA_LINKS.map((item) => (
+                                <Link key={item.href} href={item.href} className={siteNavLink}>
+                                    {item.label}
+                                </Link>
+                            ))}
+                        </nav>
                     </div>
                 </div>
 
-                {/* BOTTOM */}
-                <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--line)] pt-6 text-center text-sm text-[var(--text-secondary)] sm:flex-row sm:text-left">
+                <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-admin-border pt-6 text-center text-sm text-admin-text-secondary sm:flex-row sm:text-left">
                     <div>
-                        ©{" "}
-                        <span suppressHydrationWarning>{new Date().getFullYear()}</span>{" "}
-                        Perfumer
+                        © <span suppressHydrationWarning>{new Date().getFullYear()}</span> Perfumer. Все права защищены.
                     </div>
-                    <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
-                        <Link
-                            href="/sitemap"
-                            className="text-[var(--foreground)] underline-offset-4 transition hover:text-[var(--accent)] hover:underline"
-                        >
+                    <div className="flex flex-wrap items-center justify-center gap-4">
+                        <Link href="/sitemap" className={`${siteNavLink} underline-offset-4 hover:underline`}>
                             Карта сайта
                         </Link>
-                        <span className="hidden text-[var(--line)] sm:inline">·</span>
-                        <span>Все права защищены</span>
+                        <Link href="/contacts" className={`${siteNavLink} underline-offset-4 hover:underline`}>
+                            Контакты
+                        </Link>
                     </div>
                 </div>
             </div>

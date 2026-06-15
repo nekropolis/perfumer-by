@@ -1,14 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { type RefObject } from "react";
-import { createPortal } from "react-dom";
+import { useState, type RefObject } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
+import { siteBtnPrimary, siteCard, siteMenuRow } from "@/lib/site-ui-classes";
+
+type MenuPanel = "root" | "catalog" | "content";
+
+type CatalogSection = {
+    title: string;
+    links: ReadonlyArray<{ label: string; href: string }>;
+};
 
 type Props = {
     isOpen: boolean;
-    topOffset: number;
+    anchorBottom: number;
     wishlistQty: number;
+    catalogSections: ReadonlyArray<CatalogSection>;
     contactLinks?: ReadonlyArray<{ label: string; href: string }>;
     phoneLinks?: ReadonlyArray<{ label: string; number: string }>;
     isAuthenticated: boolean;
@@ -16,14 +25,28 @@ type Props = {
     userPhone: string;
     onCloseAction: () => void;
     onLogoutAction: () => void;
-    /** Root of portaled menu — parent uses this to ignore “click outside” for desktop search ref. */
     menuRootRef?: RefObject<HTMLDivElement | null>;
 };
 
+const ROOT_LINKS = [
+    { label: "Новинки", href: "/catalog?sort=new" },
+    { label: "Акции", href: "/catalog?sale=1" },
+    { label: "Бренды", href: "/brands" },
+    { label: "Избранное", href: "/wishlist", badgeKey: "wishlist" as const },
+] as const;
+
+const CONTENT_LINKS = [
+    { label: "Новости", href: "/news" },
+    { label: "Статьи", href: "/articles" },
+    { label: "Отзывы о магазине", href: "/reviews" },
+    { label: "Контакты", href: "/contacts" },
+] as const;
+
 export default function HeaderMobileMenu({
     isOpen,
-    topOffset,
+    anchorBottom,
     wishlistQty,
+    catalogSections,
     phoneLinks = [],
     contactLinks = [],
     isAuthenticated,
@@ -33,9 +56,21 @@ export default function HeaderMobileMenu({
     onLogoutAction,
     menuRootRef,
 }: Props) {
-    if (!isOpen || typeof window === "undefined") {
+    const [panel, setPanel] = useState<MenuPanel>("root");
+
+    if (!isOpen) {
         return null;
     }
+
+    const handleClose = () => {
+        setPanel("root");
+        onCloseAction();
+    };
+
+    const handleNavigate = () => {
+        setPanel("root");
+        onCloseAction();
+    };
 
     const getOperatorBadgeClass = (label: string) => {
         const normalized = label.toLowerCase();
@@ -48,169 +83,173 @@ export default function HeaderMobileMenu({
         return "bg-violet-50 text-violet-700 border-violet-200";
     };
 
-    return createPortal(
+    const panelTitle =
+        panel === "catalog" ? "Каталог" : panel === "content" ? "Разделы" : "Меню";
+
+    return (
         <div
             ref={menuRootRef}
-            className="fixed inset-x-0 bottom-0 z-50 overflow-x-clip border-t border-[var(--line)] bg-[var(--surface)] md:hidden"
-            style={{ top: `${topOffset}px` }}
+            className="fixed inset-x-0 bottom-0 z-[130] flex flex-col overflow-hidden bg-admin-surface md:hidden"
+            style={{ top: `${anchorBottom || 64}px` }}
         >
-            <div className="h-full overflow-y-auto overscroll-contain">
-                <div className="mx-auto max-w-7xl px-4 py-4 pb-6 sm:px-6">
-                    <div className="flex flex-col gap-3">
-                    <div className="grid grid-cols-2 gap-2">
-                        <Link
-                            href="/catalog"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
+            <div className="flex shrink-0 items-center gap-2 border-b border-admin-border px-4 py-3">
+                {panel !== "root" ? (
+                    <button
+                        type="button"
+                        onClick={() => setPanel("root")}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                        aria-label="Назад"
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
+                ) : null}
+                <h2 className="min-w-0 flex-1 text-base font-semibold text-admin-text">{panelTitle}</h2>
+                <button
+                    type="button"
+                    onClick={handleClose}
+                    className="text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
+                >
+                    Закрыть
+                </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+                {panel === "root" ? (
+                    <div className="flex flex-col gap-1">
+                        <button
+                            type="button"
+                            className={siteMenuRow}
+                            onClick={() => setPanel("catalog")}
                         >
-                            Каталог
-                        </Link>
+                            <span>Каталог</span>
+                            <ChevronRight className="h-4 w-4 text-admin-text-muted" />
+                        </button>
 
-                        <Link
-                            href="/brands"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Бренды
-                        </Link>
-
-                        <Link
-                            href="/wishlist"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            <span className="inline-flex items-center gap-2">
-                                Избранное
-                                {wishlistQty > 0 ? (
-                                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-semibold text-[var(--background)]">
-                                        {wishlistQty}
-                                    </span>
-                                ) : null}
-                            </span>
-                        </Link>
-
-                        <Link
-                            href="/catalog?sort=new"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Новинки
-                        </Link>
-
-                        <Link
-                            href="/catalog?sale=1"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Акции
-                        </Link>
-
-                        <Link
-                            href="/reviews"
-                            className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Отзывы о магазине
-                        </Link>
-
-                        <Link
-                            href="/news"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Новости
-                        </Link>
-
-                        <Link
-                            href="/articles"
-                            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                            onClick={onCloseAction}
-                        >
-                            Статьи
-                        </Link>
-                    </div>
-
-                    {isAuthenticated ? (
-                        <div className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-2">
-                            <div className="rounded-2xl bg-[var(--background)] px-4 py-3">
-                                <div className="text-sm font-medium text-[var(--foreground)]">
-                                    {userName}
-                                </div>
-                                <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                                    {userPhone}
-                                </div>
-                            </div>
-
+                        {ROOT_LINKS.map((item) => (
                             <Link
-                                href="/account"
-                                className="mt-2 block rounded-2xl px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
-                                onClick={onCloseAction}
+                                key={item.href}
+                                href={item.href}
+                                className={siteMenuRow}
+                                onClick={handleNavigate}
                             >
-                                Личный кабинет
+                                <span className="inline-flex items-center gap-2">
+                                    {item.label}
+                                    {"badgeKey" in item && item.badgeKey === "wishlist" && wishlistQty > 0 ? (
+                                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-admin-primary px-1.5 text-[10px] font-semibold text-white">
+                                            {wishlistQty}
+                                        </span>
+                                    ) : null}
+                                </span>
                             </Link>
+                        ))}
 
-                            <button
-                                type="button"
-                                className="block w-full rounded-2xl px-4 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
-                                onClick={onLogoutAction}
-                            >
-                                Выйти
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-2">
-                            <Link
-                                href="/login"
-                                className="block rounded-2xl px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] hover:text-[var(--accent)]"
-                                onClick={onCloseAction}
-                            >
+                        <button
+                            type="button"
+                            className={siteMenuRow}
+                            onClick={() => setPanel("content")}
+                        >
+                            <span>Новости и статьи</span>
+                            <ChevronRight className="h-4 w-4 text-admin-text-muted" />
+                        </button>
+
+                        {isAuthenticated ? (
+                            <div className={`${siteCard} mt-3 p-2`}>
+                                <div className="px-2 py-1">
+                                    <div className="text-sm font-medium text-admin-text">{userName}</div>
+                                    <div className="mt-0.5 text-xs text-admin-text-secondary">{userPhone}</div>
+                                </div>
+                                <Link
+                                    href="/account"
+                                    className={siteMenuRow}
+                                    onClick={handleNavigate}
+                                >
+                                    Личный кабинет
+                                </Link>
+                                <button type="button" className={siteMenuRow} onClick={onLogoutAction}>
+                                    Выйти
+                                </button>
+                            </div>
+                        ) : (
+                            <Link href="/login" className={`${siteBtnPrimary} mt-3 w-full`} onClick={handleNavigate}>
                                 Войти
                             </Link>
-                        </div>
-                    )}
+                        )}
 
-                    {contactLinks.length > 0 ? (
-                        <div className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-3">
-                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                                Связаться с нами
-                            </div>
-
-                            <div className="flex flex-col gap-1">
-                                {phoneLinks.map((phone) => (
-                                    <a
-                                        key={phone.number}
-                                        href={`tel:${phone.number}`}
-                                        className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)]"
-                                    >
-                                        <span
-                                            className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
+                        {contactLinks.length > 0 ? (
+                            <div className={`${siteCard} mt-3 p-3`}>
+                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                                    Связаться с нами
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    {phoneLinks.map((phone) => (
+                                        <a
+                                            key={phone.number}
+                                            href={`tel:${phone.number}`}
+                                            className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                                         >
-                                            {phone.label}
-                                        </span>
-                                        <span className="font-medium">{phone.number}</span>
-                                    </a>
-                                ))}
-
-                                {contactLinks.map((item) => (
-                                    <a
-                                        key={item.href}
-                                        href={item.href}
-                                        className="rounded-2xl px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
-                                    >
-                                        {item.label}
-                                    </a>
-                                ))}
-
-                                <div className="pt-1">
-                                    <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm text-[var(--accent)] transition hover:bg-[var(--background)]" />
+                                            <span
+                                                className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
+                                            >
+                                                {phone.label}
+                                            </span>
+                                            <span className="font-medium">{phone.number}</span>
+                                        </a>
+                                    ))}
+                                    {contactLinks.map((item) => (
+                                        <a
+                                            key={item.href}
+                                            href={item.href}
+                                            className="rounded-lg px-2 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                        >
+                                            {item.label}
+                                        </a>
+                                    ))}
+                                    <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm text-admin-primary transition hover:bg-admin-muted" />
                                 </div>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
                     </div>
-                </div>
+                ) : null}
+
+                {panel === "catalog" ? (
+                    <div className="space-y-6">
+                        {catalogSections.map((section) => (
+                            <div key={section.title}>
+                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                                    {section.title}
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    {section.links.map((link) => (
+                                        <Link
+                                            key={link.href}
+                                            href={link.href}
+                                            className={siteMenuRow}
+                                            onClick={handleNavigate}
+                                        >
+                                            {link.label}
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
+
+                {panel === "content" ? (
+                    <div className="flex flex-col gap-0.5">
+                        {CONTENT_LINKS.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={siteMenuRow}
+                                onClick={handleNavigate}
+                            >
+                                {item.label}
+                            </Link>
+                        ))}
+                    </div>
+                ) : null}
             </div>
-        </div>,
-        document.body,
+        </div>
     );
 }

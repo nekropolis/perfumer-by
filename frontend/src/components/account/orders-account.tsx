@@ -8,8 +8,8 @@ import OrderModal from "@/components/account/order-modal";
 import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { formatOrderLoyaltyCardDiscountReason } from "@/lib/loyalty-pricing";
-import { lineItemProductTitle } from "@/lib/product-display-name";
 import type { AuthUserProfile } from "@/lib/auth-api";
+import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
 
 type OrdersAccountProps = {
     isAuthenticated: boolean;
@@ -146,51 +146,51 @@ export default function OrdersAccount({
                     />
                 ) : (
                 <>
-                <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
-                    <div className="text-sm font-medium uppercase tracking-[0.22em] text-[var(--text-secondary)]">
+                <div className={`${siteCard} p-5 sm:p-6`}>
+                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Информация
                     </div>
 
-                    <h2 className="mt-2 text-2xl font-semibold font-display">
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-admin-text">
                         Мои заказы
                     </h2>
 
-                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-3xl bg-[var(--background)] p-4">
-                            <div className="text-xs uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl bg-admin-muted p-4">
+                            <div className="text-xs uppercase tracking-[0.1em] text-admin-text-secondary">
                                 Всего заказов
                             </div>
-                            <div className="mt-2 text-2xl font-semibold">
+                            <div className="mt-2 text-2xl font-semibold text-admin-text">
                                 {totalOrders}
                             </div>
                         </div>
 
-                        <div className="rounded-3xl bg-[var(--background)] p-4">
-                            <div className="text-xs uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                        <div className="rounded-xl bg-admin-muted p-4">
+                            <div className="text-xs uppercase tracking-[0.1em] text-admin-text-secondary">
                                 Сумма
                             </div>
-                            <div className="mt-2 text-2xl font-semibold">
+                            <div className="mt-2 text-2xl font-semibold text-admin-text">
                                 {formatMoneyDisplay(totalSpent) ?? "0,00"} BYN
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6 shadow-[0_24px_70px_rgba(31,23,34,0.06)]">
+                <div className={`${siteCard} p-4 sm:p-5`}>
                     {ordersLoading && (
-                        <div className="rounded-3xl bg-[var(--background)] px-5 py-8 text-[var(--text-secondary)]">
+                        <div className="rounded-xl bg-admin-muted px-5 py-8 text-admin-text-secondary">
                             Загрузка заказов...
                         </div>
                     )}
 
                     {!ordersLoading && errorMessage && (
-                        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
                             {errorMessage}
                         </div>
                     )}
 
                     {!ordersLoading && orders.length === 0 && !errorMessage && (
-                        <div className="rounded-3xl border border-dashed border-[var(--line)] bg-[var(--background)] px-5 py-10 text-center text-[var(--text-secondary)]">
+                        <div className="rounded-xl border border-dashed border-admin-border bg-admin-muted/50 px-5 py-10 text-center text-admin-text-secondary">
                             У вас пока нет заказов.
                         </div>
                     )}
@@ -198,30 +198,15 @@ export default function OrdersAccount({
                     {!ordersLoading && orders.length > 0 && (
                         <div className="space-y-3">
                             {orders.map((order) => {
-                                const previewRows = [
-                                    ...order.items.map((item) => ({
-                                        key: `item-${item.id}`,
-                                        title: lineItemProductTitle(item),
-                                        subtitle: item.variant_title,
-                                        right: `${item.qty} × ${formatMoneyDisplay(item.price) ?? item.price} BYN`,
-                                    })),
-                                    ...(order.gift_certificate_purchases ?? []).map((row) => ({
-                                        key: `gift-${row.id}`,
-                                        title: `Подарочный сертификат: ${row.template_title}`,
-                                        subtitle: `${row.qty} шт.`,
-                                        right: `${formatMoneyDisplay(row.total) ?? row.total} BYN`,
-                                    })),
-                                ].slice(0, 2);
-
                                 return (
                                     <article
                                         key={order.id}
-                                        className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(31,23,34,0.07)]"
+                                        className={`${siteCard} p-4 transition hover:border-admin-border-strong hover:shadow-md sm:p-5`}
                                     >
                                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                             <div>
                                                 <div className="flex flex-wrap items-center gap-3">
-                                                    <h3 className="text-lg font-semibold">
+                                                    <h3 className="text-lg font-semibold text-admin-text">
                                                         Заказ #{order.id}
                                                     </h3>
 
@@ -232,7 +217,7 @@ export default function OrdersAccount({
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                                                <div className="mt-2 text-sm text-admin-text-secondary">
                                                     {order.items_qty} товаров ·{" "}
                                                     {formatMoneyDisplay(order.total) ?? order.total} BYN
                                                 </div>
@@ -258,7 +243,7 @@ export default function OrdersAccount({
                                                     }
 
                                                     return (
-                                                        <div className="mt-1 text-xs font-medium text-green-700">
+                                                        <div className="mt-1 text-xs font-medium text-emerald-700">
                                                             Скидка: −{formatMoneyDisplay(totalDiscount) ?? "0,00"}{" "}
                                                             BYN
                                                             {reasonParts.length > 0 ? ` · ${reasonParts.join(", ")}` : ""}
@@ -270,7 +255,7 @@ export default function OrdersAccount({
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedOrderId(order.id)}
-                                                className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
+                                                className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
                                             >
                                                 Подробнее
                                             </button>

@@ -46,7 +46,7 @@ export default function CmsSnippet({ code, className = "", fallbackTitle }: Prop
             ) : null}
             {block.content ? (
                 <div
-                    className="ProseMirror prose prose-sm max-w-none text-[var(--foreground)] sm:prose-base"
+                    className="ProseMirror prose prose-sm max-w-none text-admin-text sm:prose-base"
                     dangerouslySetInnerHTML={{ __html: block.content }}
                 />
             ) : null}

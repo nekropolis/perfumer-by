@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
+import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 type Variant = {
     id: number;
@@ -53,37 +54,33 @@ export default function ProductBuyBox({
     const canAddToCart = hasVariant && selectedVariant.is_available;
     const selectedVariantId = selectedVariant?.id ?? null;
     const selectedVariantTitle = selectedVariant?.display_name ?? null;
-    const callbackButtonClass = hasVariant
-        ? undefined
-        : "inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-5 py-3.5 text-sm font-medium text-[var(--foreground)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[var(--accent-soft)] hover:bg-[var(--surface)] active:translate-y-0 active:scale-[0.99]";
     const callbackTriggerNode = (
         <CallbackRequestTrigger
             productId={productId}
             productName={productName}
             variantId={selectedVariantId}
             variantTitle={selectedVariantTitle}
-            className={callbackButtonClass}
         />
     );
     const renderNotifyButton = (className: string, iconClassName: string) => (
-        <button type="button" onClick={() => setNotifyOpen(true)} className={className}>
-            <BellRing className={iconClassName} />
-            Сообщить о появлении
+        <button type="button" onClick={() => setNotifyOpen(true)} className={`inline-flex items-center gap-2.5 ${className}`}>
+            <BellRing className={iconClassName} aria-hidden />
+            <span>Сообщить о появлении</span>
         </button>
     );
 
     return (
-        <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
+        <div className={`${siteCard} p-5 sm:p-6`}>
             {hasVariant ? (
                 <>
-                    <div className="mb-2 text-sm text-[var(--text-secondary)]">Выбранный вариант</div>
+                    <div className="mb-2 text-sm text-admin-text-secondary">Выбранный вариант</div>
 
                     <div className="mb-1 text-2xl font-semibold leading-tight">
                         {selectedVariant.display_name}
                     </div>
 
                     {selectedVariant.type && (
-                        <div className="mb-5 text-sm text-[var(--text-secondary)]">
+                        <div className="mb-5 text-sm text-admin-text-secondary">
                             {selectedVariant.type}
                         </div>
                     )}
@@ -100,7 +97,7 @@ export default function ProductBuyBox({
                         </div>
 
                         {(selectedVariant.old_price || hasLoyaltyDiscount) && (
-                            <div className="text-base text-[var(--text-secondary)] line-through">
+                            <div className="text-base text-admin-text-secondary line-through">
                                 {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                             </div>
                         )}
@@ -113,7 +110,7 @@ export default function ProductBuyBox({
                     )}
 
                     {selectedVariant.discount_percent && (
-                        <div className="mb-4 inline-flex rounded-full bg-[var(--accent-soft)] px-3 py-1 text-sm font-medium text-[var(--foreground)]">
+                        <div className="mb-4 inline-flex rounded-full bg-admin-muted px-3 py-1 text-sm font-medium text-admin-text">
                             - {selectedVariant.discount_percent}%
                         </div>
                     )}
@@ -145,7 +142,7 @@ export default function ProductBuyBox({
                             isSelectedVariantInCart ? (
                                 <Link
                                     href="/cart"
-                                    className="inline-flex flex-1 cursor-default items-center justify-center gap-2 rounded-2xl border border-[var(--accent-soft)] bg-[var(--background)] px-5 py-4 text-base font-medium text-[var(--accent)] cursor-pointer"
+                                    className={`${siteBtnSecondary} flex-1 cursor-pointer`}
                                 >
                                     <span aria-hidden>✓</span>
                                     <span>В корзине (оформить)</span>
@@ -155,7 +152,7 @@ export default function ProductBuyBox({
                                     type="button"
                                     onClick={onAddToCartAction}
                                     disabled={!canAddToCart || isPending}
-                                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] transition-all duration-150 hover:-translate-y-[1px] hover:bg-[var(--accent-hover)] active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                    className={`${siteBtnPrimary} flex-1 px-5 py-3.5 text-base`}
                                 >
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -185,7 +182,7 @@ export default function ProductBuyBox({
                     {!canAddToCart && (
                         <div className="mt-3 flex justify-center">
                             {renderNotifyButton(
-                                "inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] transition-transform duration-200 ease-out hover:scale-110",
+                                "inline-flex items-center gap-2.5 text-sm text-admin-text-secondary transition hover:text-admin-text",
                                 "h-4 w-4",
                             )}
                         </div>
@@ -193,20 +190,20 @@ export default function ProductBuyBox({
                 </>
             ) : (
                 <>
-                    <div className="mb-4 text-xl font-semibold leading-tight text-[var(--foreground)]">
+                    <div className="mb-4 text-xl font-semibold leading-tight text-admin-text">
                         Ожидается поступление
                     </div>
-                    <p className="mb-5 text-sm leading-6 text-[var(--text-secondary)]">
+                    <p className="mb-5 text-sm leading-6 text-admin-text-secondary">
                         Оставьте номер телефона — мы Вам сообщим, как только товар появится в продаже,
                         и сразу сориентируем по цене.
                     </p>
 
                     {renderNotifyButton(
-                        "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-4 text-base font-semibold text-[var(--background)] transition-all duration-150 hover:-translate-y-[1px] hover:bg-[var(--accent-hover)] active:translate-y-0 active:scale-[0.99]",
+                        `${siteBtnPrimary} w-full px-5 py-3.5 text-base`,
                         "h-5 w-5",
                     )}
 
-                    <div className="mt-3">
+                    <div className="mt-4 flex justify-center">
                         {callbackTriggerNode}
                     </div>
                 </>

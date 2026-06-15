@@ -10,6 +10,7 @@ import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-imag
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import { productDisplayName } from "@/lib/product-display-name";
+import { siteCard } from "@/lib/site-ui-classes";
 
 type Props = {
     product: ProductListItem;
@@ -117,9 +118,9 @@ export default function ProductCard({ product, eager = false, variant = "catalog
     return (
         <Link
             href={`/product/${product.slug}`}
-            className="group relative flex h-full min-w-0 flex-col rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-[2px] hover:border-[var(--accent-soft)] hover:shadow-[0_14px_28px_rgba(36,28,21,0.07)] active:scale-[0.98]"
+            className={`${siteCard} group relative flex h-full min-w-0 flex-col p-3 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md active:scale-[0.99] sm:p-4`}
         >
-            <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-[16px] bg-[var(--surface)]">
+            <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-lg bg-admin-muted sm:mb-4 sm:rounded-xl">
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
@@ -135,8 +136,8 @@ export default function ProductCard({ product, eager = false, variant = "catalog
                     }}
                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
                     className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:scale-110 active:scale-95 ${inWishlist
-                        ? "border-[var(--accent)]/40 bg-[var(--accent)] text-[var(--background)] shadow-sm hover:opacity-95"
-                        : "border-[var(--line)] bg-[var(--background)]/90 text-[var(--foreground)] backdrop-blur hover:bg-[var(--surface-2)]"
+                        ? "border-admin-primary/30 bg-admin-primary text-white shadow-sm"
+                        : "border-admin-border bg-white/95 text-admin-text backdrop-blur hover:bg-admin-muted"
                         }`}
                 >
                     <span aria-hidden className="text-[13px] leading-none">
@@ -190,10 +191,10 @@ export default function ProductCard({ product, eager = false, variant = "catalog
 
             <div className="flex flex-1 flex-col">
                 {showBrandLine ? (
-                    <div className="mb-1 text-sm text-[var(--text-secondary)]">{brandName}</div>
+                    <div className="mb-1 text-sm text-admin-text-secondary">{brandName}</div>
                 ) : null}
 
-                <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-[var(--foreground)]">
+                <div className="line-clamp-2 min-h-[44px] text-sm font-medium leading-5 text-admin-text sm:min-h-[48px] sm:text-base sm:leading-6">
                     {productTitle}
                 </div>
 
@@ -203,13 +204,13 @@ export default function ProductCard({ product, eager = false, variant = "catalog
                             {visibleVariants.map((label, i) => (
                                 <span
                                     key={`${label}-${i}`}
-                                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--background)]/70 px-1.5 text-[10px] font-semibold text-[var(--foreground)]"
+                                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-admin-border bg-admin-muted px-1.5 text-[10px] font-semibold text-admin-text"
                                 >
                                     {label}
                                 </span>
                             ))}
                             {hiddenVariantsCount > 0 && (
-                                <span className="inline-flex h-5 items-center justify-center rounded-full border border-[var(--line)] px-1.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                <span className="inline-flex h-5 items-center justify-center rounded-full border border-admin-border px-1.5 text-[10px] font-semibold text-admin-text-secondary">
                                     +{hiddenVariantsCount}
                                 </span>
                             )}
@@ -219,9 +220,9 @@ export default function ProductCard({ product, eager = false, variant = "catalog
                 <div className="mt-auto flex items-end justify-between gap-2 pt-4">
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-end gap-2">
-                            <div className="text-lg font-semibold text-[var(--foreground)]">{formatPrice(product)}</div>
+                            <div className="text-base font-semibold text-admin-text sm:text-lg">{formatPrice(product)}</div>
                             {oldPrice ? (
-                                <div className="text-sm text-[var(--text-secondary)] line-through">{oldPrice}</div>
+                                <div className="text-sm text-admin-text-secondary line-through">{oldPrice}</div>
                             ) : null}
                         </div>
                         {variant === "catalog" && isAuthenticated && loyaltyCard && loyaltyPriceText && (
@@ -233,7 +234,7 @@ export default function ProductCard({ product, eager = false, variant = "catalog
 
                     <span
                         aria-hidden
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface-2)] text-[var(--accent)] transition-all duration-150 group-hover:translate-x-0.5 group-hover:border-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--background)]"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white sm:h-9 sm:w-9"
                         title="Перейти к товару"
                     >
                         <svg

@@ -36,19 +36,21 @@ export default async function StoreReviewsPage() {
     const crumbs = [{ label: "Главная", href: "/" }, { label: "Отзывы о магазине" }];
 
     return (
-        <main className="mx-auto w-full max-w-7xl overflow-visible px-4 py-8 sm:px-6">
-            <JsonLd data={breadcrumbListJsonLd(crumbs)} />
-            <Breadcrumbs className="mb-6" items={crumbs} />
-            <ReviewsPageClient
-                initialReviews={initial}
-                pageSize={HOME_STORE_REVIEWS_ON_HOME_LIMIT}
-                stats={stats}
-            >
-                <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Отзывы о магазине</h1>
-                <p className="text-sm text-[var(--text-secondary)]">
-                    Сервис, доставка и покупки. Новые сообщения публикуются после проверки.
-                </p>
-            </ReviewsPageClient>
+        <main className="min-h-screen bg-admin-bg text-admin-text">
+            <div className="mx-auto w-full max-w-7xl overflow-visible px-4 py-8 sm:px-6 lg:px-8">
+                <JsonLd data={breadcrumbListJsonLd(crumbs)} />
+                <Breadcrumbs className="mb-6" items={crumbs} />
+                <ReviewsPageClient
+                    initialReviews={initial}
+                    pageSize={HOME_STORE_REVIEWS_ON_HOME_LIMIT}
+                    stats={stats}
+                >
+                    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Отзывы о магазине</h1>
+                    <p className="text-sm text-admin-text-secondary">
+                        Сервис, доставка и покупки. Новые сообщения публикуются после проверки.
+                    </p>
+                </ReviewsPageClient>
+            </div>
         </main>
     );
 }

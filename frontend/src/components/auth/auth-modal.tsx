@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
     ApiRequestError,
@@ -12,6 +12,7 @@ import {
     verifyRegistration,
 } from "@/lib/auth-api";
 import { useAuth } from "@/components/auth/auth-provider";
+import { siteBtnGhost, siteBtnPrimary, siteBtnSecondary, siteInput } from "@/lib/site-ui-classes";
 import PhoneInput, { isBelarusPhoneComplete } from "@/components/ui/phone-input";
 import { isPrivilegedRole } from "@/constants/admin-roles";
 import RecaptchaNotice from "@/components/ui/recaptcha-notice";
@@ -31,16 +32,42 @@ type Tab = "login" | "register";
 type RegisterStep = "form" | "code";
 type MessageTone = "error" | "success" | "default";
 
-const inputClassName =
-    "w-full rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)]/60 focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]/40";
-
-const labelClassName = "mb-1 block text-xs font-medium text-[var(--foreground)]";
+const labelClassName = "mb-1.5 block text-sm font-medium text-admin-text";
 
 type AuthModalProps = {
     open: boolean;
     onCloseAction: () => void;
     initialTab?: Tab;
 };
+
+function AuthTabButton({
+    active,
+    onClick,
+    children,
+    id,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: ReactNode;
+    id?: string;
+}) {
+    return (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={active}
+            id={id}
+            onClick={onClick}
+            className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition ${
+                active
+                    ? "bg-admin-surface text-admin-text shadow-sm ring-1 ring-admin-border"
+                    : "text-admin-text-secondary hover:text-admin-text"
+            }`}
+        >
+            {children}
+        </button>
+    );
+}
 
 export default function AuthModal({ open, onCloseAction, initialTab = "login" }: AuthModalProps) {
     const router = useRouter();
@@ -66,6 +93,22 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
 
     const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
     const phoneIsValid = isBelarusPhoneComplete(phone);
+
+    const headerTitle = showForgot
+        ? "Восстановление пароля"
+        : registerStep === "code"
+          ? "Подтверждение SMS"
+          : tab === "login"
+            ? "Вход в аккаунт"
+            : "Регистрация";
+
+    const headerSubtitle = showForgot
+        ? "Новый пароль придёт по SMS на ваш номер"
+        : registerStep === "code"
+          ? "Введите код из сообщения"
+          : tab === "login"
+            ? "Заказы, профиль и карта лояльности"
+            : "Создайте аккаунт за минуту";
 
     useEffect(() => {
         setMounted(true);
@@ -132,7 +175,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
             ? "border-red-200 bg-red-50 text-red-700"
             : messageTone === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-[var(--line)] text-[var(--foreground)]";
+              : "border-admin-border bg-admin-muted text-admin-text";
 
     const getRecaptchaToken = async (action: string): Promise<string | undefined> => {
         if (!recaptchaSiteKey || typeof window === "undefined" || !window.grecaptcha) {
@@ -310,74 +353,55 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+            className="fixed inset-0 z-[200] flex items-end justify-center bg-admin-text/40 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="flex max-h-[min(94vh,720px)] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_30px_90px_rgba(31,23,34,0.22)] sm:max-h-[min(92vh,720px)] sm:rounded-xl"
+                className="flex max-h-[min(94vh,720px)] w-full max-w-[420px] flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:max-h-[min(92vh,720px)] sm:rounded-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="auth-modal-title"
             >
-                <div className="shrink-0 bg-gradient-to-br from-[var(--accent-hover)] to-[var(--accent)] px-4 py-3 text-[var(--background)] sm:px-5 sm:py-4">
-                    <div className="flex items-center gap-2">
-                        {!showForgot && registerStep === "form" ? (
-                            <div
-                                className="flex min-w-0 flex-1 rounded-xl border border-black/15 bg-black/10 p-1"
-                                role="tablist"
-                                aria-label="Аккаунт"
-                            >
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={tab === "login"}
-                                    id="auth-modal-title"
-                                    onClick={() => switchTab("login")}
-                                    className={`flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition sm:px-3 ${
-                                        tab === "login"
-                                            ? "bg-[var(--background)] text-[var(--accent)]"
-                                            : "text-[var(--background)]/70 hover:text-[var(--background)]"
-                                    }`}
-                                >
-                                    Войти
-                                </button>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={tab === "register"}
-                                    onClick={() => switchTab("register")}
-                                    className={`flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition sm:px-3 ${
-                                        tab === "register"
-                                            ? "bg-[var(--background)] text-[var(--accent)]"
-                                            : "text-[var(--background)]/70 hover:text-[var(--background)]"
-                                    }`}
-                                >
-                                    Регистрация
-                                </button>
-                            </div>
-                        ) : (
-                            <p id="auth-modal-title" className="min-w-0 flex-1 text-sm font-semibold">
-                                {showForgot ? "Забыли пароль?" : "Код из SMS"}
-                            </p>
-                        )}
+                <div className="shrink-0 border-b border-admin-border px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <h2 id="auth-modal-title" className="text-lg font-semibold tracking-tight text-admin-text">
+                                {headerTitle}
+                            </h2>
+                            <p className="mt-1 text-sm text-admin-text-secondary">{headerSubtitle}</p>
+                        </div>
                         <button
                             type="button"
                             onClick={onCloseAction}
                             disabled={isPending}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/10 text-lg leading-none text-[var(--background)] transition hover:bg-black/20 disabled:opacity-50"
+                            className={`${siteBtnGhost} h-9 w-9 shrink-0 p-0`}
                             aria-label="Закрыть"
                         >
-                            ×
+                            <X className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                         </button>
                     </div>
+
+                    {!showForgot && registerStep === "form" ? (
+                        <div
+                            className="mt-4 flex rounded-lg bg-admin-muted p-1"
+                            role="tablist"
+                            aria-label="Аккаунт"
+                        >
+                            <AuthTabButton active={tab === "login"} onClick={() => switchTab("login")}>
+                                Войти
+                            </AuthTabButton>
+                            <AuthTabButton active={tab === "register"} onClick={() => switchTab("register")}>
+                                Регистрация
+                            </AuthTabButton>
+                        </div>
+                    ) : null}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
                     {showForgot ? (
-                        <div className="space-y-3">
-                            <p className="text-xs text-[var(--text-secondary)]">Новый пароль придёт по SMS.</p>
+                        <div className="space-y-4">
                             <div>
                                 <label className={labelClassName}>Телефон</label>
                                 <PhoneInput value={phone} onChangeAction={setPhone} />
@@ -390,7 +414,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                         clearMessage();
                                     }}
                                     disabled={isPending}
-                                    className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:opacity-50"
+                                    className={siteBtnSecondary}
                                 >
                                     Отмена
                                 </button>
@@ -398,20 +422,33 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     type="button"
                                     onClick={handleForgotPassword}
                                     disabled={isPending}
-                                    className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                                    className={siteBtnPrimary}
                                 >
                                     {isPending ? "Отправка…" : "Отправить SMS"}
                                 </button>
                             </div>
                         </div>
                     ) : tab === "login" ? (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             <div>
                                 <label className={labelClassName}>Телефон</label>
                                 <PhoneInput value={phone} onChangeAction={setPhone} />
                             </div>
                             <div>
-                                <label className={labelClassName}>Пароль</label>
+                                <div className="mb-1.5 flex items-center justify-between gap-2">
+                                    <label className="text-sm font-medium text-admin-text">Пароль</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowForgot(true);
+                                            clearMessage();
+                                            setDevPassword("");
+                                        }}
+                                        className="text-xs font-medium text-admin-primary hover:underline"
+                                    >
+                                        Забыли пароль?
+                                    </button>
+                                </div>
                                 <PasswordInput
                                     value={password}
                                     onChangeAction={(next) => {
@@ -426,33 +463,22 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                             </div>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowForgot(true);
-                                    clearMessage();
-                                    setDevPassword("");
-                                }}
-                                className="text-sm font-medium text-[var(--accent)] underline decoration-[var(--accent-soft)] underline-offset-[3px]"
-                            >
-                                Забыли пароль?
-                            </button>
-                            <button
-                                type="button"
                                 onClick={handleLogin}
                                 disabled={isPending}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                                className={`${siteBtnPrimary} w-full`}
                             >
                                 {isPending ? "Вход…" : "Войти"}
                             </button>
                         </div>
                     ) : registerStep === "form" ? (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             <div>
                                 <label className={labelClassName}>Имя</label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className={inputClassName}
+                                    className={siteInput}
                                     placeholder="Ваше имя"
                                     autoComplete="given-name"
                                 />
@@ -470,9 +496,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 />
                             </div>
                             <div>
-                                <label className={labelClassName}>
-                                    Повторите пароль
-                                </label>
+                                <label className={labelClassName}>Повторите пароль</label>
                                 <PasswordInput
                                     value={passwordConfirmation}
                                     onChangeAction={setPasswordConfirmation}
@@ -483,19 +507,20 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 type="button"
                                 onClick={handleRegister}
                                 disabled={isPending}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                                className={`${siteBtnPrimary} w-full`}
                             >
                                 {isPending ? "Отправка…" : "Зарегистрироваться"}
                             </button>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             <div>
+                                <label className={labelClassName}>Код из SMS</label>
                                 <input
                                     type="text"
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    className={inputClassName}
+                                    className={siteInput}
                                     placeholder="Введите код"
                                     inputMode="numeric"
                                     disabled={isPending}
@@ -506,7 +531,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 type="button"
                                 onClick={handleRegisterVerify}
                                 disabled={isPending || !code}
-                                className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+                                className={`${siteBtnPrimary} w-full`}
                             >
                                 {isPending ? "Проверка…" : "Подтвердить"}
                             </button>
@@ -517,7 +542,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     clearMessage();
                                 }}
                                 disabled={isPending}
-                                className="w-full rounded-xl border border-[var(--line)] px-5 py-3 text-sm font-semibold transition hover:bg-[var(--background)] disabled:opacity-50"
+                                className={`${siteBtnSecondary} w-full`}
                             >
                                 Назад
                             </button>
@@ -525,30 +550,20 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                     )}
 
                     {message ? (
-                        <div className={`mt-3 rounded-xl border px-3 py-2 text-sm ${messageToneClassName}`}>
+                        <div className={`mt-4 rounded-lg border px-3 py-2.5 text-sm ${messageToneClassName}`}>
                             {message}
                         </div>
                     ) : null}
 
                     {captchaSecurityNotice ? (
-                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                             Включена дополнительная проверка безопасности.
                         </div>
                     ) : null}
 
                     {recaptchaSiteKey ? (
-                        <RecaptchaNotice className="mt-2 text-[10px] leading-4 text-[var(--text-secondary)]" />
+                        <RecaptchaNotice className="mt-4 text-[10px] leading-4 text-admin-text-muted" />
                     ) : null}
-                </div>
-
-                <div className="shrink-0 border-t border-[var(--line)] px-4 py-2 text-center">
-                    <Link
-                        href="/"
-                        onClick={onCloseAction}
-                        className="text-xs text-[var(--accent)] transition hover:underline"
-                    >
-                        На главную
-                    </Link>
                 </div>
             </div>
         </div>,

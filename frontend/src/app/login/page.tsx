@@ -14,7 +14,7 @@ function LoginPageContent() {
     }, [router]);
 
     return (
-        <main className="min-h-[40vh] bg-[var(--background)]">
+        <main className="min-h-[40vh] bg-admin-bg">
             <AuthModal open onCloseAction={handleClose} initialTab={tab} />
         </main>
     );
@@ -22,7 +22,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
     return (
-        <Suspense fallback={<main className="min-h-[40vh] bg-[var(--background)]" />}>
+        <Suspense fallback={<main className="min-h-[40vh] bg-admin-bg" />}>
             <LoginPageContent />
         </Suspense>
     );

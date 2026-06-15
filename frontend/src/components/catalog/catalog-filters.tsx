@@ -6,6 +6,8 @@ import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
+import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput } from "@/lib/site-ui-classes";
+
 type Props = {
     brands: CatalogBrandItem[];
     basePath: string;
@@ -20,6 +22,7 @@ type Props = {
         label: string;
         products_count: number;
     }[];
+    hideReset?: boolean;
 };
 
 function formatPrice(value: number) {
@@ -33,6 +36,7 @@ export default function CatalogFilters({
     attributes,
     priceRange,
     volumeOptions,
+    hideReset = false,
 }: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
@@ -44,6 +48,7 @@ export default function CatalogFilters({
     const safeAttributes = Array.isArray(attributes) ? attributes : [];
     const safeVolumeOptions = Array.isArray(volumeOptions) ? volumeOptions : [];
     const [popupAttributeId, setPopupAttributeId] = useState<number | null>(null);
+    const [attributeOptionQuery, setAttributeOptionQuery] = useState("");
 
     const selectedBrandIds = useMemo(
         () =>
@@ -148,6 +153,16 @@ export default function CatalogFilters({
     };
 
     const popupAttribute = safeAttributes.find((item) => item.id === popupAttributeId) ?? null;
+    const filteredPopupOptions = useMemo(() => {
+        if (!popupAttribute) {
+            return [];
+        }
+        const q = attributeOptionQuery.trim().toLowerCase();
+        if (!q) {
+            return popupAttribute.options;
+        }
+        return popupAttribute.options.filter((option) => option.name.toLowerCase().includes(q));
+    }, [popupAttribute, attributeOptionQuery]);
     const filteredBrands = useMemo(() => {
         const q = brandQuery.trim().toLowerCase();
         if (!q) {
@@ -160,6 +175,12 @@ export default function CatalogFilters({
         const rest = brands.filter((brand) => !optimisticBrandIds.includes(brand.id));
         return [...selected, ...rest].slice(0, Math.max(5, selected.length));
     }, [brands, optimisticBrandIds]);
+    const displayBrands = useMemo(() => {
+        if (brandQuery.trim()) {
+            return filteredBrands.slice(0, 20);
+        }
+        return previewBrands;
+    }, [brandQuery, filteredBrands, previewBrands]);
     const brandGroups = useMemo(() => groupBrandsByFirstLetter(filteredBrands), [filteredBrands]);
     const brandSectionLetters = useMemo(() => orderedLettersWithBrands(brandGroups), [brandGroups]);
 
@@ -192,36 +213,41 @@ export default function CatalogFilters({
 
     return (
         <div>
-            <div className="flex items-center justify-between gap-3 pb-4">
-                {hasActiveFilters ? (
-                    <button
-                        type="button"
-                        onClick={resetFilters}
-                        className="text-xs font-medium text-[var(--text-secondary)] underline-offset-4 transition hover:text-[var(--foreground)] hover:underline"
-                    >
-                        Сбросить
-                    </button>
-                ) : null}
-            </div>
+            {!hideReset ? (
+                <div className="flex items-center justify-between gap-3 pb-4">
+                    {hasActiveFilters ? (
+                        <button type="button" onClick={resetFilters} className={`${siteBtnSecondary} w-full text-xs`}>
+                            Сбросить фильтры
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
 
-            <div className="divide-y divide-[var(--line)]">
+            <div className="divide-y divide-admin-border">
                 {showBrandFilter ? (
                     <section className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                             Бренд
                         </div>
+                        <input
+                            type="text"
+                            value={brandQuery}
+                            onChange={(e) => setBrandQuery(e.target.value)}
+                            placeholder="Поиск бренда"
+                            className={siteInput}
+                        />
                         <div className="space-y-0.5">
-                            {previewBrands.map((brand) => (
+                            {displayBrands.map((brand) => (
                                 <label
                                     key={`brand-preview-${brand.id}`}
-                                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
                                 >
                                     <input
                                         type="checkbox"
                                         checked={isBrandSelected(brand.id)}
                                         onChange={() => toggleBrand(brand.id)}
                                         suppressHydrationWarning
-                                        className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
+                                        className="h-4 w-4 rounded border-admin-border accent-admin-primary"
                                     />
                                     <span>{brand.name}</span>
                                 </label>
@@ -230,7 +256,7 @@ export default function CatalogFilters({
                         <button
                             type="button"
                             onClick={() => setIsBrandModalOpen(true)}
-                            className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] transition hover:gap-1.5"
+                            className="inline-flex items-center gap-1 text-sm font-medium text-admin-primary transition hover:gap-1.5"
                         >
                             Все бренды ({brands.length})
                             <span aria-hidden>→</span>
@@ -239,7 +265,7 @@ export default function CatalogFilters({
                 ) : null}
 
                 <section className="space-y-3 py-5 first:pt-0">
-                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                         Цена, BYN
                     </div>
                     <div className="flex items-center gap-2">
@@ -251,9 +277,9 @@ export default function CatalogFilters({
                             onChange={(e) => setPriceMinDraft(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
                             suppressHydrationWarning
-                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)]"
+                            className={siteInput}
                         />
-                        <span className="text-[var(--text-secondary)]">–</span>
+                        <span className="text-admin-text-secondary">–</span>
                         <input
                             type="number"
                             inputMode="numeric"
@@ -262,21 +288,17 @@ export default function CatalogFilters({
                             onChange={(e) => setPriceMaxDraft(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
                             suppressHydrationWarning
-                            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)]"
+                            className={siteInput}
                         />
                     </div>
-                    <button
-                        type="button"
-                        onClick={applyPrice}
-                        className="w-full rounded-xl bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
-                    >
+                    <button type="button" onClick={applyPrice} className={`${siteBtnPrimary} w-full`}>
                         Применить
                     </button>
                 </section>
 
                 {safeVolumeOptions.length > 0 ? (
                     <section className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                             Объем
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -287,11 +309,7 @@ export default function CatalogFilters({
                                         key={item.key}
                                         type="button"
                                         onClick={() => toggleVolumeOption(item.key)}
-                                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition ${
-                                            active
-                                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
-                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent)]"
-                                        }`}
+                                        className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
                                     >
                                         {item.label}
                                     </button>
@@ -303,7 +321,7 @@ export default function CatalogFilters({
 
                 {safeAttributes.map((attribute) => (
                     <section key={attribute.id} className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
                             {attribute.name}
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -314,11 +332,7 @@ export default function CatalogFilters({
                                         key={option.id}
                                         type="button"
                                         onClick={() => toggleAttributeOption(attribute.id, option.id)}
-                                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm transition ${
-                                            active
-                                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
-                                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent)]"
-                                        }`}
+                                        className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
                                     >
                                         {option.name}
                                     </button>
@@ -328,8 +342,11 @@ export default function CatalogFilters({
                         {attribute.options.length > 6 ? (
                             <button
                                 type="button"
-                                onClick={() => setPopupAttributeId(attribute.id)}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] transition hover:gap-1.5"
+                                onClick={() => {
+                                    setAttributeOptionQuery("");
+                                    setPopupAttributeId(attribute.id);
+                                }}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-admin-primary transition hover:gap-1.5"
                             >
                                 Показать все ({attribute.options.length})
                                 <span aria-hidden>→</span>
@@ -340,23 +357,33 @@ export default function CatalogFilters({
             </div>
 
             {popupAttribute ? (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl">
+                <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4">
+                    <div className="flex max-h-[min(88dvh,640px)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-w-lg sm:rounded-xl">
                         <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-[var(--foreground)]">{popupAttribute.name}</div>
+                            <div className="text-sm font-semibold text-admin-text">{popupAttribute.name}</div>
                             <button
                                 type="button"
-                                onClick={() => setPopupAttributeId(null)}
-                                className="rounded-lg px-2 py-1 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                onClick={() => {
+                                    setAttributeOptionQuery("");
+                                    setPopupAttributeId(null);
+                                }}
+                                className="rounded-lg px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                             >
                                 Закрыть
                             </button>
                         </div>
-                        <div className="max-h-[60vh] space-y-1 overflow-y-auto pr-1">
-                            {popupAttribute.options.map((option) => (
+                        <input
+                            type="text"
+                            value={attributeOptionQuery}
+                            onChange={(e) => setAttributeOptionQuery(e.target.value)}
+                            placeholder="Поиск в фильтре"
+                            className={`${siteInput} mb-3`}
+                        />
+                        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                            {filteredPopupOptions.map((option) => (
                                 <label
                                     key={option.id}
-                                    className="flex cursor-pointer items-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="flex cursor-pointer items-center rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                                 >
                                     <span className="inline-flex items-center gap-2">
                                         <input
@@ -364,12 +391,15 @@ export default function CatalogFilters({
                                             checked={isOptionSelected(popupAttribute.id, option.id)}
                                             onChange={() => toggleAttributeOption(popupAttribute.id, option.id)}
                                             suppressHydrationWarning
-                                            className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
+                                            className="h-4 w-4 rounded border-admin-border accent-admin-primary"
                                         />
                                         {option.name}
                                     </span>
                                 </label>
                             ))}
+                            {filteredPopupOptions.length === 0 ? (
+                                <div className="px-2 py-4 text-sm text-admin-text-secondary">Ничего не найдено</div>
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -377,19 +407,19 @@ export default function CatalogFilters({
 
             {isBrandModalOpen ? (
                 <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+                    className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
                     onClick={() => setIsBrandModalOpen(false)}
                 >
                     <div
-                        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
+                        className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-[var(--foreground)]">Бренд</div>
+                            <div className="text-sm font-semibold text-admin-text">Бренд</div>
                             <button
                                 type="button"
                                 onClick={() => setIsBrandModalOpen(false)}
-                                className="rounded-lg px-2 py-1 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                className="rounded-lg px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                             >
                                 Закрыть
                             </button>
@@ -399,9 +429,9 @@ export default function CatalogFilters({
                             type="text"
                             value={brandQuery}
                             onChange={(e) => setBrandQuery(e.target.value)}
-                            placeholder="Поиск"
+                            placeholder="Поиск бренда"
                             suppressHydrationWarning
-                            className="mb-3 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+                            className={`${siteInput} mb-3`}
                         />
 
                         <div className="mb-3 flex flex-wrap gap-1 border-b border-[var(--line)] pb-3">

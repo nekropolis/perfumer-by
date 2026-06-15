@@ -2,6 +2,7 @@
 
 import { Star } from "lucide-react";
 import type { ReviewStatsByStars } from "@/types/reviews";
+import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
 
 type Props = {
     total: number;
@@ -49,24 +50,24 @@ function StarRow({
             title={selected ? "Показать все оценки" : `Показать отзывы: ${starLabel(rating)}`}
             className={`
                 flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs
-                transition-all outline-none ring-offset-2 ring-offset-[var(--surface)]
-                focus-visible:ring-2 focus-visible:ring-[var(--accent)]
+                transition-all outline-none ring-offset-2 ring-offset-admin-surface
+                focus-visible:ring-2 focus-visible:ring-admin-primary
                 ${selected
-                    ? "bg-[var(--accent)]/10 text-[var(--accent)] ring-1 ring-[var(--accent)] shadow-sm"
-                    : "hover:bg-[var(--background)] hover:shadow-sm"
+                    ? "bg-admin-primary/10 text-admin-primary ring-1 ring-admin-primary shadow-sm"
+                    : "hover:bg-admin-muted hover:shadow-sm"
                 }
                 `}
         >
-            <span className="w-[3.25rem] shrink-0 text-[11px] leading-tight text-[var(--text-secondary)] sm:w-[4rem] sm:text-xs">
+            <span className="w-[3.25rem] shrink-0 text-[11px] leading-tight text-admin-text-secondary sm:w-[4rem] sm:text-xs">
                 {starLabel(rating)}
             </span>
-            <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--line)] sm:h-2">
+            <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-admin-border sm:h-2">
                 <div
                     className="h-full rounded-full bg-amber-500/90 transition-[width]"
                     style={{ width: `${pct}%` }}
                 />
             </div>
-            <span className="w-7 shrink-0 text-right text-[11px] tabular-nums text-[var(--foreground)] sm:w-8 sm:text-xs">
+            <span className="w-7 shrink-0 text-right text-[11px] tabular-nums text-admin-text sm:w-8 sm:text-xs">
                 {count}
             </span>
         </button>
@@ -86,7 +87,7 @@ function AverageStars({ average }: { average: number }) {
                 }
                 return (
                     <span key={i} className="relative inline-flex h-4 w-4 shrink-0 sm:h-5 sm:w-5">
-                        <Star className="h-4 w-4 text-[var(--line)] sm:h-5 sm:w-5" fill="currentColor" strokeWidth={0} />
+                        <Star className="h-4 w-4 text-admin-border sm:h-5 sm:w-5" fill="currentColor" strokeWidth={0} />
                         <span className="absolute inset-0 overflow-hidden text-amber-500" style={{ width: `${fill * 100}%` }}>
                             <Star className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" strokeWidth={0} />
                         </span>
@@ -111,11 +112,11 @@ export default function StoreReviewsStickySummary({
             : "—";
 
     return (
-        <div className="box-border w-full max-w-full overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm sm:p-5">
-            <p className="text-xs text-[var(--text-secondary)] sm:text-sm">
+        <div className={`${siteCard} box-border w-full max-w-full overflow-hidden p-4 sm:p-5`}>
+            <p className="text-xs text-admin-text-secondary sm:text-sm">
                 {total > 0 ? (
                     <>
-                        <span className="font-medium text-[var(--foreground)]">{total.toLocaleString("ru-RU")}</span>{" "}
+                        <span className="font-medium text-admin-text">{total.toLocaleString("ru-RU")}</span>{" "}
                         {reviewsPluralWord(total)} за всё время
                     </>
                 ) : (
@@ -124,16 +125,16 @@ export default function StoreReviewsStickySummary({
             </p>
 
             <div className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
-                <div className="text-2xl font-semibold tabular-nums tracking-tight text-[var(--foreground)] sm:text-3xl">
+                <div className="text-2xl font-semibold tabular-nums tracking-tight text-admin-text sm:text-3xl">
                     {avgText}
-                    <span className="text-base font-normal text-[var(--text-secondary)] sm:text-lg"> / 5</span>
+                    <span className="text-base font-normal text-admin-text-secondary sm:text-lg"> / 5</span>
                 </div>
                 {average !== null && average > 0 ? <AverageStars average={average} /> : null}
             </div>
 
             {total > 0 ? (
-                <div className="mt-5 space-y-1 border-t border-[var(--line)] pt-5">
-                    <p className="mb-2 text-xs text-[var(--text-secondary)]">Нажмите на строку, чтобы отфильтровать список.</p>
+                <div className="mt-5 space-y-1 border-t border-admin-border pt-5">
+                    <p className="mb-2 text-xs text-admin-text-secondary">Нажмите на строку, чтобы отфильтровать список.</p>
                     {[5, 4, 3, 2, 1].map((n) => (
                         <StarRow
                             key={n}
@@ -147,15 +148,11 @@ export default function StoreReviewsStickySummary({
                 </div>
             ) : null}
 
-            <p className="mt-5 border-t border-[var(--line)] pt-4 text-xs leading-relaxed text-[var(--text-secondary)]">
+            <p className="mt-5 border-t border-admin-border pt-4 text-xs leading-relaxed text-admin-text-secondary">
                 Оценка считается только по отзывам, которые уже прошли модерацию и опубликованы на сайте.
             </p>
 
-            <button
-                type="button"
-                onClick={onWriteReview}
-                className="mt-3 w-full rounded-xl bg-[var(--accent)] px-3 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] sm:mt-4 sm:px-4 sm:py-3"
-            >
+            <button type="button" onClick={onWriteReview} className={`${siteBtnPrimary} mt-3 w-full sm:mt-4`}>
                 Оставить отзыв
             </button>
         </div>

@@ -1,5 +1,8 @@
 "use client";
 
+import { Menu, X } from "lucide-react";
+import { siteBtnIcon } from "@/lib/site-ui-classes";
+
 type HeaderMobileToggleProps = {
     isOpen: boolean;
     onClickAction: () => void;
@@ -12,11 +15,11 @@ export default function HeaderMobileToggle({
     return (
         <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)] md:hidden"
+            className={`${siteBtnIcon} md:hidden`}
             onClick={onClickAction}
-            aria-label="Открыть меню"
+            aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
         >
-            <span className="text-lg leading-none">{isOpen ? "×" : "☰"}</span>
+            {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
     );
 }

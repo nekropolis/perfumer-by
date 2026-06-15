@@ -12,6 +12,7 @@ import { executeRecaptchaV3, loadRecaptchaScript } from "@/lib/recaptcha-v3";
 import { useReviewFormModalEffects } from "@/hooks/use-review-form-modal-effects";
 import ReviewFormModal from "@/components/reviews/review-form-modal";
 import { formatReviewDateRu, normalizeReviewItem } from "@/lib/review-text-display";
+import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
 
 const RECAPTCHA_ACTION = "submit_review";
 const MIN_TEXT = 15;
@@ -160,14 +161,14 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-                <p className="max-w-xl text-sm text-[var(--text-secondary)]">
+                <p className="max-w-xl text-sm text-admin-text-secondary">
                     Опубликованные оценки и комментарии. Новый отзыв появится после модерации.
                 </p>
                 <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
                     <button
                         type="button"
                         onClick={openForm}
-                        className="w-full rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] sm:w-auto"
+                        className={`${siteBtnPrimary} w-full sm:w-auto`}
                     >
                         Написать отзыв
                     </button>
@@ -177,11 +178,11 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
 
             <div>
                 {listLoading ? (
-                    <p className="text-sm text-[var(--text-secondary)]">Загрузка…</p>
+                    <p className="text-sm text-admin-text-secondary">Загрузка…</p>
                 ) : listError ? (
                     <p className="text-sm text-red-600">{listError}</p>
                 ) : reviews.length === 0 ? (
-                    <p className="text-sm text-[var(--text-secondary)]">
+                    <p className="text-sm text-admin-text-secondary">
                         Отзывов пока нет. Будьте первым.
                     </p>
                 ) : (
@@ -189,11 +190,11 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
                         {reviews.map((item) => (
                             <li
                                 key={item.id}
-                                className="rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4"
+                                className={`${siteCard} bg-admin-muted/50 p-4`}
                             >
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-sm font-medium text-[var(--foreground)]">{item.name}</span>
-                                    <span className="text-xs text-[var(--text-secondary)]">{formatReviewDateRu(item.created_at)}</span>
+                                    <span className="text-sm font-medium text-admin-text">{item.name}</span>
+                                    <span className="text-xs text-admin-text-secondary">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
                                 <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
@@ -205,18 +206,18 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
                                         />
                                     ))}
                                 </div>
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{item.text}</p>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed text-admin-text">{item.text}</p>
                                 {item.reply?.text ? (
-                                    <div className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-                                        <div className="mb-1 text-xs font-medium text-[var(--text-secondary)]">
+                                    <div className="mt-3 rounded-xl border border-admin-border bg-admin-surface p-3">
+                                        <div className="mb-1 text-xs font-medium text-admin-text-secondary">
                                             Ответ магазина
                                         </div>
                                         {item.reply.replied_at ? (
-                                            <p className="mb-1 text-xs text-[var(--text-secondary)]">
+                                            <p className="mb-1 text-xs text-admin-text-secondary">
                                                 {formatReviewDateRu(item.reply.replied_at)}
                                             </p>
                                         ) : null}
-                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">
+                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-admin-text">
                                             {item.reply.text}
                                         </p>
                                     </div>

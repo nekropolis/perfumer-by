@@ -65,7 +65,7 @@ export default function CatalogPageView({
             <CatalogNavigationProvider>
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="hidden self-start lg:block">
-                    <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5">
+                    <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
                         <CatalogFilters
                             brands={brands}
                             basePath={basePath}
@@ -85,6 +85,7 @@ export default function CatalogPageView({
                         mobileRightAction={
                             <CatalogMobileFiltersDrawer
                                 compact
+                                productsCount={products.meta?.total ?? products.data.length}
                                 brands={brands}
                                 basePath={basePath}
                                 showBrandFilter={showBrand}

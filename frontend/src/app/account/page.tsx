@@ -73,8 +73,8 @@ export default function AccountPage() {
 
     if (loading) {
         return (
-            <main className="flex min-h-[50vh] items-center justify-center bg-[var(--background)] px-4">
-                <p className="text-sm text-[var(--text-secondary)]">Загрузка…</p>
+            <main className="flex min-h-[50vh] items-center justify-center bg-admin-bg px-4">
+                <p className="text-sm text-admin-text-secondary">Загрузка…</p>
             </main>
         );
     }
@@ -84,12 +84,13 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+        <main className="min-h-screen bg-admin-bg text-admin-text">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
                 <div className="mb-8">
-                    <div className="text-sm font-medium uppercase tracking-[0.24em] text-[var(--text-secondary)]">
+                    <div className="text-sm font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Личный кабинет
                     </div>
+                    <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Профиль и заказы</h1>
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
