@@ -519,12 +519,11 @@ export default function SellerOneImportPage() {
                     setBatchProgress("");
                     const shelf = Number(data.cleared_supplier_shelf_variants ?? 0);
                     const priceChanged = Number(data.price_changed ?? 0);
-                    const outStock = Number(data.became_out_of_stock ?? 0);
                     const inStock = Number(data.became_in_stock ?? 0);
                     const msg =
                         (typeof data.message === "string" && data.message.trim() !== "")
                             ? data.message
-                            : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, стало «нет в наличии» — ${outStock}, «в наличии» — ${inStock}, товар пропал у поставщика — ${data.missing_codes ?? 0}${shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
+                            : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, пропали из прайса — ${data.missing_codes ?? 0}, появились на витрине — ${inStock}${shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
                             }`;
                     setSupplierSuccess(msg);
                     setListingDiagnostics(data.listing_diagnostics ?? null);

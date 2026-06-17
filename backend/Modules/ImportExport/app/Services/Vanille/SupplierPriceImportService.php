@@ -548,7 +548,9 @@ class SupplierPriceImportService
     }
 
     /**
-     * Обновляет цены и «наличие по прайсу» только у связанных строк с активным участием в парсинге.
+     * Обновляет цены связанных строк и канал продажи «по прайсу» на витрине.
+     * У поставщика нет флага наличия — только код и цена. Код в файле + связка → витрина включена.
+     * Снятие с витрины — только если кода нет в новом файле (см. missing_codes).
      *
      * @param  callable(array<string, mixed>): void|null  $onProgress
      * @return array{
@@ -557,7 +559,6 @@ class SupplierPriceImportService
      *     skipped: int,
      *     price_history_rows: int,
      *     price_changed: int,
-     *     became_out_of_stock: int,
      *     became_in_stock: int,
      *     missing_codes: int,
      *     deactivated_offers: int,
@@ -609,7 +610,6 @@ class SupplierPriceImportService
         $missingSupplierProductIds = [];
         $priceHistoryRows = 0;
         $priceChanged = 0;
-        $becameOutOfStock = 0;
         $becameInStock = 0;
 
         /** @var array<int, string> variant_id → первый код, включивший вариант на витрину в этом прогоне */
@@ -633,7 +633,6 @@ class SupplierPriceImportService
                 'skipped' => 0,
                 'price_history_rows' => 0,
                 'price_changed' => 0,
-                'became_out_of_stock' => 0,
                 'became_in_stock' => 0,
                 'message' => $totalLinked > 0
                     ? "Связанных строк: {$totalLinked}, чтение прайса завершено"
@@ -845,6 +844,13 @@ class SupplierPriceImportService
                         'supplier_price' => $supplierPrice,
                     ],
                 );
+                unset(
+                    $mergedOfferPayload['missing_in_latest_price'],
+                    $mergedOfferPayload['missing_marked_at'],
+                    $mergedOfferPayload['seller_one_listing_deferred'],
+                    $mergedOfferPayload['out_of_stock_in_price_file'],
+                    $mergedOfferPayload['out_of_stock_marked_at'],
+                );
 
                 $offer = SupplierVariantOffer::query()->updateOrCreate(
                     [
@@ -934,9 +940,6 @@ class SupplierPriceImportService
                     ];
                 }
             }
-            if (!$nowListed && $wasListed) {
-                $becameOutOfStock++;
-            }
 
             if (
                 $onProgress !== null
@@ -950,7 +953,6 @@ class SupplierPriceImportService
                     'skipped' => $skipped,
                     'price_history_rows' => $priceHistoryRows,
                     'price_changed' => $priceChanged,
-                    'became_out_of_stock' => $becameOutOfStock,
                     'became_in_stock' => $becameInStock,
                     'message' => 'Обновление цен: ' . ($index + 1) . " / {$totalLinked}",
                 ]);
@@ -987,32 +989,6 @@ class SupplierPriceImportService
         }
 
         if ($missingCodes !== []) {
-            $missingStockCountedVariants = [];
-            foreach ($missingCodes as $missingCode) {
-                $variantIdMissing = (int) (SupplierVariantOffer::query()
-                    ->where('supplier_id', $supplier->id)
-                    ->where('external_id', $missingCode)
-                    ->value('product_variant_id') ?? 0);
-                if ($variantIdMissing <= 0) {
-                    $sp = SupplierProduct::query()
-                        ->where('supplier_id', $supplier->id)
-                        ->where('is_linked', true)
-                        ->where('payload->external_code', $missingCode)
-                        ->first();
-                    if ($sp) {
-                        $p = is_array($sp->payload) ? $sp->payload : [];
-                        $variantIdMissing = (int) ($p['linked_variant_id'] ?? 0);
-                    }
-                }
-                if ($variantIdMissing > 0 && !isset($missingStockCountedVariants[$variantIdMissing])) {
-                    $vMissing = ProductVariant::query()->find($variantIdMissing);
-                    if ($vMissing && CatalogVariantStockPresenter::supplierListingActive($vMissing)) {
-                        $missingStockCountedVariants[$variantIdMissing] = true;
-                        $becameOutOfStock++;
-                    }
-                }
-            }
-
             $deactivatedOffers = (int) DB::transaction(function () use (
                 $supplier,
                 $missingCodes
@@ -1066,17 +1042,16 @@ class SupplierPriceImportService
         }
 
         $message = sprintf(
-            'Готово: обработано %d связей, цена изменилась — %d, стало «нет в наличии» — %d, «в наличии» — %d, товар пропал у поставщика — %d.',
+            'Готово: обработано %d связей, цена изменилась — %d, пропали из прайса — %d, появились на витрине — %d.',
             $updated,
             $priceChanged,
-            $becameOutOfStock,
-            $becameInStock,
             count($missingCodes),
+            $becameInStock,
         );
 
         $distinctVariantsUpdated = count($touchedVariantIds);
         $inStockGap = max(0, $updated - $becameInStock);
-        $gapExplained = $duplicateVariantInBatch + $alreadyListedBeforeBatch + $notListedAfterUpdate + $becameOutOfStock;
+        $gapExplained = $duplicateVariantInBatch + $alreadyListedBeforeBatch + $notListedAfterUpdate;
         $gapUnexplained = $inStockGap - $gapExplained;
         $listingDiagnostics = [
             'rows_updated' => $updated,
@@ -1085,7 +1060,6 @@ class SupplierPriceImportService
             'gap_duplicate_variant' => $duplicateVariantInBatch,
             'gap_already_listed' => $alreadyListedBeforeBatch,
             'gap_not_listed' => $notListedAfterUpdate,
-            'gap_became_out_of_stock' => $becameOutOfStock,
             'gap_unexplained' => $gapUnexplained,
             'distinct_variants_updated' => $distinctVariantsUpdated,
             'duplicate_variant_in_batch' => $duplicateVariantInBatch,
@@ -1111,12 +1085,11 @@ class SupplierPriceImportService
         }
         if ($inStockGap > 0) {
             $diagParts[] = sprintf(
-                'разница обработано−«в наличии»: %d (= повтор %d + уже на витрине %d + не на витрине %d + снято %d%s)',
+                'разница обработано−«на витрине»: %d (= повтор %d + уже на витрине %d + не на витрине %d%s)',
                 $inStockGap,
                 $duplicateVariantInBatch,
                 $alreadyListedBeforeBatch,
                 $notListedAfterUpdate,
-                $becameOutOfStock,
                 $gapUnexplained !== 0 ? ', неразобрано '.$gapUnexplained : '',
             );
         }
@@ -1130,7 +1103,6 @@ class SupplierPriceImportService
             'skipped' => $skipped,
             'price_history_rows' => $priceHistoryRows,
             'price_changed' => $priceChanged,
-            'became_out_of_stock' => $becameOutOfStock,
             'became_in_stock' => $becameInStock,
             'missing_codes' => count($missingCodes),
             'deactivated_offers' => $deactivatedOffers,

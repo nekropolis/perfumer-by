@@ -136,7 +136,7 @@ export function ParseDiagnosticsPanel({
                 <div className="min-w-0 flex-1 space-y-3">
                     <div className="font-medium">Диагностика парсинга: дубли связок</div>
                     <p className="text-xs text-amber-900/80">
-                        Несколько кодов поставщика на один variant_id — лишние строки не попадут в счётчик «в наличии» при обновлении цен.
+                        Несколько кодов поставщика на один variant_id — лишние строки не попадут в счётчик «на витрине» при обновлении цен.
                     </p>
                     <dl className="grid gap-1 text-xs sm:grid-cols-2">
                         <div>
@@ -245,7 +245,6 @@ export function ListingDiagnosticsPanel({
         gap_duplicate_variant: gapDuplicate,
         gap_already_listed: gapAlreadyListed,
         gap_not_listed: gapNotListed,
-        gap_became_out_of_stock: gapOutOfStock,
         gap_unexplained: gapUnexplained,
         distinct_variants_updated: distinctVariants,
         duplicate_variant_in_batch: duplicateCount,
@@ -269,9 +268,9 @@ export function ListingDiagnosticsPanel({
             <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <div className="font-medium">Диагностика «в наличии»</div>
+                        <div className="font-medium">Диагностика витрины</div>
                         <p className="mt-1 text-xs text-green-900/80">
-                            Обработано {rowsUpdated ?? "—"}, «в наличии» {becameInStock ?? "—"} — расхождений нет.
+                            Обработано {rowsUpdated ?? "—"}, появились на витрине {becameInStock ?? "—"} — расхождений нет.
                             Уникальных variant_id: {distinctVariants}.
                         </p>
                     </div>
@@ -287,21 +286,21 @@ export function ListingDiagnosticsPanel({
         <div className={`rounded-xl border px-4 py-3 text-sm ${unexplained !== 0 ? "border-red-300 bg-red-50 text-red-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
-                    <div className="font-medium">Диагностика «в наличии» после обновления цен</div>
+                    <div className="font-medium">Диагностика витрины после обновления цен</div>
                     <p className="text-xs opacity-80">
-                        Счётчик «в наличии» — строки с переходом false→true. Повторные коды на тот же variant_id сюда не входят.
+                        «Появились на витрине» — строки, у которых вариант стал доступен для продажи по прайсу (false→true).
+                        Повторные коды на тот же variant_id сюда не входят. Снятие с витрины — только «пропали из прайса».
                     </p>
 
                     {hasGap ? (
                         <div className={`rounded border px-3 py-2 text-xs ${unexplained !== 0 ? "border-red-200 bg-white/70" : "border-amber-200/80 bg-white/60"}`}>
                             <div className="font-medium">
-                                Разница: обработано {rowsUpdated ?? "—"} − «в наличии» {becameInStock ?? "—"} = {gap}
+                                Разница: обработано {rowsUpdated ?? "—"} − на витрине {becameInStock ?? "—"} = {gap}
                             </div>
                             <ul className="mt-1 list-inside list-disc space-y-0.5 opacity-90">
                                 <li>Повтор variant_id в прогоне: {gapDuplicate ?? duplicateCount}</li>
                                 <li>Уже на витрине до строки: {gapAlreadyListed ?? alreadyListedCount}</li>
                                 <li>Не вышли на витрину: {gapNotListed ?? notListedCount}</li>
-                                <li>Снято с витрины в прогоне: {gapOutOfStock ?? 0}</li>
                                 {unexplained !== 0 ? (
                                     <li className="font-medium text-red-700">Неразобранный остаток (возможный баг): {unexplained}</li>
                                 ) : null}

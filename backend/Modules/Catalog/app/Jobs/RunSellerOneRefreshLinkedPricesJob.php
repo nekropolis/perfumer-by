@@ -157,6 +157,7 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                     'updated' => (int) ($result['updated'] ?? 0),
                     'skipped' => (int) ($result['skipped'] ?? 0),
                     'price_changed' => (int) ($result['price_changed'] ?? 0),
+                    'missing_codes' => (int) ($result['missing_codes'] ?? 0),
                     'became_out_of_stock' => (int) ($result['became_out_of_stock'] ?? 0),
                     'became_in_stock' => (int) ($result['became_in_stock'] ?? 0),
                     'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
