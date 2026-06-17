@@ -41,6 +41,7 @@ export default function AdminProductVariantEditPage() {
                     concentration_code: item.concentration_code ?? "",
                     concentration_label: item.concentration_label ?? "",
                     is_tester: !!item.is_tester,
+                    is_vial: !!item.is_vial,
                     excludes_from_free_delivery_threshold: !!item.excludes_from_free_delivery_threshold,
                 });
             } catch (e: unknown) {
@@ -73,6 +74,7 @@ export default function AdminProductVariantEditPage() {
                 concentration_code: form.concentration_code.trim(),
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,
+                is_vial: form.is_vial,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 

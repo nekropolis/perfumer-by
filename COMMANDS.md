@@ -1,231 +1,279 @@
-# Project Commands
+# Команды проекта
 
-Краткий справочник по командам проекта: что делают, где запускать и когда они нужны.
+Справочник: что делает каждая команда, откуда запускать.  
+**Сверху — то, что нужно чаще всего.** Редкие legacy-команды — внизу.
 
-## Root Makefile
+Все `php artisan` — из каталога `backend/`.  
+Make/npm — из корня или `frontend/`, как указано.
 
-Запускать из корня репозитория.
+---
 
-| Command | What it does | When to run |
+## 1. Ежедневная разработка
+
+| Команда | Что делает |
+| --- | --- |
+| `make dev` | Запускает фронт (Next.js) через PM2 или напрямую. |
+| `make dev-stop` | Останавливает dev-фронт, освобождает порт 3000. |
+| `make dev-restart` | Перезапуск dev-фронта после смены env. |
+| `make dev-check-api` | Проверяет, что API из env фронта доступен. |
+| `cd frontend && npm run dev` | Next.js dev на :3000 (без make). |
+| `cd frontend && npm run build` | Сборка фронта перед деплоем/мержем. |
+| `cd frontend && npm run lint` | ESLint по фронту. |
+| `cd backend && php artisan migrate` | Применить миграции локально. |
+| `cd backend && php artisan optimize:clear` | Сброс кэша Laravel (config, routes, views). |
+| `cd backend && php artisan test` | Тесты бэкенда. |
+| `make backend-clear` | То же, что `optimize:clear`, из корня. |
+| `make backend-migrate` | Миграции + очистка кэша. |
+| `make install-front` / `make install-back` | `npm install` / `composer install`. |
+
+---
+
+## 2. Vanille — импорт и починка каталога
+
+**Главный контур:** собрать ссылки → спарсить карточки → импортировать в БД → починить данные.
+
+### Очередь и полный пайплайн
+
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `make help` | Shows available Make targets. | When you need a quick list of project-level commands. |
-| `make install-front` | Runs `npm install` in `frontend/`. | After pulling frontend dependency changes or setting up the project. |
-| `make install-back` | Runs `composer install` in `backend/`. | After pulling backend dependency changes or setting up the project. |
-| `make build` | Removes `frontend/.next` and runs frontend production build. | Before checking whether the frontend builds cleanly. |
-| `make dev-check-api` | Checks that frontend API env points to a reachable API. | Before `make dev`, or when SSR pages hang while fetching API data. |
-| `make dev` | Starts frontend dev mode through PM2 when available, otherwise directly. | Local/dev-server frontend development. |
-| `make dev-restart` | Stops and starts frontend dev process. | After env changes or when dev server is stuck. |
-| `make dev-stop` | Stops frontend dev process and frees port `3000`. | When stopping local/dev frontend. |
-| `make prod` | Installs frontend deps, builds frontend, starts prod PM2 process. | Simple production frontend start/restart without full deploy script. |
-| `make prod-restart` | Restarts prod frontend PM2 process. | After env/process changes that do not require rebuild. |
-| `make prod-stop` | Stops prod frontend PM2 process. | Maintenance or replacing frontend process. |
-| `make logs` | Shows prod frontend PM2 logs. | Debugging production frontend runtime. |
-| `make logs-dev` | Shows dev frontend PM2 logs. | Debugging frontend dev server. |
-| `make status` | Runs `pm2 list`. | Checking running frontend processes. |
-| `make backend-clear` | Runs `php artisan optimize:clear`. | After backend env/config/route/view changes, or when cache looks stale. |
-| `make backend-migrate` | Runs migrations and then clears Laravel cache. | After pulling backend migrations on dev/staging. |
-| `make backend-seed` | Runs `CatalogDatabaseSeeder`. | When resetting or filling catalog seed data. |
-| `make deploy` | Runs `scripts/deploy.sh`. | In-place production deploy. |
-| `make release` | Runs `scripts/release.sh`. | Capistrano-style production release. |
-| `make rollback` | Runs `scripts/rollback.sh`. | Roll back `current` symlink to previous release. |
-| `make bootstrap-shared` | Runs `scripts/bootstrap-shared.sh`. | One-time migration from in-place deploy to `shared/` + `releases/` layout. |
+| `php artisan catalog:vanille-queue status` | Статус задач импорта Vanille в очереди. | Завис импорт в админке. |
+| `php artisan catalog:vanille-queue run-pending` | Выполнить ожидающие задачи вручную (без воркера). | Нет queue worker на сервере. |
+| `php artisan catalog:vanille-queue resume --job-id=123` | Продолжить конкретную задачу. | После ошибки в job. |
+| `php artisan catalog:vanille-sync` | Полный цикл: бренды → ссылки → `products_*.json`. | Массовое обновление с Vanille. |
+| `php artisan catalog:vanille-brand {slug}` | Сбор ссылок и парсинг **одного** бренда (без 7-часового пайплайна). | Добавили/обновили один бренд. |
 
-## Backend Composer
+### Парсинг и импорт карточек
 
-Run from `backend/`.
-
-| Command | What it does | When to run |
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `composer install` | Installs exact dependencies from `composer.lock`. | Normal setup/deploy after lock file is committed. |
-| `composer install --no-dev --optimize-autoloader` | Installs production dependencies and optimized autoload. | Production deploy. |
-| `composer update vendor/package -W` | Updates one package and related dependencies in `composer.lock`. | When adding/updating a backend package, for example `composer update intervention/image -W`. |
-| `composer dump-autoload` | Rebuilds Composer autoload files. | After adding/moving classes or module autoload mappings without changing dependencies. |
-| `composer run dev` | Runs Laravel server, queue listener, logs, and Vite concurrently. | Full backend-oriented local development, if frontend is served by backend Vite flow. |
-| `composer run test` | Clears config and runs Laravel tests. | Before backend commits or after backend changes. |
-| `composer run setup` | Installs deps, creates `.env`, generates key, migrates, installs npm deps, builds. | Fresh backend skeleton setup; use carefully on existing environments. |
+| `php artisan catalog:parse-vanille-products` | Качает HTML карточек по `product_links.json` → `products_*.json`. | После сбора ссылок. |
+| `php artisan catalog:parse-vanille-products --once --limit=20` | Одна пачка парсинга. | Отладка / контролируемый прогон. |
+| `php artisan catalog:parse-vanille-products --mode=new_only` | Только новые URL (ещё не в manifest). | Инкрементальный парсинг. |
+| `php artisan catalog:parse-vanille-products --mode=errors_only` | Повтор URL из `parse_errors.json`. | После сетевых ошибок. |
+| `php artisan catalog:import-vanille-sample path/to.json` | Импорт одного JSON-файла в каталог (тест). | Проверка логики на образце. |
 
-## Backend NPM
+Импорт спарсенных JSON в БД — через **админку** (Import Export → Vanille) или `catalog:vanille-queue`.
 
-Run from `backend/`. These are Laravel Vite/module asset commands, not the Next.js storefront commands.
+### Починка после импорта (важно)
 
-| Command | What it does | When to run |
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `npm run dev` | Starts Vite dev server for backend/module assets. | Only when working with backend-rendered Vite assets. |
-| `npm run build` | Builds backend/module Vite assets. | Before deploy if backend-rendered assets changed. |
+| `php artisan catalog:vanille-repair-product-names --dry-run --limit=200` | **Превью:** восстановить регистр `name`/`h1` из H1 и поля «Аромат» (было `encens et lavande` → `Encens Et Lavande`). | После импорта с lowercase slug. |
+| `php artisan catalog:vanille-repair-product-names --limit=200 --from-payload` | Применить исправления имён (без HTTP к Vanille). | ~800 товаров, есть payload. |
+| `php artisan catalog:vanille-repair-product-names --limit=20 --reparse --log-skips` | Reparse с сайта, если в payload нет H1/«Аромат». | Оставшиеся «stuck» после dry-run. |
+| `php artisan catalog:vanille-repair-variants --scope=missing` | Добавить недостающие варианты (объём, концентрация, штрих-коды). | Товар без вариантов после импорта. |
+| `php artisan catalog:vanille-repair-variants --scope=all --limit=20` | То же для всех связанных Vanille-товаров, пачками. | Массовый backfill вариантов. |
+| `php artisan catalog:vanille-repair-variants --target=json --from-payload` | Обновить `offers` в `products_*.json` без импорта в БД. | Устарели offers в JSON. |
+| `php artisan catalog:repair-vanille-catalog-image-order` | Поменять местами перепутанные фото каталога (-1/-2). | Неверный порядок фото. |
 
-The module package files under `backend/Modules/*/package.json` expose the same `npm run dev` and `npm run build` Vite scripts. Use them only when intentionally working inside a specific Laravel module asset pipeline.
+### Сверка и диагностика Vanille
 
-## Frontend Next.js
+| Команда | Что делает |
+| --- | --- |
+| `php artisan catalog:vanille-brendyi-total` | Сумма счётчиков на vanille.by/brendyi — сверка с `product_links.json`. |
 
-Run from `frontend/`.
+### Очистка каталога после импорта
 
-| Command | What it does | When to run |
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `npm install` | Installs frontend dependencies. | Local setup or after `package.json`/lock changes. |
-| `npm ci` | Clean install from lock file. | CI/production deploy, or when `node_modules` is corrupted. |
-| `npm run dev` | Starts Next.js dev server on port `3000` with webpack. | Storefront/admin frontend development. |
-| `npm run build` | Builds the Next.js production bundle. | Before deploy or before merging frontend changes. |
-| `npm run start` | Starts the built Next.js app. | Production runtime after `npm run build`. |
-| `npm run lint` | Runs ESLint. | Before committing frontend changes. |
+| `php artisan catalog:prune-products-without-vanille --dry-run` | Список товаров без связи с Vanille или пустых (0 вариантов, 0 атрибутов). | Перед чисткой мусора. |
+| `php artisan catalog:prune-products-without-vanille --force` | Удалить такие товары и их `supplier_products`. | После проверки dry-run. |
+| `php artisan catalog:prune-brands-without-products` | Показать и (по подтверждению) удалить бренды без товаров. | После prune товаров. |
+| `php artisan catalog:merge-duplicate-brands --dry-run` | Найти дубли брендов (разные slug, одно имя). | Дубли типа apieu / a-pieu. |
 
-## Deploy Scripts
+---
 
-Run from the server unless noted otherwise.
+## 3. Seller One — прайс поставщика
 
-| Command | What it does | When to run |
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `./scripts/deploy-dev.sh` | Dev-server deploy: Composer install with dev deps, clear caches, migrate, optional frontend install/build/reload. | On dev server after files are synced by SFTP. |
-| `./scripts/deploy-dev.sh --seed` | Same as dev deploy plus `php artisan db:seed --force`. | When dev data needs to be reseeded. |
-| `./scripts/deploy-dev.sh --build` | Dev deploy plus frontend production build. | When you need to verify/build frontend on dev server. |
-| `./scripts/deploy-dev.sh --no-build` | Explicitly skips frontend build. | Default lightweight dev deploy. |
-| `./scripts/deploy-dev.sh --only-backend` | Runs backend part only. | Backend-only change. |
-| `./scripts/deploy-dev.sh --only-frontend` | Runs frontend part only. | Frontend-only change. |
-| `./scripts/deploy-dev.sh --logs` | Tails logs after dev deploy. | Debugging immediately after deploy. |
-| `./scripts/deploy-dev.sh --npm-ci` | Uses `npm ci` instead of `npm install`. | When frontend dependencies need a clean reinstall. |
-| `./scripts/deploy.sh` | In-place production deploy: `git pull`, maintenance mode, Composer install, migrate, cache, frontend build, PM2 reload, queue restart. | Production deploy for in-place checkout. |
-| `./scripts/release.sh` | Capistrano-style release into `releases/<timestamp>`, switches `current` symlink atomically. | Preferred production deploy when server uses `current/`, `releases/`, `shared/`. |
-| `GIT_REF=v1.2.3 ./scripts/release.sh` | Releases a specific branch/tag/ref. | Deploying a tagged release or non-default branch. |
-| `./scripts/rollback.sh` | Switches `current` to previous release and reloads services. | Fast rollback after a bad release. |
-| `./scripts/rollback.sh 20260418-100000` | Switches to a specific release directory. | Rollback to a known good release. |
-| `./scripts/bootstrap-shared.sh /var/www/perfumer-by` | Creates `shared/` from an existing in-place checkout. | One-time server migration to release-based deploy. |
+| `php artisan seller-one:reset-links` | Сбросить связки прайса с каталогом (варианты остаются в БД). | Перед повторным матчингом. |
+| `php artisan seller-one:purge` | **Полная** очистка данных Seller One (строки, офферы, история цен). | Чистый перезапуск импорта прайса. |
 
-## Common Laravel Artisan
+Импорт и матчинг прайса — в **админке** (Import Export → Seller One).
 
-Run from `backend/`.
+### Логика парсинга строки прайса
 
-| Command | What it does | When to run |
+Класс: `SellerOneVariantMatcher` (`backend/Modules/ImportExport/.../SellerOneVariantMatcher.php`).
+
+**1. Разделение строки**
+
+По первому встреченному маркеру (слева направо): `vial`, `test|tester|тестер`, `\d+ ml`, `extrait de parfum`.
+
+- До маркера — **название** (бренд + линия).
+- После — **хвост варианта** (объём, концентрация, тестер, пробник).
+
+Строки с `***` в названии не парсятся.
+
+**2. Поля варианта из хвоста**
+
+| Маркер | Значение в каталоге |
+| --- | --- |
+| `2ml`, `10 ml` | `volume_ml` |
+| `edp`, `edt`, `edc` | код концентрации |
+| `extrait de parfum`, `parfum` в хвосте | `extrait de parfum` |
+| `test`, `tester`, `тестер` | `is_tester = true` |
+| `vial` | `is_vial = true` (Пробник) |
+
+Неизвестные слова в хвосте (`set`, `viak`, «с крышкой») → 95% (без автосвязки).
+
+**3. Правила имени линии**
+
+- `(L)` / `(M)` / `(U)` — пол; каскад female → unisex при матче.
+- Trailing `Parfum` / `Parfume` в названии линии (не `de Parfum`) → линия без суффикса, концентрация **extrait de parfum**; перекрывает `edp`/`edt` в хвосте поставщика.
+- `L.E.`, `Edition Limitee`, combo-объёмы (`20ml edp+20ml edp`) — особые правила / блок автолинка.
+
+**4. Скоринг и автосвязка**
+
+| Уровень | % | Автосвязка |
 | --- | --- | --- |
-| `php artisan serve` | Starts Laravel dev HTTP server. | Local API development. |
-| `php artisan migrate` | Runs pending migrations. | Local/dev after pulling schema changes. |
-| `php artisan migrate --force` | Runs migrations without interactive prompt. | Deploy scripts and production. |
-| `php artisan optimize:clear` | Clears config, route, view, event and app caches. | After env/config/routes/views change or deploy troubleshooting. |
-| `php artisan config:cache` | Builds config cache. | Production deploy after env is stable. |
-| `php artisan route:cache` | Builds route cache. | Production deploy. |
-| `php artisan view:cache` | Precompiles Blade views. | Production deploy; safe to skip if it fails in scripts. |
-| `php artisan queue:listen --tries=1 --timeout=0` | Runs a local queue listener. | Local development where jobs should execute immediately. |
-| `php artisan queue:restart` | Signals queue workers to restart after current job. | After backend deploy when workers run under Supervisor. |
-| `php artisan pail --timeout=0` | Streams Laravel logs. | Local/dev debugging. |
-| `php artisan test` | Runs backend tests. | Before backend commits/deploys. |
-| `php artisan down --render=\"errors::503\" --retry=15` | Enables maintenance mode. | Production deploy or manual maintenance. |
-| `php artisan up` | Disables maintenance mode. | After deploy/maintenance, or if deploy failed while app is down. |
-| `php artisan storage:link` | Creates public storage symlink. | First deploy/setup or after public storage link was removed. |
+| Имя exact + вариант full | 100 | да |
+| Имя exact + лишние слова в хвосте | 95 | нет |
+| Имя exact, вариант не найден | 90 | нет |
+| Имя partial | 70 | нет |
+| Имя catalog_extra | 50 | нет (вариант может подобраться) |
 
-## Catalog Commands
+Справочник вариантов: уникальность `(volume_ml, concentration_code, is_tester, is_vial)`.
 
-Run from `backend/`.
+После правил матчера — **re-parse** прайса или `seller-one:purge` + импорт заново (старые подтверждённые связки не пересчитываются сами).
 
-| Command | What it does | When to run |
+---
+
+## 4. Каталог — поиск, имена, картинки
+
+| Команда | Что делает | Когда |
 | --- | --- | --- |
-| `php artisan catalog:regenerate-product-image-variants` | Generates `full`, `card`, `listing`, `thumb` WebP variants for product images missing variant paths. | After deploying image variants migration, or after importing legacy images. |
-| `php artisan catalog:regenerate-product-image-variants --product-id=123` | Regenerates variants for one product. | Testing/fixing a specific product. |
-| `php artisan catalog:regenerate-product-image-variants --limit=100` | Processes only first N matching images. | Safe batch processing on production. |
-| `php artisan catalog:regenerate-product-image-variants --force` | Regenerates even existing variants and deletes old variant files. | Only when image sizes/quality rules changed or variants are corrupted. |
-| `php artisan catalog:products:strip-brand-from-names --dry-run` | Preview stripping brand names from `products.name` (report: updated / unchanged / no brand / brand not found). | Before bulk name cleanup after brand split. |
-| `php artisan catalog:products:strip-brand-from-names` | Applies name cleanup in DB. | After reviewing dry-run output. |
-| `php artisan catalog:products:strip-brand-from-names --update-slugs` | Also rebuilds slugs as `{brand_slug}-{product_slug}` (check legacy redirects). | When slugs must match new naming scheme. |
-| `php artisan catalog:search:reindex` | Rebuilds full product index in Meilisearch. | After search mapping/indexing changes or large catalog imports. |
-| `php artisan catalog:search:reindex --chunk=500` | Reindexes with custom batch size. | Tune for server resources; allowed range is clamped in command. |
-| `php artisan catalog:prune-brands-without-products` | Shows brands without products and asks whether to delete them. | Catalog cleanup after imports. |
-| `php artisan catalog:prune-products-without-vanille --dry-run` | Lists products without Vanille link or empty (0 variants, 0 attributes). | Before bulk cleanup after bad import. |
-| `php artisan catalog:prune-products-without-vanille --force` | Deletes those products and their Vanille `supplier_products` rows. | One-shot catalog cleanup; run `prune-brands-without-products` after. |
-| `php artisan catalog:prune-products-without-vanille --limit=100` | Same, max N products per run. | Large catalogs on low-memory servers. |
-| `php artisan catalog:import-vanille-sample path/to/file.json` | Imports parsed Vanille sample JSON. | Testing Vanille import logic on a fixture/sample file. |
-| `php artisan catalog:parse-vanille-products` | Parses Vanille product pages from existing `product_links.json`. | Running product page parsing manually. |
-| `php artisan catalog:parse-vanille-products --once --limit=20` | Runs one parsing batch. | Debugging parser or running controlled batches. |
-| `php artisan catalog:parse-vanille-products --mode=new_only` | Parses only new products mode. | Incremental Vanille parsing. |
-| `php artisan catalog:parse-vanille-products --mode=errors_only --once --limit=20` | Re-parses only URLs from `storage/app/public/imports/vanille/parse_errors.json`. | After HTTP errors during batch parse. |
-| `php artisan catalog:parse-vanille-products --links-path=/path/file.json` | Uses a custom links file. | Testing or running from an alternate input. |
-| `php artisan catalog:vanille-queue status` | Shows queue/job status for Vanille import. | Diagnosing stuck Vanille import jobs. |
-| `php artisan catalog:vanille-queue run-pending` | Runs pending Vanille import jobs manually. | When queue workers are unavailable or you need a sync run. |
-| `php artisan catalog:vanille-queue resume --job-id=123` | Resumes a specific Vanille job. | Recovering a failed/stuck import job. |
-| `php artisan catalog:vanille-repair-variants --scope=missing` | Re-parses Vanille pages and adds missing product variants (Russian concentration + barcode volumes). | After parser fix when products imported without variants. |
-| `php artisan catalog:vanille-repair-variants --scope=all --limit=20` | Same for all linked Vanille products, in batches. | Full backfill of variant rows from Vanille HTML. |
-| `php artisan catalog:vanille-repair-variants --target=json` | Refreshes `offers` inside `products_*.json` from live pages. | Before re-import when JSON has stale offers. |
+| `php artisan catalog:search:reindex` | Полная переиндексация товаров в Meilisearch. | После массового импорта/правок имён. |
+| `php artisan catalog:search:reindex --chunk=500` | То же, другой размер пачки. | Настройка под память сервера. |
+| `php artisan catalog:products:strip-brand-from-names --dry-run` | Убрать бренд из `products.name` (отчёт). | Legacy: имя = «Dior Sauvage». |
+| `php artisan catalog:products:strip-brand-from-names` | Применить очистку имён. | После dry-run. |
+| `php artisan catalog:regenerate-product-image-variants` | WebP-варианты фото: full, card, listing, thumb. | После миграции/импорта картинок. |
+| `php artisan catalog:regenerate-product-image-variants --product-id=123` | Для одного товара. | Точечный фикс. |
+| `php artisan catalog:regenerate-product-image-variants --limit=100` | Пачками на проде. | Большой каталог. |
 
-## Legacy Import Commands
+---
 
-Run from `backend/`. These commands are for one-time or occasional legacy migration work. Prefer `--dry-run` first when available.
+## 5. Деплой и сервер
 
-| Command | What it does | When to run |
-| --- | --- | --- |
-| `php artisan legacy:map-brands-by-slug --dry-run` | Matches legacy manufacturers to current brands by slug without writing. | Before writing legacy brand map. |
-| `php artisan legacy:map-brands-by-slug --truncate` | Rebuilds `legacy_map_brands`. | During legacy migration after validating dry run. |
-| `php artisan legacy:map-products-by-slug --dry-run` | Matches legacy products to current products by slug without writing. | Before importing product-related legacy data. |
-| `php artisan legacy:map-products-by-slug --truncate` | Rebuilds `legacy_map_products`. | During legacy migration after validating matches. |
-| `php artisan legacy:map-products-by-slug --sync-fields` | Syncs legacy description/SEO and normalizes `name`/`h1` (brand stripped from legacy title). | After catalog brands are correct; copies legacy SEO/content. |
-| `php artisan legacy:map-products-by-slug --export-unmatched=storage/app/unmatched.csv` | Exports unmatched legacy products. | Auditing migration gaps. |
-| `php artisan legacy:import-customers --dry-run` | Parses legacy customers without writing users/maps. | Before customer migration. |
-| `php artisan legacy:import-customers --truncate-map` | Imports customers and resets legacy customer map. | Re-running customer migration from scratch. |
-| `php artisan legacy:import-orders --dry-run` | Parses legacy orders without writing. | Before order migration. |
-| `php artisan legacy:import-orders --truncate-map` | Imports orders and resets legacy order map. | Re-running order migration from scratch. |
-| `php artisan legacy:import-reviews --dry-run` | Parses legacy reviews without writing. | Before review migration. |
-| `php artisan legacy:import-reviews --truncate-map` | Imports reviews and resets legacy review map. | Re-running review migration from scratch. |
-| `php artisan legacy:import-product-images --dry-run` | Parses/imports legacy product image data without DB writes. | Before image migration. |
-| `php artisan legacy:import-product-images --repair-existing` | Normalizes already imported legacy paths. | Fixing old `product_images` paths after migration. |
-| `php artisan legacy:import-product-images --debug-missing` | Prints missing source path samples/candidates. | Debugging missing legacy image files. |
-| `php artisan legacy:import-posts` | Imports legacy news/articles into `cms_posts`. | One-time pages/posts migration. |
-| `php artisan legacy:import-posts --truncate` | Clears `cms_posts` before import. | Re-running post migration from scratch. |
-| `php artisan legacy:import-posts --report-skips` | Prints skipped rows and reasons. | Debugging post import coverage. |
-| `php artisan legacy:normalize-user-phones --dry-run` | Shows phone normalization changes for users. | Before normalizing imported user phones. |
-| `php artisan legacy:normalize-user-phones` | Normalizes `users.phone` to digits only. | After import, once conflicts are reviewed. |
-| `php artisan legacy:normalize-order-phones --dry-run` | Shows phone normalization changes for orders. | Before normalizing imported order phones. |
-| `php artisan legacy:normalize-order-phones` | Normalizes `orders.phone` to digits only. | After import, once output is checked. |
+### Make (из корня)
 
-Most legacy commands accept `--dump=storage/app/public/perfumer_db.sql` to override the default SQL dump path.
+| Команда | Что делает |
+| --- | --- |
+| `make deploy` | In-place деплой (`scripts/deploy.sh`). |
+| `make release` | Capistrano-релиз: `releases/` + symlink `current`. |
+| `make rollback` | Откат на предыдущий релиз. |
+| `make prod` | Сборка и запуск prod-фронта (PM2). |
+| `make prod-restart` / `make prod-stop` | Перезапуск / остановка prod-фронта. |
+| `make logs` / `make logs-dev` | Логи PM2 (prod / dev). |
+| `make status` | `pm2 list`. |
 
-## Users And Settlements
+### Скрипты на сервере
 
-Run from `backend/`.
+| Команда | Что делает |
+| --- | --- |
+| `./scripts/deploy-dev.sh` | Dev-сервер: composer, migrate, опционально фронт. |
+| `./scripts/deploy-dev.sh --only-backend` | Только бэкенд. |
+| `./scripts/deploy-dev.sh --only-frontend` | Только фронт. |
+| `./scripts/deploy.sh` | Prod in-place: pull, migrate, cache, build, queue restart. |
+| `./scripts/release.sh` | Prod release deploy. |
+| `./scripts/rollback.sh` | Откат релиза. |
 
-| Command | What it does | When to run |
-| --- | --- | --- |
-| `php artisan users:migrate-name-to-first-name --dry-run` | Shows users where `name` would be copied to empty `first_name`. | Before user name migration. |
-| `php artisan users:migrate-name-to-first-name` | Copies `users.name` into empty `users.first_name`. | One-time data migration after reviewing dry run. |
-| `php artisan settlements:import-belarus` | Imports Belarus settlements from `storage/app/public/imports/belarus-settlements.json`. | After updating settlements source JSON. |
+### Laravel на проде
 
-## Recommended Flows
+| Команда | Что делает |
+| --- | --- |
+| `php artisan migrate --force` | Миграции без вопросов (в deploy-скриптах). |
+| `php artisan config:cache` | Кэш конфига. |
+| `php artisan route:cache` | Кэш маршрутов. |
+| `php artisan queue:restart` | Перезапуск воркеров после деплоя. |
+| `php artisan down` / `php artisan up` | Режим обслуживания. |
+| `php artisan storage:link` | Симлинк `public/storage` (первый деплой). |
+| `php artisan server:health-report` | Проверка сервера + алерт в Telegram при проблемах. |
 
-### Local frontend change
+---
 
-```bash
-cd frontend
-npm install
-npm run dev
-npm run lint
-npm run build
-```
+## 6. Laravel — общее (локально)
 
-### Local backend change
+| Команда | Что делает |
+| --- | --- |
+| `php artisan serve` | Dev HTTP-сервер API. |
+| `php artisan queue:listen --tries=1` | Локальный обработчик очереди. |
+| `php artisan pail` | Поток логов в терминале. |
+| `composer run test` | `optimize:clear` + тесты. |
+| `composer install` | Зависимости PHP. |
+| `composer update vendor/pkg -W` | Обновить один пакет в lock. |
+
+---
+
+## 7. Справочники и пользователи
+
+| Команда | Что делает |
+| --- | --- |
+| `php artisan settlements:import-belarus` | Импорт населённых пунктов РБ из JSON (доставка/чекаут). |
+| `php artisan users:migrate-name-to-first-name --dry-run` | Перенос `name` → `first_name`, если пусто. |
+
+---
+
+## 8. Legacy — миграция со старого магазина
+
+Редко. **Сначала всегда `--dry-run`.**
+
+| Команда | Что делает |
+| --- | --- |
+| `php artisan legacy:map-brands-by-slug --dry-run` | Сопоставление legacy-брендов по slug. |
+| `php artisan legacy:map-products-by-slug --dry-run` | Сопоставление legacy-товаров по slug. |
+| `php artisan legacy:map-products-by-slug --sync-fields` | + описания, SEO, нормализация name/h1. |
+| `php artisan legacy:import-customers --dry-run` | Клиенты из OpenCart. |
+| `php artisan legacy:import-orders --dry-run` | Заказы. |
+| `php artisan legacy:import-reviews --dry-run` | Отзывы. |
+| `php artisan legacy:import-product-images --dry-run` | Картинки товаров. |
+| `php artisan legacy:import-posts` | Статьи/новости в CMS. |
+| `php artisan legacy:normalize-user-phones --dry-run` | Телефоны пользователей → только цифры. |
+| `php artisan legacy:normalize-order-phones --dry-run` | Телефоны в заказах → только цифры. |
+
+Путь к дампу по умолчанию: `storage/app/public/perfumer_db.sql`  
+(переопределение: `--dump=...`).
+
+---
+
+## Типовые сценарии
+
+### Исправить lowercase-имена после Vanille (~800 товаров)
 
 ```bash
 cd backend
-composer install
-php artisan migrate
-php artisan optimize:clear
-php artisan test
+php artisan catalog:vanille-repair-product-names --dry-run --limit=200
+php artisan catalog:vanille-repair-product-names --limit=200 --from-payload
+php artisan catalog:search:reindex
 ```
 
-### After image variant deploy
+### Новый бренд с Vanille
 
 ```bash
 cd backend
-composer install
-php artisan migrate
-php artisan catalog:regenerate-product-image-variants --limit=100
-php artisan catalog:regenerate-product-image-variants
+php artisan catalog:vanille-brand serge-lutens
+# далее импорт через админку или vanille-queue
 ```
 
-### Production in-place deploy
+### Локальная разработка фронта
 
 ```bash
-cd /var/www/perfumer-by
-./scripts/deploy.sh
+make dev
+# или
+cd frontend && npm run dev
 ```
 
-### Production release deploy
+### Деплой на прод (release)
 
 ```bash
 cd /var/www/perfumer-by
 ./scripts/release.sh
 ```
 
+### После деплоя с картинками
+
+```bash
+cd backend
+php artisan migrate --force
+php artisan catalog:regenerate-product-image-variants --limit=100
+```

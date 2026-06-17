@@ -107,4 +107,29 @@ class ProductDisplayNameTest extends TestCase
 
         $this->assertSame('Tokyo By Ryoko', $name);
     }
+
+    public function test_resolve_canonical_short_name_restores_casing_from_aromat_when_url_slug_is_lowercase(): void
+    {
+        $name = ProductDisplayName::resolveCanonicalShortName(
+            'Serge Lutens',
+            'serge-lutens',
+            'encens et lavande',
+            'https://vanille.by/encens-et-lavande',
+            ['Serge Lutens Encens et Lavande'],
+        );
+
+        $this->assertSame('Encens et Lavande', $name);
+    }
+
+    public function test_resolve_canonical_short_name_prefers_h1_for_slug_without_brand_prefix(): void
+    {
+        $name = ProductDisplayName::resolveCanonicalShortName(
+            'Serge Lutens',
+            'serge-lutens',
+            'Serge Lutens Encens Et Lavande',
+            'https://vanille.by/encens-et-lavande',
+        );
+
+        $this->assertSame('Encens Et Lavande', $name);
+    }
 }

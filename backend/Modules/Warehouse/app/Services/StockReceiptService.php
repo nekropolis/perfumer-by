@@ -336,18 +336,21 @@ class StockReceiptService
         $concentrationCode = mb_strtolower(trim((string) ($variantPayload['concentration_code'] ?? '')));
         $concentrationLabel = trim((string) ($variantPayload['concentration_label'] ?? ''));
         $isTester = (bool) ($variantPayload['is_tester'] ?? false);
+        $isVial = (bool) ($variantPayload['is_vial'] ?? false);
 
         abort_if($volumeMl <= 0 || $concentrationCode === '' || $concentrationLabel === '', 422, 'Некорректные параметры нового варианта');
+        abort_if($isTester && $isVial, 422, 'Вариант не может быть одновременно тестером и пробником');
 
         $definition = VariantDefinition::query()->firstOrCreate(
             [
                 'volume_ml' => $volumeMl,
                 'concentration_code' => $concentrationCode,
                 'is_tester' => $isTester,
+                'is_vial' => $isVial,
             ],
             [
                 'concentration_label' => $concentrationLabel,
-                'title' => $this->buildDefinitionTitle($volumeMl, $concentrationCode, $concentrationLabel, $isTester),
+                'title' => $this->buildDefinitionTitle($volumeMl, $concentrationCode, $concentrationLabel, $isTester, $isVial),
                 'sort_order' => 0,
             ]
         );
@@ -374,6 +377,7 @@ class StockReceiptService
         string $concentrationCode,
         string $concentrationLabel,
         bool $isTester,
+        bool $isVial = false,
     ): string {
         $title = sprintf(
             '%d мл / %s - %s',
@@ -384,6 +388,10 @@ class StockReceiptService
 
         if ($isTester) {
             $title .= ' / Тестер';
+        }
+
+        if ($isVial) {
+            $title .= ' / Пробник';
         }
 
         return $title;

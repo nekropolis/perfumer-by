@@ -16,13 +16,11 @@ class CartItemResource extends JsonResource
         $variant = $this->variant;
         $product = $this->product;
 
-        $price = $variant?->price ? (float) $variant->price : 0;
-        $total = $price * $this->qty;
-
         $availableStock = 0;
         $displayStock = 0;
         $displayReserved = 0;
         $isAvailable = false;
+        $price = 0.0;
 
         if ($variant) {
             $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
@@ -39,7 +37,10 @@ class CartItemResource extends JsonResource
             $displayStock = $presented['stock'];
             $displayReserved = $presented['reserved_stock'];
             $isAvailable = $presented['is_available'];
+            $price = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
         }
+
+        $total = $price * $this->qty;
 
         $displayParts = [];
 

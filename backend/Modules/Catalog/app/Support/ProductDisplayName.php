@@ -257,30 +257,96 @@ final class ProductDisplayName
 
     /**
      * Каноническое короткое имя: сначала h1/заголовок Vanille (с регистром), иначе path URL.
+     *
+     * @param  list<string>  $casingSources  Доп. строки с регистром (h1, «Аромат», page_title).
      */
     public static function resolveCanonicalShortName(
         string $brandName,
         string $brandSlug,
         string $fullTitle,
         string $vanilleUrl,
+        array $casingSources = [],
     ): string {
         $brandSlug = VanilleHelper::slugify($brandSlug);
-        $fullTitle = trim($fullTitle);
+        $candidates = self::uniqueNonEmptyStrings(array_merge([$fullTitle], $casingSources));
 
-        if ($fullTitle !== '') {
-            $strip = self::stripBrandFromName($brandName, $fullTitle);
-            $fromTitle = $strip['found'] ? $strip['name'] : $fullTitle;
-            if ($fromTitle !== '' && ! self::brandNamesEquivalent($brandName, $fromTitle)) {
-                return $fromTitle;
+        foreach ($candidates as $candidate) {
+            $short = self::shortNameFromBrandTitle($brandName, $candidate);
+            if ($short !== '') {
+                return $short;
             }
         }
 
         $urlKey = $vanilleUrl !== '' ? self::vanilleProductPathIdentityKey($brandSlug, $vanilleUrl) : '';
         if ($urlKey !== '') {
-            return self::shortNameFromPathIdentityKey($urlKey);
+            $fromSlug = self::shortNameFromPathIdentityKey($urlKey);
+            foreach ($candidates as $candidate) {
+                $short = self::shortNameFromBrandTitle($brandName, $candidate);
+                if ($short !== '' && self::nameWordsKey($short) === self::nameWordsKey($fromSlug)) {
+                    return $short;
+                }
+            }
+
+            return $fromSlug;
         }
 
         return '';
+    }
+
+    private static function shortNameFromBrandTitle(string $brandName, string $title): string
+    {
+        $title = trim($title);
+        if ($title === '') {
+            return '';
+        }
+
+        $strip = self::stripBrandFromName($brandName, $title);
+        if ($strip['found']) {
+            $fromTitle = $strip['name'];
+            if ($fromTitle !== '' && ! self::brandNamesEquivalent($brandName, $fromTitle)) {
+                return $fromTitle;
+            }
+
+            return '';
+        }
+
+        if (trim($brandName) === '') {
+            return $title;
+        }
+
+        return '';
+    }
+
+    public static function nameWordsEquivalent(string $a, string $b): bool
+    {
+        return self::nameWordsKey($a) === self::nameWordsKey($b);
+    }
+
+    private static function nameWordsKey(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+        $value = preg_replace('/[^[:alnum:]\s]+/u', ' ', $value) ?? '';
+        $parts = preg_split('/\s+/u', trim($value)) ?: [];
+
+        return implode(' ', array_values(array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    /**
+     * @param  list<string>  $values
+     * @return list<string>
+     */
+    private static function uniqueNonEmptyStrings(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            $value = trim((string) $value);
+            if ($value === '' || in_array($value, $out, true)) {
+                continue;
+            }
+            $out[] = $value;
+        }
+
+        return $out;
     }
 
     private static function pathToSlug(string $urlOrSlugPath): string

@@ -11,8 +11,12 @@ export type ManualLinkState = {
         brand: string;
         productName: string;
         volume: number | null;
+        volumeIsMultipack?: boolean;
+        volumeMultipackCount?: number | null;
+        volumeMultipackUnitMl?: number | null;
         concentration: string | null;
         isTester: boolean;
+        isVial: boolean;
     };
     products: ProductAdminItem[];
     productsLoading: boolean;

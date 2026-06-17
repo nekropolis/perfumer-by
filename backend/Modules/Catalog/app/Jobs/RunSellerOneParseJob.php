@@ -120,7 +120,8 @@ class RunSellerOneParseJob implements ShouldQueue
                 'updated' => (int) ($result['updated'] ?? 0),
                 'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
                 'marked_preorder' => (int) ($result['marked_preorder'] ?? 0),
-                'message' => "Готово: обработано {$processed}",
+                'message' => (string) ($result['message'] ?? "Готово: обработано {$processed}"),
+                'parse_diagnostics' => $result['parse_diagnostics'] ?? null,
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
 

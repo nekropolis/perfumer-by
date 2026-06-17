@@ -3,6 +3,7 @@ import type {
     ApiResponse,
     LaravelPaginator,
     SellerOnePricingSettings,
+    SellerOneDuplicateVariantLinksResponse,
     SellerOneParseStartResponse,
     SellerOneParseStatus,
     SellerOneMatchRule,
@@ -610,6 +611,13 @@ export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promi
             `/admin/import-export/vanille/supplier-price/refresh-linked/status/${jobId}`,
         ]
     );
+}
+
+export async function fetchSellerOneDuplicateVariantLinks(): Promise<{ data: SellerOneDuplicateVariantLinksResponse }> {
+    return adminVanilleFetchWithFallback<{ data: SellerOneDuplicateVariantLinksResponse }>([
+        "/admin/import-export/seller-one/duplicate-variant-links",
+        "/admin/import-export/vanille/duplicate-variant-links",
+    ]);
 }
 
 export async function fetchSellerOneSupplierProducts(params?: {

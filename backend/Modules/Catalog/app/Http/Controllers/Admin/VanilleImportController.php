@@ -633,16 +633,20 @@ class VanilleImportController extends Controller
             $query->where('is_linked', true);
         } elseif ($status === 'found_unconfirmed') {
             $query->where('is_linked', false)
-                ->whereNotNull('payload->suggested_variant_id')
+                ->where(function ($q) {
+                    $q->whereNotNull('payload->suggested_variant_id')
+                        ->orWhereNotNull('payload->suggested_product_id');
+                })
                 ->where(function ($q) {
                     $q->whereNull('payload->match_confidence')
-                        ->orWhere('payload->match_confidence', '<', 95);
+                        ->orWhere('payload->match_confidence', '<', 100);
                 });
         } elseif ($status === 'new') {
             $query->where('is_linked', false)->where('payload->is_new', true);
         } elseif ($status === 'unlinked') {
             $query->where('is_linked', false)->where(function ($q) {
-                $q->whereNull('payload->suggested_variant_id');
+                $q->whereNull('payload->suggested_variant_id')
+                    ->whereNull('payload->suggested_product_id');
             });
         }
 
@@ -670,10 +674,13 @@ class VanilleImportController extends Controller
                 ->count(),
             'found_unconfirmed' => (clone $listStatsBase)
                 ->where('is_linked', false)
-                ->whereNotNull('payload->suggested_variant_id')
+                ->where(function ($q) {
+                    $q->whereNotNull('payload->suggested_variant_id')
+                        ->orWhereNotNull('payload->suggested_product_id');
+                })
                 ->where(function ($q) {
                     $q->whereNull('payload->match_confidence')
-                        ->orWhere('payload->match_confidence', '<', 95);
+                        ->orWhere('payload->match_confidence', '<', 100);
                 })
                 ->count(),
             'new' => (clone $listStatsBase)
@@ -683,7 +690,8 @@ class VanilleImportController extends Controller
             'unlinked' => (clone $listStatsBase)
                 ->where('is_linked', false)
                 ->where(function ($q) {
-                    $q->whereNull('payload->suggested_variant_id');
+                    $q->whereNull('payload->suggested_variant_id')
+                        ->whereNull('payload->suggested_product_id');
                 })
                 ->count(),
             'parsing_inactive' => (clone $baseQuery)
@@ -996,6 +1004,13 @@ class VanilleImportController extends Controller
         $rule->delete();
 
         return response()->json(['message' => 'Правило удалено']);
+    }
+
+    public function sellerOneDuplicateVariantLinks(SupplierPriceImportService $service)
+    {
+        return response()->json([
+            'data' => $service->listSellerOneDuplicateVariantLinkGroups(),
+        ]);
     }
 
     private function writeVanilleAudit(int $jobId, string $action, string $summary): void

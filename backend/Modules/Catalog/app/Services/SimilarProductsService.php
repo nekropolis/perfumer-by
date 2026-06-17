@@ -366,7 +366,7 @@ final class SimilarProductsService
                     $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'is_preorder', 'is_active', 'stock', 'reserved_stock', 'sort_order')
                         ->with([
                             'definition' => static function ($dq): void {
-                                $dq->select('id', 'volume_ml', 'concentration_code', 'concentration_label', 'is_tester', 'title');
+                                $dq->select('id', 'volume_ml', 'concentration_code', 'concentration_label', 'is_tester', 'is_vial', 'title');
                             },
                         ]);
                 },

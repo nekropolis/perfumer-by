@@ -48,6 +48,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
     Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
     Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
+    Route::get('/duplicate-variant-links', [VanilleImportController::class, 'sellerOneDuplicateVariantLinks']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/retry-queue')->group(function () {
@@ -71,6 +72,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/sel
     Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
     Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
     Route::get('/supplier-products', [VanilleImportController::class, 'sellerOneSupplierProducts']);
+    Route::get('/duplicate-variant-links', [VanilleImportController::class, 'sellerOneDuplicateVariantLinks']);
     Route::post('/supplier-products/force-link', [VanilleImportController::class, 'forceLinkSellerOneProduct']);
     Route::post('/supplier-products/reset-link', [VanilleImportController::class, 'resetSellerOneProductLink']);
     Route::patch('/supplier-products/parsing-active', [VanilleImportController::class, 'updateSellerOneSupplierProductParsingActive']);

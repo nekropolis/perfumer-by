@@ -76,15 +76,16 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
     const def = item.definition;
     if (def) {
         const tester = def.is_tester ? " · Тестер" : "";
+        const vial = def.is_vial ? " · Пробник" : "";
         const code = def.concentration_code?.trim();
         const label = def.concentration_label?.trim();
         if (code && label) {
-            return `${def.volume_ml} мл / ${code} - ${label}${tester}`;
+            return `${def.volume_ml} мл / ${code} - ${label}${tester}${vial}`;
         }
         if (label) {
-            return `${def.volume_ml} мл / ${label}${tester}`;
+            return `${def.volume_ml} мл / ${label}${tester}${vial}`;
         }
-        return `${def.volume_ml} мл${tester}`;
+        return `${def.volume_ml} мл${tester}${vial}`;
     }
 
     const parts: string[] = [];

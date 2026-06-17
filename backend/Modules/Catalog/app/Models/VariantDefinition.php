@@ -12,6 +12,7 @@ class VariantDefinition extends Model
         'concentration_code',
         'concentration_label',
         'is_tester',
+        'is_vial',
         'excludes_from_free_delivery_threshold',
         'title',
         'sort_order',
@@ -19,6 +20,7 @@ class VariantDefinition extends Model
 
     protected $casts = [
         'is_tester' => 'boolean',
+        'is_vial' => 'boolean',
         'excludes_from_free_delivery_threshold' => 'boolean',
     ];
 

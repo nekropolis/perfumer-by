@@ -5,7 +5,10 @@ namespace Modules\ImportExport\Services\Vanille;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Jobs\RunSellerOneParseJob;
+use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Modules\Catalog\Models\Brand;
@@ -19,6 +22,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\SellerOneSetting;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Services\VariantSupplierRetailPriceService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser;
@@ -35,6 +39,8 @@ class SupplierPriceImportService
     /** product_attributes.id «Для кого» — должен совпадать с SellerOneVariantMatcher. */
     private const int GENDER_ATTRIBUTE_ID = 3;
 
+    private const int LISTING_DIAGNOSTIC_SAMPLE_LIMIT = 80;
+
     public const SETTING_LAST_PRICE_APPLY_AT = 'seller_one.last_price_apply_at';
     public const SETTING_LAST_PRICE_APPLY_FILE = 'seller_one.last_price_apply_file_name';
     public function __construct(
@@ -43,6 +49,7 @@ class SupplierPriceImportService
         private readonly SellerOnePricingService $pricingService,
         private readonly SellerOnePreviewSyncService $previewSyncService,
         private readonly StockInventoryService $stockInventory,
+        private readonly VariantSupplierRetailPriceService $variantRetailPriceService,
     ) {
     }
 
@@ -134,12 +141,18 @@ class SupplierPriceImportService
         $updated = 0;
         $skippedLinked = 0;
         $skippedParsingInactive = 0;
+        $skippedSkipMarker = 0;
         $prepared = [];
 
         foreach ($rows as $row) {
             $externalCode = (string) ($row['code'] ?? '');
             if (isset($pausedCodes[$externalCode])) {
                 $skippedParsingInactive++;
+
+                continue;
+            }
+            if ($this->variantMatcher->shouldSkipParsingRow($row)) {
+                $skippedSkipMarker++;
 
                 continue;
             }
@@ -196,11 +209,12 @@ class SupplierPriceImportService
             'updated' => $updated,
             'skipped_linked' => $skippedLinked,
             'skipped_parsing_inactive' => $skippedParsingInactive,
+            'skipped_skip_marker' => $skippedSkipMarker,
             'marked_absent_unlinked' => $markedAbsentUnlinked,
             'offset' => $offset,
             'limit' => $limit,
             'total_rows' => $totalRows,
-            'processed' => count($prepared) + $skippedLinked + $skippedParsingInactive,
+            'processed' => count($prepared) + $skippedLinked + $skippedParsingInactive + $skippedSkipMarker,
             'marked_preorder' => $markedPreorder,
             'done' => ($offset + $limit) >= $totalRows,
             'next_offset' => min($offset + $limit, $totalRows),
@@ -261,6 +275,7 @@ class SupplierPriceImportService
         $totalUpdated = 0;
         $totalSkippedLinked = 0;
         $totalSkippedParsingInactive = 0;
+        $totalSkippedSkipMarker = 0;
         $totalProcessed = 0;
 
         if ($isContinuation && $jobId !== null) {
@@ -273,6 +288,7 @@ class SupplierPriceImportService
                 $totalUpdated = (int) ($snap['updated'] ?? 0);
                 $totalSkippedLinked = (int) ($snap['skipped_linked'] ?? 0);
                 $totalSkippedParsingInactive = (int) ($snap['skipped_parsing_inactive'] ?? 0);
+                $totalSkippedSkipMarker = (int) ($snap['skipped_skip_marker'] ?? 0);
                 $totalProcessed = (int) ($snap['processed'] ?? 0);
             }
         }
@@ -357,6 +373,12 @@ class SupplierPriceImportService
 
                     continue;
                 }
+                if ($this->variantMatcher->shouldSkipParsingRow($row)) {
+                    $totalSkippedSkipMarker++;
+                    $totalProcessed++;
+
+                    continue;
+                }
                 $externalUrl = "supplier-xls://{$externalCode}";
                 /** @var SupplierProduct|null $existing */
                 $existing = $existingByUrl->get($externalUrl);
@@ -400,6 +422,7 @@ class SupplierPriceImportService
                     'updated' => $totalUpdated,
                     'skipped_linked' => $totalSkippedLinked,
                     'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+                    'skipped_skip_marker' => $totalSkippedSkipMarker,
                     'done' => false,
                 ]);
             }
@@ -434,6 +457,7 @@ class SupplierPriceImportService
                 'updated' => $totalUpdated,
                 'skipped_linked' => $totalSkippedLinked,
                 'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+                'skipped_skip_marker' => $totalSkippedSkipMarker,
                 'marked_preorder' => 0,
                 'marked_absent_unlinked' => 0,
                 'has_more' => true,
@@ -455,10 +479,38 @@ class SupplierPriceImportService
             unset($allCodes);
         }
 
+        $parseDiagnostics = $this->collectSellerOneParseDiagnostics($supplier, $allRows ?? []);
+
         unset($allRows, $brands, $productsIndex, $rules);
 
+        $message = 'Прайс обработан';
+        $diagParts = [];
+        if ($parseDiagnostics['duplicate_variant_groups'] > 0) {
+            $diagParts[] = sprintf(
+                'дубли variant_id: %d групп (%d лишних связок)',
+                $parseDiagnostics['duplicate_variant_groups'],
+                $parseDiagnostics['duplicate_variant_extra_rows'],
+            );
+        }
+        if ($parseDiagnostics['duplicate_file_code_extra_rows'] > 0) {
+            $diagParts[] = sprintf(
+                'повтор кода в файле: %d лишних строк',
+                $parseDiagnostics['duplicate_file_code_extra_rows'],
+            );
+        }
+        if ($parseDiagnostics['linked_rows'] > 0 && $parseDiagnostics['distinct_linked_variants'] !== $parseDiagnostics['linked_rows']) {
+            $diagParts[] = sprintf(
+                'связано строк: %d, уникальных variant_id: %d',
+                $parseDiagnostics['linked_rows'],
+                $parseDiagnostics['distinct_linked_variants'],
+            );
+        }
+        if ($diagParts !== []) {
+            $message .= '. Диагностика: '.implode('; ', $diagParts).'.';
+        }
+
         return [
-            'message' => 'Прайс обработан',
+            'message' => $message,
             'total_rows' => $totalRows,
             'processed' => $totalProcessed,
             'matched' => $totalMatched,
@@ -466,8 +518,10 @@ class SupplierPriceImportService
             'updated' => $totalUpdated,
             'skipped_linked' => $totalSkippedLinked,
             'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+            'skipped_skip_marker' => $totalSkippedSkipMarker,
             'marked_preorder' => $markedPreorder,
             'marked_absent_unlinked' => $markedAbsentUnlinked,
+            'parse_diagnostics' => $parseDiagnostics,
             'has_more' => false,
             'next_offset' => $totalRows,
         ];
@@ -510,7 +564,16 @@ class SupplierPriceImportService
      *     deactivated_variants: int,
      *     cleared_supplier_shelf_variants: int,
      *     codes_in_price: int,
-     *     linked_products: int
+     *     linked_products: int,
+     *     listing_diagnostics: array{
+     *         distinct_variants_updated: int,
+     *         duplicate_variant_in_batch: int,
+     *         already_listed_before_batch: int,
+     *         not_listed_after_update: int,
+     *         duplicate_variant_samples: list<array{code: string, variant_id: int, first_code: string, name: string}>,
+     *         already_listed_samples: list<array{code: string, variant_id: int, name: string}>,
+     *         not_listed_samples: list<array{code: string, variant_id: int, name: string, reasons: list<string>}>
+     *     }
      * }
      */
     public function refreshLinkedPricesFromAbsolutePath(string $absolutePath, ?callable $onProgress = null): array
@@ -549,6 +612,18 @@ class SupplierPriceImportService
         $becameOutOfStock = 0;
         $becameInStock = 0;
 
+        /** @var array<int, string> variant_id → первый код, включивший вариант на витрину в этом прогоне */
+        $variantFirstListedCodeInBatch = [];
+        $duplicateVariantInBatch = 0;
+        $alreadyListedBeforeBatch = 0;
+        $notListedAfterUpdate = 0;
+        /** @var list<array{code: string, variant_id: int, first_code: string, name: string}> */
+        $duplicateVariantSamples = [];
+        /** @var list<array{code: string, variant_id: int, name: string}> */
+        $alreadyListedSamples = [];
+        /** @var list<array{code: string, variant_id: int, name: string, reasons: list<string>}> */
+        $notListedSamples = [];
+
         $totalLinked = $linkedProducts->count();
         if ($onProgress !== null) {
             $onProgress([
@@ -576,6 +651,9 @@ class SupplierPriceImportService
             $pw = is_array($spWarm->payload) ? $spWarm->payload : [];
             $ecw = trim((string) ($pw['external_code'] ?? str_replace('supplier-xls://', '', (string) $spWarm->external_url)));
             if ($ecw === '' || !isset($rowByCode[$ecw])) {
+                continue;
+            }
+            if ($this->variantMatcher->shouldSkipParsingRow($rowByCode[$ecw])) {
                 continue;
             }
             if ($this->toFloat($rowByCode[$ecw]['supplier_price'] ?? null) === null) {
@@ -631,6 +709,9 @@ class SupplierPriceImportService
             }
         };
 
+        /** @var array<int, true> */
+        $touchedVariantIds = [];
+
         foreach ($linkedProducts as $index => $supplierProduct) {
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
             $externalCode = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
@@ -648,6 +729,12 @@ class SupplierPriceImportService
             }
 
             $row = $rowByCode[$externalCode];
+            if ($this->variantMatcher->shouldSkipParsingRow($row)) {
+                $skipped++;
+
+                continue;
+            }
+
             $supplierPrice = $this->toFloat($row['supplier_price'] ?? null);
             if ($supplierPrice === null) {
                 $this->markLinkedSupplierRowInPriceFile(
@@ -730,10 +817,6 @@ class SupplierPriceImportService
                 $product = $variant->product;
                 $existingPayload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
 
-                $variant->update([
-                    'price' => $resolvedPrice,
-                ]);
-
                 $supplierProduct->update([
                     'brand_id' => $product->brand_id,
                     'product_id' => $product->id,
@@ -806,13 +889,50 @@ class SupplierPriceImportService
                 $updated++;
             }, 8);
 
+            $touchedVariantIds[(int) $variant->id] = true;
+
             $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             if ($nowListed && !$wasListed) {
                 $becameInStock++;
+                if (!isset($variantFirstListedCodeInBatch[$variantId])) {
+                    $variantFirstListedCodeInBatch[$variantId] = $externalCode;
+                }
                 ProductVariantLink::query()
                     ->whereKey((int) $variant->id)
                     ->where('is_active', false)
                     ->update(['is_active' => true]);
+            } elseif ($nowListed && $wasListed) {
+                if (!isset($variantFirstListedCodeInBatch[$variantId])) {
+                    $variantFirstListedCodeInBatch[$variantId] = $externalCode;
+                    $alreadyListedBeforeBatch++;
+                    if (count($alreadyListedSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                        $alreadyListedSamples[] = [
+                            'code' => $externalCode,
+                            'variant_id' => $variantId,
+                            'name' => (string) $supplierProduct->external_name,
+                        ];
+                    }
+                } elseif ($variantFirstListedCodeInBatch[$variantId] !== $externalCode) {
+                    $duplicateVariantInBatch++;
+                    if (count($duplicateVariantSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                        $duplicateVariantSamples[] = [
+                            'code' => $externalCode,
+                            'variant_id' => $variantId,
+                            'first_code' => $variantFirstListedCodeInBatch[$variantId],
+                            'name' => (string) $supplierProduct->external_name,
+                        ];
+                    }
+                }
+            } elseif (!$nowListed && !$wasListed) {
+                $notListedAfterUpdate++;
+                if (count($notListedSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                    $notListedSamples[] = [
+                        'code' => $externalCode,
+                        'variant_id' => $variantId,
+                        'name' => (string) $supplierProduct->external_name,
+                        'reasons' => $this->diagnoseSupplierListingBlockers($variant, (int) $supplier->id),
+                    ];
+                }
             }
             if (!$nowListed && $wasListed) {
                 $becameOutOfStock++;
@@ -836,6 +956,8 @@ class SupplierPriceImportService
                 ]);
             }
         }
+
+        $this->syncRetailPricesForVariants(array_keys($touchedVariantIds));
 
         foreach (array_keys($deferredStockProductIds) as $productIdSynced) {
             $this->stockInventory->syncProductStockFlagsByProductId((int) $productIdSynced);
@@ -939,6 +1061,8 @@ class SupplierPriceImportService
                     $this->stockInventory->syncProductStockFlagsByProductId((int) $v->product_id);
                 }
             }
+
+            $this->syncRetailPricesForVariants($shelfVariantIds);
         }
 
         $message = sprintf(
@@ -949,6 +1073,56 @@ class SupplierPriceImportService
             $becameInStock,
             count($missingCodes),
         );
+
+        $distinctVariantsUpdated = count($touchedVariantIds);
+        $inStockGap = max(0, $updated - $becameInStock);
+        $gapExplained = $duplicateVariantInBatch + $alreadyListedBeforeBatch + $notListedAfterUpdate + $becameOutOfStock;
+        $gapUnexplained = $inStockGap - $gapExplained;
+        $listingDiagnostics = [
+            'rows_updated' => $updated,
+            'became_in_stock' => $becameInStock,
+            'in_stock_gap' => $inStockGap,
+            'gap_duplicate_variant' => $duplicateVariantInBatch,
+            'gap_already_listed' => $alreadyListedBeforeBatch,
+            'gap_not_listed' => $notListedAfterUpdate,
+            'gap_became_out_of_stock' => $becameOutOfStock,
+            'gap_unexplained' => $gapUnexplained,
+            'distinct_variants_updated' => $distinctVariantsUpdated,
+            'duplicate_variant_in_batch' => $duplicateVariantInBatch,
+            'already_listed_before_batch' => $alreadyListedBeforeBatch,
+            'not_listed_after_update' => $notListedAfterUpdate,
+            'duplicate_variant_samples' => $duplicateVariantSamples,
+            'already_listed_samples' => $alreadyListedSamples,
+            'not_listed_samples' => $notListedSamples,
+        ];
+
+        $diagParts = [];
+        if ($duplicateVariantInBatch > 0) {
+            $diagParts[] = sprintf('повтор варианта (несколько кодов → один variant_id): %d', $duplicateVariantInBatch);
+        }
+        if ($alreadyListedBeforeBatch > 0) {
+            $diagParts[] = sprintf('уже на витрине до обработки строки: %d', $alreadyListedBeforeBatch);
+        }
+        if ($notListedAfterUpdate > 0) {
+            $diagParts[] = sprintf('не вышли на витрину после обновления: %d', $notListedAfterUpdate);
+        }
+        if ($distinctVariantsUpdated > 0 && $distinctVariantsUpdated !== $updated) {
+            $diagParts[] = sprintf('уникальных variant_id: %d (строк обновлено: %d)', $distinctVariantsUpdated, $updated);
+        }
+        if ($inStockGap > 0) {
+            $diagParts[] = sprintf(
+                'разница обработано−«в наличии»: %d (= повтор %d + уже на витрине %d + не на витрине %d + снято %d%s)',
+                $inStockGap,
+                $duplicateVariantInBatch,
+                $alreadyListedBeforeBatch,
+                $notListedAfterUpdate,
+                $becameOutOfStock,
+                $gapUnexplained !== 0 ? ', неразобрано '.$gapUnexplained : '',
+            );
+        }
+        if ($diagParts !== []) {
+            $message .= ' Диагностика витрины: '.implode('; ', $diagParts).'.';
+        }
 
         return [
             'message' => $message,
@@ -964,6 +1138,7 @@ class SupplierPriceImportService
             'cleared_supplier_shelf_variants' => $clearedSupplierShelfVariants,
             'codes_in_price' => count($codesInPrice),
             'linked_products' => $linkedProducts->count(),
+            'listing_diagnostics' => $listingDiagnostics,
         ];
     }
 
@@ -1096,6 +1271,64 @@ class SupplierPriceImportService
             'supplier_products_reset' => $resetCount,
             'offers_deleted' => $offersDeleted,
             'clear_suggestions' => $clearSuggestions,
+        ];
+    }
+
+    /**
+     * Полная очистка импортированных данных Seller One перед «чистым» парсингом.
+     * Правила матча и настройки наценки сохраняются; каталог не трогаем.
+     *
+     * @return array{
+     *     supplier_id: int,
+     *     supplier_products_deleted: int,
+     *     offers_deleted: int,
+     *     price_history_deleted: int,
+     *     settings_cleared: int,
+     *     temp_files_removed: int
+     * }
+     */
+    public function purgeAllSellerOneData(): array
+    {
+        $supplier = $this->getOrCreateSellerOneSupplier();
+        $supplierId = (int) $supplier->id;
+
+        $offerIds = SupplierVariantOffer::query()
+            ->where('supplier_id', $supplierId)
+            ->pluck('id');
+
+        $priceHistoryDeleted = $offerIds->isEmpty()
+            ? 0
+            : SupplierPriceHistory::query()
+                ->whereIn('supplier_variant_offer_id', $offerIds)
+                ->delete();
+
+        $offersDeleted = SupplierVariantOffer::query()
+            ->where('supplier_id', $supplierId)
+            ->delete();
+
+        $productsDeleted = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->delete();
+
+        $settingsCleared = SellerOneSetting::query()
+            ->whereIn('key', [
+                self::SETTING_LAST_PRICE_APPLY_AT,
+                self::SETTING_LAST_PRICE_APPLY_FILE,
+            ])
+            ->delete();
+
+        Cache::forget(RunSellerOneParseJob::activeKey());
+        Cache::forget(RunSellerOneRefreshLinkedPricesJob::activeKey());
+
+        $tempFilesRemoved = $this->purgeSellerOneStorageArtifacts();
+
+        return [
+            'supplier_id' => $supplierId,
+            'supplier_products_deleted' => $productsDeleted,
+            'offers_deleted' => $offersDeleted,
+            'price_history_deleted' => $priceHistoryDeleted,
+            'settings_cleared' => $settingsCleared,
+            'temp_files_removed' => $tempFilesRemoved,
         ];
     }
 
@@ -1240,7 +1473,7 @@ class SupplierPriceImportService
      *   добавлять «100 мл / EDP», чтобы потом прайс с ним связался. Теперь
      *   если definition есть в каталожном справочнике (VariantDefinition),
      *   линк создаётся автоматически, confidence добивается до 100%, и
-     *   существующий `tryAutoConfirmLink` (порог 95) привяжет supplier и
+     *   существующий `tryAutoConfirmLink` (порог 100) привяжет supplier и
      *   через `linkSupplierProductToVariant` проставит retail-цену и оффер;
      *   витрина по прайсу включается после «Обновить цены» (см. seller_one_listing_deferred).
      *
@@ -1252,10 +1485,13 @@ class SupplierPriceImportService
      *      нет однозначной definition в справочнике.
      *   3) Обязателен `supplier_price > 0`. Иначе `linkSupplierProductToVariant`
      *      проставит цену 0 и вариант уедет в каталог по нулевой цене.
-     *   4) В справочнике должна существовать VariantDefinition ровно под
-     *      (volume_ml, concentration_code, is_tester). Иначе пропускаем —
+     *   4) `name_only` — нормальный кейс: имя совпало, но линка под объём/конц./тестер
+     *      у продукта ещё нет (в т.ч. когда есть другие объёмы, например 100 мл, а в прайсе 50 мл).
+     *      Блокируем только `variant_extra` — вариант уже найден с лишними словами в хвосте.
+     *   5) В справочнике должна существовать VariantDefinition ровно под
+     *      (volume_ml, concentration_code, is_tester, is_vial). Иначе пропускаем —
      *      значит, этот размер в каталоге в принципе не предусмотрен.
-     *   5) `firstOrCreate` по unique-constraint (product_id, variant_definition_id)
+     *   6) `firstOrCreate` по unique-constraint (product_id, variant_definition_id)
      *      делает операцию идемпотентной: при дубликатах в прайсе создадим
      *      один раз, остальные строки просто возьмут существующий линк.
      *
@@ -1290,8 +1526,19 @@ class SupplierPriceImportService
         }
 
         $breakdown = $product['confidence_breakdown'] ?? [];
+        $linkMatchLevel = (string) ($breakdown['link_match_level'] ?? 'none');
+        if ($linkMatchLevel === 'variant_extra') {
+            return $parsed;
+        }
+
         $nameLevel = $breakdown['name_match_level'] ?? null;
         if (!in_array($nameLevel, ['exact', 'exact_multiset'], true)) {
+            return $parsed;
+        }
+
+        $title = (string) ($row['title'] ?? '');
+        $variantTail = $this->variantMatcher->splitNameAndVariantTail($title)['tail'] ?? '';
+        if ($variantTail !== '' && $this->variantMatcher->supplierVariantTailBlocksAutoLink($variantTail)) {
             return $parsed;
         }
 
@@ -1299,6 +1546,7 @@ class SupplierPriceImportService
         $volume = $parsedData['volume'] ?? null;
         $concentration = $parsedData['concentration'] ?? null;
         $isTester = (bool) ($parsedData['is_tester'] ?? false);
+        $isVial = (bool) ($parsedData['is_vial'] ?? false);
         if ($volume === null || !is_string($concentration) || $concentration === '') {
             return $parsed;
         }
@@ -1326,10 +1574,18 @@ class SupplierPriceImportService
             }
         }
 
+        $definitionVolumeMl = $this->variantMatcher->definitionVolumeMlForLookup(
+            is_numeric($volume) ? (float) $volume : null,
+        );
+        if ($definitionVolumeMl === null) {
+            return $parsed;
+        }
+
         $definition = VariantDefinition::query()
-            ->where('volume_ml', (int) round((float) $volume))
+            ->where('volume_ml', $definitionVolumeMl)
             ->where('concentration_code', $concentration)
             ->where('is_tester', $isTester)
+            ->where('is_vial', $isVial)
             ->first();
         if (!$definition) {
             return $parsed;
@@ -1370,8 +1626,15 @@ class SupplierPriceImportService
             'name_percent' => 90.0,
             'name_points' => 80,
             'name_match_level' => 'exact',
-            'volume_match' => true,
-            'volume_points' => 12,
+            'link_match_level' => 'full',
+            'volume_match' => $this->variantMatcher->volumesMatch(
+                is_numeric($volume) ? (float) $volume : null,
+                (float) $definition->volume_ml,
+            ),
+            'volume_points' => $this->variantMatcher->volumesMatch(
+                is_numeric($volume) ? (float) $volume : null,
+                (float) $definition->volume_ml,
+            ) ? 12 : 0,
             'concentration_match' => true,
             'concentration_points' => 8,
             'tester_match' => true,
@@ -1408,7 +1671,12 @@ class SupplierPriceImportService
     {
         $confidence = (int) (($parsed['suggested_variant']['confidence'] ?? 0));
         $variantId = (int) (($parsed['suggested_variant']['id'] ?? 0));
-        if ($confidence < 95 || $variantId <= 0) {
+        if ($confidence < 100 || $variantId <= 0) {
+            return;
+        }
+
+        $nameLevel = (string) (($parsed['suggested_variant']['confidence_breakdown']['name_match_level'] ?? ''));
+        if (! in_array($nameLevel, ['exact', 'exact_multiset'], true)) {
             return;
         }
 
@@ -1434,7 +1702,7 @@ class SupplierPriceImportService
             $variant,
             $externalCode,
             $supplierPrice,
-            'auto_95'
+            'auto_100'
         );
     }
 
@@ -1466,9 +1734,6 @@ class SupplierPriceImportService
                 ->delete();
 
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
-            $variant->update([
-                'price' => $resolvedPrice,
-            ]);
 
             $supplierProduct->update([
                 'brand_id' => $product->brand_id,
@@ -1518,6 +1783,14 @@ class SupplierPriceImportService
             ]);
         });
 
+        $syncedPrice = $this->variantRetailPriceService->syncFromListingOffers(
+            $variant,
+            fn (float $purchase): float => $this->pricingService->calculateRetailPrice($purchase),
+        );
+        if ($syncedPrice === null) {
+            $variant->update(['price' => $resolvedPrice]);
+        }
+
         $variant->refresh();
         if ($variant->product_id) {
             $this->stockInventory->syncProductStockFlagsByProductId((int) $variant->product_id);
@@ -1529,9 +1802,225 @@ class SupplierPriceImportService
         return $this->variantMatcher->buildVariantLabel($variant);
     }
 
+    public function listSellerOneDuplicateVariantLinkGroups(): array
+    {
+        $supplier = $this->getOrCreateSellerOneSupplier();
+        $data = $this->collectLinkedVariantDuplicateGroups($supplier);
+        $extraRows = 0;
+        foreach ($data['groups'] as $group) {
+            $extraRows += max(0, count($group['entries']) - 1);
+        }
+
+        return [
+            'linked_rows' => $data['linked_rows'],
+            'distinct_linked_variants' => $data['distinct_linked_variants'],
+            'duplicate_variant_groups' => count($data['groups']),
+            'duplicate_variant_extra_rows' => $extraRows,
+            'groups' => $data['groups'],
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $fileRows
+     * @return array{
+     *     linked_rows: int,
+     *     distinct_linked_variants: int,
+     *     duplicate_variant_extra_rows: int,
+     *     duplicate_variant_groups: int,
+     *     duplicate_variant_samples: list<array{variant_id: int, codes: list<string>, names: list<string>}>,
+     *     duplicate_file_code_extra_rows: int,
+     *     duplicate_file_code_samples: list<array{code: string, occurrences: int}>
+     * }
+     */
+    private function collectSellerOneParseDiagnostics(Supplier $supplier, array $fileRows): array
+    {
+        $codeOccurrences = [];
+        foreach ($fileRows as $row) {
+            $code = trim((string) ($row['code'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+            $codeOccurrences[$code] = ($codeOccurrences[$code] ?? 0) + 1;
+        }
+
+        $duplicateFileCodeExtraRows = 0;
+        /** @var list<array{code: string, occurrences: int}> */
+        $duplicateFileCodeSamples = [];
+        foreach ($codeOccurrences as $code => $count) {
+            if ($count <= 1) {
+                continue;
+            }
+            $duplicateFileCodeExtraRows += $count - 1;
+            if (count($duplicateFileCodeSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                $duplicateFileCodeSamples[] = [
+                    'code' => (string) $code,
+                    'occurrences' => (int) $count,
+                ];
+            }
+        }
+
+        $variantDuplicates = $this->collectLinkedVariantDuplicateGroups($supplier);
+        $duplicateVariantExtraRows = 0;
+        foreach ($variantDuplicates['groups'] as $group) {
+            $duplicateVariantExtraRows += max(0, count($group['entries']) - 1);
+        }
+        $duplicateVariantGroups = count($variantDuplicates['groups']);
+        /** @var list<array{variant_id: int, codes: list<string>, names: list<string>}> */
+        $duplicateVariantSamples = [];
+        foreach ($variantDuplicates['groups'] as $group) {
+            if (count($duplicateVariantSamples) >= self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                break;
+            }
+            $duplicateVariantSamples[] = [
+                'variant_id' => (int) $group['variant_id'],
+                'codes' => array_values(array_map(static fn (array $e): string => (string) $e['code'], $group['entries'])),
+                'names' => array_values(array_map(static fn (array $e): string => (string) $e['name'], $group['entries'])),
+            ];
+        }
+
+        return [
+            'linked_rows' => $variantDuplicates['linked_rows'],
+            'distinct_linked_variants' => $variantDuplicates['distinct_linked_variants'],
+            'duplicate_variant_extra_rows' => $duplicateVariantExtraRows,
+            'duplicate_variant_groups' => $duplicateVariantGroups,
+            'duplicate_variant_samples' => $duplicateVariantSamples,
+            'duplicate_file_code_extra_rows' => $duplicateFileCodeExtraRows,
+            'duplicate_file_code_samples' => $duplicateFileCodeSamples,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     linked_rows: int,
+     *     distinct_linked_variants: int,
+     *     groups: list<array{
+     *         variant_id: int,
+     *         entries: list<array{code: string, name: string, supplier_product_id: int}>
+     *     }>
+     * }
+     */
+    private function collectLinkedVariantDuplicateGroups(Supplier $supplier): array
+    {
+        $linkedProducts = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('is_linked', true)
+            ->get(['id', 'external_name', 'payload', 'external_url']);
+
+        $missingVariantCodes = [];
+        /** @var array<int, list<array{code: string, name: string, supplier_product_id: int}>> */
+        $byVariant = [];
+        foreach ($linkedProducts as $supplierProduct) {
+            $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+            $code = trim((string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url)));
+            $variantId = (int) ($payload['linked_variant_id'] ?? 0);
+            if ($variantId <= 0 && $code !== '') {
+                $missingVariantCodes[$code] = [
+                    'code' => $code,
+                    'name' => (string) $supplierProduct->external_name,
+                    'supplier_product_id' => (int) $supplierProduct->id,
+                ];
+                continue;
+            }
+            if ($variantId <= 0) {
+                continue;
+            }
+            $byVariant[$variantId][] = [
+                'code' => $code,
+                'name' => (string) $supplierProduct->external_name,
+                'supplier_product_id' => (int) $supplierProduct->id,
+            ];
+        }
+
+        if ($missingVariantCodes !== []) {
+            $offersByCode = SupplierVariantOffer::query()
+                ->where('supplier_id', $supplier->id)
+                ->whereIn('external_id', array_keys($missingVariantCodes))
+                ->get(['external_id', 'product_variant_id'])
+                ->keyBy('external_id');
+
+            foreach ($missingVariantCodes as $code => $meta) {
+                $variantId = (int) ($offersByCode->get($code)?->product_variant_id ?? 0);
+                if ($variantId <= 0) {
+                    continue;
+                }
+                $byVariant[$variantId][] = $meta;
+            }
+        }
+
+        /** @var list<array{variant_id: int, entries: list<array{code: string, name: string, supplier_product_id: int}>}> */
+        $groups = [];
+        foreach ($byVariant as $variantId => $entries) {
+            if (count($entries) <= 1) {
+                continue;
+            }
+            $groups[] = [
+                'variant_id' => (int) $variantId,
+                'entries' => $entries,
+            ];
+        }
+
+        usort($groups, static fn (array $a, array $b): int => count($b['entries']) <=> count($a['entries']));
+
+        return [
+            'linked_rows' => $linkedProducts->count(),
+            'distinct_linked_variants' => count($byVariant),
+            'groups' => $groups,
+        ];
+    }
+
     private function toFloat(mixed $value): ?float
     {
         return $this->variantMatcher->toFloat($value);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function diagnoseSupplierListingBlockers(ProductVariantLink $variant, int $supplierId): array
+    {
+        $reasons = [];
+        $offers = SupplierVariantOffer::query()
+            ->where('product_variant_id', $variant->id)
+            ->where('supplier_id', $supplierId)
+            ->get(['id', 'is_active', 'payload']);
+
+        if ($offers->isEmpty()) {
+            return ['no_supplier_offer'];
+        }
+
+        foreach ($offers as $offer) {
+            $payload = is_array($offer->payload) ? $offer->payload : [];
+            if (!$offer->is_active) {
+                $reasons[] = 'offer_inactive';
+            }
+            if (!empty($payload['missing_in_latest_price'])) {
+                $reasons[] = 'missing_in_latest_price';
+            }
+            if (!empty($payload['seller_one_listing_deferred'])) {
+                $reasons[] = 'seller_one_listing_deferred';
+            }
+            if (!empty($payload['out_of_stock_in_price_file'])) {
+                $reasons[] = 'out_of_stock_in_price_file';
+            }
+        }
+
+        $linked = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->where('product_id', $variant->product_id)
+            ->where('is_linked', true)
+            ->where('is_active', true)
+            ->where('link_parsing_active', true)
+            ->exists();
+
+        if (!$linked) {
+            $reasons[] = 'no_active_supplier_product_link';
+        }
+
+        if ($reasons === [] && !CatalogVariantStockPresenter::supplierListingActive($variant)) {
+            $reasons[] = 'listing_blocked_unknown';
+        }
+
+        return array_values(array_unique($reasons));
     }
 
     private function markLinkedSupplierRowInPriceFile(
@@ -1710,5 +2199,56 @@ class SupplierPriceImportService
     private function parsedRowsCachePath(string $jobId): string
     {
         return storage_path('app/seller-one-temp/rows-'.$jobId.'.ser');
+    }
+
+    private function purgeSellerOneStorageArtifacts(): int
+    {
+        $dirs = [
+            storage_path('app/seller-one-temp'),
+            storage_path('app/private/seller-one-temp'),
+            storage_path('app/private/seller-one-refresh-linked-temp'),
+        ];
+
+        $removed = 0;
+        foreach ($dirs as $dir) {
+            if (! is_dir($dir)) {
+                continue;
+            }
+
+            foreach (glob($dir.'/*') ?: [] as $path) {
+                if (! is_file($path)) {
+                    continue;
+                }
+
+                if (@unlink($path)) {
+                    $removed++;
+                }
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     */
+    private function syncRetailPricesForVariants(array $variantIds): void
+    {
+        $uniqueIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $variantIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($uniqueIds === []) {
+            return;
+        }
+
+        $variants = ProductVariant::query()->whereIn('id', $uniqueIds)->get();
+        foreach ($variants as $variant) {
+            $this->variantRetailPriceService->syncFromListingOffers(
+                $variant,
+                fn (float $purchase): float => $this->pricingService->calculateRetailPrice($purchase),
+            );
+        }
     }
 }

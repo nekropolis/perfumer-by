@@ -7,6 +7,7 @@ export type ProductVariantDefinitionFormState = {
     concentration_code: string;
     concentration_label: string;
     is_tester: boolean;
+    is_vial: boolean;
     excludes_from_free_delivery_threshold: boolean;
 };
 
@@ -59,9 +60,30 @@ export default function ProductVariantDefinitionForm({
                     <input
                         type="checkbox"
                         checked={form.is_tester}
-                        onChange={(e) => onChangeAction({ ...form, is_tester: e.target.checked })}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                is_tester: e.target.checked,
+                                is_vial: e.target.checked ? false : form.is_vial,
+                            })
+                        }
                     />
                     <span>Тестер</span>
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                    <input
+                        type="checkbox"
+                        checked={form.is_vial}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                is_vial: e.target.checked,
+                                is_tester: e.target.checked ? false : form.is_tester,
+                            })
+                        }
+                    />
+                    <span>Пробник</span>
                 </label>
 
                 <label className="inline-flex max-w-xl items-start gap-2 text-sm text-admin-text md:col-span-2">

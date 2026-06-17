@@ -29,6 +29,7 @@ class ProductVariantAdminController extends Controller
                 'concentration_code' => $definition->concentration_code,
                 'concentration_label' => $definition->concentration_label,
                 'is_tester' => (bool) $definition->is_tester,
+                'is_vial' => (bool) $definition->is_vial,
                 'excludes_from_free_delivery_threshold' => (bool) $definition->excludes_from_free_delivery_threshold,
             ],
         ]);
@@ -41,22 +42,29 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
+            'is_vial' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $isTester = (bool) ($validated['is_tester'] ?? false);
+        $isVial = (bool) ($validated['is_vial'] ?? false);
+        $this->assertVariantFlagsCompatible($isTester, $isVial);
 
         $definition = VariantDefinition::query()->create([
             'volume_ml' => (int) $validated['volume_ml'],
             'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
             'concentration_label' => trim((string) $validated['concentration_label']),
-            'is_tester' => (bool) ($validated['is_tester'] ?? false),
+            'is_tester' => $isTester,
+            'is_vial' => $isVial,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
             'title' => $this->buildDefinitionTitle(
                 (int) $validated['volume_ml'],
                 (string) $validated['concentration_code'],
                 (string) $validated['concentration_label'],
-                (bool) ($validated['is_tester'] ?? false),
+                $isTester,
+                $isVial,
             ),
         ]);
 
@@ -75,22 +83,29 @@ class ProductVariantAdminController extends Controller
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
+            'is_vial' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $isTester = (bool) ($validated['is_tester'] ?? false);
+        $isVial = (bool) ($validated['is_vial'] ?? false);
+        $this->assertVariantFlagsCompatible($isTester, $isVial);
 
         $definition->update([
             'volume_ml' => (int) $validated['volume_ml'],
             'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
             'concentration_label' => trim((string) $validated['concentration_label']),
-            'is_tester' => (bool) ($validated['is_tester'] ?? false),
+            'is_tester' => $isTester,
+            'is_vial' => $isVial,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
             'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
             'title' => $this->buildDefinitionTitle(
                 (int) $validated['volume_ml'],
                 (string) $validated['concentration_code'],
                 (string) $validated['concentration_label'],
-                (bool) ($validated['is_tester'] ?? false),
+                $isTester,
+                $isVial,
             ),
         ]);
 
@@ -128,7 +143,8 @@ class ProductVariantAdminController extends Controller
         $query = VariantDefinition::query()
             ->orderBy('volume_ml')
             ->orderBy('concentration_code')
-            ->orderBy('is_tester');
+            ->orderBy('is_tester')
+            ->orderBy('is_vial');
 
         if ($search !== '') {
             $query->where(function ($subQuery) use ($search) {
@@ -152,6 +168,7 @@ class ProductVariantAdminController extends Controller
                 'concentration_code' => $item->concentration_code,
                 'concentration_label' => $item->concentration_label,
                 'is_tester' => (bool) $item->is_tester,
+                'is_vial' => (bool) $item->is_vial,
                 'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
             ];
         };
@@ -352,6 +369,7 @@ class ProductVariantAdminController extends Controller
         string $concentrationCode,
         string $concentrationLabel,
         bool $isTester,
+        bool $isVial = false,
     ): string {
         $title = sprintf(
             '%d мл / %s - %s',
@@ -364,6 +382,19 @@ class ProductVariantAdminController extends Controller
             $title .= ' / Тестер';
         }
 
+        if ($isVial) {
+            $title .= ' / Пробник';
+        }
+
         return $title;
+    }
+
+    private function assertVariantFlagsCompatible(bool $isTester, bool $isVial): void
+    {
+        if ($isTester && $isVial) {
+            throw ValidationException::withMessages([
+                'is_vial' => ['Вариант не может быть одновременно тестером и пробником'],
+            ]);
+        }
     }
 }

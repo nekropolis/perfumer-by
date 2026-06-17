@@ -145,7 +145,6 @@ class VanilleImportService
                 $newProductIdForLlm = null;
                 $productIdForSearch = null;
                 DB::transaction(function () use ($item, $supplier, $publishExisting, &$imported, &$updated, &$log, &$brandSlugSet, &$productSlugSet, &$brandByEquivalentKey, &$newProductIdForLlm, &$productIdForSearch) {
-                    $fullTitle = $this->resolveProductName($item);
                     $brand = null;
                     $brandName = trim((string) ($item['brand'] ?? ''));
                     $catalogBrand = null;
@@ -167,22 +166,15 @@ class VanilleImportService
                         );
                     }
 
-                    $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
                     $vanilleUrl = trim((string) ($item['url'] ?? ''));
                     $urlPathSlug = $vanilleUrl !== ''
                         ? $this->vanilleUrlPathSlug($this->normalizeVanilleProductInputToUrl($vanilleUrl))
                         : '';
-                    $productShortName = ProductDisplayName::resolveCanonicalShortName(
-                        $brandName,
-                        $brandSlugForPath,
-                        $fullTitle,
-                        $vanilleUrl,
-                    );
-                    if ($productShortName === '') {
-                        $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
-                        $productShortName = $urlTail !== '' ? $urlTail : $fullTitle;
-                    }
-                    $displayName = ProductDisplayName::format($brand?->name ?? $brandName, $productShortName);
+                    $resolvedNames = $this->resolveImportedVanilleProductNames($item, $brand, $brandName, $catalogBrand);
+                    $fullTitle = $resolvedNames['full_title'];
+                    $productShortName = $resolvedNames['short_name'];
+                    $displayName = $resolvedNames['display_name'];
+                    $brandSlugForPath = $resolvedNames['brand_slug_for_path'];
 
                     $baseSlug = $urlPathSlug !== ''
                         ? $urlPathSlug
@@ -1570,6 +1562,246 @@ class VanilleImportService
      * @return array{
      *     success: bool,
      *     message: string,
+     *     processed: int,
+     *     updated: int,
+     *     would_update: int,
+     *     skipped: int,
+     *     skipped_not_eligible: int,
+     *     skipped_already_correct: int,
+     *     skipped_stuck: int,
+     *     reparsed: int,
+     *     errors: int,
+     *     offset: int,
+     *     next_offset: int,
+     *     total: int,
+     *     done: bool,
+     *     log: list<string>
+     * }
+     */
+    public function repairVanilleProductNamesBatch(
+        int $offset = 0,
+        int $limit = 50,
+        bool $onlySlugDerivedNames = true,
+        bool $reparseFromUrl = false,
+        bool $reparseIfStuck = false,
+        bool $dryRun = false,
+        bool $verbose = false,
+    ): array {
+        $supplier = Supplier::query()->where('code', 'vanille')->first();
+        if (! $supplier) {
+            return [
+                'success' => false,
+                'message' => 'Поставщик vanille не найден',
+                'processed' => 0,
+                'updated' => 0,
+                'would_update' => 0,
+                'skipped' => 0,
+                'skipped_not_eligible' => 0,
+                'skipped_already_correct' => 0,
+                'skipped_stuck' => 0,
+                'reparsed' => 0,
+                'errors' => 0,
+                'offset' => $offset,
+                'next_offset' => $offset,
+                'total' => 0,
+                'done' => true,
+                'log' => [],
+            ];
+        }
+
+        $query = SupplierProduct::query()
+            ->where('supplier_id', $supplier->id)
+            ->where('is_linked', true)
+            ->whereNotNull('product_id')
+            ->whereNotNull('external_url')
+            ->with(['product.brand:id,name,slug'])
+            ->orderBy('id');
+
+        $total = (clone $query)->count();
+        $rows = $query->offset($offset)->limit(max(1, $limit))->get();
+
+        $log = [];
+        $processed = 0;
+        $updated = 0;
+        $wouldUpdate = 0;
+        $skipped = 0;
+        $skippedNotEligible = 0;
+        $skippedAlreadyCorrect = 0;
+        $skippedStuck = 0;
+        $reparsed = 0;
+        $errors = 0;
+        $reindexIds = [];
+
+        foreach ($rows as $supplierProduct) {
+            $processed++;
+            $product = $supplierProduct->product;
+            $url = trim((string) $supplierProduct->external_url);
+
+            if (! $product) {
+                $errors++;
+                $log[] = 'ERROR: product #' . (int) $supplierProduct->product_id . ' not found';
+
+                continue;
+            }
+
+            if ($url === '') {
+                $errors++;
+                $log[] = 'ERROR: empty URL for product #' . $product->id;
+
+                continue;
+            }
+
+            try {
+                $item = $this->supplierProductPayloadAsVanilleItem($supplierProduct, $url);
+                $brandName = trim((string) ($item['brand'] ?? $product->brand?->name ?? ''));
+                $brand = $product->brand;
+                $resolved = $this->resolveImportedVanilleProductNames($item, $brand, $brandName);
+                $shouldReparse = $reparseFromUrl;
+
+                if (
+                    $reparseIfStuck
+                    && ! $shouldReparse
+                    && $this->vanilleResolvedNameStillSlugDerived($resolved, $url, $product)
+                ) {
+                    $shouldReparse = true;
+                }
+
+                if ($shouldReparse) {
+                    if ($dryRun) {
+                        $log[] = 'DRY: reparse ' . $url;
+                    } else {
+                        $parsed = $this->productParser->parseProductPage($url);
+                        foreach (['characteristics', 'description', 'gallery_image_urls', 'brand', 'name', 'page_title'] as $key) {
+                            if (array_key_exists($key, $parsed)) {
+                                $item[$key] = $parsed[$key];
+                            }
+                        }
+                        $supplierProduct->payload = $item;
+                        $supplierProduct->save();
+                        $reparsed++;
+                        $brandName = trim((string) ($item['brand'] ?? $brandName));
+                        $resolved = $this->resolveImportedVanilleProductNames($item, $brand, $brandName);
+                    }
+                }
+
+                $slugDerivedShort = ProductDisplayName::shortNameFromPathIdentityKey(
+                    ProductDisplayName::vanilleProductPathIdentityKey($resolved['brand_slug_for_path'], $url),
+                );
+
+                if ($onlySlugDerivedNames) {
+                    if (! $this->productNameLooksLikeLowercaseSlugName((string) $product->name, $slugDerivedShort)) {
+                        $skipped++;
+                        $skippedNotEligible++;
+                        if ($verbose) {
+                            $log[] = 'SKIP: not lowercase slug name | product #' . $product->id . ' | ' . $product->name;
+                        }
+
+                        continue;
+                    }
+                }
+
+                if ($this->vanilleResolvedNameStillSlugDerived($resolved, $url, $product)) {
+                    $skipped++;
+                    $skippedStuck++;
+                    if ($verbose) {
+                        $log[] = 'SKIP: no better name in payload | product #' . $product->id . ' | ' . $url;
+                    }
+
+                    continue;
+                }
+
+                $currentName = trim((string) $product->name);
+                $currentH1 = trim((string) $product->h1);
+                $needsName = $resolved['short_name'] !== $currentName;
+                $needsH1 = $resolved['display_name'] !== $currentH1;
+
+                if (! $needsName && ! $needsH1) {
+                    $skipped++;
+                    $skippedAlreadyCorrect++;
+                    if ($verbose) {
+                        $log[] = 'SKIP: already correct | product #' . $product->id;
+                    }
+
+                    continue;
+                }
+
+                if ($dryRun) {
+                    $wouldUpdate++;
+                    $log[] = sprintf(
+                        'DRY: product #%d | %s -> %s | h1: %s -> %s',
+                        $product->id,
+                        $currentName,
+                        $resolved['short_name'],
+                        $currentH1,
+                        $resolved['display_name'],
+                    );
+
+                    continue;
+                }
+
+                $product->update([
+                    'name' => $resolved['short_name'],
+                    'h1' => $resolved['display_name'],
+                ]);
+
+                $externalName = trim((string) ($resolved['full_title'] ?? ''));
+                if ($externalName !== '' && $externalName !== (string) $supplierProduct->external_name) {
+                    $supplierProduct->update(['external_name' => $externalName]);
+                }
+
+                $updated++;
+                $reindexIds[] = (int) $product->id;
+                $log[] = sprintf(
+                    'OK: product #%d | %s -> %s',
+                    $product->id,
+                    $currentName,
+                    $resolved['short_name'],
+                );
+            } catch (Throwable $e) {
+                $errors++;
+                $log[] = 'ERROR: ' . $url . ' -> ' . $e->getMessage();
+            }
+        }
+
+        if (
+            $reindexIds !== []
+            && ! $dryRun
+            && (bool) config('services.catalog_search.enabled', false)
+        ) {
+            $indexer = app(ProductSearchIndexer::class);
+            foreach (array_values(array_unique($reindexIds)) as $productId) {
+                $indexer->queueProductSync($productId, true);
+            }
+        }
+
+        $nextOffset = $offset + $processed;
+
+        return [
+            'success' => $errors === 0,
+            'message' => $dryRun
+                ? 'Проверка имён Vanille (dry-run)'
+                : 'Починка имён Vanille',
+            'processed' => $processed,
+            'updated' => $updated,
+            'would_update' => $wouldUpdate,
+            'skipped' => $skipped,
+            'skipped_not_eligible' => $skippedNotEligible,
+            'skipped_already_correct' => $skippedAlreadyCorrect,
+            'skipped_stuck' => $skippedStuck,
+            'reparsed' => $reparsed,
+            'errors' => $errors,
+            'offset' => $offset,
+            'next_offset' => $nextOffset,
+            'total' => $total,
+            'done' => $nextOffset >= $total,
+            'log' => $log,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     success: bool,
+     *     message: string,
      *     items_updated: int,
      *     errors: int,
      *     file_offset: int,
@@ -2496,6 +2728,90 @@ class VanilleImportService
         return $candidate;
     }
 
+    /**
+     * @param  array<string, mixed>|null  $catalogBrand
+     * @return array{short_name: string, display_name: string, full_title: string, brand_slug_for_path: string}
+     */
+    private function resolveImportedVanilleProductNames(
+        array $item,
+        ?Brand $brand,
+        string $brandName,
+        ?array $catalogBrand = null,
+    ): array {
+        $brandName = trim($brandName);
+        if ($catalogBrand === null && $brandName !== '') {
+            $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName);
+        }
+
+        $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
+        $vanilleUrl = trim((string) ($item['url'] ?? ''));
+        $fullTitle = $this->resolveProductName($item);
+        $productShortName = ProductDisplayName::resolveCanonicalShortName(
+            $brandName,
+            $brandSlugForPath,
+            $fullTitle,
+            $vanilleUrl,
+            $this->resolveVanilleProductCasingSources($item),
+        );
+
+        if ($productShortName === '') {
+            $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
+            $productShortName = $urlTail !== '' ? $urlTail : $fullTitle;
+        }
+
+        return [
+            'short_name' => $productShortName,
+            'display_name' => ProductDisplayName::format($brand?->name ?? $brandName, $productShortName),
+            'full_title' => $fullTitle,
+            'brand_slug_for_path' => $brandSlugForPath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function supplierProductPayloadAsVanilleItem(SupplierProduct $supplierProduct, string $url): array
+    {
+        $item = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+        $item['url'] = $url;
+
+        return $item;
+    }
+
+    /**
+     * @param  array{short_name: string, display_name: string, full_title: string, brand_slug_for_path: string}  $resolved
+     */
+    private function vanilleResolvedNameStillSlugDerived(array $resolved, string $url, Product $product): bool
+    {
+        $slugDerivedShort = ProductDisplayName::shortNameFromPathIdentityKey(
+            ProductDisplayName::vanilleProductPathIdentityKey($resolved['brand_slug_for_path'], $url),
+        );
+
+        if ($slugDerivedShort === '') {
+            return false;
+        }
+
+        return ProductDisplayName::nameWordsEquivalent($resolved['short_name'], $slugDerivedShort)
+            && $resolved['short_name'] === $slugDerivedShort
+            && ProductDisplayName::nameWordsEquivalent((string) $product->name, $slugDerivedShort);
+    }
+
+    private function productNameLooksLikeLowercaseSlugName(string $currentName, string $slugDerivedShort): bool
+    {
+        $currentName = trim($currentName);
+        $slugDerivedShort = trim($slugDerivedShort);
+
+        if ($currentName === '' || $slugDerivedShort === '') {
+            return false;
+        }
+
+        if ($currentName !== mb_strtolower($currentName, 'UTF-8')) {
+            return false;
+        }
+
+        return ProductDisplayName::nameWordsEquivalent($currentName, $slugDerivedShort);
+    }
+
     private function resolveProductName(array $item): string
     {
         $name = trim((string) ($item['name'] ?? ''));
@@ -2508,6 +2824,12 @@ class VanilleImportService
             return $title;
         }
 
+        $characteristics = is_array($item['characteristics'] ?? null) ? $item['characteristics'] : [];
+        $aromat = trim((string) ($characteristics['Аромат'] ?? $characteristics['аромат'] ?? ''));
+        if ($aromat !== '') {
+            return $aromat;
+        }
+
         $urlPath = trim((string) parse_url((string) ($item['url'] ?? ''), PHP_URL_PATH), '/');
         $tail = $urlPath !== '' ? basename($urlPath) : '';
         if ($tail !== '') {
@@ -2515,6 +2837,20 @@ class VanilleImportService
         }
 
         return 'Unknown product';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveVanilleProductCasingSources(array $item): array
+    {
+        $characteristics = is_array($item['characteristics'] ?? null) ? $item['characteristics'] : [];
+
+        return array_values(array_unique(array_filter([
+            trim((string) ($item['name'] ?? '')),
+            trim((string) ($item['page_title'] ?? '')),
+            trim((string) ($characteristics['Аромат'] ?? $characteristics['аромат'] ?? '')),
+        ], static fn (string $value): bool => $value !== '')));
     }
 
     private function rewriteDescriptionForNewProductIfPossible(int $productId): void

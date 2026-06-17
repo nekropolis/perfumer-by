@@ -45,11 +45,41 @@ final class CatalogVariantStockPresenter
      */
     public static function storefrontVariantPrice(ProductVariantLink $variant, array $presented): ?float
     {
-        if ($presented['is_available'] || (bool) $variant->is_preorder) {
-            return $variant->price !== null ? (float) $variant->price : null;
+        if (!$presented['is_available'] && !(bool) $variant->is_preorder) {
+            return null;
         }
 
-        return null;
+        if (!empty($presented['supplier_listing_price'])) {
+            $minOfferPrice = self::minListingRetailPrice($variant);
+            if ($minOfferPrice !== null) {
+                return $minOfferPrice;
+            }
+        }
+
+        return $variant->price !== null ? (float) $variant->price : null;
+    }
+
+    /**
+     * Минимальная розничная цена среди офферов, участвующих в канале прайса на витрине.
+     */
+    public static function minListingRetailPrice(ProductVariantLink $variant): ?float
+    {
+        $min = null;
+
+        foreach (self::listingEligibleOffers($variant) as $offer) {
+            if ($offer->price === null || !is_numeric((string) $offer->price)) {
+                continue;
+            }
+
+            $retail = (float) $offer->price;
+            if ($retail <= 0) {
+                continue;
+            }
+
+            $min = $min === null ? $retail : min($min, $retail);
+        }
+
+        return $min;
     }
 
     /**
@@ -85,10 +115,42 @@ final class CatalogVariantStockPresenter
 
     public static function supplierListingActive(ProductVariantLink $variant): bool
     {
+        foreach (self::listingEligibleOffers($variant) as $_offer) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Минимальная закупочная цена среди офферов, участвующих в канале прайса на витрине.
+     */
+    public static function minListingPurchasePrice(ProductVariantLink $variant): ?float
+    {
+        $min = null;
+
+        foreach (self::listingEligibleOffers($variant) as $offer) {
+            $payload = is_array($offer->payload) ? $offer->payload : [];
+            $purchase = self::resolveOfferPurchasePrice($offer, $payload);
+            if ($purchase === null || $purchase <= 0) {
+                continue;
+            }
+
+            $min = $min === null ? $purchase : min($min, $purchase);
+        }
+
+        return $min;
+    }
+
+    /**
+     * @return iterable<int, SupplierVariantOffer>
+     */
+    private static function listingEligibleOffers(ProductVariantLink $variant): iterable
+    {
         $offers = SupplierVariantOffer::query()
             ->where('product_variant_id', $variant->id)
             ->where('is_active', true)
-            ->get(['id', 'supplier_id', 'payload']);
+            ->get(['id', 'supplier_id', 'price', 'purchase_price', 'payload']);
 
         foreach ($offers as $offer) {
             $payload = is_array($offer->payload) ? $offer->payload : [];
@@ -105,11 +167,22 @@ final class CatalogVariantStockPresenter
                 ->exists();
 
             if ($linked) {
-                return true;
+                yield $offer;
             }
         }
+    }
 
-        return false;
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private static function resolveOfferPurchasePrice(SupplierVariantOffer $offer, array $payload): ?float
+    {
+        $raw = $payload['supplier_price'] ?? $offer->purchase_price;
+        if ($raw === null || !is_numeric((string) $raw)) {
+            return null;
+        }
+
+        return (float) $raw;
     }
 
     /**
@@ -118,7 +191,8 @@ final class CatalogVariantStockPresenter
      *     reserved_stock: int,
      *     available_stock: int,
      *     is_available: bool,
-     *     is_preorder: bool
+     *     is_preorder: bool,
+     *     supplier_listing_price: bool
      * }
      */
     public static function forListing(
@@ -139,6 +213,7 @@ final class CatalogVariantStockPresenter
                 'available_stock' => $mainAvailable,
                 'is_available' => $mainAvailable > 0 || $preorder,
                 'is_preorder' => $preorder,
+                'supplier_listing_price' => false,
             ];
         }
 
@@ -150,6 +225,7 @@ final class CatalogVariantStockPresenter
                 'available_stock' => self::SUPPLIER_LISTING_QTY,
                 'is_available' => true,
                 'is_preorder' => $preorder,
+                'supplier_listing_price' => true,
             ];
         }
 
@@ -167,6 +243,7 @@ final class CatalogVariantStockPresenter
                 'available_stock' => $supplierAvailable,
                 'is_available' => $supplierAvailable > 0 || $preorder,
                 'is_preorder' => $preorder,
+                'supplier_listing_price' => false,
             ];
         }
 
@@ -176,6 +253,7 @@ final class CatalogVariantStockPresenter
             'available_stock' => $fallbackAvailable,
             'is_available' => $fallbackAvailable > 0 || $preorder,
             'is_preorder' => $preorder,
+            'supplier_listing_price' => false,
         ];
     }
 }

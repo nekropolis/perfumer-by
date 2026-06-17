@@ -94,7 +94,15 @@ class ProductVariantLink extends Model
 
     public function getEditionAttribute(): ?string
     {
-        return $this->definition?->is_tester ? 'Тестер' : null;
+        if ($this->definition?->is_tester) {
+            return 'Тестер';
+        }
+
+        if ($this->definition?->is_vial) {
+            return 'Пробник';
+        }
+
+        return null;
     }
 
     public function getDiscountPercentAttribute(): ?int

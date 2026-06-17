@@ -46,6 +46,7 @@ export type AdminProductVariantItem = {
         concentration_code: string;
         concentration_label: string;
         is_tester: boolean;
+        is_vial?: boolean;
         excludes_from_free_delivery_threshold?: boolean;
     };
 };
@@ -76,6 +77,7 @@ export type VariantDefinitionItem = {
     concentration_code: string;
     concentration_label: string;
     is_tester: boolean;
+    is_vial?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
 };
 
@@ -94,6 +96,7 @@ export type VariantDefinitionPayload = {
     concentration_code: string;
     concentration_label: string;
     is_tester?: boolean;
+    is_vial?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
     sort_order?: number;
 };

@@ -13,6 +13,7 @@ import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     createSellerOneRule,
     deleteSellerOneRule,
+    fetchSellerOneDuplicateVariantLinks,
     fetchSellerOneParseStatus,
     fetchSellerOneRefreshLinkedJobStatus,
     fetchSellerOneActiveStatus,
@@ -28,7 +29,10 @@ import {
     updateSellerOneRule,
 } from "@/lib/admin-vanille-api";
 import type {
+    SellerOneDuplicateVariantLinksResponse,
+    SellerOneListingDiagnostics,
     SellerOneMatchRule,
+    SellerOneParseDiagnostics,
     SellerOnePricingSettings,
     SellerOneSupplierProductItem,
     SellerOneSupplierProductsResponse,
@@ -51,9 +55,9 @@ import {
 import {
     buildDefinitionSearchFromHint,
     buildInitialSearchFromRow,
-    buildSupplierParsedLabel,
-    findProductNameMatchInfo,
+    findSellerOneRowNameMatchInfo,
     formatCatalogProductLabel,
+    formatParsedSupplierVariantHint,
     getRowCatalogProductLabel,
     getVariantMatchFlags,
     isFullVariantMatch,
@@ -64,6 +68,9 @@ import {
     AlertMessage,
     ConfidenceBadge,
     HighlightedNameText,
+    DuplicateVariantLinksModal,
+    ListingDiagnosticsPanel,
+    ParseDiagnosticsPanel,
     ManualLinkModal,
     PricingSettingsModal,
     RulesModal,
@@ -263,6 +270,12 @@ export default function SellerOneImportPage() {
     const [refreshLinkedJobId, setRefreshLinkedJobId] = useState<string | null>(null);
     const [supplierError, setSupplierError] = useState("");
     const [supplierSuccess, setSupplierSuccess] = useState("");
+    const [parseDiagnostics, setParseDiagnostics] = useState<SellerOneParseDiagnostics | null>(null);
+    const [listingDiagnostics, setListingDiagnostics] = useState<SellerOneListingDiagnostics | null>(null);
+    const [duplicateLinksOpen, setDuplicateLinksOpen] = useState(false);
+    const [duplicateLinksLoading, setDuplicateLinksLoading] = useState(false);
+    const [duplicateLinksError, setDuplicateLinksError] = useState("");
+    const [duplicateLinksData, setDuplicateLinksData] = useState<SellerOneDuplicateVariantLinksResponse | null>(null);
 
     const searchParamsFromUrl = useSearchParams();
 
@@ -325,6 +338,21 @@ export default function SellerOneImportPage() {
         }
     }, [debouncedSearch, page, status, stockFilter]);
 
+    const openDuplicateLinksModal = useCallback(async () => {
+        setDuplicateLinksOpen(true);
+        setDuplicateLinksLoading(true);
+        setDuplicateLinksError("");
+        setDuplicateLinksData(null);
+        try {
+            const res = await fetchSellerOneDuplicateVariantLinks();
+            setDuplicateLinksData(res.data);
+        } catch (e: unknown) {
+            setDuplicateLinksError(e instanceof Error ? e.message : "Ошибка загрузки списка дублей");
+        } finally {
+            setDuplicateLinksLoading(false);
+        }
+    }, []);
+
     useResetPageOnChange(setPage, [debouncedSearch, status, stockFilter]);
 
     useEffect(() => {
@@ -375,7 +403,12 @@ export default function SellerOneImportPage() {
                 if (data.status === "completed") {
                     setSupplierPreviewLoading(false);
                     setBatchProgress("");
-                    setSupplierSuccess("Прайс успешно обработан и таблица обновлена");
+                    const parseMsg =
+                        typeof data.message === "string" && data.message.trim() !== ""
+                            ? data.message
+                            : "Прайс успешно обработан и таблица обновлена";
+                    setSupplierSuccess(parseMsg);
+                    setParseDiagnostics(data.parse_diagnostics ?? null);
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
                     setActiveJobId(null);
                     await loadRows(1);
@@ -494,6 +527,7 @@ export default function SellerOneImportPage() {
                             : `Цены: обработано ${data.updated ?? 0}, цена изменилась — ${priceChanged}, стало «нет в наличии» — ${outStock}, «в наличии» — ${inStock}, товар пропал у поставщика — ${data.missing_codes ?? 0}${shelf > 0 ? `, снято с вирт. склада поставщика (вариантов): ${shelf}` : ""
                             }`;
                     setSupplierSuccess(msg);
+                    setListingDiagnostics(data.listing_diagnostics ?? null);
                     window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
                     setRefreshLinkedJobId(null);
                     await loadRows(page);
@@ -544,6 +578,7 @@ export default function SellerOneImportPage() {
         setSupplierPreviewLoading(true);
         setSupplierError("");
         setSupplierSuccess("");
+        setParseDiagnostics(null);
         try {
             const data = await startSellerOneParseJob(supplierFile);
             setActiveJobId(data.job_id);
@@ -564,6 +599,7 @@ export default function SellerOneImportPage() {
         setSupplierRefreshPricesLoading(true);
         setSupplierError("");
         setSupplierSuccess("");
+        setListingDiagnostics(null);
         setBatchProgress("");
         try {
             const data = await startSellerOneRefreshLinkedPricesJob(supplierFile);
@@ -651,8 +687,12 @@ export default function SellerOneImportPage() {
             brand: row.parsed?.brand || "",
             productName: row.parsed?.product_name || row.external_name || "",
             volume: row.parsed?.volume ?? null,
+            volumeIsMultipack: Boolean(row.parsed?.volume_is_multipack),
+            volumeMultipackCount: row.parsed?.volume_multipack_count ?? null,
+            volumeMultipackUnitMl: row.parsed?.volume_multipack_unit_ml ?? null,
             concentration: row.parsed?.concentration ?? null,
             isTester: Boolean(row.parsed?.is_tester),
+            isVial: Boolean(row.parsed?.is_vial),
         };
         setManualLink({
             rowId: row.id,
@@ -924,6 +964,13 @@ export default function SellerOneImportPage() {
                     <button type="button" onClick={() => void openPricingModal()} className="rounded-xl border px-4 py-2 text-sm">
                         Формула цены
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => void openDuplicateLinksModal()}
+                        className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 hover:bg-amber-100"
+                    >
+                        Дубли variant_id
+                    </button>
                 </div>
 
                 {batchProgress ? (
@@ -946,6 +993,20 @@ export default function SellerOneImportPage() {
 
                 {supplierError ? <AlertMessage message={supplierError} onCloseAction={() => setSupplierError("")} /> : null}
                 {supplierSuccess ? <SuccessMessage message={supplierSuccess} onCloseAction={() => setSupplierSuccess("")} /> : null}
+                {parseDiagnostics ? (
+                    <ParseDiagnosticsPanel
+                        diagnostics={parseDiagnostics}
+                        onCloseAction={() => setParseDiagnostics(null)}
+                        onShowAllDuplicatesAction={() => void openDuplicateLinksModal()}
+                    />
+                ) : null}
+                {listingDiagnostics ? (
+                    <ListingDiagnosticsPanel
+                        diagnostics={listingDiagnostics}
+                        onCloseAction={() => setListingDiagnostics(null)}
+                        onShowAllDuplicatesAction={() => void openDuplicateLinksModal()}
+                    />
+                ) : null}
 
                 <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
                     <AdminSearchInput value={searchInput} onChangeAction={setSearchInput} placeholder="Поиск по товару поставщика" />
@@ -1035,16 +1096,15 @@ export default function SellerOneImportPage() {
                                 <tbody>
                                     {items.map((row) => {
                                         const catalogProductLabel = getRowCatalogProductLabel(row);
-                                        const supplierParsedLabel = buildSupplierParsedLabel(
-                                            row.parsed,
-                                            row.external_name,
-                                        );
                                         const nameMatchInfo = catalogProductLabel
-                                            ? findProductNameMatchInfo(
-                                                supplierParsedLabel,
-                                                catalogProductLabel,
-                                            )
-                                            : { words: [], catalogWords: [], exact: false };
+                                            ? findSellerOneRowNameMatchInfo(row, catalogProductLabel)
+                                            : {
+                                                words: [],
+                                                catalogWords: [],
+                                                exact: false,
+                                                brandPrefix: null,
+                                                catalogBrandPrefix: null,
+                                            };
 
                                         return (
                                             <tr key={row.id} className="border-t align-top">
@@ -1155,16 +1215,13 @@ export default function SellerOneImportPage() {
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
-                                                                Совпал продукт, вариантов пока нет
+                                                                {row.match_confidence_breakdown?.name_match_level === "catalog_extra"
+                                                                    || row.match_confidence_breakdown?.name_match_level === "partial"
+                                                                    ? "Похожий продукт, проверьте название"
+                                                                    : "Совпал продукт, вариантов пока нет"}
                                                             </div>
                                                             <div className="mt-1 break-words text-admin-text-secondary">
-                                                                {row.parsed?.volume
-                                                                    ? `${row.parsed.volume} ml`
-                                                                    : "—"}
-                                                                {row.parsed?.concentration
-                                                                    ? ` / ${String(row.parsed.concentration).toUpperCase()}`
-                                                                    : ""}
-                                                                {row.parsed?.is_tester ? " / TESTER" : ""}
+                                                                {formatParsedSupplierVariantHint(row.parsed)}
                                                                 {" · "}
                                                                 <span className="text-gray-400">
                                                                     {row.suggested_product.variants_count
@@ -1190,7 +1247,9 @@ export default function SellerOneImportPage() {
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        "Выберите связь"
+                                                        <span className="inline-block origin-left text-admin-text-secondary transition-all duration-150 hover:scale-[1.03] hover:text-admin-text">
+                                                            Выберите связь
+                                                        </span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -1242,6 +1301,14 @@ export default function SellerOneImportPage() {
                     }}
                     onSaveAction={savePricingSettings}
                 />
+                {duplicateLinksOpen ? (
+                    <DuplicateVariantLinksModal
+                        data={duplicateLinksData}
+                        loading={duplicateLinksLoading}
+                        error={duplicateLinksError}
+                        onCloseAction={() => setDuplicateLinksOpen(false)}
+                    />
+                ) : null}
             </div>
         </AdminPageCard>
     );

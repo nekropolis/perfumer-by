@@ -181,6 +181,74 @@ export type SellerOneParseStatus = {
     linked_products?: number;
     message?: string;
     updated_at?: string;
+    parse_diagnostics?: SellerOneParseDiagnostics;
+    listing_diagnostics?: SellerOneListingDiagnostics;
+};
+
+export type SellerOneParseDiagnosticVariantGroup = {
+    variant_id: number;
+    codes: string[];
+    names: string[];
+};
+
+export type SellerOneDuplicateVariantLinkEntry = {
+    code: string;
+    name: string;
+    supplier_product_id: number;
+};
+
+export type SellerOneDuplicateVariantLinkGroup = {
+    variant_id: number;
+    entries: SellerOneDuplicateVariantLinkEntry[];
+};
+
+export type SellerOneDuplicateVariantLinksResponse = {
+    linked_rows: number;
+    distinct_linked_variants: number;
+    duplicate_variant_groups: number;
+    duplicate_variant_extra_rows: number;
+    groups: SellerOneDuplicateVariantLinkGroup[];
+};
+
+export type SellerOneParseDiagnosticFileCode = {
+    code: string;
+    occurrences: number;
+};
+
+export type SellerOneParseDiagnostics = {
+    linked_rows: number;
+    distinct_linked_variants: number;
+    duplicate_variant_extra_rows: number;
+    duplicate_variant_groups: number;
+    duplicate_variant_samples: SellerOneParseDiagnosticVariantGroup[];
+    duplicate_file_code_extra_rows: number;
+    duplicate_file_code_samples: SellerOneParseDiagnosticFileCode[];
+};
+
+export type SellerOneListingDiagnosticSample = {
+    code: string;
+    variant_id: number;
+    name?: string;
+    first_code?: string;
+    reasons?: string[];
+};
+
+export type SellerOneListingDiagnostics = {
+    rows_updated?: number;
+    became_in_stock?: number;
+    in_stock_gap?: number;
+    gap_duplicate_variant?: number;
+    gap_already_listed?: number;
+    gap_not_listed?: number;
+    gap_became_out_of_stock?: number;
+    gap_unexplained?: number;
+    distinct_variants_updated: number;
+    duplicate_variant_in_batch: number;
+    already_listed_before_batch: number;
+    not_listed_after_update: number;
+    duplicate_variant_samples: SellerOneListingDiagnosticSample[];
+    already_listed_samples: SellerOneListingDiagnosticSample[];
+    not_listed_samples: SellerOneListingDiagnosticSample[];
 };
 
 export type SupplierPriceApplyResponse = {
@@ -209,8 +277,12 @@ export type SellerOneSupplierProductItem = {
         brand?: string | null;
         product_name?: string | null;
         volume?: number | null;
+        volume_is_multipack?: boolean;
+        volume_multipack_count?: number | null;
+        volume_multipack_unit_ml?: number | null;
         concentration?: string | null;
         is_tester?: boolean;
+        is_vial?: boolean;
     } | null;
     is_new: boolean;
     match_confidence: number;
@@ -219,7 +291,8 @@ export type SellerOneSupplierProductItem = {
         name_percent: number;
         name_points: number;
         /** Уровень совпадения имени (бэкенд SellerOneVariantMatcher). */
-        name_match_level?: "none" | "exact" | "exact_multiset" | "partial";
+        name_match_level?: "none" | "exact" | "exact_multiset" | "partial" | "catalog_extra";
+        link_match_level?: "none" | "full" | "variant_extra" | "name_only";
         volume_match: boolean;
         volume_points: number;
         concentration_match: boolean;

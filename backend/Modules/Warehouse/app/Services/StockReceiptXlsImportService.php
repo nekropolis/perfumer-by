@@ -771,7 +771,8 @@ class StockReceiptXlsImportService
             );
 
             $variantId = (int) ($parsed['selected_variant_id'] ?? 0);
-            if ($variantId <= 0) {
+            $confidence = (int) ($parsed['suggested_variant']['confidence'] ?? 0);
+            if ($variantId <= 0 || $confidence < 100) {
                 continue;
             }
 
@@ -966,6 +967,12 @@ class StockReceiptXlsImportService
             'qty' => (int) ($row['qty'] ?? 0),
             'parsed' => $parsed['parsed'] ?? null,
             'suggested_variant' => $parsed['suggested_variant'] ?? null,
+            'suggested_product' => $parsed['suggested_product'] ?? null,
+            'match_confidence' => (int) (
+                $parsed['suggested_variant']['confidence']
+                ?? $parsed['suggested_product']['confidence']
+                ?? 0
+            ),
         ];
     }
 

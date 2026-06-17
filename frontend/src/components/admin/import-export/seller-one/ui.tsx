@@ -1,13 +1,23 @@
 "use client";
 
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import type { SellerOneMatchRule, SellerOnePricingSettings } from "@/types/Vanille";
+import type {
+    SellerOneDuplicateVariantLinksResponse,
+    SellerOneListingDiagnostics,
+    SellerOneMatchRule,
+    SellerOneParseDiagnostics,
+    SellerOnePricingSettings,
+} from "@/types/Vanille";
 import {
     buildDefinitionSearchFromHint,
     buildSupplierLabelFromHint,
     findNameMatchHighlightRanges,
+    findBrandPrefixHighlightRange,
+    findGenderMarkerHighlightRange,
+    mergeHighlightRanges,
     findSubsequenceHighlightRanges,
     formatCatalogProductLabel,
+    formatParsedSupplierVariantHint,
     formatVariantOptionLabel,
     findProductNameMatchInfo,
     getConfidenceBadgeClass,
@@ -63,6 +73,361 @@ export function SuccessMessage({
     );
 }
 
+const LISTING_REASON_LABELS: Record<string, string> = {
+    no_supplier_offer: "нет оффера поставщика",
+    offer_inactive: "оффер неактивен",
+    missing_in_latest_price: "кода нет в последнем прайсе",
+    seller_one_listing_deferred: "витрина отложена до «Обновить цены»",
+    out_of_stock_in_price_file: "нет в строке прайса",
+    no_active_supplier_product_link: "нет активной связи supplier_product",
+    listing_blocked_unknown: "неизвестная причина",
+};
+
+function formatListingReasons(reasons: string[] | undefined): string {
+    if (!reasons?.length) {
+        return "—";
+    }
+    return reasons.map((r) => LISTING_REASON_LABELS[r] ?? r).join("; ");
+}
+
+export function ParseDiagnosticsPanel({
+    diagnostics,
+    onCloseAction,
+    onShowAllDuplicatesAction,
+}: {
+    diagnostics: SellerOneParseDiagnostics;
+    onCloseAction: () => void;
+    onShowAllDuplicatesAction?: () => void;
+}) {
+    const {
+        linked_rows: linkedRows,
+        distinct_linked_variants: distinctVariants,
+        duplicate_variant_extra_rows: duplicateExtraRows,
+        duplicate_variant_groups: duplicateGroups,
+        duplicate_variant_samples: duplicateSamples,
+        duplicate_file_code_extra_rows: fileCodeExtraRows,
+        duplicate_file_code_samples: fileCodeSamples,
+    } = diagnostics;
+
+    const hasDuplicates = duplicateGroups > 0 || fileCodeExtraRows > 0;
+    const hasVariantSpread = linkedRows > 0 && distinctVariants !== linkedRows;
+
+    if (!hasDuplicates && !hasVariantSpread) {
+        return (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <div className="font-medium">Диагностика парсинга</div>
+                        <p className="mt-1 text-xs text-green-900/80">
+                            Дублей не найдено: {linkedRows} связок → {distinctVariants} уникальных variant_id.
+                        </p>
+                    </div>
+                    <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
+                        ✕
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-3">
+                    <div className="font-medium">Диагностика парсинга: дубли связок</div>
+                    <p className="text-xs text-amber-900/80">
+                        Несколько кодов поставщика на один variant_id — лишние строки не попадут в счётчик «в наличии» при обновлении цен.
+                    </p>
+                    <dl className="grid gap-1 text-xs sm:grid-cols-2">
+                        <div>
+                            <dt className="text-amber-900/70">Связано строк</dt>
+                            <dd className="font-mono">{linkedRows}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Уникальных variant_id</dt>
+                            <dd className="font-mono">{distinctVariants}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Групп с 2+ кодами на variant</dt>
+                            <dd className="font-mono">{duplicateGroups}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Лишних связок (дубли variant)</dt>
+                            <dd className="font-mono">{duplicateExtraRows}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Повтор кода в файле (лишние строки)</dt>
+                            <dd className="font-mono">{fileCodeExtraRows}</dd>
+                        </div>
+                    </dl>
+
+                    {duplicateGroups > 0 && onShowAllDuplicatesAction ? (
+                        <button
+                            type="button"
+                            onClick={onShowAllDuplicatesAction}
+                            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-amber-100/80"
+                        >
+                            Полный список: {duplicateGroups} групп ({duplicateExtraRows} лишних кодов)
+                        </button>
+                    ) : null}
+
+                    {duplicateSamples.length > 0 ? (
+                        <div>
+                            <div className="mb-1 text-xs font-medium">Примеры: несколько кодов → один variant_id</div>
+                            <div className="overflow-x-auto rounded border border-amber-200/80 bg-white/60">
+                                <table className="w-full min-w-[36rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-amber-100 text-amber-900/70">
+                                            <th className="px-2 py-1 font-medium">variant_id</th>
+                                            <th className="px-2 py-1 font-medium">Коды</th>
+                                            <th className="px-2 py-1 font-medium">Названия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {duplicateSamples.map((row) => (
+                                            <tr key={row.variant_id} className="border-b border-amber-50 last:border-0 align-top">
+                                                <td className="px-2 py-1 font-mono">{row.variant_id}</td>
+                                                <td className="px-2 py-1 font-mono whitespace-pre-wrap">{row.codes.join("\n")}</td>
+                                                <td className="max-w-md px-2 py-1 whitespace-pre-wrap">{row.names.join("\n")}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {fileCodeSamples.length > 0 ? (
+                        <div>
+                            <div className="mb-1 text-xs font-medium">Примеры: повтор кода в файле</div>
+                            <div className="overflow-x-auto rounded border border-amber-200/80 bg-white/60">
+                                <table className="w-full min-w-[20rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-amber-100 text-amber-900/70">
+                                            <th className="px-2 py-1 font-medium">Код</th>
+                                            <th className="px-2 py-1 font-medium">Строк в файле</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {fileCodeSamples.map((row) => (
+                                            <tr key={row.code} className="border-b border-amber-50 last:border-0">
+                                                <td className="px-2 py-1 font-mono">{row.code}</td>
+                                                <td className="px-2 py-1 font-mono">{row.occurrences}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+                <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
+}
+
+export function ListingDiagnosticsPanel({
+    diagnostics,
+    onCloseAction,
+    onShowAllDuplicatesAction,
+}: {
+    diagnostics: SellerOneListingDiagnostics;
+    onCloseAction: () => void;
+    onShowAllDuplicatesAction?: () => void;
+}) {
+    const {
+        rows_updated: rowsUpdated,
+        became_in_stock: becameInStock,
+        in_stock_gap: inStockGap,
+        gap_duplicate_variant: gapDuplicate,
+        gap_already_listed: gapAlreadyListed,
+        gap_not_listed: gapNotListed,
+        gap_became_out_of_stock: gapOutOfStock,
+        gap_unexplained: gapUnexplained,
+        distinct_variants_updated: distinctVariants,
+        duplicate_variant_in_batch: duplicateCount,
+        already_listed_before_batch: alreadyListedCount,
+        not_listed_after_update: notListedCount,
+        duplicate_variant_samples: duplicateSamples,
+        already_listed_samples: alreadyListedSamples,
+        not_listed_samples: notListedSamples,
+    } = diagnostics;
+
+    const gap = inStockGap ?? (rowsUpdated !== undefined && becameInStock !== undefined ? Math.max(0, rowsUpdated - becameInStock) : 0);
+    const hasGap = gap > 0;
+    const unexplained = gapUnexplained ?? 0;
+
+    const hasSamples =
+        duplicateSamples.length > 0 || alreadyListedSamples.length > 0 || notListedSamples.length > 0;
+    const allClear = !hasGap && duplicateCount === 0 && alreadyListedCount === 0 && notListedCount === 0 && unexplained === 0;
+
+    if (allClear && !hasSamples) {
+        return (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <div className="font-medium">Диагностика «в наличии»</div>
+                        <p className="mt-1 text-xs text-green-900/80">
+                            Обработано {rowsUpdated ?? "—"}, «в наличии» {becameInStock ?? "—"} — расхождений нет.
+                            Уникальных variant_id: {distinctVariants}.
+                        </p>
+                    </div>
+                    <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
+                        ✕
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${unexplained !== 0 ? "border-red-300 bg-red-50 text-red-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-3">
+                    <div className="font-medium">Диагностика «в наличии» после обновления цен</div>
+                    <p className="text-xs opacity-80">
+                        Счётчик «в наличии» — строки с переходом false→true. Повторные коды на тот же variant_id сюда не входят.
+                    </p>
+
+                    {hasGap ? (
+                        <div className={`rounded border px-3 py-2 text-xs ${unexplained !== 0 ? "border-red-200 bg-white/70" : "border-amber-200/80 bg-white/60"}`}>
+                            <div className="font-medium">
+                                Разница: обработано {rowsUpdated ?? "—"} − «в наличии» {becameInStock ?? "—"} = {gap}
+                            </div>
+                            <ul className="mt-1 list-inside list-disc space-y-0.5 opacity-90">
+                                <li>Повтор variant_id в прогоне: {gapDuplicate ?? duplicateCount}</li>
+                                <li>Уже на витрине до строки: {gapAlreadyListed ?? alreadyListedCount}</li>
+                                <li>Не вышли на витрину: {gapNotListed ?? notListedCount}</li>
+                                <li>Снято с витрины в прогоне: {gapOutOfStock ?? 0}</li>
+                                {unexplained !== 0 ? (
+                                    <li className="font-medium text-red-700">Неразобранный остаток (возможный баг): {unexplained}</li>
+                                ) : null}
+                            </ul>
+                        </div>
+                    ) : null}
+
+                    {duplicateCount > 0 && onShowAllDuplicatesAction ? (
+                        <button
+                            type="button"
+                            onClick={onShowAllDuplicatesAction}
+                            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-amber-100/80"
+                        >
+                            Полный список дублей в базе (все коды на один variant_id)
+                        </button>
+                    ) : null}
+
+                    <dl className="grid gap-1 text-xs sm:grid-cols-2">
+                        <div>
+                            <dt className="text-amber-900/70">Уникальных variant_id</dt>
+                            <dd className="font-mono">{distinctVariants}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Повтор варианта (2+ кода → один variant_id)</dt>
+                            <dd className="font-mono">{duplicateCount}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Уже на витрине до строки</dt>
+                            <dd className="font-mono">{alreadyListedCount}</dd>
+                        </div>
+                        <div>
+                            <dt className="text-amber-900/70">Не вышли на витрину</dt>
+                            <dd className="font-mono">{notListedCount}</dd>
+                        </div>
+                    </dl>
+
+                    {duplicateSamples.length > 0 ? (
+                        <div>
+                            <div className="mb-1 text-xs font-medium">Примеры: повтор variant_id (до {duplicateSamples.length})</div>
+                            <div className="overflow-x-auto rounded border border-amber-200/80 bg-white/60">
+                                <table className="w-full min-w-[32rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-amber-100 text-amber-900/70">
+                                            <th className="px-2 py-1 font-medium">Код</th>
+                                            <th className="px-2 py-1 font-medium">variant_id</th>
+                                            <th className="px-2 py-1 font-medium">Первый код в прогоне</th>
+                                            <th className="px-2 py-1 font-medium">Название</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {duplicateSamples.map((row) => (
+                                            <tr key={`${row.code}-${row.variant_id}`} className="border-b border-amber-50 last:border-0">
+                                                <td className="px-2 py-1 font-mono">{row.code}</td>
+                                                <td className="px-2 py-1 font-mono">{row.variant_id}</td>
+                                                <td className="px-2 py-1 font-mono">{row.first_code ?? "—"}</td>
+                                                <td className="max-w-xs truncate px-2 py-1" title={row.name}>{row.name ?? "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {notListedSamples.length > 0 ? (
+                        <div>
+                            <div className="mb-1 text-xs font-medium">Примеры: не на витрине (до {notListedSamples.length})</div>
+                            <div className="overflow-x-auto rounded border border-amber-200/80 bg-white/60">
+                                <table className="w-full min-w-[36rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-amber-100 text-amber-900/70">
+                                            <th className="px-2 py-1 font-medium">Код</th>
+                                            <th className="px-2 py-1 font-medium">variant_id</th>
+                                            <th className="px-2 py-1 font-medium">Причины</th>
+                                            <th className="px-2 py-1 font-medium">Название</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {notListedSamples.map((row) => (
+                                            <tr key={`${row.code}-${row.variant_id}-nl`} className="border-b border-amber-50 last:border-0">
+                                                <td className="px-2 py-1 font-mono">{row.code}</td>
+                                                <td className="px-2 py-1 font-mono">{row.variant_id}</td>
+                                                <td className="px-2 py-1">{formatListingReasons(row.reasons)}</td>
+                                                <td className="max-w-xs truncate px-2 py-1" title={row.name}>{row.name ?? "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {alreadyListedSamples.length > 0 ? (
+                        <div>
+                            <div className="mb-1 text-xs font-medium">Примеры: уже на витрине (до {alreadyListedSamples.length})</div>
+                            <div className="overflow-x-auto rounded border border-amber-200/80 bg-white/60">
+                                <table className="w-full min-w-[28rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-amber-100 text-amber-900/70">
+                                            <th className="px-2 py-1 font-medium">Код</th>
+                                            <th className="px-2 py-1 font-medium">variant_id</th>
+                                            <th className="px-2 py-1 font-medium">Название</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {alreadyListedSamples.map((row) => (
+                                            <tr key={`${row.code}-${row.variant_id}-al`} className="border-b border-amber-50 last:border-0">
+                                                <td className="px-2 py-1 font-mono">{row.code}</td>
+                                                <td className="px-2 py-1 font-mono">{row.variant_id}</td>
+                                                <td className="max-w-xs truncate px-2 py-1" title={row.name}>{row.name ?? "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+                <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
+                    ✕
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function VariantMatchBadges({
     flags,
     inverted = false,
@@ -89,6 +454,7 @@ function VariantMatchBadges({
             {badge("Объём", flags.volume)}
             {badge("Конц.", flags.concentration)}
             {flags.testerRelevant ? badge("Тестер", flags.tester) : null}
+            {flags.vialRelevant ? badge("Пробник", flags.vial) : null}
             {isFullVariantMatch(flags) ? (
                 <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${partialClass}`}>
                     Полное совпадение
@@ -116,22 +482,44 @@ export function HighlightedNameText({
     const words = highlightSource === "catalog"
         ? (matchInfo?.catalogWords ?? matchInfo?.words ?? [])
         : (matchInfo?.words ?? []);
-    if (words.length === 0) {
-        return <span className={className}>{text}</span>;
-    }
+    const brandForPrefix = highlightSource === "catalog"
+        ? (matchInfo?.catalogBrandPrefix ?? null)
+        : (matchInfo?.brandPrefix ?? null);
 
-    const ranges = matchInfo?.exact
-        ? findNameMatchHighlightRanges(text, words, true)
-        : highlightSource === "catalog"
-            ? findSubsequenceHighlightRanges(text, words)
-            : findNameMatchHighlightRanges(text, words, false);
-    if (ranges.length === 0) {
+    if (words.length === 0 && !brandForPrefix && !matchInfo?.supplierGenderMarker) {
         return <span className={className}>{text}</span>;
     }
 
     const markClass = matchInfo?.exact
         ? "rounded-sm bg-green-100 px-0.5 font-semibold text-green-900"
         : "rounded-sm bg-amber-100 px-0.5 font-semibold text-amber-900";
+
+    let ranges: ReturnType<typeof findNameMatchHighlightRanges> = [];
+    let searchFrom = 0;
+
+    if (brandForPrefix) {
+        const brandRange = findBrandPrefixHighlightRange(text, brandForPrefix);
+        if (brandRange) {
+            ranges.push(brandRange);
+            searchFrom = brandRange.end;
+        }
+    }
+
+    if (highlightSource === "supplier" && matchInfo?.supplierGenderMarker) {
+        const genderRange = findGenderMarkerHighlightRange(text);
+        if (genderRange) {
+            ranges.push(genderRange);
+        }
+    }
+
+    ranges = mergeHighlightRanges([
+        ...ranges,
+        ...findSubsequenceHighlightRanges(text, words, searchFrom),
+    ]);
+
+    if (ranges.length === 0) {
+        return <span className={className}>{text}</span>;
+    }
 
     const parts: ReactNode[] = [];
     let cursor = 0;
@@ -331,14 +719,20 @@ export function ManualLinkModal({
                                 <div className="text-xs font-medium text-admin-text">
                                     Формулировка (поиск по мере ввода, нажми строку — добавится к товару)
                                 </div>
-                                {(manualLink.sourceHint.volume || manualLink.sourceHint.concentration) ? (
+                                {(manualLink.sourceHint.volume
+                                    || manualLink.sourceHint.volumeIsMultipack
+                                    || manualLink.sourceHint.concentration) ? (
                                     <div className="text-[11px] text-admin-text-secondary">
                                         Из прайса:{" "}
-                                        {manualLink.sourceHint.volume != null ? `${manualLink.sourceHint.volume} ml` : "—"}
-                                        {manualLink.sourceHint.concentration
-                                            ? ` / ${manualLink.sourceHint.concentration.toUpperCase()}`
-                                            : ""}
-                                        {manualLink.sourceHint.isTester ? " / TESTER" : ""}
+                                        {formatParsedSupplierVariantHint({
+                                            volume: manualLink.sourceHint.volume,
+                                            volume_is_multipack: manualLink.sourceHint.volumeIsMultipack,
+                                            volume_multipack_count: manualLink.sourceHint.volumeMultipackCount,
+                                            volume_multipack_unit_ml: manualLink.sourceHint.volumeMultipackUnitMl,
+                                            concentration: manualLink.sourceHint.concentration,
+                                            is_tester: manualLink.sourceHint.isTester,
+                                            is_vial: manualLink.sourceHint.isVial,
+                                        })}
                                     </div>
                                 ) : null}
                                 <input
@@ -379,7 +773,10 @@ export function ManualLinkModal({
                                     && sortedVariants.length === 0
                                     && manualLink.definitionSearch.trim() === "" ? (
                                     <div className="text-[11px] text-admin-text-secondary">
-                                        {manualLink.sourceHint.volume != null
+                                        {manualLink.sourceHint.volumeIsMultipack
+                                            && manualLink.variants.length > 0
+                                            ? "Набор (N×ml) из прайса не совпадает с одиночным объёмом — выбери формулировку в справочнике ниже."
+                                            : manualLink.sourceHint.volume != null
                                             && manualLink.variants.length > 0
                                             ? `Нет вариантов с объёмом ${manualLink.sourceHint.volume} ml — найди формулировку в справочнике ниже.`
                                             : "У товара пока нет вариантов — введи формулировку ниже."}
@@ -637,6 +1034,93 @@ export function PricingSettingsModal({
                         >
                             {saving ? "Сохраняю..." : "Сохранить формулу"}
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function DuplicateVariantLinksModal({
+    data,
+    loading,
+    error,
+    onCloseAction,
+}: {
+    data: SellerOneDuplicateVariantLinksResponse | null;
+    loading: boolean;
+    error: string;
+    onCloseAction: () => void;
+}) {
+    const rows = (data?.groups ?? []).flatMap((group) =>
+        group.entries.map((entry, index) => ({
+            key: `${group.variant_id}-${entry.code}-${entry.supplier_product_id}`,
+            variant_id: group.variant_id,
+            isFirstInGroup: index === 0,
+            groupSize: group.entries.length,
+            code: entry.code,
+            name: entry.name,
+            supplier_product_id: entry.supplier_product_id,
+        })),
+    );
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6" onClick={onCloseAction}>
+            <div
+                className="mx-auto flex h-full w-full max-w-5xl items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex max-h-full min-h-0 w-full flex-col rounded-2xl bg-white shadow-xl">
+                    <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+                        <div>
+                            <div className="text-sm font-medium">Дубли: несколько кодов → один variant_id</div>
+                            {data ? (
+                                <p className="mt-1 text-xs text-admin-text-secondary">
+                                    {data.duplicate_variant_groups} групп, {data.duplicate_variant_extra_rows} лишних
+                                    связок, всего связано {data.linked_rows} → {data.distinct_linked_variants} variant_id
+                                </p>
+                            ) : null}
+                        </div>
+                        <button type="button" onClick={onCloseAction} className="text-xs text-admin-text-secondary">
+                            Закрыть
+                        </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                        {loading ? (
+                            <p className="text-sm text-admin-text-secondary">Загрузка…</p>
+                        ) : null}
+                        {error ? (
+                            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                        ) : null}
+                        {!loading && !error && rows.length === 0 ? (
+                            <p className="text-sm text-green-700">Дублей нет: у каждого variant_id не больше одного кода.</p>
+                        ) : null}
+                        {!loading && !error && rows.length > 0 ? (
+                            <div className="overflow-x-auto rounded-xl border">
+                                <table className="w-full min-w-[40rem] text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b bg-admin-muted text-admin-text-secondary">
+                                            <th className="px-2 py-2 font-medium">variant_id</th>
+                                            <th className="px-2 py-2 font-medium">Кодов в группе</th>
+                                            <th className="px-2 py-2 font-medium">Код</th>
+                                            <th className="px-2 py-2 font-medium">Строка #</th>
+                                            <th className="px-2 py-2 font-medium">Название поставщика</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.map((row) => (
+                                            <tr key={row.key} className="border-b border-admin-border/60 last:border-0 align-top">
+                                                <td className="px-2 py-1.5 font-mono">{row.variant_id}</td>
+                                                <td className="px-2 py-1.5 font-mono">{row.isFirstInGroup ? row.groupSize : ""}</td>
+                                                <td className="px-2 py-1.5 font-mono">{row.code}</td>
+                                                <td className="px-2 py-1.5 font-mono">{row.supplier_product_id}</td>
+                                                <td className="max-w-md px-2 py-1.5" title={row.name}>{row.name}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             </div>

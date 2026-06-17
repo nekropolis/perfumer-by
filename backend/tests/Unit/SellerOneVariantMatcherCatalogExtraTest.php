@@ -49,4 +49,68 @@ class SellerOneVariantMatcherCatalogExtraTest extends TestCase
 
         $this->assertSame($title, $result);
     }
+
+    public function test_catalog_extra_gender_only_suffix_detected(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $method = new ReflectionMethod($matcher, 'catalogExtraIsGenderOnlySuffix');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke(
+            $matcher,
+            ['just', 'rock'],
+            ['just', 'rock', '__linkgm__'],
+        ));
+        $this->assertFalse($method->invoke(
+            $matcher,
+            ['just', 'rock'],
+            ['just', 'rock', 'intense'],
+        ));
+    }
+
+    public function test_pour_homme_in_catalog_requires_pour_homme_in_supplier_name(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $catalogMethod = new ReflectionMethod($matcher, 'catalogNameContainsPourLineSuffix');
+        $catalogMethod->setAccessible(true);
+        $supplierMethod = new ReflectionMethod($matcher, 'supplierBaseContainsPourLineWords');
+        $supplierMethod->setAccessible(true);
+        $tokens = new ReflectionMethod($matcher, 'productNameTokens');
+        $tokens->setAccessible(true);
+
+        $this->assertTrue($catalogMethod->invoke($matcher, 'Iceberg Eau de Iceberg Pour Homme'));
+        $this->assertFalse($supplierMethod->invoke($matcher, 'Eau De Iceberg'));
+        $this->assertTrue($supplierMethod->invoke($matcher, 'Guilty Pour Homme'));
+
+        $this->assertSame(
+            ['eau', 'de', 'iceberg', 'pour', 'homme'],
+            $tokens->invoke($matcher, 'Iceberg Eau de Iceberg Pour Homme', 'Iceberg'),
+        );
+        $this->assertSame(
+            ['guilty', 'pour', 'homme'],
+            $tokens->invoke($matcher, 'Guilty Pour Homme', 'Gucci'),
+        );
+    }
+
+    public function test_parfum_line_requires_parfum_in_supplier_name(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $catalogMethod = new ReflectionMethod($matcher, 'catalogNameContainsParfumLineWord');
+        $catalogMethod->setAccessible(true);
+        $supplierMethod = new ReflectionMethod($matcher, 'supplierBaseContainsParfumLineWord');
+        $supplierMethod->setAccessible(true);
+        $tokens = new ReflectionMethod($matcher, 'productNameTokens');
+        $tokens->setAccessible(true);
+
+        $this->assertTrue($catalogMethod->invoke($matcher, 'Missoni Parfum Pour Homme'));
+        $this->assertFalse($supplierMethod->invoke($matcher, 'Pour Homme'));
+        $this->assertSame(
+            ['de', 'pour', 'homme'],
+            $tokens->invoke($matcher, 'Missoni Parfum Pour Homme', 'Missoni'),
+        );
+        $this->assertSame(
+            ['pour', 'homme'],
+            $tokens->invoke($matcher, 'Pour Homme', 'Missoni'),
+        );
+    }
 }

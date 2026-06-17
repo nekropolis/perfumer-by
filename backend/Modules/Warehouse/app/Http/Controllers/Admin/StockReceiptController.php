@@ -289,6 +289,7 @@ class StockReceiptController extends Controller
             'items.*.variant_definition.concentration_code' => ['required_with:items.*.variant_definition', 'string', 'max:50'],
             'items.*.variant_definition.concentration_label' => ['required_with:items.*.variant_definition', 'string', 'max:120'],
             'items.*.variant_definition.is_tester' => ['nullable', 'boolean'],
+            'items.*.variant_definition.is_vial' => ['nullable', 'boolean'],
         ]);
     }
 }

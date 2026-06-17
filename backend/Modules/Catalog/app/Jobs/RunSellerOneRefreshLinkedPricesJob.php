@@ -140,6 +140,7 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                 'cleared_supplier_shelf_variants' => (int) ($result['cleared_supplier_shelf_variants'] ?? 0),
                 'codes_in_price' => (int) ($result['codes_in_price'] ?? 0),
                 'linked_products' => $linked,
+                'listing_diagnostics' => $result['listing_diagnostics'] ?? null,
                 'message' => (string) ($result['message'] ?? 'Цены связанных товаров обновлены'),
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
