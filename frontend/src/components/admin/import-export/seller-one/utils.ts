@@ -1404,3 +1404,17 @@ export function buildDefinitionSearchFromHint(hint: SupplierVariantHint): string
 
     return parts.join(" ").trim();
 }
+
+/** Браузерный сбой сети (не HTTP-ответ API): чаще всего таймаут/502 под нагрузкой. */
+export function isTransientNetworkError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    const message = error.message.toLowerCase();
+
+    return message === "failed to fetch"
+        || message.includes("networkerror")
+        || message.includes("network request failed")
+        || message.includes("load failed");
+}

@@ -61,6 +61,7 @@ import {
     getRowCatalogProductLabel,
     getVariantMatchFlags,
     isFullVariantMatch,
+    isTransientNetworkError,
     variantMatchesVolumeHint,
 } from "@/components/admin/import-export/seller-one/utils";
 import { type ManualLinkState } from "@/components/admin/import-export/seller-one/types";
@@ -406,13 +407,20 @@ export default function SellerOneImportPage() {
                     const parseMsg =
                         typeof data.message === "string" && data.message.trim() !== ""
                             ? data.message
-                            : "Прайс успешно обработан и таблица обновлена";
+                            : "Прайс успешно обработан";
                     setSupplierSuccess(parseMsg);
                     setParseDiagnostics(data.parse_diagnostics ?? null);
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
                     setActiveJobId(null);
-                    await loadRows(1);
-                    setPage(1);
+                    try {
+                        await loadRows(1);
+                        setPage(1);
+                    } catch (reloadError: unknown) {
+                        const reloadHint = isTransientNetworkError(reloadError)
+                            ? "Парсинг завершён, но сервер не ответил при загрузке таблицы — обновите страницу (F5)."
+                            : (reloadError instanceof Error ? reloadError.message : "Ошибка загрузки таблицы после парсинга");
+                        setSupplierError(reloadHint);
+                    }
                     return;
                 }
 
@@ -426,6 +434,13 @@ export default function SellerOneImportPage() {
                 }
             } catch (e: unknown) {
                 if (!cancelled) {
+                    if (isTransientNetworkError(e)) {
+                        setBatchProgress("Сервер временно недоступен — ждём ответ…");
+                        timer = setTimeout(() => {
+                            void poll();
+                        }, 5000);
+                        return;
+                    }
                     setSupplierError(e instanceof Error ? e.message : "Ошибка получения статуса парсинга");
                     setSupplierPreviewLoading(false);
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
@@ -529,7 +544,14 @@ export default function SellerOneImportPage() {
                     setListingDiagnostics(data.listing_diagnostics ?? null);
                     window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
                     setRefreshLinkedJobId(null);
-                    await loadRows(page);
+                    try {
+                        await loadRows(page);
+                    } catch (reloadError: unknown) {
+                        const reloadHint = isTransientNetworkError(reloadError)
+                            ? "Обновление цен завершено, но сервер не ответил при загрузке таблицы — обновите страницу (F5)."
+                            : (reloadError instanceof Error ? reloadError.message : "Ошибка загрузки таблицы после обновления цен");
+                        setSupplierError(reloadHint);
+                    }
                     return;
                 }
 
@@ -543,6 +565,13 @@ export default function SellerOneImportPage() {
                 }
             } catch (e: unknown) {
                 if (!cancelled) {
+                    if (isTransientNetworkError(e)) {
+                        setBatchProgress("Сервер временно недоступен — ждём ответ…");
+                        timer = setTimeout(() => {
+                            void poll();
+                        }, 5000);
+                        return;
+                    }
                     setSupplierError(e instanceof Error ? e.message : "Ошибка получения статуса обновления цен");
                     setSupplierRefreshPricesLoading(false);
                     window.localStorage.removeItem(SELLER_ONE_REFRESH_LINKED_JOB_STORAGE_KEY);
