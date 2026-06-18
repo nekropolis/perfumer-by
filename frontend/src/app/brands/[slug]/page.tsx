@@ -1,12 +1,7 @@
-import { apiFetch, isApiNotFoundError } from "@/lib/api";
+import { isApiNotFoundError } from "@/lib/api";
 import CatalogPageView from "@/components/catalog/catalog-page-view";
+import { fetchCatalogBootstrap } from "@/lib/catalog-api";
 import { buildBrandProductsQuery } from "@/lib/catalog-listing-query";
-import {
-    CatalogBrandDetailResponse,
-    CatalogBrandsResponse,
-    CatalogFiltersResponse,
-    ProductsResponse,
-} from "@/types/catalog";
 import JsonLd from "@/components/seo/json-ld";
 import type { Metadata } from "next";
 import { cache } from "react";
@@ -20,9 +15,7 @@ import {
     resolveListingPaginationLinks,
 } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
-
-const getBrandCatalogResponse = cache(async (slug: string) => apiFetch<CatalogBrandDetailResponse>(`/catalog/brands/${slug}`));
+const getBrandBootstrap = cache(async (queryString: string) => fetchCatalogBootstrap(queryString));
 
 export async function generateMetadata({
     params,
@@ -38,9 +31,9 @@ export async function generateMetadata({
     const productsQuery = buildBrandProductsQuery(slug, sp);
     const currentPage = Math.max(1, Number(sp.page || "1") || 1);
 
-    let brand: CatalogBrandDetailResponse;
+    let bootstrap;
     try {
-        brand = await getBrandCatalogResponse(slug);
+        bootstrap = await getBrandBootstrap(productsQuery.toString());
     } catch (e) {
         if (isApiNotFoundError(e)) {
             notFound();
@@ -48,9 +41,14 @@ export async function generateMetadata({
         throw e;
     }
 
+    const brand = bootstrap.data.brand;
+    if (!brand?.data) {
+        notFound();
+    }
+
     let pagination: Metadata["pagination"] | undefined;
     try {
-        const products = await apiFetch<ProductsResponse>(`/catalog/products?${productsQuery.toString()}`);
+        const products = bootstrap.data.products;
         const lastPage = Math.max(1, products.meta?.last_page ?? 1);
         pagination = resolveListingPaginationLinks({
             basePath: `/brands/${slug}`,
@@ -62,9 +60,7 @@ export async function generateMetadata({
         pagination = undefined;
     }
 
-    const seoTitle =
-        brand.data.seo_title?.trim() ||
-        `${brand.data.name} - каталог парфюмерии`;
+    const seoTitle = brand.data.seo_title?.trim() || `${brand.data.name} - каталог парфюмерии`;
     const seoDescription =
         brand.data.seo_description?.trim() ||
         `Парфюмерия бренда ${brand.data.name}. Актуальные варианты, цены и наличие.`;
@@ -108,9 +104,9 @@ export default async function BrandPage({
     const paginationQuery = new URLSearchParams(productsQuery.toString());
     paginationQuery.delete("page");
 
-    let brand: CatalogBrandDetailResponse;
+    let bootstrap;
     try {
-        brand = await getBrandCatalogResponse(slug);
+        bootstrap = await getBrandBootstrap(productsQuery.toString());
     } catch (e) {
         if (isApiNotFoundError(e)) {
             notFound();
@@ -118,11 +114,14 @@ export default async function BrandPage({
         throw e;
     }
 
-    const [products, brands, filters] = await Promise.all([
-        apiFetch<ProductsResponse>(`/catalog/products?${productsQuery.toString()}`),
-        apiFetch<CatalogBrandsResponse>("/catalog/brands"),
-        apiFetch<CatalogFiltersResponse>(`/catalog/filters?brand_slug=${slug}`),
-    ]);
+    const brand = bootstrap.data.brand;
+    if (!brand?.data) {
+        notFound();
+    }
+
+    const products = bootstrap.data.products;
+    const brands = bootstrap.data.brands;
+    const filters = bootstrap.data.filters;
 
     const brandCrumbs = [
         { label: "Главная", href: "/" },

@@ -15,11 +15,13 @@ use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
 use Modules\ImportExport\Http\Controllers\Admin\ImportRetryQueueAdminController;
 
 Route::prefix('catalog')->group(function () {
+    Route::get('/bootstrap', [ProductController::class, 'bootstrap']);
     Route::get('/brands', [ProductController::class, 'brands']);
     Route::get('/brands/{slug}', [ProductController::class, 'brandBySlug']);
     Route::get('/filters', [ProductController::class, 'filters']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/smart-search', [ProductController::class, 'smartSearch']);
+    Route::get('/products/{slug}/similar', [ProductController::class, 'similarProducts']);
     Route::get('/products/{slug}', [ProductController::class, 'show']);
 });
 

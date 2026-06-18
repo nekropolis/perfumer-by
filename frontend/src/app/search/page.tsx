@@ -1,44 +1,14 @@
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import JsonLd from "@/components/seo/json-ld";
 import { apiFetch } from "@/lib/api";
+import { fetchCatalogSmartSearch } from "@/lib/catalog-api";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import { siteCard } from "@/lib/site-ui-classes";
-import type { ProductListItem } from "@/types/catalog";
+import type { SearchResponse } from "@/types/search";
 import SearchResultsClient from "@/app/search/search-results-client";
+import { cache } from "react";
 
-type SearchBrandItem = {
-    id: number;
-    name: string;
-    slug: string;
-    products_count: number;
-    score?: number;
-};
-
-type SearchResponse = {
-    data: {
-        brands: SearchBrandItem[];
-        products: ProductListItem[];
-        suggested_query?: string | null;
-    };
-    meta?: {
-        total: number;
-        per_page: number;
-        current_page: number;
-        last_page: number;
-    };
-    debug?: {
-        query: string;
-        normalized_query: string;
-        tokens: string[];
-        search_patterns: string[];
-        product_pool_count: number;
-        brand_result_count: number;
-        product_result_count: number;
-        search_backend?: string;
-        search_backend_elapsed_ms?: number;
-        total_elapsed_ms?: number;
-    } | null;
-};
+const getSearchResults = cache(async (queryString: string) => fetchCatalogSmartSearch(queryString));
 
 function parsePage(raw: string | undefined): number {
     const page = Number.parseInt(raw ?? "1", 10);
@@ -67,7 +37,11 @@ export default async function SearchPage({
             if (debug) {
                 sp.set("debug", "1");
             }
-            data = await apiFetch<SearchResponse>(`/catalog/products/smart-search?${sp.toString()}`);
+            if (debug) {
+                data = await apiFetch<SearchResponse>(`/catalog/products/smart-search?${sp.toString()}`);
+            } else {
+                data = await getSearchResults(sp.toString());
+            }
         } catch (e) {
             error = e instanceof Error ? e.message : "Неизвестная ошибка";
         }

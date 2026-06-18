@@ -9,7 +9,10 @@ use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\ProductAttributeOption;
 use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\SupplierProduct;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Services\ListingMinPriceService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
@@ -23,10 +26,12 @@ use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
+use Modules\Catalog\Console\Commands\SyncListingMinPricesCommand;
 use Modules\Catalog\Console\Commands\VanilleBrandCommand;
 use Modules\Catalog\Console\Commands\VanilleSyncCommand;
 use Modules\Catalog\Console\Commands\VanilleBrendyiTotalCommand;
 use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 
@@ -85,6 +90,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         VanilleBrendyiTotalCommand::class,
         VanilleBrandCommand::class,
         VanilleSyncCommand::class,
+        SyncListingMinPricesCommand::class,
     ];
 
     public function boot(): void
@@ -122,6 +128,48 @@ class CatalogServiceProvider extends ModuleServiceProvider
             }
 
             app(ProductSearchIndexer::class)->queueProductDelete((int) $product->id);
+        });
+
+        $syncListingMinPrice = static function (?int $productId): void {
+            if ($productId === null || $productId <= 0) {
+                return;
+            }
+
+            app(ListingMinPriceService::class)->syncForProduct($productId);
+        };
+
+        ProductVariantLink::saved(static function (ProductVariantLink $link) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $link->product_id);
+        });
+        ProductVariantLink::deleted(static function (ProductVariantLink $link) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $link->product_id);
+        });
+
+        SupplierVariantOffer::saved(static function (SupplierVariantOffer $offer) use ($syncListingMinPrice): void {
+            $productId = ProductVariantLink::query()
+                ->whereKey($offer->product_variant_id)
+                ->value('product_id');
+            $syncListingMinPrice($productId !== null ? (int) $productId : null);
+        });
+        SupplierVariantOffer::deleted(static function (SupplierVariantOffer $offer) use ($syncListingMinPrice): void {
+            $productId = ProductVariantLink::query()
+                ->whereKey($offer->product_variant_id)
+                ->value('product_id');
+            $syncListingMinPrice($productId !== null ? (int) $productId : null);
+        });
+
+        SupplierProduct::saved(static function (SupplierProduct $supplierProduct) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $supplierProduct->product_id);
+        });
+        SupplierProduct::deleted(static function (SupplierProduct $supplierProduct) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $supplierProduct->product_id);
+        });
+
+        WarehouseVariantStock::saved(static function (WarehouseVariantStock $stock) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $stock->product_id);
+        });
+        WarehouseVariantStock::deleted(static function (WarehouseVariantStock $stock) use ($syncListingMinPrice): void {
+            $syncListingMinPrice((int) $stock->product_id);
         });
     }
 

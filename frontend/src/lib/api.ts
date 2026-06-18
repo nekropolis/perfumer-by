@@ -47,19 +47,32 @@ export function getApiBase(): string {
     return base.replace(/\/$/, "");
 }
 
-type ApiFetchOptions = {
+type ApiFetchNextConfig = {
+    revalidate?: number | false;
+    tags?: string[];
+};
+
+export type ApiFetchOptions = {
     signal?: AbortSignal;
     cache?: RequestCache;
+    next?: ApiFetchNextConfig;
 };
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
     const base = getApiBase();
     const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
-    const res = await fetch(url, {
-        cache: options.cache ?? "no-store",
+    const init: RequestInit & { next?: ApiFetchNextConfig } = {
         signal: options.signal,
-    });
+    };
+
+    if (options.next) {
+        init.next = options.next;
+    } else {
+        init.cache = options.cache ?? "no-store";
+    }
+
+    const res = await fetch(url, init);
 
     if (!res.ok) {
         const raw = await res.text();

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import ProductCard from "@/components/product/product-card";
+import ProductCardClient from "@/components/product/product-card.client";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
@@ -34,7 +34,7 @@ export default function WishlistPageView() {
                 ) : (
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                         {products.map((product) => (
-                            <ProductCard key={product.id} product={product} />
+                            <ProductCardClient key={product.id} product={product} />
                         ))}
                     </div>
                 )}

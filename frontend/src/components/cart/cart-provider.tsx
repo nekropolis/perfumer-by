@@ -10,9 +10,11 @@ import {
     useState,
     type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { fetchCart } from "@/lib/cart-api";
 import type { CartData } from "@/types/cart";
 import { useAuth } from "@/components/auth/auth-provider";
+import { scheduleIdleTask, shouldEagerLoadUserData } from "@/lib/schedule-idle-task";
 
 function isNavigationReload(): boolean {
     if (typeof window === "undefined") {
@@ -49,6 +51,7 @@ type Props = {
 };
 
 export function CartProvider({ children }: Props) {
+    const pathname = usePathname();
     const { isAuthenticated, user } = useAuth();
     const [cart, setCart] = useState<CartData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -56,7 +59,8 @@ export function CartProvider({ children }: Props) {
 
     useEffect(() => {
         let cancelled = false;
-        void (async () => {
+
+        const loadCart = async () => {
             try {
                 const sendBootstrap =
                     !loyaltyReloadBootstrapSentRef.current && isNavigationReload();
@@ -79,11 +83,27 @@ export function CartProvider({ children }: Props) {
                     setLoading(false);
                 }
             }
-        })();
+        };
+
+        const run = () => {
+            if (!cancelled) {
+                void loadCart();
+            }
+        };
+
+        if (shouldEagerLoadUserData(pathname)) {
+            void loadCart();
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const cancelIdle = scheduleIdleTask(run);
         return () => {
             cancelled = true;
+            cancelIdle();
         };
-    }, [isAuthenticated, user?.id]);
+    }, [isAuthenticated, pathname, user?.id]);
 
     const refreshCart = useCallback(async () => {
         try {

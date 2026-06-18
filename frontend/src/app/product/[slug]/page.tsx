@@ -1,10 +1,10 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { apiFetch, isApiNotFoundError } from "@/lib/api";
-import { fetchProductReviews } from "@/lib/reviews-api";
-import type { ProductDetailData, ProductDetailResponse } from "@/types/catalog";
+import { isApiNotFoundError } from "@/lib/api";
+import { fetchCatalogProductDetail } from "@/lib/catalog-api";
+import type { ProductDetailData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
-import ProductDetailView from "@/components/product/product-detail-view";
+import ProductDetailPage from "@/components/product/product-detail-page";
 import ProductReviewsSeoHtml from "@/components/product/product-reviews-seo-html";
 import type { Metadata } from "next";
 import JsonLd from "@/components/seo/json-ld";
@@ -17,12 +17,18 @@ import {
 import { getProductBreadcrumbItems } from "@/lib/product-breadcrumbs";
 import { buildSeoMetadata, mainProductImageUrlForOg } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+type ProductPagePayload = {
+    product: ProductDetailData;
+    reviews: ReviewItem[];
+};
 
 /** Один запрос на slug за HTTP-запрос страницы: одинаковые данные для metadata и тела (SSR + SEO). */
-const getProductDetailBySlug = cache(async (slug: string): Promise<ProductDetailData> => {
-    const response = await apiFetch<ProductDetailResponse>(`/catalog/products/${slug}`);
-    return response.data;
+const getProductPagePayload = cache(async (slug: string): Promise<ProductPagePayload> => {
+    const response = await fetchCatalogProductDetail(slug);
+    return {
+        product: response.data,
+        reviews: response.reviews?.data ?? [],
+    };
 });
 
 type Props = {
@@ -40,7 +46,7 @@ export async function generateMetadata({
 
     let product: ProductDetailData;
     try {
-        product = await getProductDetailBySlug(resolvedParams.slug);
+        ({ product } = await getProductPagePayload(resolvedParams.slug));
     } catch (e) {
         if (isApiNotFoundError(e)) {
             notFound();
@@ -65,9 +71,9 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: Props) {
     const { slug } = await params;
 
-    let product: ProductDetailData;
+    let payload: ProductPagePayload;
     try {
-        product = await getProductDetailBySlug(slug);
+        payload = await getProductPagePayload(slug);
     } catch (e) {
         if (isApiNotFoundError(e)) {
             notFound();
@@ -75,21 +81,14 @@ export default async function ProductPage({ params }: Props) {
         throw e;
     }
 
+    const { product, reviews: initialProductReviews } = payload;
     const crumbs = getProductBreadcrumbItems(product);
-
-    let initialProductReviews: ReviewItem[] = [];
-    try {
-        const reviewsResponse = await fetchProductReviews(product.id);
-        initialProductReviews = reviewsResponse.data;
-    } catch {
-        // Страница товара не должна падать, если список отзывов недоступен.
-    }
 
     return (
         <>
             <JsonLd data={[productJsonLd(product, initialProductReviews), breadcrumbListJsonLd(crumbs)]} />
             <ProductReviewsSeoHtml reviews={initialProductReviews} />
-            <ProductDetailView product={product} initialProductReviews={initialProductReviews} />
+            <ProductDetailPage product={product} initialProductReviews={initialProductReviews} />
         </>
     );
 }

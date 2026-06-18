@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import CatalogPagination from "@/components/catalog/catalog-pagination";
-import ProductCard from "@/components/product/product-card";
+import ProductCardClient from "@/components/product/product-card.client";
 import {
     siteBtnSecondary,
     siteCard,
@@ -11,40 +11,7 @@ import {
     siteFilterChipInactive,
 } from "@/lib/site-ui-classes";
 import type { ProductListItem } from "@/types/catalog";
-
-type SearchBrandItem = {
-    id: number;
-    name: string;
-    slug: string;
-    products_count: number;
-    score?: number;
-};
-
-type SearchResponse = {
-    data: {
-        brands: SearchBrandItem[];
-        products: ProductListItem[];
-        suggested_query?: string | null;
-    };
-    meta?: {
-        total: number;
-        per_page: number;
-        current_page: number;
-        last_page: number;
-    };
-    debug?: {
-        query: string;
-        normalized_query: string;
-        tokens: string[];
-        search_patterns: string[];
-        product_pool_count: number;
-        brand_result_count: number;
-        product_result_count: number;
-        search_backend?: string;
-        search_backend_elapsed_ms?: number;
-        total_elapsed_ms?: number;
-    } | null;
-};
+import type { SearchResponse } from "@/types/search";
 
 type SearchResultsClientProps = {
     initialQuery: string;
@@ -129,7 +96,7 @@ export default function SearchResultsClient({
                             </p>
                             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                                 {products.map((product, index) => (
-                                    <ProductCard key={product.id} product={product} eager={index < 4} />
+                                    <ProductCardClient key={product.id} product={product} eager={index < 4} />
                                 ))}
                             </div>
                             <CatalogPagination

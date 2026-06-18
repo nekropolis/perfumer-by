@@ -28,7 +28,7 @@ class WishlistController extends Controller
         $products = $this->resolveProductsByIds($productIds);
 
         return response()->json([
-            'data' => ProductListResource::collection($products)->resolve(),
+            'data' => ProductListResource::resolveCollection($products),
             'meta' => [
                 'qty' => $products->count(),
             ],
@@ -50,7 +50,7 @@ class WishlistController extends Controller
         $products = $this->resolveProductsByIds($productIds);
 
         return response()->json([
-            'data' => ProductListResource::collection($products)->resolve(),
+            'data' => ProductListResource::resolveCollection($products),
             'meta' => [
                 'qty' => $products->count(),
             ],

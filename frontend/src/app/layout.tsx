@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/layout/providers";
 import AppShell from "@/components/layout/app-shell";
+import Footer from "@/components/layout/footer";
 import JsonLd from "@/components/seo/json-ld";
 import { localBusinessJsonLd, organizationJsonLd, webSiteJsonLd } from "@/lib/json-ld";
 import { getSiteDefaultRobots, getSiteUrl } from "@/lib/seo";
@@ -58,7 +59,7 @@ export default async function RootLayout({
         <body className={`${manrope.variable} ${cormorant.variable}`}>
         <JsonLd data={[organizationLd, webSiteJsonLd()]} />
         <Providers siteContent={siteContent}>
-            <AppShell>{children}</AppShell>
+            <AppShell footer={<Footer siteContent={siteContent} />}>{children}</AppShell>
         </Providers>
         </body>
         </html>

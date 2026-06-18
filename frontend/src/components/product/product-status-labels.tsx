@@ -1,5 +1,3 @@
-"use client";
-
 import { resolveProductStatuses } from "@/lib/product-statuses";
 
 type Props = {

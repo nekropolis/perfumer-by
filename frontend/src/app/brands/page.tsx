@@ -1,14 +1,12 @@
-import { apiFetch } from "@/lib/api";
 import { groupBrandsByFirstLetter } from "@/lib/brand-letter-groups";
+import { fetchCatalogBrands } from "@/lib/catalog-api";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import BrandsDirectory from "@/components/brands/brands-directory";
 import JsonLd from "@/components/seo/json-ld";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
-import type { CatalogBrandItem, CatalogBrandsResponse } from "@/types/catalog";
+import type { CatalogBrandItem } from "@/types/catalog";
 import { buildSeoMetadata } from "@/lib/seo";
-
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = buildSeoMetadata({
     title: "Бренды парфюмерии",
@@ -17,7 +15,7 @@ export const metadata: Metadata = buildSeoMetadata({
 });
 
 export default async function BrandsPage() {
-    const brands = await apiFetch<CatalogBrandsResponse>("/catalog/brands");
+    const brands = await fetchCatalogBrands();
     const brandGroups = groupBrandsByFirstLetter(brands.data);
     const brandsByLetter = Object.fromEntries(brandGroups) as Record<string, CatalogBrandItem[]>;
 

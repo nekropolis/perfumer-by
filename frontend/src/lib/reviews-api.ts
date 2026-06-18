@@ -28,7 +28,11 @@ export type SubmitStoreReviewInput = {
 
 export async function fetchStoreReviewStats(): Promise<PublishedReviewStats | null> {
     try {
-        const res = await apiFetch<ReviewStatsResponse>("/reviews/stats?type=store");
+        const isServer = typeof window === "undefined";
+        const res = await apiFetch<ReviewStatsResponse>(
+            "/reviews/stats?type=store",
+            isServer ? { next: { revalidate: 300, tags: ["reviews", "reviews-store-stats"] } } : {},
+        );
         return res.data ?? null;
     } catch {
         return null;
@@ -52,7 +56,11 @@ export async function fetchStoreReviews(
     if (options?.stars !== undefined && options.stars >= 1 && options.stars <= 5) {
         params.set("stars", String(options.stars));
     }
-    return apiFetch<ReviewsListResponse>(`/reviews?${params.toString()}`);
+    const isServer = typeof window === "undefined";
+    return apiFetch<ReviewsListResponse>(
+        `/reviews?${params.toString()}`,
+        isServer ? { next: { revalidate: 300, tags: ["reviews", "reviews-store-list"] } } : {},
+    );
 }
 
 export async function fetchProductReviews(productId: number, limit = 50): Promise<ReviewsListResponse> {

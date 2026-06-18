@@ -3,14 +3,14 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Header from "@/components/layout/header";
-import Footer from "@/components/layout/footer";
 import ScrollToTopButton from "@/components/layout/scroll-to-top-button";
 
 type Props = {
     children: ReactNode;
+    footer: ReactNode;
 };
 
-export default function AppShell({ children }: Props) {
+export default function AppShell({ children, footer }: Props) {
     const pathname = usePathname();
     const isAdminPage = pathname.startsWith("/admin");
 
@@ -23,7 +23,7 @@ export default function AppShell({ children }: Props) {
             <Header />
             {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
             <div className="w-full min-w-0 max-w-full">{children}</div>
-            <Footer />
+            {footer}
             <ScrollToTopButton />
         </>
     );

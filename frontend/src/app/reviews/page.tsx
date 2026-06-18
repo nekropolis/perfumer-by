@@ -3,11 +3,11 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import JsonLd from "@/components/seo/json-ld";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import ReviewsPageClient from "./reviews-page-client";
-import { apiFetch } from "@/lib/api";
-import { fetchStoreReviewStats } from "@/lib/reviews-api";
-import type { PublishedReviewStats, ReviewItem, ReviewsListResponse } from "@/types/reviews";
+import { fetchStoreReviewStats, fetchStoreReviews } from "@/lib/reviews-api";
+import type { PublishedReviewStats, ReviewItem } from "@/types/reviews";
 import { HOME_STORE_REVIEWS_ON_HOME_LIMIT } from "@/lib/json-ld";
 import { buildSeoMetadata } from "@/lib/seo";
+import { cache } from "react";
 
 export const metadata: Metadata = buildSeoMetadata({
     title: "Отзывы о магазине",
@@ -15,16 +15,14 @@ export const metadata: Metadata = buildSeoMetadata({
     canonicalPath: "/reviews",
 });
 
-export default async function StoreReviewsPage() {
-    let initial: ReviewItem[] = [];
-    let stats: PublishedReviewStats | null = null;
-
+const getStoreReviewsPageData = cache(async () => {
     const [listResult, statsResult] = await Promise.allSettled([
-        apiFetch<ReviewsListResponse>(
-            `/reviews?type=store&limit=${HOME_STORE_REVIEWS_ON_HOME_LIMIT}&offset=0`,
-        ),
+        fetchStoreReviews(HOME_STORE_REVIEWS_ON_HOME_LIMIT, 0),
         fetchStoreReviewStats(),
     ]);
+
+    let initial: ReviewItem[] = [];
+    let stats: PublishedReviewStats | null = null;
 
     if (listResult.status === "fulfilled") {
         initial = listResult.value.data ?? [];
@@ -32,6 +30,12 @@ export default async function StoreReviewsPage() {
     if (statsResult.status === "fulfilled") {
         stats = statsResult.value;
     }
+
+    return { initial, stats };
+});
+
+export default async function StoreReviewsPage() {
+    const { initial, stats } = await getStoreReviewsPageData();
 
     const crumbs = [{ label: "Главная", href: "/" }, { label: "Отзывы о магазине" }];
 

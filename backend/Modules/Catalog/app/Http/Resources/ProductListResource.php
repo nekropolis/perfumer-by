@@ -4,12 +4,12 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
-use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
-use Modules\Warehouse\Models\Warehouse;
-use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductListResource extends JsonResource
 {
@@ -38,8 +38,22 @@ class ProductListResource extends JsonResource
                 )
                 ->orderByDesc('is_main')
                 ->orderBy('sort_order')
-                ->limit(8);
+                ->limit(3);
         };
+    }
+
+    /**
+     * @param  Collection<int, Product>  $products
+     * @return list<array<string, mixed>>
+     */
+    public static function resolveCollection(Collection $products): array
+    {
+        CatalogListingStockContext::prime($products);
+        try {
+            return self::collection($products)->resolve();
+        } finally {
+            CatalogListingStockContext::forget();
+        }
     }
 
     public function toArray(Request $request): array
@@ -48,33 +62,27 @@ class ProductListResource extends JsonResource
             ? $this->activeVariants
             : collect();
 
-        $mainWarehouseId = self::warehouseIdByCode(Warehouse::CODE_MAIN);
-        $supplierWarehouseId = self::warehouseIdByCode(Warehouse::CODE_SUPPLIER);
-        $variantIds = $variants->pluck('id')->filter()->values();
+        $stockContext = CatalogListingStockContext::current()
+            ?? CatalogListingStockContext::fromProducts(collect([$this->resource]));
 
-        $stocks = WarehouseVariantStock::query()
-            ->whereIn('variant_id', $variantIds)
-            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
-            ->get()
-            ->groupBy('variant_id');
+        $presentedByVariant = [];
+        foreach ($variants as $variant) {
+            $presentedByVariant[(int) $variant->id] = $stockContext->presentedForListing($variant);
+        }
 
-        $prices = $variants->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+        $prices = $variants
+            ->map(function ($variant) use ($stockContext, $presentedByVariant) {
+                $presented = $presentedByVariant[(int) $variant->id];
 
-            return CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
-        })->filter();
+                return $stockContext->storefrontVariantPrice($variant, $presented);
+            })
+            ->filter();
         $oldPrices = $variants
-            ->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-                $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-                $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
-                $p = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
+            ->map(function ($variant) use ($stockContext, $presentedByVariant) {
+                $presented = $presentedByVariant[(int) $variant->id];
+                $price = $stockContext->storefrontVariantPrice($variant, $presented);
 
-                return $p !== null ? $variant->old_price : null;
+                return $price !== null ? $variant->old_price : null;
             })
             ->filter();
 
@@ -84,13 +92,9 @@ class ProductListResource extends JsonResource
         $minOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->min() : null;
         $maxOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->max() : null;
 
-        $stockTotal = (int) $variants->sum(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-
-            return CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock)['stock'];
-        });
+        $stockTotal = (int) $variants->sum(
+            fn ($variant) => $presentedByVariant[(int) $variant->id]['stock']
+        );
         $preorderAvailable = $variants->contains(fn ($variant) => (bool) $variant->is_preorder);
 
         $images = $this->relationLoaded('images') ? $this->images : collect();
@@ -190,21 +194,6 @@ class ProductListResource extends JsonResource
             'variants_count' => $variants->count(),
             'variant_labels' => $variantLabels,
         ];
-    }
-
-    /**
-     * Warehouse id by code, memoized per request so the listing does not
-     * re-query the same lookup for every product in the collection.
-     */
-    private static function warehouseIdByCode(string $code): int
-    {
-        static $cache = [];
-
-        if (!array_key_exists($code, $cache)) {
-            $cache[$code] = (int) Warehouse::query()->where('code', $code)->value('id');
-        }
-
-        return $cache[$code];
     }
 
     private static function hasUsageTypeColumn(): bool

@@ -9,8 +9,10 @@ import {
     useState,
     type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { fetchMe, type AuthUserProfile } from "@/lib/auth-api";
 import { clearAuthToken, getAuthToken, setAuthToken } from "@/lib/auth-token";
+import { scheduleIdleTask, shouldEagerLoadUserData } from "@/lib/schedule-idle-task";
 
 type AuthUser = AuthUserProfile;
 
@@ -30,6 +32,7 @@ type Props = {
 };
 
 export function AuthProvider({ children }: Props) {
+    const pathname = usePathname();
     const [user, setUser] = useState<AuthUser | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -60,8 +63,26 @@ export function AuthProvider({ children }: Props) {
     }, []);
 
     useEffect(() => {
-        void refreshUser();
-    }, [refreshUser]);
+        let cancelled = false;
+        const run = () => {
+            if (!cancelled) {
+                void refreshUser();
+            }
+        };
+
+        if (shouldEagerLoadUserData(pathname)) {
+            run();
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const cancelIdle = scheduleIdleTask(run);
+        return () => {
+            cancelled = true;
+            cancelIdle();
+        };
+    }, [pathname, refreshUser]);
 
     const login = useCallback(
         async (token: string, authUser?: AuthUser | null) => {

@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller;
 use Modules\Reviews\Http\Requests\StoreReviewRequest;
 use Modules\Reviews\Models\Review;
 use Modules\Reviews\Support\RecaptchaVerifier;
+use Modules\Reviews\Support\ReviewPayload;
 
 class ReviewController extends Controller
 {
@@ -91,7 +92,7 @@ class ReviewController extends Controller
             $query->where('stars', (int) $validated['stars']);
         }
 
-        $items = $query->get()->map(fn (Review $r) => $this->reviewPayload($r));
+        $items = $query->get()->map(static fn (Review $r): array => ReviewPayload::fromModel($r));
 
         return response()->json(['data' => $items]);
     }
@@ -120,34 +121,8 @@ class ReviewController extends Controller
 
         return response()->json([
             'message' => 'Спасибо! Отзыв отправлен на модерацию и скоро появится на сайте.',
-            'data' => $this->reviewPayload($review),
+            'data' => ReviewPayload::fromModel($review),
         ], 201);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function reviewPayload(Review $review): array
-    {
-        $reply = null;
-        if ($review->reply_text !== null && $review->reply_text !== '') {
-            $reply = [
-                'text' => $review->reply_text,
-                'replied_at' => $review->replied_at?->toIso8601String(),
-            ];
-        }
-
-        return [
-            'id' => (int) $review->id,
-            'type' => $review->type,
-            'product_id' => $review->product_id,
-            'name' => $review->name,
-            'text' => $review->body,
-            'stars' => (int) $review->stars,
-            'created_at' => $review->created_at?->toIso8601String(),
-            'published_at' => $review->published_at?->toIso8601String(),
-            'reply' => $reply,
-        ];
     }
 
     protected function apiError(int $status, string $message, string $code): never

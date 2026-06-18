@@ -1,11 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
-import HeaderMobileMenu from "@/components/layout/header/mobile-menu";
-import HeaderCatalogDrawer from "@/components/layout/header/catalog-drawer";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav from "@/components/layout/header/header-nav";
 import HeaderServiceBar from "@/components/layout/header/header-service-bar";
@@ -24,6 +23,16 @@ import {
     buildPhoneLinks,
     phoneNationalShortSuffix,
 } from "@/lib/site-contact";
+
+const HeaderMobileMenu = dynamic(() => import("@/components/layout/header/mobile-menu"), {
+    ssr: false,
+    loading: () => null,
+});
+
+const HeaderCatalogDrawer = dynamic(() => import("@/components/layout/header/catalog-drawer"), {
+    ssr: false,
+    loading: () => null,
+});
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;

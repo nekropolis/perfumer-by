@@ -1,8 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
-if (!API_BASE) {
-    throw new Error("NEXT_PUBLIC_API_URL is not defined");
-}
+import { getApiBase } from "@/lib/api";
 
 /** Публичные данные для шапки/подвала и др. (см. PublicSiteContentController). */
 export type SiteContent = {
@@ -34,22 +30,18 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     contact_viber_url: "viber://chat?number=%2B375296408833",
 };
 
-let siteContentRequest: Promise<SiteContentResponse> | null = null;
-
 export async function fetchSiteContent(): Promise<SiteContentResponse> {
-    if (!siteContentRequest) {
-        siteContentRequest = fetch(`${API_BASE}/site/content`, { cache: "no-store" })
-            .then(async (res) => {
-                if (!res.ok) {
-                    const text = await res.text();
-                    throw new Error(text || `Site content API error: ${res.status}`);
-                }
-                return res.json();
-            })
-            .catch((err) => {
-                siteContentRequest = null;
-                throw err;
-            });
+    const base = getApiBase();
+    const isServer = typeof window === "undefined";
+
+    const res = await fetch(`${base}/site/content`, isServer
+        ? { next: { revalidate: 3600, tags: ["site-content"] } }
+        : { cache: "no-store" });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Site content API error: ${res.status}`);
     }
-    return siteContentRequest;
+
+    return res.json() as Promise<SiteContentResponse>;
 }

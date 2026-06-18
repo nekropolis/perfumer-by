@@ -1,8 +1,7 @@
-import { apiFetch } from "@/lib/api";
 import CatalogPageView from "@/components/catalog/catalog-page-view";
 import JsonLd from "@/components/seo/json-ld";
+import { fetchCatalogBootstrap } from "@/lib/catalog-api";
 import { buildCatalogProductsQuery } from "@/lib/catalog-listing-query";
-import { CatalogBrandsResponse, CatalogFiltersResponse, ProductsResponse } from "@/types/catalog";
 import { breadcrumbListJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import { cache } from "react";
@@ -14,18 +13,8 @@ import {
     resolveListingPaginationLinks,
 } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
-
 /** Дедупликация fetch между generateMetadata и страницей (один запрос на query). */
-const getCatalogProducts = cache(async (queryString: string) =>
-    apiFetch<ProductsResponse>(`/catalog/products?${queryString}`));
-
-const getCatalogBrands = cache(async () => apiFetch<CatalogBrandsResponse>("/catalog/brands"));
-
-const getCatalogFilters = cache(async (filtersQueryString: string) =>
-    apiFetch<CatalogFiltersResponse>(
-        `/catalog/filters${filtersQueryString ? `?${filtersQueryString}` : ""}`,
-    ));
+const getCatalogBootstrap = cache(async (queryString: string) => fetchCatalogBootstrap(queryString));
 
 export async function generateMetadata({
     searchParams,
@@ -39,7 +28,8 @@ export async function generateMetadata({
 
     let pagination: Metadata["pagination"] | undefined;
     try {
-        const products = await getCatalogProducts(productsQuery.toString());
+        const bootstrap = await getCatalogBootstrap(productsQuery.toString());
+        const products = bootstrap.data.products;
         const lastPage = Math.max(1, products.meta?.last_page ?? 1);
         pagination = resolveListingPaginationLinks({
             basePath: "/catalog",
@@ -77,25 +67,16 @@ export default async function CatalogPage({
 
     const resolvedSearchParams = await searchParams;
     const currentPage = Math.max(1, Number(resolvedSearchParams?.page || "1") || 1);
-    const brand = resolvedSearchParams?.brand ? String(resolvedSearchParams.brand) : "";
 
     const query = buildCatalogProductsQuery(resolvedSearchParams || {});
-
-    const filtersQuery = new URLSearchParams();
-    if (brand) {
-        filtersQuery.set("brand", brand);
-    }
 
     const paginationQuery = new URLSearchParams(query.toString());
     paginationQuery.delete("page");
 
-    const filtersQueryString = filtersQuery.toString();
-
-    const [products, brands, filters] = await Promise.all([
-        getCatalogProducts(query.toString()),
-        getCatalogBrands(),
-        getCatalogFilters(filtersQueryString),
-    ]);
+    const bootstrap = await getCatalogBootstrap(query.toString());
+    const products = bootstrap.data.products;
+    const brands = bootstrap.data.brands;
+    const filters = bootstrap.data.filters;
 
     const catalogCrumbs = [
         { label: "Главная", href: "/" },

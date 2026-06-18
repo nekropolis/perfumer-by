@@ -1,7 +1,5 @@
-"use client";
-
 import Link from "next/link";
-import { useSiteContent } from "@/components/layout/site-content-context";
+import type { SiteContent } from "@/lib/site-content-api";
 import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
 import { siteNavLink } from "@/lib/site-ui-classes";
 
@@ -21,9 +19,11 @@ const EXTRA_LINKS = [
     { label: "Карта сайта", href: "/sitemap" },
 ] as const;
 
-export default function Footer() {
-    const site = useSiteContent();
+type Props = {
+    siteContent: SiteContent;
+};
 
+export default function Footer({ siteContent: site }: Props) {
     const phones = [
         { label: "МТС", value: site.contact_phone_mts },
         { label: "A1", value: site.contact_phone_a1 },

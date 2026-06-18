@@ -43,14 +43,20 @@ final class CatalogVariantStockPresenter
      *
      * @param  array<string, mixed>  $presented  результат {@see forListing()}
      */
-    public static function storefrontVariantPrice(ProductVariantLink $variant, array $presented): ?float
-    {
+    /**
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
+     */
+    public static function storefrontVariantPrice(
+        ProductVariantLink $variant,
+        array $presented,
+        ?array $preloadedEligibleOffers = null,
+    ): ?float {
         if (!$presented['is_available'] && !(bool) $variant->is_preorder) {
             return null;
         }
 
         if (!empty($presented['supplier_listing_price'])) {
-            $minOfferPrice = self::minListingRetailPrice($variant);
+            $minOfferPrice = self::minListingRetailPrice($variant, $preloadedEligibleOffers);
             if ($minOfferPrice !== null) {
                 return $minOfferPrice;
             }
@@ -61,12 +67,14 @@ final class CatalogVariantStockPresenter
 
     /**
      * Минимальная розничная цена среди офферов, участвующих в канале прайса на витрине.
+     *
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
      */
-    public static function minListingRetailPrice(ProductVariantLink $variant): ?float
+    public static function minListingRetailPrice(ProductVariantLink $variant, ?array $preloadedEligibleOffers = null): ?float
     {
         $min = null;
 
-        foreach (self::listingEligibleOffers($variant) as $offer) {
+        foreach (self::listingEligibleOffers($variant, $preloadedEligibleOffers) as $offer) {
             if ($offer->price === null || !is_numeric((string) $offer->price)) {
                 continue;
             }
@@ -113,8 +121,15 @@ final class CatalogVariantStockPresenter
             });
     }
 
-    public static function supplierListingActive(ProductVariantLink $variant): bool
+    /**
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
+     */
+    public static function supplierListingActive(ProductVariantLink $variant, ?array $preloadedEligibleOffers = null): bool
     {
+        if ($preloadedEligibleOffers !== null) {
+            return $preloadedEligibleOffers !== [];
+        }
+
         foreach (self::listingEligibleOffers($variant) as $_offer) {
             return true;
         }
@@ -129,7 +144,7 @@ final class CatalogVariantStockPresenter
     {
         $min = null;
 
-        foreach (self::listingEligibleOffers($variant) as $offer) {
+        foreach (self::listingEligibleOffers($variant, null) as $offer) {
             $payload = is_array($offer->payload) ? $offer->payload : [];
             $purchase = self::resolveOfferPurchasePrice($offer, $payload);
             if ($purchase === null || $purchase <= 0) {
@@ -143,10 +158,17 @@ final class CatalogVariantStockPresenter
     }
 
     /**
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
      * @return iterable<int, SupplierVariantOffer>
      */
-    private static function listingEligibleOffers(ProductVariantLink $variant): iterable
+    private static function listingEligibleOffers(ProductVariantLink $variant, ?array $preloadedEligibleOffers = null): iterable
     {
+        if ($preloadedEligibleOffers !== null) {
+            yield from $preloadedEligibleOffers;
+
+            return;
+        }
+
         $offers = SupplierVariantOffer::query()
             ->where('product_variant_id', $variant->id)
             ->where('is_active', true)
@@ -195,10 +217,22 @@ final class CatalogVariantStockPresenter
      *     supplier_listing_price: bool
      * }
      */
+    /**
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
+     * @return array{
+     *     stock: int,
+     *     reserved_stock: int,
+     *     available_stock: int,
+     *     is_available: bool,
+     *     is_preorder: bool,
+     *     supplier_listing_price: bool
+     * }
+     */
     public static function forListing(
         ProductVariantLink $variant,
         ?WarehouseVariantStock $mainStock,
         ?WarehouseVariantStock $supplierStock,
+        ?array $preloadedEligibleOffers = null,
     ): array {
         $preorder = (bool) $variant->is_preorder;
 
@@ -218,7 +252,7 @@ final class CatalogVariantStockPresenter
         }
 
         // Канал поставщика по активной связке прайса (строка склада может ещё не существовать).
-        if (self::supplierListingActive($variant)) {
+        if (self::supplierListingActive($variant, $preloadedEligibleOffers)) {
             return [
                 'stock' => self::SUPPLIER_LISTING_QTY,
                 'reserved_stock' => 0,

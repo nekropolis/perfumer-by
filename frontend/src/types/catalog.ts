@@ -1,3 +1,5 @@
+import type { ReviewItem } from "@/types/reviews";
+
 export type ProductVariantData = {
     id: number;
     volume: number | null;
@@ -174,6 +176,9 @@ export type ProductDetailData = {
 
 export type ProductDetailResponse = {
     data: ProductDetailData;
+    reviews?: {
+        data: ReviewItem[];
+    };
 };
 
 export type CatalogBrandItem = {

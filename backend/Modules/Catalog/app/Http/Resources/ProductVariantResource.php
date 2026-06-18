@@ -5,29 +5,31 @@ namespace Modules\Catalog\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
-use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductVariantResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
-        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+        /** @var ProductVariantLink $variant */
+        $variant = $this->resource;
 
-        $stocksByWarehouse = WarehouseVariantStock::query()
-            ->where('variant_id', $this->id)
-            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
-            ->get()
-            ->keyBy('warehouse_id');
+        $stockContext = CatalogListingStockContext::current();
+        if ($stockContext === null) {
+            $product = $variant->relationLoaded('product')
+                ? $variant->product
+                : $variant->product()->with('activeVariants')->first();
+            $stockContext = CatalogListingStockContext::fromProducts(
+                $product !== null ? collect([$product]) : collect(),
+            );
+        }
 
-        $mainStock = $mainWarehouseId > 0 ? $stocksByWarehouse->get($mainWarehouseId) : null;
-        $supplierStock = $supplierWarehouseId > 0 ? $stocksByWarehouse->get($supplierWarehouseId) : null;
+        $presented = $stockContext->presentedForListing($variant);
+        $effectivePrice = $stockContext->storefrontVariantPrice($variant, $presented);
+        [$mainStock, $supplierStock] = $stockContext->warehouseStocksForVariant($variant);
 
-        $presented = CatalogVariantStockPresenter::forListing($this->resource, $mainStock, $supplierStock);
-
-        $effectivePrice = CatalogVariantStockPresenter::storefrontVariantPrice($this->resource, $presented);
         $effectiveOldPrice = $effectivePrice !== null ? $this->old_price : null;
         $effectivePreorder = $presented['is_preorder'];
         $availableStock = $presented['available_stock'];
@@ -71,7 +73,7 @@ class ProductVariantResource extends JsonResource
             'is_available' => $presented['is_available'],
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
-            'fulfillment_tooltip' => self::adminFulfillmentTooltip($this->resource, $mainStock, $supplierStock),
+            'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
         ];
     }
 

@@ -9,7 +9,9 @@ import {
     useState,
     type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { scheduleIdleTask, shouldEagerLoadUserData } from "@/lib/schedule-idle-task";
 import {
     addWishlistItem,
     fetchWishlist,
@@ -75,6 +77,7 @@ type Props = {
 };
 
 export function WishlistProvider({ children }: Props) {
+    const pathname = usePathname();
     const { isAuthenticated } = useAuth();
     const [productIds, setProductIds] = useState<number[]>([]);
     const [products, setProducts] = useState<ProductListItem[]>([]);
@@ -171,11 +174,25 @@ export function WishlistProvider({ children }: Props) {
             }
         };
 
-        void init();
+        const run = () => {
+            if (!cancelled) {
+                void init();
+            }
+        };
+
+        if (shouldEagerLoadUserData(pathname)) {
+            void init();
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const cancelIdle = scheduleIdleTask(run);
         return () => {
             cancelled = true;
+            cancelIdle();
         };
-    }, [applyResponse, isAuthenticated]);
+    }, [applyResponse, isAuthenticated, pathname]);
 
     const addToWishlist = useCallback(
         async (productId: number) => {

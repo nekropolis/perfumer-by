@@ -357,6 +357,7 @@ final class SimilarProductsService
                 'is_hit',
                 'is_out_of_stock',
                 'is_active',
+                'listing_min_price',
             ])
             ->with([
                 'brand:id,name,slug',
@@ -381,7 +382,6 @@ final class SimilarProductsService
                         ]);
                 },
             ])
-            ->withMin('activeVariants as min_price', 'price')
             ->limit(self::CANDIDATE_POOL);
     }
 
@@ -457,6 +457,10 @@ final class SimilarProductsService
 
     private function candidateMinPrice(Product $product): ?float
     {
+        if ($product->listing_min_price !== null) {
+            return (float) $product->listing_min_price;
+        }
+
         $prices = $product->activeVariants->pluck('price')->filter(static fn ($p) => $p !== null && $p !== '')->map(static fn ($p): float => (float) $p);
 
         return $prices->isNotEmpty() ? (float) $prices->min() : null;

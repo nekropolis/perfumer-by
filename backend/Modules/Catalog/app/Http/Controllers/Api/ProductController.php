@@ -12,12 +12,16 @@ use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
-use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Services\CatalogBootstrapService;
+use Modules\Catalog\Services\CatalogFiltersService;
+use Modules\Catalog\Services\CatalogProductsListingService;
 use Modules\Catalog\Services\SimilarProductsService;
 use Modules\Catalog\Services\SmartSearch\ProductSearchRetrievalService;
+use Modules\Reviews\Services\PublishedProductReviewsService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -43,15 +47,7 @@ class ProductController extends Controller
     /** Все слова запроса в названии, порядок любой. */
     private const int SMART_SEARCH_MATCH_SCATTERED = 3;
     private const int SMART_SEARCH_MATCH_TYPO = 4;
-    private const array VOLUME_BUCKETS = [
-        ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
-        ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
-        ['key' => '10-25', 'label' => '10-25', 'min' => 10, 'max' => 25],
-        ['key' => '25-50', 'label' => '25-50', 'min' => 25, 'max' => 50],
-        ['key' => '50-100', 'label' => '50-100', 'min' => 50, 'max' => 100],
-        ['key' => '100-200', 'label' => '100-200', 'min' => 100, 'max' => 200],
-        ['key' => '200-plus', 'label' => '200+', 'min' => 200, 'max' => null],
-    ];
+
     /**
      * Реальные колонки `product_variant_links` (объём/название концентрации — в `variant_definitions`, см. accessors на модели).
      *
@@ -88,175 +84,35 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $payload = app(CatalogApiCacheService::class)->rememberProducts($request->query(), function () use ($request): array {
-            $query = Product::query()
-                ->where('is_active', true)
-                ->select([
-                    'id',
-                    'brand_id',
-                    'main_category_id',
-                    'name',
-                    'slug',
-                    'h1',
-                    'short_description',
-                    'is_new',
-                    'is_hit',
-                    'is_out_of_stock',
-                ]);
-
-            $this->applyCatalogBaseFilters($query, $request);
-            $this->applyCatalogAttributeFilters($query, $request);
-            $this->applyCatalogPriceFilters($query, $request);
-            $this->applyCatalogVolumeFilters($query, $request);
-
-            $query
-                ->withMin('activeVariants as min_price', 'price')
-                ->with([
-                    'brand:id,name,slug',
-                    'mainCategory:id,name,slug',
-                    'images' => ProductListResource::imagesForListingEagerLoad(),
-                    'activeVariants' => static function ($q): void {
-                        $q->select(self::VARIANT_LINK_COLUMNS)
-                            ->with([
-                                'definition' => static function ($dq): void {
-                                    $dq->select(self::VARIANT_DEFINITION_COLUMNS);
-                                },
-                            ]);
-                    },
-                ]);
-
-            $sort = $request->string('sort')->toString();
-
-            if ($sort === 'price_desc') {
-                $query->orderByRaw('CASE WHEN min_price IS NULL THEN 1 ELSE 0 END')
-                    ->orderByDesc('min_price')
-                    ->orderBy('name');
-            } elseif ($sort === 'name_desc') {
-                $query->orderByDesc('name');
-            } elseif ($sort === 'name_asc') {
-                $query->orderBy('name');
-            } else {
-                $query->orderByRaw('CASE WHEN min_price IS NULL THEN 1 ELSE 0 END')
-                    ->orderBy('min_price')
-                    ->orderBy('name');
-            }
-
-            $products = $query->paginate(24);
-
-            return [
-                'data' => ProductListResource::collection($products->getCollection())->resolve(),
-                'meta' => [
-                    'current_page' => $products->currentPage(),
-                    'last_page' => $products->lastPage(),
-                    'per_page' => $products->perPage(),
-                    'total' => $products->total(),
-                ],
-            ];
+            return app(CatalogProductsListingService::class)->list($request);
         });
 
         return response()->json($payload);
     }
 
+    public function bootstrap(Request $request): JsonResponse
+    {
+        $payload = app(CatalogApiCacheService::class)->rememberBootstrap($request->query(), function () use ($request): ?array {
+            return app(CatalogBootstrapService::class)->build($request);
+        });
+
+        if ($payload === null) {
+            return response()->json([
+                'message' => 'Бренд не найден.',
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => $payload,
+        ]);
+    }
+
     public function filters(Request $request): JsonResponse
     {
-        $payload = app(CatalogApiCacheService::class)->rememberCatalogFilters($request->query(), function () use ($request): array {
-            $baseQuery = Product::query()
-                ->where('is_active', true);
-
-            $this->applyCatalogBaseFilters($baseQuery, $request);
-
-            $priceRows = (clone $baseQuery)
-                ->whereHas('activeVariants', function ($q): void {
-                    $q->whereNotNull('price');
-                })
-                ->withMin('activeVariants as min_price', 'price')
-                ->withMax('activeVariants as max_price', 'price')
-                ->get(['id']);
-
-            $minPrices = $priceRows
-                ->pluck('min_price')
-                ->filter(static fn ($value): bool => $value !== null)
-                ->map(static fn ($value): float => (float) $value);
-            $maxPrices = $priceRows
-                ->pluck('max_price')
-                ->filter(static fn ($value): bool => $value !== null)
-                ->map(static fn ($value): float => (float) $value);
-
-            $priceMin = $minPrices->isNotEmpty() ? (float) $minPrices->min() : null;
-            $priceMax = $maxPrices->isNotEmpty() ? (float) $maxPrices->max() : null;
-
-            $attributes = ProductAttribute::query()
-                ->where('is_active', true)
-                ->where('is_filterable', true)
-                ->with(['activeOptions' => function ($q): void {
-                    $q->select('id', 'product_attribute_id', 'name', 'sort_order')
-                        ->orderBy('sort_order')
-                        ->orderBy('name');
-                }])
-                ->orderBy('filter_sort_order')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get();
-
-            $attributePayload = $attributes->map(function (ProductAttribute $attribute) use ($baseQuery) {
-                $options = $attribute->activeOptions->map(function ($option) use ($attribute, $baseQuery) {
-                    $productsCount = (clone $baseQuery)
-                        ->whereHas('attributeValues', function ($valueQuery) use ($attribute, $option): void {
-                            $valueQuery
-                                ->where('product_attribute_id', $attribute->id)
-                                ->whereHas('selectedOptions', function ($selectedQuery) use ($option): void {
-                                    $selectedQuery->where('product_attribute_option_id', $option->id);
-                                });
-                        })
-                        ->count();
-
-                    return [
-                        'id' => (int) $option->id,
-                        'name' => (string) $option->name,
-                        'sort_order' => (int) $option->sort_order,
-                        'products_count' => (int) $productsCount,
-                    ];
-                })->values()->all();
-
-                return [
-                    'id' => (int) $attribute->id,
-                    'name' => (string) $attribute->name,
-                    'type' => (string) $attribute->type,
-                    'sort_order' => (int) $attribute->filter_sort_order,
-                    'options' => $options,
-                ];
-            })->values()->all();
-
-            $volumePayload = collect(self::VOLUME_BUCKETS)->map(function (array $bucket) use ($baseQuery) {
-                $productsCount = (clone $baseQuery)
-                    ->whereHas('activeVariants.definition', function ($definitionQuery) use ($bucket): void {
-                        $min = (int) ($bucket['min'] ?? 0);
-                        $max = $bucket['max'];
-                        $definitionQuery->whereNotNull('volume_ml')
-                            ->where('volume_ml', '>=', $min);
-                        if ($max !== null) {
-                            $definitionQuery->where('volume_ml', '<=', (int) $max);
-                        }
-                    })
-                    ->count();
-
-                return [
-                    'key' => (string) $bucket['key'],
-                    'label' => (string) $bucket['label'],
-                    'products_count' => (int) $productsCount,
-                ];
-            })->values()->all();
-
-            return [
-                'data' => [
-                    'price' => [
-                        'min' => $priceMin,
-                        'max' => $priceMax,
-                    ],
-                    'volume' => $volumePayload,
-                    'attributes' => $attributePayload,
-                ],
-            ];
-        });
+        $payload = app(CatalogApiCacheService::class)->rememberCatalogFilters(
+            $request->query(),
+            static fn (): array => app(CatalogFiltersService::class)->build($request),
+        );
 
         return response()->json($payload);
     }
@@ -316,17 +172,58 @@ class ProductController extends Controller
                 return [];
             }
 
-            $similar = app(SimilarProductsService::class)->forProduct($product, 8);
+            CatalogListingStockContext::prime(collect([$product]));
 
-            $detail = (new ProductDetailResource($product))->resolve();
-            $detail['similar_products'] = ProductListResource::collection($similar)->resolve();
+            try {
+                $detail = (new ProductDetailResource($product))->resolve();
+            } finally {
+                CatalogListingStockContext::forget();
+            }
 
             return [
                 'data' => $detail,
+                'reviews' => [
+                    'data' => app(PublishedProductReviewsService::class)->listForProduct((int) $product->id),
+                ],
             ];
         });
 
         if (!isset($payload['data'])) {
+            return response()->json([
+                'message' => 'Товар не найден.',
+            ], 404);
+        }
+
+        return response()->json($payload);
+    }
+
+    public function similarProducts(Request $request, string $slug): JsonResponse
+    {
+        $limit = max(4, min(24, (int) $request->input('limit', 8)));
+
+        $payload = app(CatalogApiCacheService::class)->rememberProductSimilarBySlug($slug, $limit, function () use ($slug, $limit): ?array {
+            $product = Product::query()
+                ->where('slug', $slug)
+                ->where('is_active', true)
+                ->first(['id', 'brand_id', 'main_category_id', 'is_active', 'is_out_of_stock']);
+
+            if ($product === null) {
+                return null;
+            }
+
+            $similar = app(SimilarProductsService::class)->forProduct($product, $limit);
+            CatalogListingStockContext::prime($similar);
+
+            try {
+                return [
+                    'data' => ProductListResource::collection($similar)->resolve(),
+                ];
+            } finally {
+                CatalogListingStockContext::forget();
+            }
+        });
+
+        if ($payload === null) {
             return response()->json([
                 'message' => 'Товар не найден.',
             ], 404);
@@ -1560,122 +1457,6 @@ class ProductController extends Controller
         }
 
         return $grams;
-    }
-
-    private function applyCatalogBaseFilters(Builder $query, Request $request): void
-    {
-        if ($request->filled('brand')) {
-            $brandIds = collect(explode(',', (string) $request->input('brand')))
-                ->map(static fn (string $value): int => (int) trim($value))
-                ->filter(static fn (int $value): bool => $value > 0)
-                ->unique()
-                ->values()
-                ->all();
-
-            if (!empty($brandIds)) {
-                $query->whereIn('brand_id', $brandIds);
-            }
-        }
-
-        if ($request->filled('brand_slug')) {
-            $query->whereHas('brand', function ($brandQuery) use ($request): void {
-                $brandQuery->where('slug', $request->string('brand_slug')->toString());
-            });
-        }
-    }
-
-    private function applyCatalogPriceFilters(Builder $query, Request $request): void
-    {
-        $minPrice = $request->filled('price_min') ? (float) $request->input('price_min') : null;
-        $maxPrice = $request->filled('price_max') ? (float) $request->input('price_max') : null;
-
-        if ($minPrice === null && $maxPrice === null) {
-            return;
-        }
-
-        $query->whereHas('activeVariants', function ($variantQuery) use ($minPrice, $maxPrice): void {
-            $variantQuery->whereNotNull('price');
-
-            if ($minPrice !== null) {
-                $variantQuery->where('price', '>=', $minPrice);
-            }
-
-            if ($maxPrice !== null) {
-                $variantQuery->where('price', '<=', $maxPrice);
-            }
-        });
-    }
-
-    private function applyCatalogAttributeFilters(Builder $query, Request $request): void
-    {
-        $attributeFilters = collect($request->query())
-            ->filter(function ($value, $key): bool {
-                return is_string($key) && str_starts_with($key, 'attr_');
-            });
-
-        foreach ($attributeFilters as $key => $rawValue) {
-            $attributeId = (int) str_replace('attr_', '', (string) $key);
-            if ($attributeId <= 0) {
-                continue;
-            }
-
-            $optionIds = collect(explode(',', (string) $rawValue))
-                ->map(static fn (string $id): int => (int) trim($id))
-                ->filter(static fn (int $id): bool => $id > 0)
-                ->unique()
-                ->values()
-                ->all();
-
-            if (empty($optionIds)) {
-                continue;
-            }
-
-            $query->whereHas('attributeValues', function ($valueQuery) use ($attributeId, $optionIds): void {
-                $valueQuery
-                    ->where('product_attribute_id', $attributeId)
-                    ->whereHas('selectedOptions', function ($selectedQuery) use ($optionIds): void {
-                        $selectedQuery->whereIn('product_attribute_option_id', $optionIds);
-                    });
-            });
-        }
-    }
-
-    private function applyCatalogVolumeFilters(Builder $query, Request $request): void
-    {
-        $keys = collect(explode(',', (string) $request->input('volume', '')))
-            ->map(static fn (string $value): string => trim($value))
-            ->filter(static fn (string $value): bool => $value !== '')
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($keys)) {
-            return;
-        }
-
-        $selectedBuckets = collect(self::VOLUME_BUCKETS)
-            ->filter(static fn (array $bucket): bool => in_array($bucket['key'], $keys, true))
-            ->values();
-
-        if ($selectedBuckets->isEmpty()) {
-            return;
-        }
-
-        $query->whereHas('activeVariants.definition', function ($definitionQuery) use ($selectedBuckets): void {
-            $definitionQuery->where(function ($rangeQuery) use ($selectedBuckets): void {
-                foreach ($selectedBuckets as $bucket) {
-                    $rangeQuery->orWhere(function ($bucketQuery) use ($bucket): void {
-                        $min = (int) ($bucket['min'] ?? 0);
-                        $max = $bucket['max'];
-                        $bucketQuery->whereNotNull('volume_ml')
-                            ->where('volume_ml', '>=', $min);
-                        if ($max !== null) {
-                            $bucketQuery->where('volume_ml', '<=', (int) $max);
-                        }
-                    });
-                }
-            });
-        });
     }
 
     private function smartSearchMeiliPoolLimit(int $responseLimit): int

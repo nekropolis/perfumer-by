@@ -5,11 +5,10 @@ namespace Modules\Catalog\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
-use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
-use Modules\Warehouse\Models\Warehouse;
-use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductDetailResource extends JsonResource
 {
@@ -31,44 +30,40 @@ class ProductDetailResource extends JsonResource
                 ? $this->activeVariants
                 : collect());
 
-        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
-        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
-        $variantIds = $variants->pluck('id')->filter()->values();
+        $stockContext = CatalogListingStockContext::current()
+            ?? CatalogListingStockContext::fromProducts(collect([$this->resource]));
 
-        $stocks = WarehouseVariantStock::query()
-            ->whereIn('variant_id', $variantIds)
-            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
-            ->get()
-            ->groupBy('variant_id');
+        $presentedByVariant = [];
+        foreach ($variants as $variant) {
+            if ($variant instanceof ProductVariantLink) {
+                $presentedByVariant[(int) $variant->id] = $stockContext->presentedForListing($variant);
+            }
+        }
 
         $prices = $variants
-            ->map(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-                $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-                $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-                $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-                $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+            ->map(function ($variant) use ($stockContext, $presentedByVariant) {
+                $presented = $presentedByVariant[(int) $variant->id];
 
-                return CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
+                return $stockContext->storefrontVariantPrice($variant, $presented);
             })
             ->filter();
 
-        $stockTotal = (int) $variants->sum(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+        $stockTotal = (int) $variants->sum(
+            fn ($variant) => $presentedByVariant[(int) $variant->id]['stock'] ?? 0
+        );
 
-            return CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock)['stock'];
-        });
+        $defaultVariant = $variants->first(function ($variant) use ($presentedByVariant) {
+            if (!$variant instanceof ProductVariantLink) {
+                return false;
+            }
 
-        $defaultVariant = $variants->first(function ($variant) use ($stocks, $mainWarehouseId, $supplierWarehouseId) {
-            $variantStocks = $stocks->get($variant->id, collect())->keyBy('warehouse_id');
-            $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
-            $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
-            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+            $presented = $presentedByVariant[(int) $variant->id] ?? null;
+            if ($presented === null) {
+                return false;
+            }
 
             return $presented['is_available'] || $variant->is_preorder;
-        })
-            ?? $variants->first();
+        }) ?? $variants->first();
 
         return [
             'id' => $this->id,
