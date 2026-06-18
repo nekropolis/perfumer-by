@@ -62,7 +62,7 @@ final class VanilleParsedImportGuard
             return 'бренд/страница в списке исключений: ' . $brandName;
         }
 
-        if (!VanilleBrandParser::isAllowedImportBrand($brandName)) {
+        if (!VanilleBrandParser::isAllowedImportBrand($brandName, $url)) {
             return 'бренд не в brands.json (категория или мусор): ' . $brandName;
         }
 
@@ -75,7 +75,7 @@ final class VanilleParsedImportGuard
             return 'название совпадает с брендом (страница категории)';
         }
 
-        if (!self::hasProductCharacteristics($item, $brandName, $pathSlug)) {
+        if (!self::hasProductCharacteristics($item, $brandName, $pathSlug, $url)) {
             return 'нет характеристик товара (без атрибутов не импортируем)';
         }
 
@@ -85,7 +85,7 @@ final class VanilleParsedImportGuard
     /**
      * Реальный товар может быть без цен/остатка на Vanille (пустые offers), но с таблицей характеристик.
      */
-    private static function hasProductCharacteristics(array $item, string $brandName, string $pathSlug): bool
+    private static function hasProductCharacteristics(array $item, string $brandName, string $pathSlug, string $productUrl): bool
     {
         $characteristics = is_array($item['characteristics'] ?? null) ? $item['characteristics'] : [];
         if ($characteristics === []) {
@@ -99,17 +99,17 @@ final class VanilleParsedImportGuard
 
         foreach (self::PRODUCT_CHARACTERISTIC_KEYS as $needle) {
             if (in_array($needle, $normalizedKeys, true)) {
-                return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug);
+                return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug, $productUrl);
             }
         }
 
         if (count($characteristics) >= 3) {
-            return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug);
+            return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug, $productUrl);
         }
 
         $gallery = is_array($item['gallery_image_urls'] ?? null) ? $item['gallery_image_urls'] : [];
         if ($gallery !== [] && in_array('бренд', $normalizedKeys, true)) {
-            return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug);
+            return self::characteristicsLookLikeProduct($characteristics, $brandName, $pathSlug, $productUrl);
         }
 
         return false;
@@ -122,8 +122,9 @@ final class VanilleParsedImportGuard
         array $characteristics,
         string $brandName,
         string $pathSlug,
+        string $productUrl,
     ): bool {
-        $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName);
+        $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName, $productUrl);
         if ($catalogBrand === null) {
             return false;
         }

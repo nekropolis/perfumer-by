@@ -134,6 +134,21 @@ class VanilleImportService
                 continue;
             }
 
+            if ($publishExisting) {
+                $brandNameForCatalog = trim((string) ($item['brand'] ?? ''));
+                if ($brandNameForCatalog !== '') {
+                    $productUrlForCatalog = trim((string) ($item['url'] ?? ''));
+                    $hadBrandInCatalog = VanilleBrandParser::findCatalogBrandRow($brandNameForCatalog, $productUrlForCatalog) !== null;
+                    $ensuredBrand = VanilleBrandParser::ensureBrandRowInCatalogFile(
+                        $brandNameForCatalog,
+                        $productUrlForCatalog,
+                    );
+                    if (! $hadBrandInCatalog && $ensuredBrand !== null) {
+                        $log[] = 'INFO: бренд добавлен в brands.json: ' . $brandNameForCatalog;
+                    }
+                }
+            }
+
             $skipReason = VanilleParsedImportGuard::skipReason($item);
             if ($skipReason !== null) {
                 $log[] = 'SKIP: ' . $skipReason . ' | ' . trim((string) ($item['url'] ?? ''));
@@ -150,7 +165,10 @@ class VanilleImportService
                     $catalogBrand = null;
 
                     if ($brandName !== '') {
-                        $catalogBrand = VanilleBrandParser::findCatalogBrandRow($brandName);
+                        $catalogBrand = VanilleBrandParser::findCatalogBrandRow(
+                            $brandName,
+                            trim((string) ($item['url'] ?? '')),
+                        );
                         $brandSlug = trim((string) ($catalogBrand['slug'] ?? ''))
                             ?: VanilleHelper::slugify($brandName);
                         if ($brandSlug === '') {
@@ -397,6 +415,7 @@ class VanilleImportService
             $path,
             json_encode($brands, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
+        VanilleBrandParser::resetCatalogBrandRowsCache();
 
         return [
             'success' => true,

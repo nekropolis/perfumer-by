@@ -3,10 +3,15 @@
 namespace Modules\ImportExport\Services\Vanille\Parsers;
 
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\ImportExport\Support\VanilleHelper;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 
 class VanilleBrandParser
 {
+    /** @var list<array<string, mixed>>|null */
+    private static ?array $catalogBrandRowsCache = null;
+
+    private static ?int $catalogBrandRowsCacheMtime = null;
     /** Slug-пути страницы /brendyi, которые не являются брендами (личный кабинет, страны и т. п.). */
     private static function excludedVanilleListingSlugList(): array
     {
@@ -285,16 +290,63 @@ class VanilleBrandParser
      *
      * @return array<string, mixed>|null
      */
-    public static function findCatalogBrandRow(string $brandName): ?array
+    public static function findCatalogBrandRow(string $brandName, string $productUrl = ''): ?array
     {
-        $needle = mb_strtolower(trim($brandName), 'UTF-8');
-        if ($needle === '') {
+        $brandName = self::normalizeBrandLookupName($brandName);
+        if ($brandName === '') {
+            return null;
+        }
+
+        $needle = mb_strtolower($brandName, 'UTF-8');
+
+        foreach (self::loadCatalogBrandRows() as $row) {
+            $rowName = self::normalizeBrandLookupName((string) ($row['name'] ?? ''));
+            if ($rowName === '') {
+                continue;
+            }
+
+            if (
+                mb_strtolower($rowName, 'UTF-8') === $needle
+                || ProductDisplayName::brandNamesEquivalent($brandName, $rowName)
+            ) {
+                return $row;
+            }
+        }
+
+        $productUrl = trim($productUrl);
+        if ($productUrl !== '') {
+            $slug = self::inferBrandSlugFromProductUrl($brandName, $productUrl);
+            if ($slug !== '') {
+                $bySlug = self::findCatalogBrandRowBySlug($slug);
+                if ($bySlug !== null) {
+                    return $bySlug;
+                }
+            }
+        }
+
+        foreach (self::brandSlugCandidatesFromName($brandName) as $candidate) {
+            $bySlug = self::findCatalogBrandRowBySlug($candidate);
+            if ($bySlug !== null) {
+                return $bySlug;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findCatalogBrandRowBySlug(string $slug): ?array
+    {
+        $slug = mb_strtolower(trim($slug), 'UTF-8');
+        if ($slug === '') {
             return null;
         }
 
         foreach (self::loadCatalogBrandRows() as $row) {
-            $name = mb_strtolower(trim((string) ($row['name'] ?? '')), 'UTF-8');
-            if ($name === $needle || ProductDisplayName::brandNamesEquivalent($brandName, (string) ($row['name'] ?? ''))) {
+            $rowSlug = mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8');
+            if ($rowSlug !== '' && $rowSlug === $slug) {
                 return $row;
             }
         }
@@ -302,13 +354,194 @@ class VanilleBrandParser
         return null;
     }
 
-    public static function isAllowedImportBrand(string $brandName): bool
+    public static function isAllowedImportBrand(string $brandName, string $productUrl = ''): bool
     {
         if (trim($brandName) === '') {
             return false;
         }
 
-        return self::findCatalogBrandRow($brandName) !== null;
+        return self::findCatalogBrandRow($brandName, $productUrl) !== null;
+    }
+
+    public static function normalizeBrandLookupName(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return '';
+        }
+
+        $name = str_replace(
+            ["\u{2019}", "\u{2018}", "\u{02BC}", '`', '´'],
+            "'",
+            $name,
+        );
+        $name = preg_replace('/\s+/u', ' ', $name) ?? '';
+
+        return trim($name);
+    }
+
+    /**
+     * Одиночный импорт из админки: дописать бренд в brands.json, если его ещё нет после полного парсинга /brendyi.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function ensureBrandRowInCatalogFile(string $brandName, string $productUrl = ''): ?array
+    {
+        $brandName = trim($brandName);
+        if ($brandName === '') {
+            return null;
+        }
+
+        $productUrl = trim($productUrl);
+        $existing = self::findCatalogBrandRow($brandName, $productUrl);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        if (self::isExcludedBrandName($brandName) || self::isGarbageBrandRow($brandName, '', $productUrl)) {
+            return null;
+        }
+
+        $slug = self::inferBrandSlugFromProductUrl($brandName, $productUrl);
+        if ($slug === '' || ! self::isValidBrandSlug($slug) || self::isExcludedListingSlug($slug)) {
+            return null;
+        }
+
+        $bySlug = self::findCatalogBrandRowBySlug($slug);
+        if ($bySlug !== null) {
+            return $bySlug;
+        }
+
+        $row = [
+            'name' => $brandName,
+            'slug' => $slug,
+            'vendor' => null,
+            'url' => 'https://vanille.by/' . $slug,
+            'source_url' => 'https://vanille.by/' . $slug,
+        ];
+
+        $appended = self::appendBrandRowToCatalogFile($row);
+        if ($appended !== null) {
+            return $appended;
+        }
+
+        return self::findCatalogBrandRow($brandName, $productUrl)
+            ?? self::findCatalogBrandRowBySlug($slug);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function brandSlugCandidatesFromName(string $brandName): array
+    {
+        $slug = VanilleHelper::slugify($brandName);
+        $candidates = [$slug];
+
+        $compactL = preg_replace('/^l-/', 'l', $slug);
+        if (is_string($compactL) && $compactL !== '' && $compactL !== $slug) {
+            $candidates[] = $compactL;
+        }
+
+        $noApostrophe = VanilleHelper::slugify(str_replace("'", '', $brandName));
+        if ($noApostrophe !== '' && $noApostrophe !== $slug) {
+            $candidates[] = $noApostrophe;
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
+    }
+
+    public static function inferBrandSlugFromProductUrl(string $brandName, string $productUrl): string
+    {
+        $path = trim((string) parse_url($productUrl, PHP_URL_PATH), '/');
+
+        foreach (self::brandSlugCandidatesFromName($brandName) as $candidate) {
+            if ($path !== '' && ($path === $candidate || str_starts_with($path, $candidate . '-'))) {
+                return $candidate;
+            }
+        }
+
+        if ($path !== '') {
+            $parts = explode('-', $path);
+            for ($len = count($parts) - 1; $len >= 1; $len--) {
+                $candidate = implode('-', array_slice($parts, 0, $len));
+                if (self::isValidBrandSlug($candidate) && ! self::isExcludedListingSlug($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        $fallback = VanilleHelper::slugify($brandName);
+
+        return self::isValidBrandSlug($fallback) ? $fallback : '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>|null
+     */
+    private static function appendBrandRowToCatalogFile(array $row): ?array
+    {
+        $path = storage_path('app/public/imports/vanille/brands.json');
+        $dir = dirname($path);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $brands = [];
+        if (is_file($path)) {
+            $decoded = json_decode((string) file_get_contents($path), true);
+            if (is_array($decoded)) {
+                $brands = $decoded;
+            }
+        }
+
+        $slug = mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8');
+        $name = trim((string) ($row['name'] ?? ''));
+
+        foreach ($brands as $existing) {
+            if (! is_array($existing)) {
+                continue;
+            }
+            $existingSlug = mb_strtolower(trim((string) ($existing['slug'] ?? '')), 'UTF-8');
+            if ($slug !== '' && $existingSlug === $slug) {
+                self::resetCatalogBrandRowsCache();
+
+                return $existing;
+            }
+            if ($name !== '' && ProductDisplayName::brandNamesEquivalent($name, (string) ($existing['name'] ?? ''))) {
+                self::resetCatalogBrandRowsCache();
+
+                return $existing;
+            }
+        }
+
+        $brands[] = $row;
+
+        file_put_contents(
+            $path,
+            json_encode($brands, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
+
+        self::resetCatalogBrandRowsCache();
+
+        return $row;
+    }
+
+    public static function resetCatalogBrandRowsCache(): void
+    {
+        self::$catalogBrandRowsCache = null;
+        self::$catalogBrandRowsCacheMtime = null;
+    }
+
+    /**
+     * @internal
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public static function seedCatalogBrandRowsCacheForTests(array $rows): void
+    {
+        self::$catalogBrandRowsCache = $rows;
+        self::$catalogBrandRowsCacheMtime = PHP_INT_MAX;
     }
 
     /**
@@ -316,22 +549,37 @@ class VanilleBrandParser
      */
     public static function loadCatalogBrandRows(): array
     {
-        static $cache = null;
-        if ($cache !== null) {
-            return $cache;
+        if (self::$catalogBrandRowsCache !== null && self::$catalogBrandRowsCacheMtime === PHP_INT_MAX) {
+            return self::$catalogBrandRowsCache;
         }
 
         $path = storage_path('app/public/imports/vanille/brands.json');
-        if (!is_file($path)) {
-            $cache = [];
+        if (! is_file($path)) {
+            self::resetCatalogBrandRowsCache();
+            self::$catalogBrandRowsCache = [];
 
-            return $cache;
+            return self::$catalogBrandRowsCache;
+        }
+
+        $mtime = (int) filemtime($path);
+        if (
+            self::$catalogBrandRowsCache !== null
+            && self::$catalogBrandRowsCacheMtime === $mtime
+        ) {
+            return self::$catalogBrandRowsCache;
         }
 
         $decoded = json_decode((string) file_get_contents($path), true);
-        $cache = is_array($decoded) ? self::filterExcludedListingRows($decoded) : [];
+        if (! is_array($decoded)) {
+            self::resetCatalogBrandRowsCache();
 
-        return $cache;
+            return [];
+        }
+
+        self::$catalogBrandRowsCache = self::filterExcludedListingRows($decoded);
+        self::$catalogBrandRowsCacheMtime = $mtime;
+
+        return self::$catalogBrandRowsCache;
     }
 
     public static function isExcludedBrandName(string $name): bool
