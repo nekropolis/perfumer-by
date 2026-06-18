@@ -4,13 +4,14 @@ export function scheduleIdleTask(task: () => void): () => void {
         return () => {};
     }
 
-    if ("requestIdleCallback" in window) {
-        const id = window.requestIdleCallback(() => task(), { timeout: 1500 });
+    const requestIdleCallback = window.requestIdleCallback;
+    if (typeof requestIdleCallback === "function") {
+        const id = requestIdleCallback(() => task(), { timeout: 1500 });
         return () => window.cancelIdleCallback(id);
     }
 
-    const timeoutId = window.setTimeout(task, 1);
-    return () => window.clearTimeout(timeoutId);
+    const timeoutId = setTimeout(task, 1);
+    return () => clearTimeout(timeoutId);
 }
 
 export function shouldEagerLoadUserData(pathname: string): boolean {
