@@ -10,6 +10,7 @@ import ProductVariantDefinitionForm, {
     type ProductVariantDefinitionFormState,
 } from "@/components/admin/products/product-variant-definition-form";
 import { createVariantDefinition } from "@/lib/admin-product-variants-api";
+import { parseDecimalInput } from "@/lib/parse-decimal-input";
 
 const emptyForm: ProductVariantDefinitionFormState = {
     volume_ml: "",
@@ -39,9 +40,16 @@ export default function AdminProductVariantCreatePage() {
             return;
         }
 
+        const volumeMl = parseDecimalInput(form.volume_ml);
+        if (volumeMl === null || volumeMl < 0.1) {
+            setError("Укажите корректный объем от 0,1 мл, например 1,3 или 100");
+            setSubmitting(false);
+            return;
+        }
+
         try {
             await createVariantDefinition({
-                volume_ml: Number(form.volume_ml),
+                volume_ml: volumeMl,
                 concentration_code: form.concentration_code.trim(),
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,

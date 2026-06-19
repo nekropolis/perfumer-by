@@ -11,6 +11,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockInventoryService;
@@ -38,29 +39,34 @@ class ProductVariantAdminController extends Controller
     public function storeDefinition(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'volume_ml' => ['required', 'integer', 'min:1'],
+            'volume_ml' => VariantDefinitionVolume::validationRules(),
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
             'is_vial' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
-        ]);
+        ], VariantDefinitionVolume::validationMessages());
 
         $isTester = (bool) ($validated['is_tester'] ?? false);
         $isVial = (bool) ($validated['is_vial'] ?? false);
         $this->assertVariantFlagsCompatible($isTester, $isVial);
 
+        $volumeMl = VariantDefinitionVolume::normalize($validated['volume_ml']);
+        $concentrationCode = mb_strtolower(trim((string) $validated['concentration_code']));
+
+        VariantDefinitionVolume::assertUnique($volumeMl, $concentrationCode, $isTester, $isVial);
+
         $definition = VariantDefinition::query()->create([
-            'volume_ml' => (int) $validated['volume_ml'],
-            'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
+            'volume_ml' => $volumeMl,
+            'concentration_code' => $concentrationCode,
             'concentration_label' => trim((string) $validated['concentration_label']),
             'is_tester' => $isTester,
             'is_vial' => $isVial,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
-            'title' => $this->buildDefinitionTitle(
-                (int) $validated['volume_ml'],
+            'title' => VariantDefinitionVolume::buildTitle(
+                $volumeMl,
                 (string) $validated['concentration_code'],
                 (string) $validated['concentration_label'],
                 $isTester,
@@ -79,29 +85,34 @@ class ProductVariantAdminController extends Controller
         $definition = VariantDefinition::query()->findOrFail($id);
 
         $validated = $request->validate([
-            'volume_ml' => ['required', 'integer', 'min:1'],
+            'volume_ml' => VariantDefinitionVolume::validationRules(),
             'concentration_code' => ['required', 'string', 'max:50'],
             'concentration_label' => ['required', 'string', 'max:120'],
             'is_tester' => ['nullable', 'boolean'],
             'is_vial' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
-        ]);
+        ], VariantDefinitionVolume::validationMessages());
 
         $isTester = (bool) ($validated['is_tester'] ?? false);
         $isVial = (bool) ($validated['is_vial'] ?? false);
         $this->assertVariantFlagsCompatible($isTester, $isVial);
 
+        $volumeMl = VariantDefinitionVolume::normalize($validated['volume_ml']);
+        $concentrationCode = mb_strtolower(trim((string) $validated['concentration_code']));
+
+        VariantDefinitionVolume::assertUnique($volumeMl, $concentrationCode, $isTester, $isVial, $definition->id);
+
         $definition->update([
-            'volume_ml' => (int) $validated['volume_ml'],
-            'concentration_code' => mb_strtolower(trim((string) $validated['concentration_code'])),
+            'volume_ml' => $volumeMl,
+            'concentration_code' => $concentrationCode,
             'concentration_label' => trim((string) $validated['concentration_label']),
             'is_tester' => $isTester,
             'is_vial' => $isVial,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
             'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
-            'title' => $this->buildDefinitionTitle(
-                (int) $validated['volume_ml'],
+            'title' => VariantDefinitionVolume::buildTitle(
+                $volumeMl,
                 (string) $validated['concentration_code'],
                 (string) $validated['concentration_label'],
                 $isTester,
@@ -154,8 +165,8 @@ class ProductVariantAdminController extends Controller
                     ->orWhereRaw('LOWER(concentration_code) like ?', ["%{$normalizedSearch}%"])
                     ->orWhereRaw('LOWER(concentration_label) like ?', ["%{$normalizedSearch}%"]);
 
-                if (preg_match('/\d+/', $search, $m)) {
-                    $subQuery->orWhere('volume_ml', (int) $m[0]);
+                if (preg_match('/\d+(?:[.,]\d+)?/', $search, $m)) {
+                    $subQuery->orWhere('volume_ml', VariantDefinitionVolume::normalize($m[0]));
                 }
             });
         }
@@ -362,31 +373,6 @@ class ProductVariantAdminController extends Controller
     private function syncProductStockFlags(Product $product): void
     {
         app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
-    }
-
-    private function buildDefinitionTitle(
-        int $volumeMl,
-        string $concentrationCode,
-        string $concentrationLabel,
-        bool $isTester,
-        bool $isVial = false,
-    ): string {
-        $title = sprintf(
-            '%d мл / %s - %s',
-            $volumeMl,
-            mb_strtoupper(trim($concentrationCode)),
-            trim($concentrationLabel)
-        );
-
-        if ($isTester) {
-            $title .= ' / Тестер';
-        }
-
-        if ($isVial) {
-            $title .= ' / Пробник';
-        }
-
-        return $title;
     }
 
     private function assertVariantFlagsCompatible(bool $isTester, bool $isVial): void

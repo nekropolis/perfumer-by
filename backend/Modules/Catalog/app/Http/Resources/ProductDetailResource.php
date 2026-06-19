@@ -9,6 +9,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
+use Modules\Catalog\Support\VariantDefinitionVolume;
 
 class ProductDetailResource extends JsonResource
 {
@@ -29,6 +30,8 @@ class ProductDetailResource extends JsonResource
             : ($this->relationLoaded('activeVariants')
                 ? $this->activeVariants
                 : collect());
+
+        $variants = VariantDefinitionVolume::sortVariantLinks($variants);
 
         $stockContext = CatalogListingStockContext::current()
             ?? CatalogListingStockContext::fromProducts(collect([$this->resource]));

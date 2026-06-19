@@ -19,6 +19,7 @@ class VariantDefinition extends Model
     ];
 
     protected $casts = [
+        'volume_ml' => 'float',
         'is_tester' => 'boolean',
         'is_vial' => 'boolean',
         'excludes_from_free_delivery_threshold' => 'boolean',

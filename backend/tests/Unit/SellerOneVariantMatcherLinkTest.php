@@ -944,14 +944,14 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame(100, $match['total']);
     }
 
-    public function test_definition_volume_lookup_rejects_fractional_ml(): void
+    public function test_definition_volume_lookup_accepts_fractional_ml(): void
     {
         $matcher = new SellerOneVariantMatcher();
 
-        $this->assertNull($matcher->definitionVolumeMlForLookup(1.5));
-        $this->assertNull($matcher->definitionVolumeMlForLookup(1.2));
-        $this->assertSame(2, $matcher->definitionVolumeMlForLookup(2.0));
-        $this->assertSame(100, $matcher->definitionVolumeMlForLookup(100.0));
+        $this->assertSame(1.5, $matcher->definitionVolumeMlForLookup(1.5));
+        $this->assertSame(1.2, $matcher->definitionVolumeMlForLookup(1.2));
+        $this->assertSame(2.0, $matcher->definitionVolumeMlForLookup(2.0));
+        $this->assertSame(100.0, $matcher->definitionVolumeMlForLookup(100.0));
     }
 
     public function test_volumes_match_treats_comma_parsed_values_as_exact(): void

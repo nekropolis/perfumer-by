@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptItem;
@@ -332,13 +333,13 @@ class StockReceiptService
             abort(422, 'Не выбран вариант товара');
         }
 
-        $volumeMl = (int) ($variantPayload['volume_ml'] ?? 0);
+        $volumeMl = VariantDefinitionVolume::normalize($variantPayload['volume_ml'] ?? 0);
         $concentrationCode = mb_strtolower(trim((string) ($variantPayload['concentration_code'] ?? '')));
         $concentrationLabel = trim((string) ($variantPayload['concentration_label'] ?? ''));
         $isTester = (bool) ($variantPayload['is_tester'] ?? false);
         $isVial = (bool) ($variantPayload['is_vial'] ?? false);
 
-        abort_if($volumeMl <= 0 || $concentrationCode === '' || $concentrationLabel === '', 422, 'Некорректные параметры нового варианта');
+        abort_if($volumeMl < 0.1 || $concentrationCode === '' || $concentrationLabel === '', 422, 'Некорректные параметры нового варианта');
         abort_if($isTester && $isVial, 422, 'Вариант не может быть одновременно тестером и пробником');
 
         $definition = VariantDefinition::query()->firstOrCreate(
@@ -350,7 +351,7 @@ class StockReceiptService
             ],
             [
                 'concentration_label' => $concentrationLabel,
-                'title' => $this->buildDefinitionTitle($volumeMl, $concentrationCode, $concentrationLabel, $isTester, $isVial),
+                'title' => VariantDefinitionVolume::buildTitle($volumeMl, $concentrationCode, $concentrationLabel, $isTester, $isVial),
                 'sort_order' => 0,
             ]
         );
@@ -370,31 +371,6 @@ class StockReceiptService
                 'sort_order' => 0,
             ]
         )->load('definition');
-    }
-
-    private function buildDefinitionTitle(
-        int $volumeMl,
-        string $concentrationCode,
-        string $concentrationLabel,
-        bool $isTester,
-        bool $isVial = false,
-    ): string {
-        $title = sprintf(
-            '%d мл / %s - %s',
-            $volumeMl,
-            mb_strtoupper(trim($concentrationCode)),
-            trim($concentrationLabel)
-        );
-
-        if ($isTester) {
-            $title .= ' / Тестер';
-        }
-
-        if ($isVial) {
-            $title .= ' / Пробник';
-        }
-
-        return $title;
     }
 
     private function rollbackItems(StockReceipt $receipt): void

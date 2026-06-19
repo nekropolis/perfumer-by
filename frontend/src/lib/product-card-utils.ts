@@ -1,6 +1,35 @@
-import type { ProductListItem } from "@/types/catalog";
+import type { ProductListItem, ProductVariantData } from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { productDisplayName } from "@/lib/product-display-name";
+
+export function compareVariantsByVolume(a: ProductVariantData, b: ProductVariantData): number {
+    const volA = a.volume ?? Number.POSITIVE_INFINITY;
+    const volB = b.volume ?? Number.POSITIVE_INFINITY;
+    if (volA !== volB) {
+        return volA - volB;
+    }
+    return a.id - b.id;
+}
+
+export function parseVolumeMlFromLabel(label: string): number | null {
+    const match = label.match(/\d+(?:[.,]\d+)?/);
+    if (!match) {
+        return null;
+    }
+    const n = Number.parseFloat(match[0].replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+}
+
+export function sortVariantLabelsByVolume(labels: string[]): string[] {
+    return [...labels].sort((a, b) => {
+        const volA = parseVolumeMlFromLabel(a) ?? Number.POSITIVE_INFINITY;
+        const volB = parseVolumeMlFromLabel(b) ?? Number.POSITIVE_INFINITY;
+        if (volA !== volB) {
+            return volA - volB;
+        }
+        return a.localeCompare(b, "ru");
+    });
+}
 
 export function formatProductCardPrice(product: ProductListItem): string {
     const min = product.price_range?.min;
@@ -43,8 +72,18 @@ export function formatProductCardOldPrice(product: ProductListItem): string | nu
 }
 
 export function compactVariantLabel(label: string): string {
-    const match = label.match(/\d+/);
-    return match ? match[0] : label;
+    const match = label.match(/\d+(?:[.,]\d+)?/);
+    if (!match) {
+        return label;
+    }
+    const n = Number.parseFloat(match[0].replace(",", "."));
+    if (!Number.isFinite(n)) {
+        return label;
+    }
+    if (Number.isInteger(n)) {
+        return String(n);
+    }
+    return String(n).replace(".", ",");
 }
 
 export function normalizeVariantLabels(value: unknown): string[] {

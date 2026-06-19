@@ -122,9 +122,11 @@ class ProductVariantLink extends Model
         return $this->title;
     }
 
-    public function getVolumeAttribute(): ?int
+    public function getVolumeAttribute(): int|float|null
     {
-        return $this->definition?->volume_ml;
+        $volume = $this->definition?->volume_ml;
+
+        return $volume !== null ? (float) $volume : null;
     }
 
     public function getVolumeUnitAttribute(): ?string

@@ -42,6 +42,13 @@ type ActiveChip = {
     removeAction: () => void;
 };
 
+type PinMetrics = {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+};
+
 export default function CatalogGridToolbar({ basePath, brands, attributes, mobileRightAction }: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
@@ -49,6 +56,9 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
     const safeAttributes = useMemo(() => (Array.isArray(attributes) ? attributes : []), [attributes]);
     const [isSortOpen, setIsSortOpen] = useState(false);
     const sortMenuRef = useRef<HTMLDivElement | null>(null);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const toolbarRef = useRef<HTMLDivElement | null>(null);
+    const [pinMetrics, setPinMetrics] = useState<PinMetrics | null>(null);
 
     const pushParams = useCallback((mutator: (params: URLSearchParams) => void) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -201,10 +211,99 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
     const currentSortLabel = SORT_OPTIONS.find((item) => item.value === currentSort)?.label ?? SORT_OPTIONS[0].label;
     const hasChips = activeChips.length > 0;
 
+    useEffect(() => {
+        const mq = window.matchMedia("(min-width: 1280px)");
+
+        const readStickyTop = () => {
+            const raw = getComputedStyle(document.documentElement).getPropertyValue("--catalog-toolbar-sticky-top");
+            const parsed = Number.parseFloat(raw);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 79;
+        };
+
+        const update = () => {
+            if (mq.matches) {
+                setPinMetrics(null);
+                return;
+            }
+
+            const sentinel = sentinelRef.current;
+            const toolbar = toolbarRef.current;
+            if (!sentinel || !toolbar) {
+                return;
+            }
+
+            const stickyTop = readStickyTop();
+            if (sentinel.getBoundingClientRect().top > stickyTop) {
+                setPinMetrics(null);
+                return;
+            }
+
+            const anchor = toolbar.closest("section") ?? toolbar.parentElement ?? toolbar;
+            const box = anchor.getBoundingClientRect();
+
+            setPinMetrics((prev) => {
+                const next: PinMetrics = {
+                    top: stickyTop,
+                    left: box.left,
+                    width: box.width,
+                    height: toolbar.offsetHeight,
+                };
+
+                if (
+                    prev &&
+                    prev.top === next.top &&
+                    prev.left === next.left &&
+                    prev.width === next.width &&
+                    prev.height === next.height
+                ) {
+                    return prev;
+                }
+
+                return next;
+            });
+        };
+
+        update();
+        window.addEventListener("scroll", update, { passive: true });
+        window.addEventListener("resize", update);
+        mq.addEventListener("change", update);
+
+        const toolbar = toolbarRef.current;
+        const ro = toolbar ? new ResizeObserver(update) : null;
+        if (toolbar && ro) {
+            ro.observe(toolbar);
+        }
+
+        return () => {
+            window.removeEventListener("scroll", update);
+            window.removeEventListener("resize", update);
+            mq.removeEventListener("change", update);
+            ro?.disconnect();
+        };
+    }, []);
+
     return (
         <>
-            <div className="mb-4 max-lg:sticky max-lg:top-[var(--catalog-toolbar-sticky-top)] max-lg:z-30 max-lg:bg-admin-bg max-lg:pb-2 lg:static lg:z-auto lg:bg-transparent lg:pb-0">
-                <div className="-mx-2 rounded-xl border border-admin-border bg-admin-surface px-2 py-2 shadow-sm lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+            <div ref={sentinelRef} className="pointer-events-none h-0 w-full xl:hidden" aria-hidden />
+            {pinMetrics ? (
+                <div className="xl:hidden" style={{ height: pinMetrics.height }} aria-hidden />
+            ) : null}
+            <div
+                ref={toolbarRef}
+                className={`mb-4 bg-admin-bg pb-2 xl:static xl:z-auto xl:bg-transparent xl:pb-0 ${
+                    pinMetrics ? "fixed z-[110] xl:static" : "relative z-auto"
+                }`}
+                style={
+                    pinMetrics
+                        ? {
+                              top: pinMetrics.top,
+                              left: pinMetrics.left,
+                              width: pinMetrics.width,
+                          }
+                        : undefined
+                }
+            >
+                <div className="-mx-2 rounded-xl border border-admin-border bg-admin-surface px-2 py-2 shadow-sm xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
                     <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:justify-between">
                         <div className="relative min-w-0 md:w-fit" ref={sortMenuRef}>
                             <button
@@ -265,7 +364,7 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                 </div>
 
                 {hasChips ? (
-                    <div className="mt-3 flex flex-wrap gap-2 max-lg:px-2">
+                    <div className="mt-3 flex flex-wrap gap-2 max-xl:px-2">
                         {activeChips.map((chip) => (
                             <button
                                 key={chip.id}

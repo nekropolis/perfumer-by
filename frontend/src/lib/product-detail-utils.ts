@@ -1,5 +1,6 @@
 import type { ProductImageData, ProductVariantData } from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { compareVariantsByVolume } from "@/lib/product-card-utils";
 
 export const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
 export const SIMILAR_GAP_PX = 12;
@@ -10,6 +11,57 @@ export function formatProductDetailPrice(price: string | null): string {
     }
     const v = formatMoneyDisplay(price);
     return v ? `${v} BYN` : "—";
+}
+
+/** Строка 1 карточки варианта: «2 мл / Пробник». */
+export function formatVariantVolumeLine(variant: ProductVariantData): string {
+    if (variant.volume == null) {
+        return variant.display_name;
+    }
+
+    const unit = variant.volume_unit?.trim() || "мл";
+    const volText = Number.isInteger(variant.volume)
+        ? String(variant.volume)
+        : String(variant.volume).replace(".", ",");
+
+    const parts = [`${volText} ${unit}`.trim()];
+    if (variant.edition?.trim()) {
+        parts.push(variant.edition.trim());
+    }
+
+    return parts.join(" / ");
+}
+
+/** Строка 2 карточки варианта: описание концентрации. */
+export function formatVariantConcentrationLabel(variant: ProductVariantData): string {
+    if (variant.type?.trim()) {
+        return variant.type.trim();
+    }
+    if (variant.concentration?.trim()) {
+        return variant.concentration.trim().toUpperCase();
+    }
+    return "—";
+}
+
+export type VariantAvailabilityState = {
+    text: string;
+    className: string;
+};
+
+export function getVariantAvailabilityState(
+    variant: ProductVariantData,
+    isProductOutOfStock: boolean,
+): VariantAvailabilityState {
+    if (!variant.is_available) {
+        return { text: "Нет", className: "text-red-600" };
+    }
+    if (variant.is_preorder) {
+        return { text: "Предзаказ", className: "text-amber-600" };
+    }
+    if (isProductOutOfStock) {
+        return { text: "Под заказ", className: "text-sky-700" };
+    }
+    return { text: "В наличии", className: "text-emerald-600" };
 }
 
 export function normalizeProductImages(value: unknown): ProductImageData[] {
@@ -38,7 +90,7 @@ export function normalizeProductVariants(value: unknown): ProductVariantData[] {
             }
             byId.set(id, { ...candidate, id } as ProductVariantData);
         }
-        return Array.from(byId.values());
+        return Array.from(byId.values()).sort(compareVariantsByVolume);
     };
 
     if (Array.isArray(value)) {

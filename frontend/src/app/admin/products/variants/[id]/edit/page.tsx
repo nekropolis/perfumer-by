@@ -14,6 +14,7 @@ import {
     fetchVariantDefinition,
     updateVariantDefinition,
 } from "@/lib/admin-product-variants-api";
+import { formatDecimalInputValue, parseDecimalInput } from "@/lib/parse-decimal-input";
 
 const VARIANTS_BASE = "/admin/products/variants";
 
@@ -37,7 +38,7 @@ export default function AdminProductVariantEditPage() {
                 setForm({
                     id: item.id,
                     title: item.title,
-                    volume_ml: String(item.volume_ml ?? ""),
+                    volume_ml: formatDecimalInputValue(item.volume_ml ?? 0),
                     concentration_code: item.concentration_code ?? "",
                     concentration_label: item.concentration_label ?? "",
                     is_tester: !!item.is_tester,
@@ -68,9 +69,16 @@ export default function AdminProductVariantEditPage() {
             return;
         }
 
+        const volumeMl = parseDecimalInput(form.volume_ml);
+        if (volumeMl === null || volumeMl < 0.1) {
+            setError("Укажите корректный объем от 0,1 мл, например 1,3 или 100");
+            setSubmitting(false);
+            return;
+        }
+
         try {
             await updateVariantDefinition(form.id, {
-                volume_ml: Number(form.volume_ml),
+                volume_ml: volumeMl,
                 concentration_code: form.concentration_code.trim(),
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,

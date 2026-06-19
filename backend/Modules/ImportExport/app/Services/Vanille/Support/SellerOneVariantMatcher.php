@@ -376,20 +376,15 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * volume_ml в справочнике — целое число; дробные объёмы (1.5 ml, 1.2 ml) не округляем к ближайшему.
+     * Нормализует объём для поиска в справочнике variant_definitions.
      */
-    public function definitionVolumeMlForLookup(?float $volume): ?int
+    public function definitionVolumeMlForLookup(?float $volume): ?float
     {
         if ($volume === null) {
             return null;
         }
 
-        $normalized = round($volume, 2);
-        if (abs($normalized - round($normalized)) > 0.001) {
-            return null;
-        }
-
-        return (int) round($normalized);
+        return round($volume, 1);
     }
 
     /**

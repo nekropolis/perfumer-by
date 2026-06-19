@@ -285,7 +285,7 @@ class StockReceiptController extends Controller
             'items.*.supplier_sku' => ['nullable', 'string', 'max:100'],
             'items.*.payload' => ['nullable', 'array'],
             'items.*.variant_definition' => ['nullable', 'array'],
-            'items.*.variant_definition.volume_ml' => ['required_with:items.*.variant_definition', 'integer', 'min:1'],
+            'items.*.variant_definition.volume_ml' => ['required_with:items.*.variant_definition', 'numeric', 'min:0.1', 'max:99999'],
             'items.*.variant_definition.concentration_code' => ['required_with:items.*.variant_definition', 'string', 'max:50'],
             'items.*.variant_definition.concentration_label' => ['required_with:items.*.variant_definition', 'string', 'max:120'],
             'items.*.variant_definition.is_tester' => ['nullable', 'boolean'],

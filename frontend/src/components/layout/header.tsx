@@ -189,14 +189,21 @@ export default function Header() {
 
     useEffect(() => {
         const measure = () => {
-            const staticHeaderHeight = headerRef.current?.offsetHeight ?? 0;
             const topOffsetCompensation = isMainRowPinned ? viewportTopOffset : 0;
-            const next = Math.max(64, staticHeaderHeight + topOffsetCompensation);
+
+            const headerBottom =
+                isMainRowPinned && mainRowRef.current
+                    ? mainRowRef.current.getBoundingClientRect().bottom
+                    : headerRef.current?.getBoundingClientRect().bottom ?? 0;
+
+            const catalogToolbarStickyTop = Math.max(64, headerBottom + topOffsetCompensation);
             const sidebarStickyTop = Math.max(64, mainRowHeight + topOffsetCompensation);
-            setMenuTopOffset(next);
+            const menuTop = Math.max(64, catalogToolbarStickyTop);
+
+            setMenuTopOffset(menuTop);
             document.documentElement.style.setProperty(
                 "--catalog-toolbar-sticky-top",
-                `${next}px`,
+                `${catalogToolbarStickyTop}px`,
             );
             document.documentElement.style.setProperty(
                 "--page-sidebar-sticky-top",
@@ -205,15 +212,21 @@ export default function Header() {
         };
 
         measure();
+        window.addEventListener("scroll", measure, { passive: true });
         window.addEventListener("resize", measure);
         const el = headerRef.current;
-        const ro = el ? new ResizeObserver(() => measure()) : null;
-        if (el && ro) {
+        const row = mainRowRef.current;
+        const ro = new ResizeObserver(() => measure());
+        if (el) {
             ro.observe(el);
         }
+        if (row) {
+            ro.observe(row);
+        }
         return () => {
+            window.removeEventListener("scroll", measure);
             window.removeEventListener("resize", measure);
-            ro?.disconnect();
+            ro.disconnect();
             document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
             document.documentElement.style.removeProperty("--page-sidebar-sticky-top");
         };

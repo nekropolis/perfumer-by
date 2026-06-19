@@ -8,6 +8,7 @@ import {
     formatProductCardOldPrice,
     formatProductCardPrice,
     getProductCardTitleParts,
+    sortVariantLabelsByVolume,
     normalizeVariantLabels,
 } from "@/lib/product-card-utils";
 import { siteCard } from "@/lib/site-ui-classes";
@@ -28,7 +29,7 @@ export default function ProductCardBody({
     loyaltySlot,
 }: Props) {
     const showVariants = variant === "catalog";
-    const rawVariants = normalizeVariantLabels(product.variant_labels);
+    const rawVariants = sortVariantLabelsByVolume(normalizeVariantLabels(product.variant_labels));
     const compactVariants = rawVariants.map(compactVariantLabel);
     const visibleVariants = compactVariants.slice(0, 3);
     const hiddenVariantsCount = Math.max(compactVariants.length - 3, 0);

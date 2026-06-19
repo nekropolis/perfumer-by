@@ -10,6 +10,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
+use Modules\Catalog\Support\VariantDefinitionVolume;
 
 class ProductListResource extends JsonResource
 {
@@ -64,6 +65,8 @@ class ProductListResource extends JsonResource
 
         $stockContext = CatalogListingStockContext::current()
             ?? CatalogListingStockContext::fromProducts(collect([$this->resource]));
+
+        $variants = VariantDefinitionVolume::sortVariantLinks($variants);
 
         $presentedByVariant = [];
         foreach ($variants as $variant) {

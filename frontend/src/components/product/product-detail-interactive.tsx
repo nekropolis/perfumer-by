@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Heart } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart } from "@/lib/cart-api";
@@ -17,6 +17,9 @@ import { productDisplayName } from "@/lib/product-display-name";
 import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import {
     formatProductDetailPrice,
+    formatVariantConcentrationLabel,
+    formatVariantVolumeLine,
+    getVariantAvailabilityState,
     normalizeProductVariants,
 } from "@/lib/product-detail-utils";
 
@@ -64,61 +67,7 @@ export default function ProductDetailInteractive({
         loyaltyCard?.discountPercent ?? 0,
     );
 
-    const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
-    const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
-    const buyBoxAsideRef = useRef<HTMLElement | null>(null);
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        const updateViewportOffsets = () => {
-            const vv = window.visualViewport;
-            if (!vv) {
-                setMobileBarBottomOffset(0);
-                return;
-            }
-            const bottomOffset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-            setMobileBarBottomOffset(bottomOffset);
-        };
-
-        const updateVisibility = () => {
-            const aside = buyBoxAsideRef.current;
-            if (!aside) {
-                setShowMobileBuyBar(false);
-                return;
-            }
-
-            const isMobileViewport = window.matchMedia("(max-width: 1279px)").matches;
-            if (!isMobileViewport) {
-                setShowMobileBuyBar(false);
-                return;
-            }
-
-            const rect = aside.getBoundingClientRect();
-            const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-            const isBuyBoxVisible = rect.bottom > 0 && rect.top < viewportHeight;
-            const hasReachedBuyBoxArea = rect.top < viewportHeight;
-            const isBuyBoxAboveViewport = rect.bottom <= 0;
-
-            setShowMobileBuyBar(hasReachedBuyBoxArea && isBuyBoxAboveViewport && !isBuyBoxVisible);
-        };
-
-        updateViewportOffsets();
-        updateVisibility();
-        window.addEventListener("scroll", updateVisibility, { passive: true });
-        window.addEventListener("resize", updateVisibility);
-        window.visualViewport?.addEventListener("resize", updateViewportOffsets);
-        window.visualViewport?.addEventListener("scroll", updateViewportOffsets);
-
-        return () => {
-            window.removeEventListener("scroll", updateVisibility);
-            window.removeEventListener("resize", updateVisibility);
-            window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
-            window.visualViewport?.removeEventListener("scroll", updateViewportOffsets);
-        };
-    }, []);
+    const inWishlist = isInWishlist(product.id);
 
     const handleAddToCart = () => {
         if (!selectedVariant?.id) {
@@ -137,94 +86,98 @@ export default function ProductDetailInteractive({
 
     return (
         <>
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-[320px_minmax(0,1fr)] md:items-start xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
                 <ProductDetailGallery product={product} selectedVariantHasDiscount={selectedVariantHasDiscount} />
 
                 <section className="min-w-0">
-                    <div className="mb-2 flex items-center gap-1 text-sm text-admin-text-secondary">
-                        <span>Код товара:</span>
-                        <CopyText
-                            value={String(product.id)}
-                            label={`${product.id}`}
-                            title="Скопировать код товара"
-                        />
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <div className="flex min-w-0 items-center gap-1 text-sm text-admin-text-secondary">
+                            <span className="shrink-0">Код товара:</span>
+                            <CopyText
+                                value={String(product.id)}
+                                label={`${product.id}`}
+                                title="Скопировать код товара"
+                            />
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => void toggleWishlist(product.id)}
+                            aria-pressed={inWishlist}
+                            aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1 py-0.5 text-sm transition hover:bg-admin-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${
+                                inWishlist
+                                    ? "font-medium text-admin-primary"
+                                    : "text-admin-text-secondary hover:text-admin-text"
+                            }`}
+                        >
+                            <Heart
+                                className={`h-4 w-4 shrink-0 ${inWishlist ? "fill-current" : ""}`}
+                                aria-hidden
+                            />
+                            <span className="sm:hidden">{inWishlist ? "В избр." : "Избранное"}</span>
+                            <span className="hidden sm:inline">
+                                {inWishlist ? "В избранном" : "В избранное"}
+                            </span>
+                        </button>
                     </div>
 
                     <h1 className="mb-5 text-3xl font-semibold leading-tight sm:text-4xl">
                         {product.h1 || productDisplayName(product)}
                     </h1>
 
-                    <button
-                        type="button"
-                        onClick={() => void toggleWishlist(product.id)}
-                        className={`mb-5 inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm font-medium transition ${
-                            isInWishlist(product.id)
-                                ? "border-admin-primary bg-admin-primary text-white hover:bg-admin-primary-hover"
-                                : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted"
-                        }`}
-                    >
-                        <span aria-hidden>{isInWishlist(product.id) ? "♥" : "♡"}</span>
-                        <span>{isInWishlist(product.id) ? "В избранном" : "В избранное"}</span>
-                    </button>
-
                     {variants.length > 0 ? (
                         <>
                             <div className="mb-3 text-sm font-medium text-admin-text">Выбор вариантов</div>
-                            <div className="mb-6 rounded-3xl border border-admin-border bg-admin-bg p-3">
-                                <div className="flex flex-wrap gap-2">
+                            <div className="mb-4 rounded-2xl border border-admin-border bg-admin-bg p-2 xl:mb-0">
+                                <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3">
                                     {variants.map((variant) => {
                                         const isSelected = variant.id === selectedVariantId;
-
-                                        let availabilityText = "Нет";
-                                        let availabilityClass = "text-red-600";
-
-                                        if (variant.is_available) {
-                                            if (variant.is_preorder) {
-                                                availabilityText = "Предзаказ";
-                                                availabilityClass = "text-amber-600";
-                                            } else if (product.is_out_of_stock) {
-                                                availabilityText = "Под заказ";
-                                                availabilityClass = "text-sky-700";
-                                            } else {
-                                                availabilityText = "В наличии";
-                                                availabilityClass = "text-emerald-600";
-                                            }
-                                        }
+                                        const availability = getVariantAvailabilityState(
+                                            variant,
+                                            product.is_out_of_stock,
+                                        );
+                                        const displayPrice =
+                                            isAuthenticated && loyaltyCard && variant.price
+                                                ? applyPercentDiscount(
+                                                      variant.price,
+                                                      loyaltyCard.discountPercent,
+                                                  )
+                                                : variant.price;
 
                                         return (
                                             <button
                                                 key={`variant-${variant.id}`}
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
-                                                className={`group cursor-pointer rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-150 ${
+                                                className={`group flex w-full cursor-pointer flex-col gap-0.5 rounded-xl border px-2.5 py-2 text-left transition-all duration-150 ${
                                                     isSelected
-                                                        ? "bg-admin-surface border-admin-primary shadow-[0_0_0_2px_rgba(36,28,21,0.12)]"
-                                                        : "bg-admin-surface border-admin-border hover:bg-admin-bg hover:border-admin-primary/40 hover:-translate-y-[1px] active:scale-[0.97]"
+                                                        ? "border-admin-primary bg-admin-surface shadow-[0_0_0_1px_rgba(36,28,21,0.12)]"
+                                                        : "border-admin-border bg-admin-surface hover:border-admin-primary/40 hover:bg-admin-bg active:scale-[0.98]"
                                                 }`}
                                             >
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="text-sm font-medium leading-5">
-                                                        {variant.display_name}
-                                                    </span>
+                                                <span className="line-clamp-1 text-[13px] font-medium leading-4 text-admin-text">
+                                                    {formatVariantVolumeLine(variant)}
+                                                </span>
 
-                                                    <div className="flex items-center gap-2">
-                                                        {variant.price ? (
-                                                            <span className="text-xs text-admin-text-secondary group-hover:text-admin-text">
-                                                                {formatProductDetailPrice(
-                                                                    isAuthenticated && loyaltyCard
-                                                                        ? applyPercentDiscount(
-                                                                              variant.price,
-                                                                              loyaltyCard.discountPercent,
-                                                                          )
-                                                                        : variant.price,
-                                                                )}
-                                                            </span>
-                                                        ) : null}
+                                                <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
+                                                    {formatVariantConcentrationLabel(variant)}
+                                                </span>
 
-                                                        <span className={`text-xs ${availabilityClass}`}>
-                                                            {availabilityText}
+                                                <div className="flex items-baseline gap-1.5 pt-0.5">
+                                                    {displayPrice ? (
+                                                        <span className="text-[13px] font-semibold leading-4 text-admin-text">
+                                                            {formatProductDetailPrice(displayPrice)}
                                                         </span>
-                                                    </div>
+                                                    ) : (
+                                                        <span className="text-[13px] font-semibold leading-4 text-admin-text-secondary">
+                                                            —
+                                                        </span>
+                                                    )}
+
+                                                    <span className={`text-[11px] leading-4 ${availability.className}`}>
+                                                        {availability.text}
+                                                    </span>
                                                 </div>
                                             </button>
                                         );
@@ -246,7 +199,7 @@ export default function ProductDetailInteractive({
                     )}
                 </section>
 
-                <aside ref={buyBoxAsideRef} className="self-start md:col-span-2 xl:col-span-1 xl:sticky xl:top-24">
+                <aside className="contents xl:block xl:col-span-1 xl:sticky xl:top-24 xl:self-start">
                     <ProductBuyBox
                         selectedVariant={selectedVariant}
                         isSelectedVariantInCart={isSelectedVariantInCart}
@@ -339,51 +292,6 @@ export default function ProductDetailInteractive({
                     </div>
                 </section>
             </div>
-
-            {showMobileBuyBar ? (
-                <div
-                    className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-3 backdrop-blur xl:hidden"
-                    style={{
-                        bottom: `${mobileBarBottomOffset}px`,
-                        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-                    }}
-                >
-                    <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium text-admin-text">
-                                {product.h1 || productDisplayName(product)}
-                            </div>
-                            <div className="truncate text-xs text-admin-text-secondary">
-                                {selectedVariant?.display_name || "Вариант не выбран"}
-                            </div>
-                            <div className="text-base font-semibold text-admin-text">
-                                {selectedVariant
-                                    ? formatProductDetailPrice(
-                                          isAuthenticated && loyaltyPrice ? loyaltyPrice : selectedVariant.price,
-                                      )
-                                    : "Цена уточняется"}
-                            </div>
-                        </div>
-                        {isSelectedVariantInCart ? (
-                            <Link
-                                href="/cart"
-                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-admin-muted px-4 text-sm font-medium text-admin-primary"
-                            >
-                                В корзине (оформить)
-                            </Link>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handleAddToCart}
-                                disabled={!selectedVariant?.is_available || isPending}
-                                className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-semibold text-white transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {isPending ? "Добавление..." : "В корзину"}
-                            </button>
-                        )}
-                    </div>
-                </div>
-            ) : null}
         </>
     );
 }

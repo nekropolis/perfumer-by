@@ -30,10 +30,12 @@ export default function ProductVariantDefinitionForm({
                 <div>
                     <label className="mb-1.5 block text-sm text-admin-text-secondary">Объем (мл)</label>
                     <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={form.volume_ml}
                         onChange={(e) => onChangeAction({ ...form, volume_ml: e.target.value })}
                         className="w-full rounded-xl border px-3 py-2 text-sm"
+                        placeholder="1,3 или 100 (шаг 0,1)"
                     />
                 </div>
                 <div>

@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/lib/auth-token";
+import { readAdminJsonResponse } from "@/lib/admin-fetch-error";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -10,6 +11,7 @@ function getAdminHeaders() {
     const token = typeof window !== "undefined" ? getAuthToken() : "";
 
     return {
+        Accept: "application/json",
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
@@ -114,12 +116,10 @@ export async function fetchVariantDefinition(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Fetch variant definition API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<VariantDefinitionResponse>(
+        res,
+        `Fetch variant definition API error: ${res.status}`
+    );
 }
 
 export async function fetchProductVariants(
@@ -130,12 +130,10 @@ export async function fetchProductVariants(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Fetch product variants API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<AdminProductVariantsResponse>(
+        res,
+        `Fetch product variants API error: ${res.status}`
+    );
 }
 
 export async function fetchVariantDefinitions(params?: {
@@ -167,12 +165,10 @@ export async function fetchVariantDefinitions(params?: {
         }
     );
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Fetch variant definitions API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<VariantDefinitionsResponse>(
+        res,
+        `Fetch variant definitions API error: ${res.status}`
+    );
 }
 
 export async function createVariantDefinition(
@@ -185,12 +181,10 @@ export async function createVariantDefinition(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Create variant definition API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<VariantDefinitionResponse>(
+        res,
+        "Не удалось создать вариант справочника"
+    );
 }
 
 export async function updateVariantDefinition(
@@ -204,12 +198,10 @@ export async function updateVariantDefinition(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Update variant definition API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<VariantDefinitionResponse>(
+        res,
+        "Не удалось сохранить вариант справочника"
+    );
 }
 
 export async function deleteVariantDefinition(
@@ -221,12 +213,10 @@ export async function deleteVariantDefinition(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Delete variant definition API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<{ message?: string }>(
+        res,
+        "Не удалось удалить вариант справочника"
+    );
 }
 
 export async function createProductVariant(
@@ -240,12 +230,10 @@ export async function createProductVariant(
         cache: "no-store",
     });
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Create product variant API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<AdminProductVariantResponse>(
+        res,
+        "Не удалось создать вариант товара"
+    );
 }
 
 export async function updateProductVariant(
@@ -263,12 +251,10 @@ export async function updateProductVariant(
         }
     );
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Update product variant API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<AdminProductVariantResponse>(
+        res,
+        "Не удалось сохранить вариант товара"
+    );
 }
 
 export async function deleteProductVariant(
@@ -284,10 +270,8 @@ export async function deleteProductVariant(
         }
     );
 
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Delete product variant API error: ${res.status}`);
-    }
-
-    return res.json();
+    return readAdminJsonResponse<{ message?: string }>(
+        res,
+        "Не удалось удалить вариант товара"
+    );
 }
