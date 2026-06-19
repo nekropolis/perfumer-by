@@ -113,7 +113,8 @@ Make/npm — из корня или `frontend/`, как указано.
 | --- | --- |
 | `2ml`, `10 ml` | `volume_ml` |
 | `edp`, `edt`, `edc` | код концентрации |
-| `extrait de parfum`, `parfum` в хвосте | `extrait de parfum` |
+| `extrait de parfum` в хвосте | `extrait de parfum` |
+| `parfum` / `parfume` / `parfums` в хвосте | `parfum` (духи) |
 | `test`, `tester`, `тестер` | `is_tester = true` |
 | `vial` | `is_vial = true` (Пробник) |
 
@@ -122,7 +123,7 @@ Make/npm — из корня или `frontend/`, как указано.
 **3. Правила имени линии**
 
 - `(L)` / `(M)` / `(U)` — пол; каскад female → unisex при матче.
-- Trailing `Parfum` / `Parfume` в названии линии (не `de Parfum`) → линия без суффикса, концентрация **extrait de parfum**; перекрывает `edp`/`edt` в хвосте поставщика.
+- Trailing `Parfum` / `Parfume` в названии линии (не `de Parfum`) → линия без суффикса, концентрация **parfum** (духи); перекрывает `edp`/`edt` в хвосте поставщика.
 - `L.E.`, `Edition Limitee`, combo-объёмы (`20ml edp+20ml edp`) — особые правила / блок автолинка.
 
 **4. Скоринг и автосвязка**

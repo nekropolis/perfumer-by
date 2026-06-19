@@ -265,6 +265,67 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         }
     }
 
+    public function test_small_volume_without_vial_keyword_matches_vial_catalog_variant(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $resolve = new ReflectionMethod($matcher, 'resolveExactNameVariantMatch');
+        $resolve->setAccessible(true);
+
+        $vialDefinition = new VariantDefinition([
+            'volume_ml' => 2,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+            'is_vial' => true,
+        ]);
+        $vialVariant = new ProductVariantLink(['product_id' => 32, 'volume' => 2, 'concentration' => 'edp']);
+        $vialVariant->id = 32;
+        $vialVariant->setRelation('definition', $vialDefinition);
+
+        $regularDefinition = new VariantDefinition([
+            'volume_ml' => 2,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+            'is_vial' => false,
+        ]);
+        $regularVariant = new ProductVariantLink(['product_id' => 32, 'volume' => 2, 'concentration' => 'edp']);
+        $regularVariant->id = 33;
+        $regularVariant->setRelation('definition', $regularDefinition);
+
+        $product = new Product(['name' => 'Sample Line', 'brand_id' => 9]);
+        $product->id = 32;
+        $product->setRelation('variants', collect([$regularVariant, $vialVariant]));
+
+        $match = $resolve->invoke($matcher, $product, '2ml edp');
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+        $this->assertSame(32, $match['variant']->id);
+
+        $noMatch = $resolve->invoke($matcher, $product, '5ml edp');
+        $this->assertSame(90, $noMatch['total']);
+        $this->assertNull($noMatch['variant']);
+    }
+
+    public function test_parse_supplier_row_sets_is_vial_for_volume_up_to_3ml(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+
+        foreach ([
+            ['1.2 ml edp', 1.2],
+            ['3ml edp', 3.0],
+            ['5ml edp', 5.0],
+        ] as [$tailSuffix, $volume]) {
+            $row = $matcher->parseSupplierRow(
+                ['code' => 'v-'.$volume, 'title' => 'Brand Line '.$tailSuffix],
+                collect([(object) ['id' => 1, 'name' => 'Brand']]),
+                collect(),
+                [],
+            );
+
+            $this->assertSame($volume, $row['parsed']['volume'], $tailSuffix);
+            $this->assertSame($volume <= 3.0, $row['parsed']['is_vial'], $tailSuffix);
+        }
+    }
+
     public function test_vial_parsed_from_supplier_row(): void
     {
         $matcher = new SellerOneVariantMatcher();
@@ -286,7 +347,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('edp', $row['parsed']['concentration']);
     }
 
-    public function test_parfum_in_variant_tail_maps_to_extrait_de_parfum(): void
+    public function test_parfum_in_variant_tail_maps_to_parfum_concentration(): void
     {
         $matcher = new SellerOneVariantMatcher();
         $parse = new ReflectionMethod($matcher, 'parseVariantTailSignature');
@@ -302,8 +363,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'test 100ml parfum',
         ] as $tail) {
             $sig = $parse->invoke($matcher, $tail);
-            $this->assertSame('extrait de parfum', $sig['concentration'], $tail);
-            $this->assertSame('extrait de parfum', $extract->invoke($matcher, $tail), $tail);
+            $this->assertSame('parfum', $sig['concentration'], $tail);
+            $this->assertSame('parfum', $extract->invoke($matcher, $tail), $tail);
         }
 
         $extrait = $parse->invoke($matcher, '90ml extrait de parfum');
@@ -312,13 +373,13 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('extrait de parfum', $normalize->invoke($matcher, 'extrait de parfum'));
     }
 
-    public function test_variant_tail_parfum_matches_extrait_catalog_variant(): void
+    public function test_variant_tail_parfum_matches_parfum_catalog_variant(): void
     {
         $matcher = new SellerOneVariantMatcher();
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $product = $this->makeProductWithGenderOption(991, 73, 'Graduate 1954', 438, 9911, 50, 'extrait de parfum', true);
+        $product = $this->makeProductWithGenderOption(991, 73, 'Graduate 1954', 438, 9911, 50, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -327,7 +388,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'Graduate 1954',
             '50ml parfum test',
             50.0,
-            'extrait de parfum',
+            'parfum',
             true,
             [73 => [$product]],
             null,
@@ -341,7 +402,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('full', $match['link_match_level']);
     }
 
-    public function test_trailing_parfume_in_line_name_strips_product_and_infers_extrait(): void
+    public function test_trailing_parfume_in_line_name_strips_product_and_infers_parfum(): void
     {
         $matcher = new SellerOneVariantMatcher();
         $extract = new ReflectionMethod($matcher, 'extractBaseProductName');
@@ -360,9 +421,9 @@ class SellerOneVariantMatcherLinkTest extends TestCase
 
         [$lineName, $concentration] = $apply->invoke($matcher, $base, null);
         $this->assertSame('Holiday', $lineName);
-        $this->assertSame('extrait de parfum', $concentration);
+        $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(981, 72, 'Holiday', 438, 9811, 75, 'extrait de parfum', true);
+        $product = $this->makeProductWithGenderOption(981, 72, 'Holiday', 438, 9811, 75, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -371,7 +432,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'Holiday',
             '75ml test',
             75.0,
-            'extrait de parfum',
+            'parfum',
             true,
             [72 => [$product]],
             null,
@@ -401,11 +462,11 @@ class SellerOneVariantMatcherLinkTest extends TestCase
 
         [$parfume, $conc3] = $apply->invoke($matcher, 'Holiday Parfume', null);
         $this->assertSame('Holiday', $parfume);
-        $this->assertSame('extrait de parfum', $conc3);
+        $this->assertSame('parfum', $conc3);
 
         [$parfum, $conc4] = $apply->invoke($matcher, 'Melati Gaharu Parfum', null);
         $this->assertSame('Melati Gaharu', $parfum);
-        $this->assertSame('extrait de parfum', $conc4);
+        $this->assertSame('parfum', $conc4);
     }
 
     public function test_trailing_parfum_in_line_name_matches_catalog_without_parfum_suffix(): void
@@ -418,9 +479,9 @@ class SellerOneVariantMatcherLinkTest extends TestCase
 
         [$lineName, $concentration] = $apply->invoke($matcher, 'Melati Gaharu Parfum', null);
         $this->assertSame('Melati Gaharu', $lineName);
-        $this->assertSame('extrait de parfum', $concentration);
+        $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(1003, 74, 'Melati Gaharu', 438, 10031, 30, 'extrait de parfum');
+        $product = $this->makeProductWithGenderOption(1003, 74, 'Melati Gaharu', 438, 10031, 30, 'parfum');
 
         $match = $find->invoke(
             $matcher,
@@ -429,7 +490,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'Melati Gaharu',
             '30ml',
             30.0,
-            'extrait de parfum',
+            'parfum',
             false,
             [74 => [$product]],
             null,
@@ -459,16 +520,16 @@ class SellerOneVariantMatcherLinkTest extends TestCase
 
         [$lineName, $concentration] = $apply->invoke($matcher, $base, 'edp');
         $this->assertSame("L'Interdit", $lineName);
-        $this->assertSame('extrait de parfum', $concentration);
+        $this->assertSame('parfum', $concentration);
 
-        $extraitDefinition = new VariantDefinition([
+        $parfumDefinition = new VariantDefinition([
             'volume_ml' => 10,
-            'concentration_code' => 'extrait de parfum',
+            'concentration_code' => 'parfum',
             'is_tester' => false,
         ]);
-        $extraitVariant = new ProductVariantLink(['product_id' => 1101, 'volume' => 10, 'concentration' => 'extrait de parfum']);
-        $extraitVariant->id = 11011;
-        $extraitVariant->setRelation('definition', $extraitDefinition);
+        $parfumVariant = new ProductVariantLink(['product_id' => 1101, 'volume' => 10, 'concentration' => 'parfum']);
+        $parfumVariant->id = 11011;
+        $parfumVariant->setRelation('definition', $parfumDefinition);
 
         $edpDefinition = new VariantDefinition([
             'volume_ml' => 10,
@@ -479,10 +540,19 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $edpVariant->id = 11012;
         $edpVariant->setRelation('definition', $edpDefinition);
 
-        $product = $this->makeProductWithGenderOption(1101, 80, "L'Interdit", 3, 11011, 10, 'extrait de parfum');
-        $product->setRelation('variants', collect([$extraitVariant, $edpVariant]));
+        $extraitDefinition = new VariantDefinition([
+            'volume_ml' => 10,
+            'concentration_code' => 'extrait de parfum',
+            'is_tester' => false,
+        ]);
+        $extraitVariant = new ProductVariantLink(['product_id' => 1101, 'volume' => 10, 'concentration' => 'extrait de parfum']);
+        $extraitVariant->id = 11013;
+        $extraitVariant->setRelation('definition', $extraitDefinition);
 
-        $variantMatch = $resolve->invoke($matcher, $product, '10ml edp', 'extrait de parfum');
+        $product = $this->makeProductWithGenderOption(1101, 80, "L'Interdit", 3, 11011, 10, 'parfum');
+        $product->setRelation('variants', collect([$parfumVariant, $edpVariant, $extraitVariant]));
+
+        $variantMatch = $resolve->invoke($matcher, $product, '10ml edp', 'parfum');
         $this->assertSame(11011, $variantMatch['variant']?->id);
         $this->assertSame('full', $variantMatch['link_match_level']);
 
@@ -493,7 +563,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             "L'Interdit",
             '10ml edp',
             10.0,
-            'extrait de parfum',
+            'parfum',
             false,
             [80 => [$product]],
             'female',
@@ -508,7 +578,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('full', $match['link_match_level']);
     }
 
-    public function test_trailing_parfum_line_with_tester_matches_extrait_tester_variant(): void
+    public function test_trailing_parfum_line_with_tester_matches_parfum_tester_variant(): void
     {
         $matcher = new SellerOneVariantMatcher();
         $extract = new ReflectionMethod($matcher, 'extractBaseProductName');
@@ -521,9 +591,9 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $base = $extract->invoke($matcher, "Givenchy L'Interdit Parfum (L)", 'Givenchy');
         [$lineName, $concentration] = $apply->invoke($matcher, $base, null);
         $this->assertSame("L'Interdit", $lineName);
-        $this->assertSame('extrait de parfum', $concentration);
+        $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(1102, 80, "L'Interdit", 3, 11021, 80, 'extrait de parfum', true);
+        $product = $this->makeProductWithGenderOption(1102, 80, "L'Interdit", 3, 11021, 80, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -532,7 +602,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             "L'Interdit",
             'test 80ml',
             80.0,
-            'extrait de parfum',
+            'parfum',
             true,
             [80 => [$product]],
             'female',
@@ -1808,6 +1878,156 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame(10021, $match['variant']->id);
     }
 
+    public function test_edp_male_line_first_pass_matches_the_one_for_men_eau_de_parfum(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $find->setAccessible(true);
+
+        $baseEdp = $this->makeProductWithGenderOption(
+            1201,
+            55,
+            'The One for Men Eau de Parfum',
+            35,
+            12011,
+            150,
+            'edp',
+        );
+        $intenseEdp = $this->makeProductWithGenderOption(
+            1202,
+            55,
+            'The One for Men Eau de Parfum Intense',
+            35,
+            12021,
+            150,
+            'edp',
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            55,
+            'Dolce&Gabbana',
+            'The One',
+            '150ml edp',
+            [55 => [$baseEdp, $intenseEdp]],
+            'm',
+            collect(),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(1201, $match['product']->id);
+        $this->assertSame(12011, $match['variant']->id);
+        $this->assertSame('exact', $match['name_level']);
+        $this->assertSame(100, $match['total']);
+    }
+
+    public function test_edp_female_line_first_pass_matches_for_woman_eau_de_parfum_catalog_name(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $find->setAccessible(true);
+
+        $product = $this->makeProductWithGenderOption(
+            1211,
+            55,
+            'Devotion for Women Eau de Parfum',
+            3,
+            12111,
+            50,
+            'edp',
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            55,
+            'Dolce&Gabbana',
+            'Devotion',
+            '50ml edp',
+            [55 => [$product]],
+            'l',
+            collect(),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(1211, $match['product']->id);
+        $this->assertSame(12111, $match['variant']->id);
+    }
+
+    public function test_edp_line_first_pass_without_gender_marker_appends_eau_de_parfum_only(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $find->setAccessible(true);
+
+        $product = $this->makeProductWithGenderOption(
+            1221,
+            12,
+            'Line X Eau de Parfum',
+            438,
+            12211,
+            100,
+            'edp',
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            12,
+            'Brand',
+            'Line X',
+            '100ml edp',
+            [12 => [$product]],
+            null,
+            collect(),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(1221, $match['product']->id);
+    }
+
+    public function test_edp_line_first_pass_skipped_for_unisex_marker_in_parse_supplier_row(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 12, 'name' => 'Brand']]);
+
+        $unisexPlain = $this->makeProductWithGenderOption(1231, 12, 'Line', 438, 12311, 100, 'edp');
+        $withEauSuffix = $this->makeProductWithGenderOption(1232, 12, 'Line Eau de Parfum', 438, 12321, 100, 'edp');
+        $brands = collect([(object) ['id' => 12, 'name' => 'Brand']]);
+
+        $find = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $find->setAccessible(true);
+        $this->assertNull($find->invoke(
+            $matcher,
+            12,
+            'Brand',
+            'Line',
+            '100ml edp',
+            [12 => [$unisexPlain, $withEauSuffix]],
+            'u',
+            $brands,
+        ));
+
+        $findBest = new ReflectionMethod($matcher, 'findBestMatch');
+        $findBest->setAccessible(true);
+        $fallback = $findBest->invoke(
+            $matcher,
+            12,
+            'Brand',
+            'Line unisex',
+            '100ml edp',
+            100.0,
+            'edp',
+            false,
+            [12 => [$unisexPlain, $withEauSuffix]],
+            'unisex',
+            'Line',
+            'u',
+            $brands,
+        );
+
+        $this->assertNotNull($fallback);
+        $this->assertSame(1231, $fallback['product']->id);
+    }
+
     private function makeProductWithGenderOption(
         int $productId,
         int $brandId,
@@ -1818,8 +2038,12 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         string $concentration = 'edp',
         bool $isTester = false,
     ): Product {
+        $brand = new Brand(['name' => 'Brand '.$brandId]);
+        $brand->id = $brandId;
+
         $product = new Product(['name' => $name, 'brand_id' => $brandId]);
         $product->id = $productId;
+        $product->setRelation('brand', $brand);
         $value = new ProductAttributeValue(['product_attribute_id' => 3]);
         $value->setRelation('selectedOptions', collect([
             new ProductAttributeValueOption(['product_attribute_option_id' => $genderOptionId]),
@@ -1836,6 +2060,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $variant->volume = $volumeMl;
         $variant->concentration = $concentration;
         $variant->setRelation('definition', $definition);
+        $variant->setRelation('product', $product);
         $product->setRelation('variants', collect([$variant]));
 
         return $product;

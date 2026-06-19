@@ -17,6 +17,8 @@ use Modules\Catalog\Support\ProductDisplayName;
  * Строка делится на «название» и «хвост варианта» по первому из:
  *   vial, test|tester|тестер, \d+ ml, extrait de parfum.
  *
+ * Пробник (is_vial): слово vial в строке или объём ≤ 3 мл (без multipack/combo).
+ *
  * Лишние слова в хвосте (set, viak, «с крышкой» и т.д.) не задаются списком —
  * всё неизвестное после объёма/концентрации/tester → extra_tokens → 95%.
  *
@@ -33,9 +35,13 @@ use Modules\Catalog\Support\ProductDisplayName;
  * Parfum (в названии линии или в хвосте) ≠ Extrait De Parfum.
  *
  * Trailing «Parfume» / «Parfum» в имени линии до объёма (не «de Parfum»):
- *   линия без суффикса; вариант = Extrait De Parfum (перекрывает edp/edt в хвосте).
+ *   линия без суффикса; вариант = parfum (духи), перекрывает edp/edt в хвосте.
  *
- * «parfum» в хвосте варианта (50ml parfum test) = Extrait De Parfum, не отдельная концентрация parfum.
+ * «parfum» в хвосте варианта (50ml parfum test) = parfum в каталоге.
+ *
+ * EDP + имя линии в каталоге с суффиксом «Eau de Parfum» (первый прогон, до каскада (L)/(M)):
+ *   (M) → «… for Man Eau de Parfum», (L) → «… for Woman Eau de Parfum», без маркера → «… Eau de Parfum».
+ *   Только exact по токенам; «… Eau de Parfum Intense» не подходит. (U) — этот прогон не применяется.
  *
  * Строки с «***» в названии не парсятся (пропуск матча и upsert в preview).
  */
@@ -46,6 +52,9 @@ class SellerOneVariantMatcher
     private const SCORE_VARIANT_EXTRA = 95;
 
     private const SCORE_NAME_ONLY = 90;
+
+    /** Объём ≤ этого значения (мл) = пробник, даже без слова vial в прайсе. */
+    private const VIAL_MAX_VOLUME_ML = 3.0;
 
     private const SCORE_PARTIAL = 70;
 
@@ -110,6 +119,11 @@ class SellerOneVariantMatcher
         $concentration = $this->extractConcentration($variantSource);
         $isTester = $this->extractIsTester($variantSource);
         $isVial = $this->extractIsVial($variantSource) || $this->extractIsVial($nameVariantSplit['name']);
+        $isVial = $isVial || $this->supplierVolumeImpliesVial(
+            $volume,
+            $volumeIsMultipack,
+            (bool) ($volumeSpec['is_combo_set'] ?? false),
+        );
         $genderMarker = $this->extractGenderMarker($title);
         $baseProductName = $this->extractBaseProductName($nameVariantSplit['name'], $matchedBrand['name'] ?? null);
         [$baseProductName, $concentration] = $this->applyTrailingParfumeLineNameRule(
@@ -126,7 +140,22 @@ class SellerOneVariantMatcher
             $brandId = $matchedBrand['id'] ?? null;
             $brandName = $matchedBrand['name'] ?? null;
 
-            if ($genderMarker === 'l') {
+            if ($concentration === 'edp' && $genderMarker !== 'u') {
+                $match = $this->findMatchByEdpCatalogLineName(
+                    $brandId,
+                    $brandName,
+                    $baseProductName,
+                    $variantTail,
+                    $productsIndex,
+                    $genderMarker,
+                    $brands,
+                );
+                if ($this->isGenderCascadeProductResolved($match)) {
+                    $productName = $baseProductName;
+                }
+            }
+
+            if (! $this->isGenderCascadeProductResolved($match) && $genderMarker === 'l') {
                 $femaleSearchName = $baseProductName;
                 if ($baseProductName !== '' && !$this->containsFemaleMarker($baseProductName) && ! $this->supplierBaseContainsPourLineWords($baseProductName)) {
                     $femaleSearchName = $baseProductName.' for Woman';
@@ -183,7 +212,7 @@ class SellerOneVariantMatcher
                 if ($this->isGenderCascadeProductResolved($match)) {
                     $productName = $baseProductName;
                 }
-            } elseif ($genderMarker === 'm') {
+            } elseif (! $this->isGenderCascadeProductResolved($match) && $genderMarker === 'm') {
                 $maleSearchName = $baseProductName;
                 if ($baseProductName !== '' && ! $this->containsMaleMarker($baseProductName) && ! $this->supplierBaseContainsPourLineWords($baseProductName)) {
                     $maleSearchName = $baseProductName.' for Man';
@@ -223,7 +252,7 @@ class SellerOneVariantMatcher
                 if ($this->isGenderCascadeProductResolved($match)) {
                     $productName = $baseProductName;
                 }
-            } elseif ($genderMarker === 'u') {
+            } elseif (! $this->isGenderCascadeProductResolved($match) && $genderMarker === 'u') {
                 $unisexSearchName = $baseProductName;
                 if ($baseProductName !== '' && ! $this->containsUnisexMarker($baseProductName)) {
                     $unisexSearchName = $baseProductName.' unisex';
@@ -263,7 +292,7 @@ class SellerOneVariantMatcher
                 if ($this->isGenderCascadeProductResolved($match)) {
                     $productName = $baseProductName;
                 }
-            } else {
+            } elseif (! $this->isGenderCascadeProductResolved($match)) {
                 $match = $this->findBestMatch(
                     $brandId,
                     $brandName,
@@ -644,6 +673,116 @@ class SellerOneVariantMatcher
         }
 
         return $empty;
+    }
+
+    public function supplierVolumeImpliesVial(
+        ?float $volume,
+        bool $isMultipack = false,
+        bool $isComboSet = false,
+    ): bool {
+        if ($isMultipack || $isComboSet || $volume === null) {
+            return false;
+        }
+
+        return round($volume, 2) <= self::VIAL_MAX_VOLUME_ML;
+    }
+
+    /**
+     * Первый прогон для edp: имя линии в каталоге часто заканчивается на «Eau de Parfum».
+     * (M)/(L) → for Man / for Woman; без маркера — только суффикс концентрации. (U) — не вызывается.
+     */
+    private function buildEdpCatalogLineSearchName(string $baseProductName, ?string $genderMarker): string
+    {
+        $name = trim($baseProductName);
+        if ($genderMarker === 'm') {
+            $name = trim($name.' for Man');
+        } elseif ($genderMarker === 'l') {
+            $name = trim($name.' for Woman');
+        }
+
+        return trim($name.' Eau de Parfum');
+    }
+
+    /**
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     */
+    private function productLineTokensMatchExactly(array $left, array $right): bool
+    {
+        return count($left) === count($right) && $left === $right;
+    }
+
+    /**
+     * @param  array<int, list<Product>>  $productsIndex
+     * @return array{product: Product, variant: ProductVariantLink|null, base_points: int,
+     *               name_level: 'exact', name_percent: float, link_match_level: string, volume_match: bool,
+     *               volume_points: int, concentration_match: bool, concentration_points: int,
+     *               tester_match: bool, tester_points: int, total: int}|null
+     */
+    private function findMatchByEdpCatalogLineName(
+        ?int $brandId,
+        ?string $brandName,
+        string $baseProductName,
+        string $variantTail,
+        array $productsIndex,
+        ?string $genderMarker,
+        Collection $brands,
+    ): ?array {
+        if ($genderMarker === 'u') {
+            return null;
+        }
+
+        if (! $brandId || $baseProductName === '' || ! isset($productsIndex[$brandId])) {
+            return null;
+        }
+
+        $searchName = $this->buildEdpCatalogLineSearchName($baseProductName, $genderMarker);
+        $targetTokens = $this->productNameTokens($searchName, $brandName);
+        if ($targetTokens === []) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($this->collectProductsForBrandMatch($brandId, $brandName, $productsIndex, $brands) as $product) {
+            $candidateBrandName = $product->relationLoaded('brand') && $product->brand
+                ? trim((string) $product->brand->name)
+                : trim((string) ($brandName ?? ''));
+            $candidateTokens = $this->productTokensCache[(int) $product->id]
+                ??= $this->productNameTokens(
+                    (string) $product->name,
+                    $candidateBrandName !== '' ? $candidateBrandName : null,
+                );
+            if (! $this->productLineTokensMatchExactly($targetTokens, $candidateTokens)) {
+                continue;
+            }
+
+            $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, 'edp');
+            $candidate = [
+                'product' => $product,
+                'variant' => $variantMatch['variant'],
+                'base_points' => 80,
+                'name_level' => 'exact',
+                'name_percent' => (float) $variantMatch['total'],
+                'link_match_level' => $variantMatch['link_match_level'],
+                'volume_match' => $variantMatch['volume_match'],
+                'volume_points' => $variantMatch['volume_points'],
+                'concentration_match' => $variantMatch['concentration_match'],
+                'concentration_points' => $variantMatch['concentration_points'],
+                'tester_match' => $variantMatch['tester_match'],
+                'tester_points' => 0,
+                'total' => $variantMatch['total'],
+            ];
+
+            if (
+                ! $best
+                || $candidate['total'] > $best['total']
+                || ($candidate['total'] === $best['total'] && $candidate['variant'] && ! $best['variant'])
+            ) {
+                $best = $candidate;
+            }
+        }
+
+        return $best;
     }
 
     /**
@@ -1171,7 +1310,7 @@ class SellerOneVariantMatcher
         }
 
         if ($concentration === null && preg_match('/\b(parfum|parfume|parfums)\b/iu', $work)) {
-            $concentration = 'extrait de parfum';
+            $concentration = 'parfum';
             $work = (string) preg_replace('/\b(parfum|parfume|parfums)\b/iu', ' ', $work, 1);
         }
 
@@ -1212,6 +1351,10 @@ class SellerOneVariantMatcher
             preg_split('/\s+/u', $work) ?: [],
             static fn (string $token): bool => mb_strlen($token) >= 2,
         ));
+
+        if ($this->supplierVolumeImpliesVial($volume, $volumeIsMultipack, $volumeIsComboSet)) {
+            $isVial = true;
+        }
 
         return [
             'volume' => $volume,
@@ -1660,7 +1803,7 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * «… Holiday Parfume 75ml test» / «… Gaharu Parfum 30ml» — Parfum(e) в конце линии = Extrait De Parfum.
+     * «… Holiday Parfume 75ml test» / «… Gaharu Parfum 30ml» — Parfum(e) в конце линии = parfum (духи).
      * «Pasha de Parfum» — часть названия линии, не снимаем.
      *
      * @return array{0: string, 1: ?string}
@@ -1672,8 +1815,8 @@ class SellerOneVariantMatcher
         }
 
         $lineName = $this->stripTrailingParfumeFromProductName($baseProductName);
-        // «… Parfum (L) 10ml edp» — линия Parfum = Extrait De Parfum; edp в хвосте у поставщика не авторитетен.
-        $concentration = 'extrait de parfum';
+        // «… Parfum (L) 10ml edp» — линия Parfum = parfum (духи); edp в хвосте у поставщика не авторитетен.
+        $concentration = 'parfum';
 
         return [$lineName, $concentration];
     }
@@ -2011,7 +2154,7 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * parfum/parfume в хвосте варианта (после объёма) = Extrait De Parfum в каталоге.
+     * parfum/parfume в хвосте варианта (после объёма) = parfum (духи) в каталоге.
      */
     private function concentrationFromParfumAlias(string $token): ?string
     {
@@ -2020,7 +2163,7 @@ class SellerOneVariantMatcher
             return null;
         }
 
-        return 'extrait de parfum';
+        return 'parfum';
     }
 
     private function extractIsTester(string $title): bool
