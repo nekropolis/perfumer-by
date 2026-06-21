@@ -537,7 +537,7 @@ class CatalogProductLinkSearchService
         $hasGender = CatalogProductLinkNameTokenizer::tokensContainGenderCanon($tokens);
         $useTokenizedPath = $brandFilter !== null || $significant !== [] || $hasGender;
 
-        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath): void {
+        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath, $rest): void {
             if ($useTokenizedPath) {
                 $outer->where(function ($tokenized) use ($brandFilter, $significant, $hasGender, $tokens): void {
                     if ($brandFilter !== null && $brandFilter > 0) {
@@ -559,7 +559,7 @@ class CatalogProductLinkSearchService
                 });
             }
 
-            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch): void {
+            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch, $brandFilter, $rest): void {
                 $legacy->where('name', 'like', "%{$search}%")
                     ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
                         $brandQuery->where('name', 'like', "%{$search}%");
@@ -582,6 +582,27 @@ class CatalogProductLinkSearchService
                     $legacy->orWhere((new Product())->getQualifiedKeyName(), (int) $search);
                     $legacy->orWhereHas('variants', function ($variantQuery) use ($search): void {
                         $variantQuery->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search);
+                    });
+                }
+
+                if (
+                    $brandFilter !== null
+                    && $brandFilter > 0
+                    && $rest !== ''
+                    && mb_strtolower($rest, 'UTF-8') !== mb_strtolower($search, 'UTF-8')
+                ) {
+                    $restLike = '%'.$this->escapeLikeValue($rest).'%';
+                    $legacy->orWhere(function ($brandRest) use ($brandFilter, $restLike): void {
+                        $brandRest->where('brand_id', $brandFilter)
+                            ->where(function ($nameMatch) use ($restLike): void {
+                                $nameMatch->where('name', 'like', $restLike)
+                                    ->orWhere('slug', 'like', $restLike)
+                                    ->orWhereHas('variants.definition', function ($def) use ($restLike): void {
+                                        $def->where('title', 'like', $restLike)
+                                            ->orWhere('concentration_label', 'like', $restLike)
+                                            ->orWhere('concentration_code', 'like', $restLike);
+                                    });
+                            });
                     });
                 }
             });

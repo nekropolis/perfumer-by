@@ -31,7 +31,7 @@ final class CatalogProductLinkNameTokenizer
      *
      * @return list<string>
      */
-    public static function variantMatchTokens(string $name, ?string $brandName): array
+    public static function variantMatchTokens(string $name, ?string $brandName, bool $applyLineSuffixTokens = true): array
     {
         $normalized = self::normalizeText($name);
         if ($normalized === '') {
@@ -54,8 +54,10 @@ final class CatalogProductLinkNameTokenizer
 
         $normalized = self::applyGenderCanonicalTokens($normalized);
         $normalized = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $normalized);
-        $normalized = self::applyTrailingLineSuffixToken($normalized);
-        $normalized = self::applyInlineLineLetterTokens($normalized);
+        if ($applyLineSuffixTokens) {
+            $normalized = self::applyTrailingLineSuffixToken($normalized);
+            $normalized = self::applyInlineLineLetterTokens($normalized);
+        }
         // «Parfum» в прайсе (Pasha Parfum) = линия «… de Parfum» в каталоге — оставляем токен «de».
         $normalized = (string) preg_replace('/\bde\s+parfum\b/iu', ' de ', $normalized);
         $normalized = (string) preg_replace('/\bparfum\b/iu', ' de ', $normalized);
@@ -119,7 +121,8 @@ final class CatalogProductLinkNameTokenizer
      */
     public static function linkSearchTokensFromRest(string $rest, ?string $brandName): array
     {
-        return self::variantMatchTokens($rest, $brandName);
+        // Для поиска не превращаем «Honour 43» / «Moon 1947» в line-токены — это часть имени, не суффикс линии.
+        return self::variantMatchTokens($rest, $brandName, applyLineSuffixTokens: false);
     }
 
     public static function isProductLineMarkerToken(string $token): bool

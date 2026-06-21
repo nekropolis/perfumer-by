@@ -9,6 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
@@ -88,9 +89,10 @@ class RunSellerOneParseJob implements ShouldQueue
                 self::CHUNK_TIME_BUDGET_SECONDS,
             );
 
+            $processed = (int) ($result['processed'] ?? 0);
+            $totalRows = (int) ($result['total_rows'] ?? 0);
+
             if (! empty($result['has_more'])) {
-                $processed = (int) ($result['processed'] ?? 0);
-                $totalRows = (int) ($result['total_rows'] ?? 0);
                 $nextOffset = (int) ($result['next_offset'] ?? $this->rowOffset);
 
                 $publishProgress([
@@ -109,7 +111,30 @@ class RunSellerOneParseJob implements ShouldQueue
                 return;
             }
 
-            $processed = (int) ($result['processed'] ?? 0);
+            if ($totalRows > 0 && $processed < $totalRows) {
+                Log::warning('Seller One parse finished chunk without has_more but rows remain', [
+                    'job_id' => $this->jobId,
+                    'row_offset' => $this->rowOffset,
+                    'processed' => $processed,
+                    'total_rows' => $totalRows,
+                ]);
+
+                $publishProgress([
+                    'status' => 'running',
+                    'message' => "Продолжение: {$processed} / {$totalRows}",
+                    'processed' => $processed,
+                    'total_rows' => $totalRows,
+                    'matched' => (int) ($result['matched'] ?? 0),
+                    'inserted' => (int) ($result['inserted'] ?? 0),
+                    'updated' => (int) ($result['updated'] ?? 0),
+                    'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
+                ]);
+
+                self::dispatch($this->jobId, $this->storedFilePath, $processed);
+
+                return;
+            }
+
             Cache::put($cacheKey, [
                 'job_id' => $this->jobId,
                 'status' => 'completed',
@@ -127,17 +152,14 @@ class RunSellerOneParseJob implements ShouldQueue
 
             $shouldCleanup = true;
 
-            try {
-                app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($this->jobId, [
-                    'status' => 'completed',
-                    'processed' => $processed,
-                    'total_rows' => (int) ($result['total_rows'] ?? 0),
-                    'updated' => (int) ($result['updated'] ?? 0),
-                    'inserted' => (int) ($result['inserted'] ?? 0),
-                    'message' => "Готово: обработано {$processed}",
-                ]);
-            } catch (Throwable) {
-            }
+            self::notifyParseCompletedIfNeeded($this->jobId, [
+                'status' => 'completed',
+                'processed' => $processed,
+                'total_rows' => $totalRows,
+                'updated' => (int) ($result['updated'] ?? 0),
+                'inserted' => (int) ($result['inserted'] ?? 0),
+                'message' => (string) ($result['message'] ?? "Готово: обработано {$processed}"),
+            ]);
         } catch (Throwable $e) {
             $shouldCleanup = true;
             self::markFailed($cacheKey, $this->jobId, $e->getMessage());
@@ -201,10 +223,42 @@ class RunSellerOneParseJob implements ShouldQueue
 
         Cache::put($cacheKey, $statusPayload, now()->addHours(24));
 
+        self::notifyParseCompletedIfNeeded($jobId, $statusPayload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $status
+     */
+    public static function notifyParseCompletedIfNeeded(string $jobId, array $status): void
+    {
+        $state = (string) ($status['status'] ?? '');
+        if ($state === 'completed') {
+            $processed = (int) ($status['processed'] ?? 0);
+            $totalRows = (int) ($status['total_rows'] ?? 0);
+            if ($totalRows > 0 && $processed < $totalRows) {
+                Log::warning('Seller One parse telegram skipped: incomplete progress', [
+                    'job_id' => $jobId,
+                    'processed' => $processed,
+                    'total_rows' => $totalRows,
+                ]);
+
+                return;
+            }
+
+            if (! Cache::add(self::telegramSentKey($jobId), now()->toDateTimeString(), now()->addHours(24))) {
+                return;
+            }
+        }
+
         try {
-            app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($jobId, $statusPayload);
+            app(ImportTelegramNotificationService::class)->notifySellerOneParseFinished($jobId, $status);
         } catch (Throwable) {
         }
+    }
+
+    public static function telegramSentKey(string $jobId): string
+    {
+        return "seller_one_parse_telegram_sent:{$jobId}";
     }
 
     public static function cacheKey(string $jobId): string

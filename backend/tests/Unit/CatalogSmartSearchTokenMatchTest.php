@@ -1,0 +1,44 @@
+<?php
+
+namespace Tests\Unit;
+
+use Modules\Catalog\Http\Controllers\Api\ProductController;
+use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
+
+class CatalogSmartSearchTokenMatchTest extends TestCase
+{
+    private function invokeMatchInOrder(string $query, string $display): bool
+    {
+        $controller = new ProductController();
+        $normalize = new ReflectionMethod($controller, 'normalizeSearchText');
+        $normalize->setAccessible(true);
+        $matchInOrder = new ReflectionMethod($controller, 'smartSearchTokensMatchInOrder');
+        $matchInOrder->setAccessible(true);
+
+        $normalizedQuery = $normalize->invoke($controller, $query);
+        $tokens = array_values(array_filter(explode(' ', $normalizedQuery)));
+        $normalizedDisplay = $normalize->invoke($controller, $display);
+
+        return (bool) $matchInOrder->invoke($controller, $tokens, $normalizedDisplay);
+    }
+
+    public function test_partial_brand_and_year_match_full_display_title(): void
+    {
+        $display = 'norana perfumes moon 1947 gold';
+
+        $this->assertTrue($this->invokeMatchInOrder('Nor 1947', $display));
+        $this->assertTrue($this->invokeMatchInOrder('Noran 1947', $display));
+        $this->assertTrue($this->invokeMatchInOrder('Mo 1947', $display));
+    }
+
+    public function test_short_prefix_does_not_match_unrelated_words(): void
+    {
+        $controller = new ProductController();
+        $method = new ReflectionMethod($controller, 'smartSearchTokenMatchesDisplayWord');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke($controller, 'mo', 'moon'));
+        $this->assertFalse($method->invoke($controller, 'in', 'intense'));
+    }
+}

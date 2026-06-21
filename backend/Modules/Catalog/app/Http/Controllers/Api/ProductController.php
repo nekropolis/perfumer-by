@@ -457,8 +457,9 @@ class ProductController extends Controller
             );
         }
 
-        if (count($tokens) >= 2 && !$usesLightweightPool) {
-            $pool = $this->mergeSmartSearchPoolForAllTokens($pool, $legacyProductQuery, $tokens);
+        if (count($tokens) >= 2) {
+            $tokenPoolQuery = $usesLightweightPool ? $rankingProductQuery : $legacyProductQuery;
+            $pool = $this->mergeSmartSearchPoolForAllTokens($pool, $tokenPoolQuery, $tokens);
         }
 
         if ($codeOrSkuBoostIds !== []) {
@@ -1087,7 +1088,15 @@ class ProductController extends Controller
         }
 
         for ($i = 0; $i <= count($displayWords) - $count; $i++) {
-            if (array_slice($displayWords, $i, $count) === $tokens) {
+            $window = array_slice($displayWords, $i, $count);
+            $matches = true;
+            foreach ($tokens as $index => $token) {
+                if (! $this->smartSearchTokenMatchesDisplayWord($token, (string) $window[$index])) {
+                    $matches = false;
+                    break;
+                }
+            }
+            if ($matches) {
                 return true;
             }
         }
@@ -1109,7 +1118,7 @@ class ProductController extends Controller
 
         $tokenIndex = 0;
         foreach ($displayWords as $word) {
-            if ($word !== $tokens[$tokenIndex]) {
+            if (! $this->smartSearchTokenMatchesDisplayWord($tokens[$tokenIndex], $word)) {
                 continue;
             }
             $tokenIndex++;
@@ -1333,13 +1342,45 @@ class ProductController extends Controller
                 continue;
             }
             $matched = true;
-            $pattern = '/(?:^|\s)'.preg_quote($token, '/').'(?:\s|$)/u';
-            if (! preg_match($pattern, $normalizedHaystack)) {
+            $tokenMatched = false;
+            foreach (array_values(array_filter(explode(' ', $normalizedHaystack))) as $word) {
+                if ($this->smartSearchTokenMatchesDisplayWord($token, $word)) {
+                    $tokenMatched = true;
+                    break;
+                }
+            }
+            if (! $tokenMatched) {
                 return false;
             }
         }
 
         return $matched;
+    }
+
+    /**
+     * Токен совпадает с целым словом или является достаточным префиксом («nor» → «norana», «mo» → «moon»).
+     */
+    private function smartSearchTokenMatchesDisplayWord(string $token, string $word): bool
+    {
+        if ($token === '' || $word === '') {
+            return false;
+        }
+
+        if ($token === $word) {
+            return true;
+        }
+
+        $tokenLength = mb_strlen($token, 'UTF-8');
+        $wordLength = mb_strlen($word, 'UTF-8');
+        if ($tokenLength < 2 || $wordLength < $tokenLength) {
+            return false;
+        }
+
+        if (! str_starts_with($word, $token)) {
+            return false;
+        }
+
+        return $tokenLength >= 3 || $tokenLength >= (int) ceil($wordLength * 0.45);
     }
 
     /**

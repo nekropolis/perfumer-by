@@ -51,11 +51,20 @@ class ImportTelegramMessageFormatter
             return null;
         }
 
+        $processed = (int) ($status['processed'] ?? 0);
+        $totalRows = (int) ($status['total_rows'] ?? 0);
+        $isFullyComplete = $state !== 'completed'
+            || $totalRows <= 0
+            || $processed >= $totalRows;
+        $statusLabel = $state === 'completed'
+            ? ($isFullyComplete ? 'выполнено' : 'частично')
+            : 'ошибка';
+
         $lines = [
-            ($state === 'completed' ? '✅ ' : '❌ ') . 'Seller One: Новый парсинг',
+            ($state === 'completed' && $isFullyComplete ? '✅ ' : '❌ ') . 'Seller One: Новый парсинг',
             'Job #' . $jobId,
-            'Статус: ' . ($state === 'completed' ? 'выполнено' : 'ошибка'),
-            'Обработано: ' . (int) ($status['processed'] ?? 0) . ' / ' . (int) ($status['total_rows'] ?? 0),
+            'Статус: ' . $statusLabel,
+            'Обработано: ' . $processed . ' / ' . $totalRows,
             'Обновлено: ' . (int) ($status['updated'] ?? 0),
             'Добавлено: ' . (int) ($status['inserted'] ?? 0),
         ];
