@@ -8,6 +8,10 @@ import CatalogFilters from "@/components/catalog/catalog-filters";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { siteBtnPrimary, siteBtnSecondary } from "@/lib/site-ui-classes";
+import {
+    buildCatalogFacetedFiltersResetPath,
+    hasCatalogFacetedFilters,
+} from "@/lib/catalog-listing-query";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -114,7 +118,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
     const searchParams = useSearchParams();
     const { navigate } = useCatalogNavigation();
 
-    const hasActiveFilters = Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort");
+    const hasActiveFilters = hasCatalogFacetedFilters(searchParams);
 
     useEffect(() => {
         if (!open) {
@@ -141,7 +145,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
     }, [open]);
 
     const resetFilters = () => {
-        navigate(props.basePath);
+        navigate(buildCatalogFacetedFiltersResetPath(props.basePath, searchParams));
     };
 
     const drawer =

@@ -276,6 +276,7 @@ class ProductVariantAdminController extends Controller
             'stock' => ['nullable', 'integer', 'min:0'],
             'is_preorder' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'is_promotion' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -290,6 +291,7 @@ class ProductVariantAdminController extends Controller
                 'stock' => $validated['stock'] ?? 0,
                 'is_preorder' => $validated['is_preorder'] ?? false,
                 'is_active' => $validated['is_active'] ?? true,
+                'is_promotion' => $validated['is_promotion'] ?? false,
                 'sort_order' => $validated['sort_order'] ?? 0,
             ],
         );
@@ -299,6 +301,7 @@ class ProductVariantAdminController extends Controller
             $variant->update([
                 'is_active' => $validated['is_active'] ?? $variant->is_active,
                 'is_preorder' => $validated['is_preorder'] ?? $variant->is_preorder,
+                'is_promotion' => $validated['is_promotion'] ?? $variant->is_promotion,
                 'sort_order' => $validated['sort_order'] ?? $variant->sort_order,
             ]);
         }
@@ -326,6 +329,7 @@ class ProductVariantAdminController extends Controller
             'stock' => ['nullable', 'integer', 'min:0'],
             'is_preorder' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'is_promotion' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -335,15 +339,36 @@ class ProductVariantAdminController extends Controller
             ]);
         }
 
-        $variant->update([
-            'variant_definition_id' => $validated['variant_definition_id'] ?? $variant->variant_definition_id,
-            'price' => $validated['price'] ?? null,
-            'old_price' => $validated['old_price'] ?? null,
-            'stock' => $validated['stock'] ?? 0,
-            'is_preorder' => $validated['is_preorder'] ?? false,
-            'is_active' => $validated['is_active'] ?? true,
-            'sort_order' => $validated['sort_order'] ?? $variant->sort_order,
-        ]);
+        $updates = [];
+
+        if (array_key_exists('variant_definition_id', $validated)) {
+            $updates['variant_definition_id'] = $validated['variant_definition_id'] ?? $variant->variant_definition_id;
+        }
+        if (array_key_exists('price', $validated)) {
+            $updates['price'] = $validated['price'];
+        }
+        if (array_key_exists('old_price', $validated)) {
+            $updates['old_price'] = $validated['old_price'];
+        }
+        if (array_key_exists('stock', $validated)) {
+            $updates['stock'] = $validated['stock'] ?? 0;
+        }
+        if (array_key_exists('is_preorder', $validated)) {
+            $updates['is_preorder'] = (bool) $validated['is_preorder'];
+        }
+        if (array_key_exists('is_active', $validated)) {
+            $updates['is_active'] = (bool) $validated['is_active'];
+        }
+        if (array_key_exists('is_promotion', $validated)) {
+            $updates['is_promotion'] = (bool) $validated['is_promotion'];
+        }
+        if (array_key_exists('sort_order', $validated)) {
+            $updates['sort_order'] = $validated['sort_order'] ?? $variant->sort_order;
+        }
+
+        if ($updates !== []) {
+            $variant->update($updates);
+        }
 
         $this->syncProductStockFlags($product->fresh());
 

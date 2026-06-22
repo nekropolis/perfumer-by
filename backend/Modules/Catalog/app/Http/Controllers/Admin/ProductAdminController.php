@@ -37,10 +37,7 @@ class ProductAdminController extends Controller
             ->withCount('variants')
             ->withCount([
                 'variants as discounted_variants_count' => function ($variantQuery) {
-                    $variantQuery
-                        ->whereNotNull('old_price')
-                        ->whereNotNull('price')
-                        ->whereColumn('old_price', '>', 'price');
+                    $variantQuery->where('is_promotion', true);
                 },
                 'variants as variants_with_stock_count' => function ($variantQuery) {
                     self::scopeAdminVariantHasSellableChannel($variantQuery);
@@ -108,10 +105,7 @@ class ProductAdminController extends Controller
                 $query->where('is_hit', true);
             } elseif ($status === 'discount') {
                 $query->whereHas('variants', function ($variantQuery) {
-                    $variantQuery
-                        ->whereNotNull('old_price')
-                        ->whereNotNull('price')
-                        ->whereColumn('old_price', '>', 'price');
+                    $variantQuery->where('is_promotion', true);
                 });
             }
         }
@@ -543,6 +537,7 @@ class ProductAdminController extends Controller
                 'title' => $variant->title,
                 'is_active' => (bool) $variant->is_active,
                 'is_preorder' => (bool) $variant->is_preorder,
+                'is_promotion' => (bool) $variant->is_promotion,
                 'site_price' => $variant->price,
                 'stock' => (int) ($variant->stock ?? 0),
                 'available_stock' => (int) $presented['available_stock'],

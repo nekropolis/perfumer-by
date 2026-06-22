@@ -15,6 +15,7 @@ export type ProductVariantData = {
     available_stock: number;
     is_preorder: boolean;
     is_available: boolean;
+    is_promotion: boolean;
 };
 
 export type ProductAttributeOptionData = {
@@ -90,11 +91,13 @@ export type ProductListItem = {
     };
 
     has_discount: boolean;
+    has_promotion: boolean;
     discount_percent: number | null;
 
     stock_total: number;
     is_preorder_available: boolean;
     variants_count: number;
+    listing_variant_id?: number | null;
 };
 
 export type ProductsResponse = {

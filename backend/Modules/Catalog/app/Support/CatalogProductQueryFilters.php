@@ -5,6 +5,7 @@ namespace Modules\Catalog\Support;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductVariantLink;
 
 final class CatalogProductQueryFilters
 {
@@ -51,6 +52,14 @@ final class CatalogProductQueryFilters
             $query->whereHas('brand', function ($brandQuery) use ($request): void {
                 $brandQuery->where('slug', $request->string('brand_slug')->toString());
             });
+        }
+
+        if ($request->input('new') === '1') {
+            $query->where('is_new', true);
+        }
+
+        if ($request->input('hit') === '1') {
+            $query->where('is_hit', true);
         }
     }
 
@@ -121,12 +130,7 @@ final class CatalogProductQueryFilters
      */
     public static function applyVolumeFilters(Builder $query, Request $request): void
     {
-        $keys = collect(explode(',', (string) $request->input('volume', '')))
-            ->map(static fn (string $value): string => trim($value))
-            ->filter(static fn (string $value): bool => $value !== '')
-            ->unique()
-            ->values()
-            ->all();
+        $keys = self::resolveVolumeFilterKeys($request);
 
         if (empty($keys)) {
             return;
@@ -141,19 +145,88 @@ final class CatalogProductQueryFilters
         }
 
         $query->whereHas('activeVariants.definition', function ($definitionQuery) use ($selectedBuckets): void {
-            $definitionQuery->where(function ($rangeQuery) use ($selectedBuckets): void {
-                foreach ($selectedBuckets as $bucket) {
-                    $rangeQuery->orWhere(function ($bucketQuery) use ($bucket): void {
-                        $min = (int) ($bucket['min'] ?? 0);
-                        $max = $bucket['max'];
-                        $bucketQuery->whereNotNull('volume_ml')
-                            ->where('volume_ml', '>=', $min);
-                        if ($max !== null) {
-                            $bucketQuery->where('volume_ml', '<=', (int) $max);
-                        }
-                    });
-                }
-            });
+            self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+        });
+    }
+
+    /**
+     * @param  Builder<ProductVariantLink>  $query
+     */
+    public static function applyVariantPriceFilters(Builder $query, Request $request): void
+    {
+        $minPrice = $request->filled('price_min') ? (float) $request->input('price_min') : null;
+        $maxPrice = $request->filled('price_max') ? (float) $request->input('price_max') : null;
+
+        if ($minPrice === null && $maxPrice === null) {
+            return;
+        }
+
+        $query->whereNotNull('price');
+
+        if ($minPrice !== null) {
+            $query->where('price', '>=', $minPrice);
+        }
+
+        if ($maxPrice !== null) {
+            $query->where('price', '<=', $maxPrice);
+        }
+    }
+
+    /**
+     * @param  Builder<ProductVariantLink>  $query
+     */
+    public static function applyVariantVolumeFilters(Builder $query, Request $request): void
+    {
+        $keys = self::resolveVolumeFilterKeys($request);
+
+        if (empty($keys)) {
+            return;
+        }
+
+        $selectedBuckets = collect(self::VOLUME_BUCKETS)
+            ->filter(static fn (array $bucket): bool => in_array($bucket['key'], $keys, true))
+            ->values();
+
+        if ($selectedBuckets->isEmpty()) {
+            return;
+        }
+
+        $query->whereHas('definition', function ($definitionQuery) use ($selectedBuckets): void {
+            self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resolveVolumeFilterKeys(Request $request): array
+    {
+        return collect(explode(',', (string) $request->input('volume', '')))
+            ->map(static fn (string $value): string => trim($value))
+            ->filter(static fn (string $value): bool => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+  /**
+     * @param  Builder<\Modules\Catalog\Models\VariantDefinition>  $definitionQuery
+     * @param  \Illuminate\Support\Collection<int, array{key: string, label: string, min: int, max: int|null}>  $selectedBuckets
+     */
+    private static function applyVolumeBucketConstraints(Builder $definitionQuery, $selectedBuckets): void
+    {
+        $definitionQuery->where(function ($rangeQuery) use ($selectedBuckets): void {
+            foreach ($selectedBuckets as $bucket) {
+                $rangeQuery->orWhere(function ($bucketQuery) use ($bucket): void {
+                    $min = (int) ($bucket['min'] ?? 0);
+                    $max = $bucket['max'];
+                    $bucketQuery->whereNotNull('volume_ml')
+                        ->where('volume_ml', '>=', $min);
+                    if ($max !== null) {
+                        $bucketQuery->where('volume_ml', '<=', (int) $max);
+                    }
+                });
+            }
         });
     }
 }

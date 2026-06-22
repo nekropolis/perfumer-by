@@ -3,7 +3,7 @@ export type ProductStatusCode = "new" | "hit" | "discount";
 type ProductStatusesInput = {
     isNew: boolean;
     isHit: boolean;
-    hasDiscount: boolean;
+    hasPromotion: boolean;
 };
 
 type ProductStatusMeta = {
@@ -41,13 +41,13 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
 export const PRODUCT_STATUS_FILTER_OPTIONS = [
     { value: "new", label: "Новинки" },
     { value: "hit", label: "Хиты" },
-    { value: "discount", label: "Акции (со скидкой)" },
+    { value: "discount", label: "Акции" },
 ] as const;
 
 export function resolveProductStatuses(input: ProductStatusesInput): ProductStatusMeta[] {
     const statuses: ProductStatusMeta[] = [];
     if (input.isNew) statuses.push(STATUS_MAP.new);
     if (input.isHit) statuses.push(STATUS_MAP.hit);
-    if (input.hasDiscount) statuses.push(STATUS_MAP.discount);
+    if (input.hasPromotion) statuses.push(STATUS_MAP.discount);
     return statuses;
 }

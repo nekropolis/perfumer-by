@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ProductVariantSupplierItem } from "@/lib/admin-products-api";
+import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
 
 function formatSitePrice(value: ProductVariantSupplierItem["site_price"]): string | null {
     if (value === null || value === undefined || value === "") {
@@ -12,8 +13,11 @@ function formatSitePrice(value: ProductVariantSupplierItem["site_price"]): strin
 type Props = {
     variant: ProductVariantSupplierItem;
     highlightVariantId?: number | null;
+    productId?: number;
     /** Замена блока цены (редактирование на странице продуктов). */
     priceSlot?: ReactNode;
+    onPromotionUpdatedAction?: (variantId: number, next: boolean) => void;
+    onPromotionErrorAction?: (message: string) => void;
 };
 
 export function formatProductSuppliersModalTitle(
@@ -34,7 +38,10 @@ export function formatProductSuppliersModalTitle(
 export default function VariantSuppliersSummaryRow({
     variant,
     highlightVariantId,
+    productId,
     priceSlot,
+    onPromotionUpdatedAction,
+    onPromotionErrorAction,
 }: Props) {
     const highlighted = highlightVariantId != null && highlightVariantId === variant.id;
     const sitePrice = formatSitePrice(variant.site_price);
@@ -62,6 +69,15 @@ export default function VariantSuppliersSummaryRow({
                 <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
                     Предзаказ
                 </span>
+            ) : null}
+            {productId ? (
+                <VariantPromotionToggle
+                    productId={productId}
+                    variantId={variant.id}
+                    checked={Boolean(variant.is_promotion)}
+                    onUpdatedAction={(next) => onPromotionUpdatedAction?.(variant.id, next)}
+                    onErrorAction={onPromotionErrorAction}
+                />
             ) : null}
             {variant.fulfillment_tooltip ? (
                 <span

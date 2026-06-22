@@ -104,7 +104,11 @@ export default function CatalogPageView({
                                 <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                                     {products.data.map((product, index) => (
                                         <ProductCard
-                                            key={product.id}
+                                            key={
+                                                product.listing_variant_id
+                                                    ? `${product.id}-${product.listing_variant_id}`
+                                                    : product.id
+                                            }
                                             product={product}
                                             eager={index < 4}
                                         />

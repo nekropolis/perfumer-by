@@ -2,6 +2,7 @@
 
 import { Heart } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart } from "@/lib/cart-api";
@@ -42,12 +43,22 @@ export default function ProductDetailInteractive({
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
+    const searchParams = useSearchParams();
     const variants = useMemo(() => normalizeProductVariants(product.variants), [product.variants]);
 
-    const defaultVariant =
-        variants.find((variant) => variant.id === product.default_variant_id) || variants[0] || null;
+    const initialVariantId = useMemo(() => {
+        const variantFromQuery = Number(searchParams.get("variant") || 0);
+        if (variantFromQuery > 0 && variants.some((variant) => variant.id === variantFromQuery)) {
+            return variantFromQuery;
+        }
 
-    const [selectedVariantId, setSelectedVariantId] = useState<number | null>(defaultVariant?.id ?? null);
+        const defaultVariant =
+            variants.find((variant) => variant.id === product.default_variant_id) || variants[0] || null;
+
+        return defaultVariant?.id ?? null;
+    }, [product.default_variant_id, searchParams, variants]);
+
+    const [selectedVariantId, setSelectedVariantId] = useState<number | null>(initialVariantId);
 
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
@@ -55,12 +66,7 @@ export default function ProductDetailInteractive({
     const isSelectedVariantInCart = Boolean(
         selectedVariant?.id && cart?.items?.some((item) => item.product_variant_id === selectedVariant.id),
     );
-    const selectedVariantHasDiscount = Boolean(
-        selectedVariant &&
-            selectedVariant.old_price &&
-            selectedVariant.price &&
-            Number(selectedVariant.old_price) > Number(selectedVariant.price),
-    );
+    const selectedVariantHasPromotion = Boolean(selectedVariant?.is_promotion);
     const loyaltyCard = resolveActiveLoyaltyCard(user?.discount_cards);
     const loyaltyPrice = applyPercentDiscount(
         selectedVariant?.price ?? null,
@@ -87,7 +93,7 @@ export default function ProductDetailInteractive({
     return (
         <>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
-                <ProductDetailGallery product={product} selectedVariantHasDiscount={selectedVariantHasDiscount} />
+                <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
 
                 <section className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -156,8 +162,15 @@ export default function ProductDetailInteractive({
                                                         : "border-admin-border bg-admin-surface hover:border-admin-primary/40 hover:bg-admin-bg active:scale-[0.98]"
                                                 }`}
                                             >
-                                                <span className="line-clamp-1 text-[13px] font-medium leading-4 text-admin-text">
-                                                    {formatVariantVolumeLine(variant)}
+                                                <span className="flex min-w-0 items-center justify-between gap-1">
+                                                    <span className="line-clamp-1 text-[13px] font-medium leading-4 text-admin-text">
+                                                        {formatVariantVolumeLine(variant)}
+                                                    </span>
+                                                    {variant.is_promotion ? (
+                                                        <span className="shrink-0 rounded-full bg-[#8E2C3B] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F6E7D6]">
+                                                            Акция
+                                                        </span>
+                                                    ) : null}
                                                 </span>
 
                                                 <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">

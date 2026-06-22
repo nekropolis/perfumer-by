@@ -61,6 +61,7 @@ class ProductController extends Controller
         'old_price',
         'is_preorder',
         'is_active',
+        'is_promotion',
         'stock',
         'reserved_stock',
         'sort_order',
@@ -1805,6 +1806,7 @@ class ProductController extends Controller
                     'max' => $maxOldPrice,
                 ],
                 'has_discount' => !$prices->isEmpty() && !$oldPrices->isEmpty() && (float) $oldPrices->min() > (float) $prices->min(),
+                'has_promotion' => (bool) ($product->variants?->contains(static fn ($variant): bool => (bool) $variant->is_promotion) ?? false),
                 'discount_percent' => null,
                 'stock_total' => $listingStockTotal,
                 'is_preorder_available' => $isPreorderAvailable,
@@ -1858,11 +1860,11 @@ class ProductController extends Controller
         $relations = [
             'brand:id,name',
             'variants' => static function ($q): void {
-                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active', 'is_promotion')
                     ->with(['definition:id,title']);
             },
             'activeVariants' => static function ($q): void {
-                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active')
+                $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active', 'is_promotion')
                     ->with(['definition:id,title']);
             },
         ];

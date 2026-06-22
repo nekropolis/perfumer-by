@@ -127,6 +127,9 @@ export function catalogListingFilterActive(sp: Record<string, string | undefined
     if (sp.brand?.trim()) return true;
     if (sp.price_min?.trim() || sp.price_max?.trim()) return true;
     if (sp.volume?.trim()) return true;
+    if (sp.sale?.trim()) return true;
+    if (sp.new?.trim()) return true;
+    if (sp.hit?.trim()) return true;
     if (Object.keys(sp).some((k) => k.startsWith("attr_") && String(sp[k] ?? "").trim())) return true;
     return false;
 }

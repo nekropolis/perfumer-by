@@ -12,6 +12,7 @@ import {
     listingFilterRobots,
     resolveListingPaginationLinks,
 } from "@/lib/seo";
+import { getCatalogPageCopy } from "@/lib/catalog-page-copy";
 
 /** Дедупликация fetch между generateMetadata и страницей (один запрос на query). */
 const getCatalogBootstrap = cache(async (queryString: string) => fetchCatalogBootstrap(queryString));
@@ -25,6 +26,7 @@ export async function generateMetadata({
     const filtered = catalogListingFilterActive(sp);
     const productsQuery = buildCatalogProductsQuery(sp);
     const currentPage = Math.max(1, Number(sp.page || "1") || 1);
+    const pageCopy = getCatalogPageCopy(sp);
 
     let pagination: Metadata["pagination"] | undefined;
     try {
@@ -42,8 +44,8 @@ export async function generateMetadata({
     }
 
     return buildSeoMetadata({
-        title: "Каталог парфюмерии",
-        description: "Каталог парфюмерии с выбором брендов, вариантов и цен.",
+        title: pageCopy.title,
+        description: pageCopy.description,
         canonicalPath: catalogCanonicalPath(sp),
         robots: listingFilterRobots(filtered),
         pagination,
@@ -77,17 +79,18 @@ export default async function CatalogPage({
     const products = bootstrap.data.products;
     const brands = bootstrap.data.brands;
     const filters = bootstrap.data.filters;
+    const pageCopy = getCatalogPageCopy(resolvedSearchParams || {});
 
     const catalogCrumbs = [
         { label: "Главная", href: "/" },
-        { label: "Каталог" },
+        { label: pageCopy.breadcrumb },
     ] as const;
 
     return (
         <>
             <JsonLd data={breadcrumbListJsonLd([...catalogCrumbs])} />
             <CatalogPageView
-                title="Каталог"
+                title={pageCopy.breadcrumb}
                 breadcrumbs={[...catalogCrumbs]}
                 products={products}
                 brands={brands.data ?? []}

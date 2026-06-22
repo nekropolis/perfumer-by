@@ -13,6 +13,7 @@ import {
     type VariantDefinitionItem,
 } from "@/lib/admin-product-variants-api";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
+import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
 
 type Props = {
     productId: number;
@@ -31,6 +32,7 @@ type VariantFormState = {
     stock: string;
     is_preorder: boolean;
     is_active: boolean;
+    is_promotion: boolean;
     sort_order: string;
 };
 
@@ -42,6 +44,7 @@ const emptyForm: VariantFormState = {
     stock: "0",
     is_preorder: false,
     is_active: true,
+    is_promotion: false,
     sort_order: "0",
 };
 
@@ -55,6 +58,7 @@ function toFormState(item: AdminProductVariantItem): VariantFormState {
         stock: item.stock != null ? String(item.stock) : "0",
         is_preorder: !!item.is_preorder,
         is_active: item.is_active ?? true,
+        is_promotion: !!item.is_promotion,
         sort_order: item.sort_order != null ? String(item.sort_order) : "0",
     };
 }
@@ -120,18 +124,12 @@ function extractMlSearch(query: string): string | undefined {
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
     const hasStock = Number(item.main_available_stock ?? 0) > 0;
     const storefrontAvailable = Boolean(item.is_available);
-    const hasSupplier =
-        storefrontAvailable &&
-        !hasStock &&
-        Number(item.active_supplier_offers_count ?? 0) > 0;
+    const hasSupplierChannel =
+        !hasStock && Number(item.active_supplier_offers_count ?? 0) > 0;
     const hasPreorder = Boolean(item.is_preorder);
     const onListingSwitch = Boolean(item.is_active);
+    const onStorefront = hasPreorder || (onListingSwitch && storefrontAvailable);
 
-    /**
-     * Совпадает с бэком `Product::activeVariants()`: на сайт без предзаказа попадают
-     * только связки с `is_active`, при предзаказе — независимо от флага.
-     * Бейдж «Активен» по остатку/поставщику без `is_active` вводил в заблуждение.
-     */
     const primary = hasPreorder
         ? {
             label: "Предзаказ",
@@ -139,22 +137,29 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             title:
                 "Витрина: предзаказ (может отображаться в каталоге даже при выключенном «Активен»). Каналы отгрузки — см. чипы справа.",
         }
-        : onListingSwitch
+        : onStorefront
             ? {
                 label: "На витрине",
                 className: "bg-green-50 text-green-700",
                 title:
-                    "Витрина: включён «Активен». На сайте показывается, если есть канал отгрузки (склад main/supplier или активный оффер поставщика).",
+                    "Витрина: вариант отображается на сайте — есть остаток на складе или активная привязка к прайсу поставщика.",
+            }
+        : onListingSwitch
+            ? {
+                label: "Нет в наличии",
+                className: "bg-orange-50 text-orange-800",
+                title:
+                    "Витрина: «Активен» включён, но нет остатка на складе и нет привязки к прайсу — на сайте не показывается.",
             }
             : {
                 label: "Выкл",
                 className: "bg-gray-100 text-admin-text-secondary",
                 title:
-                    "Витрина: «Активен» выключен — вариант не отдаётся в публичный API каталога. Остаток/поставщик ниже — только подготовка канала.",
+                    "Витрина: «Активен» выключен — вариант не отдаётся в публичный API каталога.",
             };
 
     const supplierTitle =
-        !onListingSwitch && !hasPreorder && hasSupplier
+        !onListingSwitch && !hasPreorder && hasSupplierChannel
             ? "Есть активные офферы, но на сайте вариант скрыт: включите «Активен»."
             : "Активные офферы поставщика (по прайсу, без блокирующих флагов в payload).";
 
@@ -167,7 +172,7 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             title: "На основном складе есть доступное количество.",
         });
     }
-    if (hasSupplier) {
+    if (hasSupplierChannel) {
         channelTags.push({
             key: "supplier",
             label: "Поставщик",
@@ -275,6 +280,17 @@ function VariantFormFields({
                         }
                     />
                     <span>Активен</span>
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                    <input
+                        type="checkbox"
+                        checked={form.is_promotion}
+                        onChange={(e) =>
+                            setForm((prev) => ({ ...prev, is_promotion: e.target.checked }))
+                        }
+                    />
+                    <span>Акция</span>
                 </label>
             </div>
         </div>
@@ -401,6 +417,7 @@ export default function ProductVariantsEditor({
                 stock: Number(createForm.stock || 0),
                 is_preorder: createForm.is_preorder,
                 is_active: createForm.is_active,
+                is_promotion: createForm.is_promotion,
                 sort_order: Number(createForm.sort_order || 0),
             });
 
@@ -435,6 +452,7 @@ export default function ProductVariantsEditor({
                 stock: Number(editForm.stock || 0),
                 is_preorder: editForm.is_preorder,
                 is_active: editForm.is_active,
+                is_promotion: editForm.is_promotion,
                 sort_order: Number(editForm.sort_order || 0),
             });
 
@@ -512,7 +530,7 @@ export default function ProductVariantsEditor({
                                 className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
                             >
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_56px] sm:items-center sm:gap-3">
+                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_88px_56px] sm:items-center sm:gap-3">
                                         <div className="min-w-0">
                                             <VariantBadges item={item} />
                                         </div>
@@ -532,6 +550,24 @@ export default function ProductVariantsEditor({
                                             title={item.fulfillment_tooltip?.trim() || undefined}
                                         >
                                             {item.available_stock ?? item.main_available_stock ?? 0} шт.
+                                        </div>
+
+                                        <div className="flex items-center">
+                                            <VariantPromotionToggle
+                                                productId={productId}
+                                                variantId={item.id}
+                                                checked={Boolean(item.is_promotion)}
+                                                onUpdatedAction={(next) => {
+                                                    setRuntimeItems((prev) =>
+                                                        prev.map((row) =>
+                                                            row.id === item.id
+                                                                ? { ...row, is_promotion: next }
+                                                                : row,
+                                                        ),
+                                                    );
+                                                }}
+                                                onErrorAction={setError}
+                                            />
                                         </div>
                                     </div>
 

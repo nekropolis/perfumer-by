@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Modules\Warehouse\Models\Warehouse;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductVariantLink extends Model
@@ -33,6 +33,7 @@ class ProductVariantLink extends Model
         'reserved_stock',
         'is_preorder',
         'is_active',
+        'is_promotion',
         'sort_order',
     ];
 
@@ -42,6 +43,7 @@ class ProductVariantLink extends Model
         'reserved_stock' => 'integer',
         'is_preorder' => 'boolean',
         'is_active' => 'boolean',
+        'is_promotion' => 'boolean',
     ];
 
     public function product(): BelongsTo
@@ -71,45 +73,7 @@ class ProductVariantLink extends Model
      */
     public function scopeCatalogListingEligible(Builder $query): void
     {
-        $query->where(function (Builder $outer): void {
-            $outer->where('is_preorder', true)
-                ->orWhere(function (Builder $inner): void {
-                    $inner->where('is_active', true)
-                        ->where(function (Builder $channel): void {
-                            $channel->whereHas('warehouseStocks', function (Builder $stockQuery): void {
-                                $stockQuery->whereHas('warehouse', function (Builder $w): void {
-                                    $w->whereIn('code', [
-                                        Warehouse::CODE_MAIN,
-                                        Warehouse::CODE_SUPPLIER,
-                                    ]);
-                                });
-                            })->orWhereHas('supplierOffers', function (Builder $offerQuery): void {
-                                $offerQuery->where('supplier_variant_offers.is_active', true)
-                                    ->where(function (Builder $p): void {
-                                        $p->whereNull('supplier_variant_offers.payload->missing_in_latest_price')
-                                            ->orWhere('supplier_variant_offers.payload->missing_in_latest_price', false);
-                                    })
-                                    ->where(function (Builder $p): void {
-                                        $p->whereNull('supplier_variant_offers.payload->seller_one_listing_deferred')
-                                            ->orWhere('supplier_variant_offers.payload->seller_one_listing_deferred', false);
-                                    })
-                                    ->where(function (Builder $p): void {
-                                        $p->whereNull('supplier_variant_offers.payload->out_of_stock_in_price_file')
-                                            ->orWhere('supplier_variant_offers.payload->out_of_stock_in_price_file', false);
-                                    })
-                                    ->whereExists(function ($sub): void {
-                                        $sub->selectRaw('1')
-                                            ->from('supplier_products as sp')
-                                            ->whereColumn('sp.supplier_id', 'supplier_variant_offers.supplier_id')
-                                            ->whereColumn('sp.product_id', 'product_variant_links.product_id')
-                                            ->where('sp.is_linked', '=', true)
-                                            ->where('sp.is_active', '=', true)
-                                            ->where('sp.link_parsing_active', '=', true);
-                                    });
-                            });
-                        });
-                });
-        });
+        CatalogVariantStockPresenter::applyStorefrontListingEligibleScope($query);
     }
 
     public function getTitleAttribute(): string

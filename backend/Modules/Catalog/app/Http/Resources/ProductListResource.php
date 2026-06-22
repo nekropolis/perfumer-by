@@ -7,6 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
@@ -52,6 +53,23 @@ class ProductListResource extends JsonResource
         CatalogListingStockContext::prime($products);
         try {
             return self::collection($products)->resolve();
+        } finally {
+            CatalogListingStockContext::forget();
+        }
+    }
+
+    /**
+     * @param  Collection<int, ProductVariantLink>  $variants
+     * @return list<array<string, mixed>>
+     */
+    public static function resolvePromotionCollection(Collection $variants): array
+    {
+        CatalogListingStockContext::primeFromVariantLinks($variants);
+        try {
+            return $variants
+                ->map(static fn (ProductVariantLink $variant): array => self::promotionVariantToArray($variant))
+                ->values()
+                ->all();
         } finally {
             CatalogListingStockContext::forget();
         }
@@ -191,12 +209,131 @@ class ProductListResource extends JsonResource
 
             'has_discount' => $discountPercent !== null,
             'discount_percent' => $discountPercent,
+            'has_promotion' => $variants->contains(static fn ($variant): bool => (bool) $variant->is_promotion),
 
             'stock_total' => $stockTotal,
             'is_preorder_available' => $preorderAvailable,
             'variants_count' => $variants->count(),
             'variant_labels' => $variantLabels,
+            'listing_variant_id' => null,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function promotionVariantToArray(ProductVariantLink $variant): array
+    {
+        $product = $variant->product;
+        if ($product === null) {
+            return [];
+        }
+
+        $stockContext = CatalogListingStockContext::current()
+            ?? CatalogListingStockContext::fromProducts(collect([$product]));
+
+        $presented = $stockContext->presentedForListing($variant);
+        $price = $stockContext->storefrontVariantPrice($variant, $presented);
+        $oldPrice = $price !== null ? $variant->old_price : null;
+
+        $discountPercent = null;
+        if ($oldPrice && $price && $oldPrice > $price) {
+            $discountPercent = (int) round((($oldPrice - $price) / $oldPrice) * 100);
+        }
+
+        $variantLabel = self::buildVariantLabel($variant);
+        $variantLabels = $variantLabel !== null ? [$variantLabel] : [];
+
+        $images = $product->relationLoaded('images') ? $product->images : collect();
+        $catalogPaths = $images
+            ->filter(static function ($image): bool {
+                $usageType = (string) ($image->usage_type ?? '');
+                if ($usageType === 'catalog') {
+                    return true;
+                }
+
+                return str_contains((string) ($image->path ?? ''), '/catalog/');
+            })
+            ->take(2)
+            ->map(fn ($image) => ProductImagePathResolver::resolve($image, 'listing'))
+            ->filter()
+            ->values()
+            ->all();
+
+        $listingImagePath = $images->isNotEmpty()
+            ? ProductImagePathResolver::resolve($images->first(), 'listing')
+            : null;
+
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'display_name' => ProductDisplayName::format($product->brand?->name, (string) $product->name),
+            'slug' => $product->slug,
+            'h1' => $product->h1,
+            'short_description' => $product->short_description,
+
+            'brand' => $product->brand ? [
+                'id' => $product->brand->id,
+                'name' => $product->brand->name,
+            ] : null,
+
+            'main_category' => $product->mainCategory ? [
+                'id' => $product->mainCategory->id,
+                'name' => $product->mainCategory->name,
+                'slug' => $product->mainCategory->slug,
+            ] : null,
+
+            'image' => $listingImagePath,
+            'catalog_images' => $catalogPaths,
+
+            'is_new' => $product->is_new,
+            'is_hit' => $product->is_hit,
+            'is_out_of_stock' => (bool) $product->is_out_of_stock,
+
+            'price_range' => [
+                'min' => $price,
+                'max' => $price,
+            ],
+
+            'old_price_range' => [
+                'min' => $oldPrice,
+                'max' => $oldPrice,
+            ],
+
+            'has_discount' => $discountPercent !== null,
+            'discount_percent' => $discountPercent,
+            'has_promotion' => true,
+
+            'stock_total' => (int) ($presented['stock'] ?? 0),
+            'is_preorder_available' => (bool) $variant->is_preorder,
+            'variants_count' => 1,
+            'variant_labels' => $variantLabels,
+            'listing_variant_id' => (int) $variant->id,
+        ];
+    }
+
+    /**
+     * @param  ProductVariantLink|\Illuminate\Database\Eloquent\Model  $variant
+     */
+    private static function buildVariantLabel($variant): ?string
+    {
+        $parts = [];
+
+        if ($variant->volume) {
+            $parts[] = trim($variant->volume . ' ' . ($variant->volume_unit ?: 'ml'));
+        }
+
+        if ($variant->concentration) {
+            $parts[] = strtoupper($variant->concentration);
+        } elseif ($variant->type) {
+            $parts[] = $variant->type;
+        }
+
+        if (!empty($parts)) {
+            return implode(' / ', $parts);
+        }
+
+        return $variant->title ?: null;
     }
 
     private static function hasUsageTypeColumn(): bool

@@ -30,13 +30,13 @@ function StatusBadge({ active }: { active: boolean }) {
 function ProductStatusChips({
                                 isNew,
                                 isHit,
-                                hasDiscount,
+                                hasPromotion,
                             }: {
     isNew: boolean;
     isHit: boolean;
-    hasDiscount: boolean;
+    hasPromotion: boolean;
 }) {
-    const chips = resolveProductStatuses({ isNew, isHit, hasDiscount });
+    const chips = resolveProductStatuses({ isNew, isHit, hasPromotion });
 
     if (chips.length === 0) {
         return <span className="text-xs text-gray-400">—</span>;
@@ -114,7 +114,7 @@ export default function ProductsTable({
                             <ProductStatusChips
                                 isNew={Boolean(item.is_new)}
                                 isHit={Boolean(item.is_hit)}
-                                hasDiscount={Boolean((item.discounted_variants_count ?? 0) > 0)}
+                                hasPromotion={Boolean((item.discounted_variants_count ?? 0) > 0)}
                             />
                         </td>
                         <td className="px-3 py-3 text-admin-text">

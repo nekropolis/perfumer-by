@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 /**
@@ -17,6 +18,36 @@ final class CatalogVariantStockPresenter
 {
     /** Достаточно большое число для UI «в наличии» с поставщика (реальные заказы не режем по этому лимиту на бэке). */
     public const SUPPLIER_LISTING_QTY = 9999;
+
+    /**
+     * Варианты, которые реально попадают на витрину: предзаказ, либо активный вариант
+     * с остатком на складе (main/supplier) или активной привязкой к прайсу поставщика.
+     *
+     * @param  Builder<ProductVariantLink>  $query
+     */
+    public static function applyStorefrontListingEligibleScope(Builder $query): void
+    {
+        $query->where(function (Builder $outer): void {
+            $outer->where('is_preorder', true)
+                ->orWhere(function (Builder $inner): void {
+                    $inner->where('is_active', true)
+                        ->where(function (Builder $channel): void {
+                            $channel->whereHas('warehouseStocks', function (Builder $stockQuery): void {
+                                $stockQuery
+                                    ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0')
+                                    ->whereHas('warehouse', function (Builder $warehouseQuery): void {
+                                        $warehouseQuery->whereIn('code', [
+                                            Warehouse::CODE_MAIN,
+                                            Warehouse::CODE_SUPPLIER,
+                                        ]);
+                                    });
+                            })->orWhereHas('supplierOffers', function (Builder $offerQuery): void {
+                                self::applySupplierOfferListingScope($offerQuery);
+                            });
+                        });
+                });
+        });
+    }
 
     /**
      * Флаги в payload оффера поставщика, при которых витрина не считает позицию доступной по каналу прайса.
@@ -263,8 +294,6 @@ final class CatalogVariantStockPresenter
             ];
         }
 
-        $fallbackAvailable = max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
-
         if ($supplierStock) {
             $supplierAvailable = max(
                 0,
@@ -282,10 +311,10 @@ final class CatalogVariantStockPresenter
         }
 
         return [
-            'stock' => (int) $variant->stock,
-            'reserved_stock' => (int) ($variant->reserved_stock ?? 0),
-            'available_stock' => $fallbackAvailable,
-            'is_available' => $fallbackAvailable > 0 || $preorder,
+            'stock' => 0,
+            'reserved_stock' => 0,
+            'available_stock' => 0,
+            'is_available' => $preorder,
             'is_preorder' => $preorder,
             'supplier_listing_price' => false,
         ];

@@ -51,6 +51,14 @@ final class CatalogListingStockContext
         self::$instance = self::fromProducts($products);
     }
 
+    /**
+     * @param  Collection<int, ProductVariantLink>  $variantLinks
+     */
+    public static function primeFromVariantLinks(Collection $variantLinks): void
+    {
+        self::$instance = self::fromVariantLinks($variantLinks);
+    }
+
     public static function forget(): void
     {
         self::$instance = null;
@@ -74,6 +82,17 @@ final class CatalogListingStockContext
 
                 return $product->activeVariants;
             })
+            ->filter(static fn ($variant): bool => $variant instanceof ProductVariantLink);
+
+        return self::fromVariantLinks($variants);
+    }
+
+    /**
+     * @param  Collection<int, ProductVariantLink>  $variants
+     */
+    public static function fromVariantLinks(Collection $variants): self
+    {
+        $variants = $variants
             ->filter(static fn ($variant): bool => $variant instanceof ProductVariantLink);
 
         if ($variants->isEmpty()) {

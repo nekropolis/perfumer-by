@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type RefObject } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 import { siteBtnPrimary, siteCard, siteMenuRow } from "@/lib/site-ui-classes";
+import { isHeaderNavLinkActive } from "@/lib/header-nav-active";
 
 type MenuPanel = "root" | "catalog" | "content";
 
@@ -29,7 +31,8 @@ type Props = {
 };
 
 const ROOT_LINKS = [
-    { label: "Новинки", href: "/catalog?sort=new" },
+    { label: "Новинки", href: "/catalog?new=1" },
+    { label: "Хиты", href: "/catalog?hit=1" },
     { label: "Акции", href: "/catalog?sale=1" },
     { label: "Бренды", href: "/brands" },
     { label: "Избранное", href: "/wishlist", badgeKey: "wishlist" as const },
@@ -56,6 +59,8 @@ export default function HeaderMobileMenu({
     onLogoutAction,
     menuRootRef,
 }: Props) {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const [panel, setPanel] = useState<MenuPanel>("root");
 
     if (!isOpen) {
@@ -125,12 +130,18 @@ export default function HeaderMobileMenu({
                             <ChevronRight className="h-4 w-4 text-admin-text-muted" />
                         </button>
 
-                        {ROOT_LINKS.map((item) => (
+                        {ROOT_LINKS.map((item) => {
+                            const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
+
+                            return (
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={siteMenuRow}
+                                className={`${siteMenuRow} ${
+                                    isActive ? "bg-admin-muted text-admin-text" : ""
+                                }`}
                                 onClick={handleNavigate}
+                                aria-current={isActive ? "page" : undefined}
                             >
                                 <span className="inline-flex items-center gap-2">
                                     {item.label}
@@ -141,7 +152,8 @@ export default function HeaderMobileMenu({
                                     ) : null}
                                 </span>
                             </Link>
-                        ))}
+                            );
+                        })}
 
                         <button
                             type="button"

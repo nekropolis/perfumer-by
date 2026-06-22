@@ -6,6 +6,10 @@ import { useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive } from "@/lib/site-ui-classes";
+import {
+    buildCatalogFacetedFiltersResetPath,
+    hasCatalogFacetedFilters,
+} from "@/lib/catalog-listing-query";
 
 type Props = {
     basePath: string;
@@ -204,8 +208,8 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
     }, [searchParams, brands, safeAttributes, pushParams]);
 
     const hasActiveFilters = useMemo(
-        () => Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort"),
-        [searchParams]
+        () => hasCatalogFacetedFilters(searchParams),
+        [searchParams],
     );
 
     const currentSortLabel = SORT_OPTIONS.find((item) => item.value === currentSort)?.label ?? SORT_OPTIONS[0].label;
@@ -354,7 +358,7 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                         {hasActiveFilters ? (
                             <button
                                 type="button"
-                                onClick={() => navigate(basePath)}
+                                onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
                                 className="text-xs font-medium text-admin-text-secondary transition hover:text-admin-text"
                             >
                                 Сбросить фильтры

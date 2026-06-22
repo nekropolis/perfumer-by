@@ -7,6 +7,10 @@ import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput } from "@/lib/site-ui-classes";
+import {
+    buildCatalogFacetedFiltersResetPath,
+    hasCatalogFacetedFilters,
+} from "@/lib/catalog-listing-query";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -60,8 +64,8 @@ export default function CatalogFilters({
     );
     const [optimisticBrandIds, setOptimisticBrandIds] = useOptimistic(selectedBrandIds);
     const hasActiveFilters = useMemo(
-        () => Array.from(searchParams.keys()).some((key) => key !== "page" && key !== "sort"),
-        [searchParams]
+        () => hasCatalogFacetedFilters(searchParams),
+        [searchParams],
     );
 
     const pushParams = (mutator: (params: URLSearchParams) => void) => {
@@ -96,7 +100,7 @@ export default function CatalogFilters({
     };
 
     const resetFilters = () => {
-        navigate(basePath);
+        navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams));
     };
 
     const applyPrice = () => {

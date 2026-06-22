@@ -37,6 +37,7 @@ export type AdminProductVariantItem = {
     fulfillment_tooltip?: string;
     is_preorder?: boolean;
     is_active?: boolean;
+    is_promotion?: boolean;
     active_supplier_offers_count?: number;
     /** Как цена уходит на витрину (null — не показываем «висячую» розницу без канала продаж). */
     catalog_list_price?: number | null;
@@ -69,6 +70,7 @@ export type ProductVariantPayload = {
     stock?: number;
     is_preorder?: boolean;
     is_active?: boolean;
+    is_promotion?: boolean;
     sort_order?: number;
 };
 

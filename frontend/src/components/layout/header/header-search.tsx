@@ -218,7 +218,7 @@ export default function HeaderSearch({
                                                 <ProductStatusLabels
                                                     isNew={Boolean(item.is_new)}
                                                     isHit={Boolean(item.is_hit)}
-                                                    hasDiscount={Boolean(item.has_discount)}
+                                                    hasPromotion={Boolean(item.has_promotion ?? item.has_discount)}
                                                     className="left-1 top-1 scale-90 origin-top-left"
                                                 />
                                                 {imageSrc ? (

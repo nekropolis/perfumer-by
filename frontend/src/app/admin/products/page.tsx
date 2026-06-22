@@ -184,6 +184,7 @@ export default function AdminProductsPage() {
                 stock: actualVariant.stock ?? 0,
                 is_preorder: actualVariant.is_preorder ?? false,
                 is_active: actualVariant.is_active ?? true,
+                is_promotion: actualVariant.is_promotion ?? false,
                 sort_order: actualVariant.sort_order ?? 0,
             });
 
@@ -349,6 +350,15 @@ export default function AdminProductsPage() {
                     renderVariantToolbarAction={(variant) => (
                         <VariantSuppliersSummaryRow
                             variant={variant}
+                            productId={variantsTarget.id}
+                            onPromotionUpdatedAction={(variantId, next) => {
+                                setVariantSuppliers((prev) =>
+                                    prev.map((row) =>
+                                        row.id === variantId ? { ...row, is_promotion: next } : row,
+                                    ),
+                                );
+                            }}
+                            onPromotionErrorAction={setError}
                             priceSlot={
                                 <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
                                     <input

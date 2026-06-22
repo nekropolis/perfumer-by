@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { HeaderNavLink } from "@/components/layout/header/types";
+import { isHeaderNavLinkActive } from "@/lib/header-nav-active";
 
 type HeaderNavProps = {
     isCompact: boolean;
@@ -11,6 +12,7 @@ type HeaderNavProps = {
 
 export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     return (
         <div
@@ -21,10 +23,7 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
         >
             <div className="mx-auto flex h-11 max-w-7xl items-center gap-1 px-4 sm:px-6 lg:px-8">
                 {links.map((item) => {
-                    const isActive =
-                        item.href === "/"
-                            ? pathname === "/"
-                            : pathname === item.href || pathname.startsWith(`${item.href}/`) || pathname.startsWith(`${item.href}?`);
+                    const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 
                     return (
                         <Link
@@ -35,6 +34,7 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
                                     ? "bg-admin-muted text-admin-text"
                                     : "text-admin-text-secondary hover:bg-admin-muted/70 hover:text-admin-text"
                             }`}
+                            aria-current={isActive ? "page" : undefined}
                         >
                             {item.label}
                         </Link>

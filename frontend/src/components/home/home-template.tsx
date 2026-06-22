@@ -20,7 +20,7 @@ const categories = [
 
 const promos = [
     { title: "Сезонная подборка", description: "Тёплые шлейфовые композиции для вечера и прохладных дней.", href: "/catalog?sale=1" },
-    { title: "Новые поступления", description: "Свежие релизы брендов, которые уже доступны в каталоге.", href: "/catalog?sort=new" },
+    { title: "Новые поступления", description: "Свежие релизы брендов, которые уже доступны в каталоге.", href: "/catalog?new=1" },
 ];
 
 const brands = [

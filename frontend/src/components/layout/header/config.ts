@@ -4,7 +4,8 @@ export const HEADER_CATALOG_TRIGGER = {
 } as const;
 
 export const HEADER_SECONDARY_LINKS = [
-    { label: "Новинки", href: "/catalog?sort=new" },
+    { label: "Новинки", href: "/catalog?new=1" },
+    { label: "Хиты", href: "/catalog?hit=1" },
     { label: "Акции", href: "/catalog?sale=1" },
     { label: "Бренды", href: "/brands" },
     { label: "Новости", href: "/news" },

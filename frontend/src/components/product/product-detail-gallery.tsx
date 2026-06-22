@@ -15,10 +15,10 @@ import { normalizeProductImages } from "@/lib/product-detail-utils";
 
 type Props = {
     product: ProductDetailData;
-    selectedVariantHasDiscount: boolean;
+    selectedVariantHasPromotion: boolean;
 };
 
-export default function ProductDetailGallery({ product, selectedVariantHasDiscount }: Props) {
+export default function ProductDetailGallery({ product, selectedVariantHasPromotion }: Props) {
     const images = useMemo(() => normalizeProductImages(product.images), [product.images]);
     const defaultImage = images.find((image) => image.is_main) || images[0] || null;
 
@@ -110,7 +110,7 @@ export default function ProductDetailGallery({ product, selectedVariantHasDiscou
                     <ProductStatusLabels
                         isNew={Boolean(product.is_new)}
                         isHit={Boolean(product.is_hit)}
-                        hasDiscount={selectedVariantHasDiscount}
+                        hasPromotion={selectedVariantHasPromotion}
                     />
                     {mainImageUrl ? (
                         <div className="h-full w-full">

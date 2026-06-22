@@ -231,6 +231,7 @@ export type ProductVariantSupplierItem = {
     /** Витрина: флаг «Активен» на связке варианта. */
     is_active?: boolean;
     is_preorder?: boolean;
+    is_promotion?: boolean;
     site_price?: number | string | null;
     stock: number;
     /** Как на витрине (CatalogVariantStockPresenter::forListing). */

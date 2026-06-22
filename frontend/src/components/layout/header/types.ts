@@ -18,6 +18,7 @@ export type HeaderSearchItem = {
     is_new?: boolean;
     is_hit?: boolean;
     has_discount?: boolean;
+    has_promotion?: boolean;
     is_out_of_stock?: boolean;
     is_preorder_available?: boolean;
     /** Свободный остаток по вариантам (учёт резерва) — для подписи в подсказке поиска */

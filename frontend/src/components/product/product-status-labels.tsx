@@ -3,12 +3,12 @@ import { resolveProductStatuses } from "@/lib/product-statuses";
 type Props = {
     isNew: boolean;
     isHit: boolean;
-    hasDiscount: boolean;
+    hasPromotion: boolean;
     className?: string;
 };
 
-export default function ProductStatusLabels({ isNew, isHit, hasDiscount, className = "" }: Props) {
-    const labels = resolveProductStatuses({ isNew, isHit, hasDiscount });
+export default function ProductStatusLabels({ isNew, isHit, hasPromotion, className = "" }: Props) {
+    const labels = resolveProductStatuses({ isNew, isHit, hasPromotion });
 
     if (labels.length === 0) {
         return null;

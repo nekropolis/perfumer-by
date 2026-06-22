@@ -44,17 +44,20 @@ export default function ProductCardBody({
 
     const { cardTitle, brandName, showBrandLine, productTitle } = getProductCardTitleParts(product);
     const oldPrice = formatProductCardOldPrice(product);
+    const productHref = product.listing_variant_id
+        ? `/product/${product.slug}?variant=${product.listing_variant_id}`
+        : `/product/${product.slug}`;
 
     return (
         <Link
-            href={`/product/${product.slug}`}
+            href={productHref}
             className={`${siteCard} group relative flex h-full min-w-0 flex-col p-3 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md active:scale-[0.99] sm:p-4`}
         >
             <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-lg bg-admin-muted sm:mb-4 sm:rounded-xl">
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
-                    hasDiscount={Boolean(product.has_discount)}
+                    hasPromotion={Boolean(product.has_promotion)}
                 />
 
                 {wishlistSlot}

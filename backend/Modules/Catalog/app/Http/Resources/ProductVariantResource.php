@@ -71,6 +71,7 @@ class ProductVariantResource extends JsonResource
             'available_stock' => $availableStock,
             'is_preorder' => $effectivePreorder,
             'is_available' => $presented['is_available'],
+            'is_promotion' => (bool) $variant->is_promotion,
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
             'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
