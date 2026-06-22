@@ -2,12 +2,13 @@
 
 namespace Modules\Checkout\Services;
 
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Loyalty\Models\DiscountCard;
 
 final class AdminOrderPricingService
 {
     /**
-     * @param  array<int, array{qty: int, price: float|int|string}>  $items
+     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
      * @return array{
      *     subtotal: float,
      *     loyalty_discount_percent: float,
@@ -28,8 +29,9 @@ final class AdminOrderPricingService
         $percent = $card && $applyCardDiscount
             ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent)
             : 0.0;
+        $loyaltyEligibleSubtotal = $this->loyaltyEligibleSubtotal($items);
         $loyaltyAmount = $card && $applyCardDiscount
-            ? round($subtotal * ($percent / 100), 2)
+            ? round($loyaltyEligibleSubtotal * ($percent / 100), 2)
             : 0.0;
         $merchandiseTotal = max(0, round($subtotal - $loyaltyAmount, 2));
 
@@ -57,7 +59,7 @@ final class AdminOrderPricingService
     }
 
     /**
-     * @param  array<int, array{qty: int, price: float|int|string}>  $items
+     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
      */
     private function itemsSubtotal(array $items): float
     {
@@ -69,5 +71,43 @@ final class AdminOrderPricingService
         }
 
         return round($subtotal, 2);
+    }
+
+    /**
+     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
+     */
+    private function loyaltyEligibleSubtotal(array $items): float
+    {
+        $variantIds = [];
+        foreach ($items as $item) {
+            $variantId = (int) ($item['variant_id'] ?? 0);
+            if ($variantId > 0) {
+                $variantIds[$variantId] = true;
+            }
+        }
+
+        $promotionVariantIds = [];
+        if ($variantIds !== []) {
+            $promotionVariantIds = ProductVariantLink::query()
+                ->whereIn('id', array_keys($variantIds))
+                ->where('is_promotion', true)
+                ->pluck('id')
+                ->flip()
+                ->all();
+        }
+
+        $eligible = 0.0;
+        foreach ($items as $item) {
+            $variantId = (int) ($item['variant_id'] ?? 0);
+            if ($variantId > 0 && isset($promotionVariantIds[$variantId])) {
+                continue;
+            }
+
+            $qty = max(0, (int) ($item['qty'] ?? 0));
+            $price = round((float) ($item['price'] ?? 0), 2);
+            $eligible += round($qty * $price, 2);
+        }
+
+        return round($eligible, 2);
     }
 }

@@ -44,7 +44,13 @@ export default function ProductBuyBox({
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
 
-    const hasLoyaltyDiscount = Boolean(loyaltyCardNumber && loyaltyPercent > 0 && loyaltyPrice && selectedVariant?.price);
+    const hasLoyaltyDiscount = Boolean(
+        loyaltyCardNumber &&
+            loyaltyPercent > 0 &&
+            loyaltyPrice &&
+            selectedVariant?.price &&
+            !selectedVariant.is_promotion,
+    );
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
     const selectedVariantId = selectedVariant?.id ?? null;

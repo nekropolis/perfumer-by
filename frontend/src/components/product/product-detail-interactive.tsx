@@ -15,7 +15,7 @@ import ProductServiceInfo from "@/components/product/product-service-info";
 import ProductReviewsTab from "@/components/product/product-reviews-tab";
 import ProductDetailGallery from "@/components/product/product-detail-gallery";
 import { productDisplayName } from "@/lib/product-display-name";
-import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import { applyPercentDiscount, isVariantEligibleForLoyaltyCardDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import {
     formatProductDetailPrice,
     formatVariantConcentrationLabel,
@@ -68,10 +68,13 @@ export default function ProductDetailInteractive({
     );
     const selectedVariantHasPromotion = Boolean(selectedVariant?.is_promotion);
     const loyaltyCard = resolveActiveLoyaltyCard(user?.discount_cards);
-    const loyaltyPrice = applyPercentDiscount(
-        selectedVariant?.price ?? null,
-        loyaltyCard?.discountPercent ?? 0,
+    const selectedVariantEligibleForLoyalty = isVariantEligibleForLoyaltyCardDiscount(
+        selectedVariant?.is_promotion,
     );
+    const loyaltyPrice =
+        selectedVariantEligibleForLoyalty && loyaltyCard
+            ? applyPercentDiscount(selectedVariant?.price ?? null, loyaltyCard.discountPercent ?? 0)
+            : null;
 
     const inWishlist = isInWishlist(product.id);
 
@@ -144,7 +147,10 @@ export default function ProductDetailInteractive({
                                             product.is_out_of_stock,
                                         );
                                         const displayPrice =
-                                            isAuthenticated && loyaltyCard && variant.price
+                                            isAuthenticated &&
+                                            loyaltyCard &&
+                                            variant.price &&
+                                            isVariantEligibleForLoyaltyCardDiscount(variant.is_promotion)
                                                 ? applyPercentDiscount(
                                                       variant.price,
                                                       loyaltyCard.discountPercent,
@@ -222,8 +228,16 @@ export default function ProductDetailInteractive({
                         productId={product.id}
                         productName={productDisplayName(product)}
                         isProductOutOfStock={product.is_out_of_stock}
-                        loyaltyCardNumber={isAuthenticated ? (loyaltyCard?.number ?? null) : null}
-                        loyaltyPercent={isAuthenticated ? (loyaltyCard?.discountPercent ?? 0) : 0}
+                        loyaltyCardNumber={
+                            isAuthenticated && selectedVariantEligibleForLoyalty
+                                ? (loyaltyCard?.number ?? null)
+                                : null
+                        }
+                        loyaltyPercent={
+                            isAuthenticated && selectedVariantEligibleForLoyalty
+                                ? (loyaltyCard?.discountPercent ?? 0)
+                                : 0
+                        }
                         loyaltyPrice={isAuthenticated ? loyaltyPrice : null}
                     />
                 </aside>

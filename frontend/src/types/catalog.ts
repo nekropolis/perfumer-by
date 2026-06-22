@@ -94,6 +94,12 @@ export type ProductListItem = {
     has_promotion: boolean;
     discount_percent: number | null;
 
+    /** Цены только по вариантам, к которым применима скидка по карте (без акций). */
+    loyalty_price_range?: {
+        min: string | null;
+        max: string | null;
+    } | null;
+
     stock_total: number;
     is_preorder_available: boolean;
     variants_count: number;

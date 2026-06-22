@@ -23,7 +23,12 @@ class LoyaltyPricingService
         $applyCardDiscount = $paymentMethod !== 'card';
 
         $subtotal = $this->cartSubtotal($cart, $options['checkout_cart_item_ids'] ?? null);
-        $loyaltyDiscount = $this->loyaltyDiscountAmount($cart, $user, $subtotal, $applyCardDiscount);
+        $loyaltyDiscount = $this->loyaltyDiscountAmount(
+            $cart,
+            $user,
+            $applyCardDiscount,
+            $options['checkout_cart_item_ids'] ?? null,
+        );
         $payableBeforeCert = max(0, round($subtotal - $loyaltyDiscount, 2));
 
         $code = trim((string) $cart->gift_certificate_code);
@@ -71,7 +76,7 @@ class LoyaltyPricingService
             ? DiscountCard::effectiveDiscountPercent((float) $cardForDiscount->discount_percent)
             : 0.0;
         $loyaltyDiscount = $cardForDiscount
-            ? round($subtotal * ($cardPercent / 100), 2)
+            ? $this->loyaltyDiscountAmount($cart, $user, true, $options['checkout_cart_item_ids'] ?? null)
             : 0.0;
 
         $certificate = $this->resolveGiftCertificate($cart);
@@ -171,16 +176,53 @@ class LoyaltyPricingService
         });
     }
 
-    private function loyaltyDiscountAmount(Cart $cart, ?CustomerUser $user, float $subtotal, bool $applyCardDiscount): float
-    {
+    /**
+     * @param  int[]|null  $onlyCartItemIds
+     */
+    private function loyaltyDiscountAmount(
+        Cart $cart,
+        ?CustomerUser $user,
+        bool $applyCardDiscount,
+        ?array $onlyCartItemIds = null,
+    ): float {
         if (!$applyCardDiscount) {
+            return 0.0;
+        }
+
+        $eligibleSubtotal = $this->cartLoyaltyEligibleSubtotal($cart, $onlyCartItemIds);
+        if ($eligibleSubtotal <= 0) {
             return 0.0;
         }
 
         $card = $this->resolveDiscountCard($cart, $user);
         $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
 
-        return round($subtotal * ($cardPercent / 100), 2);
+        return round($eligibleSubtotal * ($cardPercent / 100), 2);
+    }
+
+    /**
+     * Сумма строк корзины, к которым применяется скидка по карте (без акционных вариантов).
+     *
+     * @param  int[]|null  $onlyCartItemIds
+     */
+    private function cartLoyaltyEligibleSubtotal(Cart $cart, ?array $onlyCartItemIds = null): float
+    {
+        $rows = $cart->items;
+        if ($onlyCartItemIds !== null) {
+            if ($onlyCartItemIds === []) {
+                return 0.0;
+            }
+            $allowed = array_fill_keys(array_map('intval', $onlyCartItemIds), true);
+            $rows = $rows->filter(fn ($item) => isset($allowed[(int) $item->id]));
+        }
+
+        return (float) $rows->sum(function ($item) {
+            if ((bool) ($item->variant?->is_promotion ?? false)) {
+                return 0.0;
+            }
+
+            return ((float) ($item->variant?->price ?? 0)) * (int) $item->qty;
+        });
     }
 
     private function userHasVerifiedLink(CustomerUser $user, DiscountCard $card): bool

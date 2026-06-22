@@ -71,3 +71,31 @@ export function applyPercentDiscount(price: string | null, percent: number): str
     return discounted.toFixed(2);
 }
 
+/** Скидка по накопительной карте не применяется к акционным вариантам. */
+export function isVariantEligibleForLoyaltyCardDiscount(isPromotion?: boolean | null): boolean {
+    return !isPromotion;
+}
+
+type LoyaltyCardPriceRange = {
+    min: string | null;
+    max: string | null;
+};
+
+/** Диапазон цен для подписи «По карте» в листинге (без акционных вариантов). */
+export function resolveProductListLoyaltyPriceRange(product: {
+    listing_variant_id?: number | null;
+    loyalty_price_range?: LoyaltyCardPriceRange | null;
+    price_range?: LoyaltyCardPriceRange | null;
+}): LoyaltyCardPriceRange | null {
+    if (product.listing_variant_id) {
+        return null;
+    }
+
+    const range = product.loyalty_price_range ?? product.price_range;
+    if (!range?.min) {
+        return null;
+    }
+
+    return range;
+}
+

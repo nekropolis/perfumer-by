@@ -352,6 +352,7 @@ class OrderController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
@@ -708,6 +709,7 @@ class OrderController extends Controller
             array_map(static fn (array $item): array => [
                 'qty' => (int) $item['qty'],
                 'price' => (float) $item['price'],
+                'variant_id' => isset($item['variant_id']) ? (int) $item['variant_id'] : null,
             ], $items),
             $paymentMethod,
             $discountCardNumber !== null && trim((string) $discountCardNumber) !== ''

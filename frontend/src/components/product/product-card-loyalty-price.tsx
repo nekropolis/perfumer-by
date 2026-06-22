@@ -3,7 +3,11 @@
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ProductListItem } from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
-import { applyPercentDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import {
+    applyPercentDiscount,
+    resolveActiveLoyaltyCard,
+    resolveProductListLoyaltyPriceRange,
+} from "@/lib/loyalty-pricing";
 
 type Props = {
     product: ProductListItem;
@@ -21,8 +25,13 @@ export default function ProductCardLoyaltyPrice({ product }: Props) {
         return null;
     }
 
-    const loyaltyMin = applyPercentDiscount(product.price_range?.min, loyaltyCard.discountPercent ?? 0);
-    const loyaltyMax = applyPercentDiscount(product.price_range?.max, loyaltyCard.discountPercent ?? 0);
+    const loyaltyRange = resolveProductListLoyaltyPriceRange(product);
+    if (!loyaltyRange) {
+        return null;
+    }
+
+    const loyaltyMin = applyPercentDiscount(loyaltyRange.min, loyaltyCard.discountPercent ?? 0);
+    const loyaltyMax = applyPercentDiscount(loyaltyRange.max, loyaltyCard.discountPercent ?? 0);
     const loyaltyMinFmt = formatMoneyDisplay(loyaltyMin);
     const loyaltyMaxFmt = formatMoneyDisplay(loyaltyMax);
 

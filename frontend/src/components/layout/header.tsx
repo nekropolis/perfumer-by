@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
@@ -427,9 +427,12 @@ export default function Header() {
                 />
             </div>
 
-            <HeaderNav isCompact={false} links={HEADER_SECONDARY_LINKS} />
+            <Suspense fallback={null}>
+                <HeaderNav isCompact={false} links={HEADER_SECONDARY_LINKS} />
+            </Suspense>
 
-            <HeaderMobileMenu
+            <Suspense fallback={null}>
+                <HeaderMobileMenu
                 isOpen={isMobileOpen}
                 menuRootRef={mobileMenuRootRef}
                 anchorBottom={menuAnchorBottom}
@@ -450,6 +453,7 @@ export default function Header() {
                     setIsMobileOpen(false);
                 }}
             />
+            </Suspense>
 
             <HeaderCatalogDrawer
                 isOpen={isCatalogDrawerOpen}

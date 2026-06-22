@@ -113,6 +113,19 @@ class ProductListResource extends JsonResource
         $minOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->min() : null;
         $maxOldPrice = $oldPrices->isNotEmpty() ? $oldPrices->max() : null;
 
+        $loyaltyEligibleVariants = $variants->filter(
+            static fn ($variant): bool => !(bool) $variant->is_promotion
+        );
+        $loyaltyPrices = $loyaltyEligibleVariants
+            ->map(function ($variant) use ($stockContext, $presentedByVariant) {
+                $presented = $presentedByVariant[(int) $variant->id];
+
+                return $stockContext->storefrontVariantPrice($variant, $presented);
+            })
+            ->filter();
+        $loyaltyMinPrice = $loyaltyPrices->isNotEmpty() ? $loyaltyPrices->min() : null;
+        $loyaltyMaxPrice = $loyaltyPrices->isNotEmpty() ? $loyaltyPrices->max() : null;
+
         $stockTotal = (int) $variants->sum(
             fn ($variant) => $presentedByVariant[(int) $variant->id]['stock']
         );
@@ -207,6 +220,11 @@ class ProductListResource extends JsonResource
                 'max' => $maxOldPrice,
             ],
 
+            'loyalty_price_range' => [
+                'min' => $loyaltyMinPrice,
+                'max' => $loyaltyMaxPrice,
+            ],
+
             'has_discount' => $discountPercent !== null,
             'discount_percent' => $discountPercent,
             'has_promotion' => $variants->contains(static fn ($variant): bool => (bool) $variant->is_promotion),
@@ -298,6 +316,11 @@ class ProductListResource extends JsonResource
             'old_price_range' => [
                 'min' => $oldPrice,
                 'max' => $oldPrice,
+            ],
+
+            'loyalty_price_range' => [
+                'min' => null,
+                'max' => null,
             ],
 
             'has_discount' => $discountPercent !== null,
