@@ -6,36 +6,32 @@ type Props = {
     cellClassName: string;
 };
 
-function warehouseCellsPair(
+const ON_WAREHOUSE_LABEL = "на складе";
+
+type DetailLine = { key: string; cells: ReactNode[] };
+
+function warehouseQtyCell(
     warehouses: Array<{
         warehouse_name: string | null;
         stock: number;
         available_stock: number;
     }>,
     cellClassName: string,
-): [ReactNode, ReactNode] {
+): ReactNode {
     if (warehouses.length === 0) {
-        return [
-            <td key="wh-n" className={cellClassName}>
-                —
-            </td>,
+        return (
             <td key="wh-q" className={cellClassName}>
                 —
-            </td>,
-        ];
+            </td>
+        );
     }
 
-    return [
-        <td key="wh-n" className={cellClassName}>
-            {warehouses.map((w) => w.warehouse_name || "—").join(", ")}
-        </td>,
+    return (
         <td key="wh-q" className={cellClassName}>
             {warehouses.map((w) => `${w.stock} шт.`).join(", ")}
-        </td>,
-    ];
+        </td>
+    );
 }
-
-type DetailLine = { key: string; cells: ReactNode[] };
 
 function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: string): DetailLine[] {
     const mainStore = variant.main_store_rows ?? [];
@@ -51,7 +47,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
             key: `main-store-${row.receipt_item_id}`,
             cells: [
                 <td key="c1" className={cellClassName}>
-                    {row.supplier_name}
+                    {ON_WAREHOUSE_LABEL}
                 </td>,
                 <td key="c2" className={cellClassName}>
                     {row.supplier_code}
@@ -63,9 +59,6 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                     {row.supplier_price ?? "—"}
                 </td>,
                 <td key="c5" className={cellClassName}>
-                    {row.warehouse_name || "—"}
-                </td>,
-                <td key="c6" className={cellClassName}>
                     {row.qty} шт.
                 </td>,
             ],
@@ -73,7 +66,6 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
     });
 
     suppliers.forEach((supplier) => {
-        const [whName, whQty] = warehouseCellsPair(supplierWarehouses, cellClassName);
         lines.push({
             key: `supplier-offer-${supplier.offer_id}`,
             cells: [
@@ -89,8 +81,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                 <td key="c4" className={cellClassName}>
                     {supplier.supplier_price ?? "—"}
                 </td>,
-                whName,
-                whQty,
+                warehouseQtyCell(supplierWarehouses, cellClassName),
             ],
         });
     });
@@ -101,7 +92,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                 key: `receipt-batch-${batch.receipt_item_id}`,
                 cells: [
                     <td key="c1" className={cellClassName}>
-                        {batch.supplier_name || "Магазин"}
+                        {ON_WAREHOUSE_LABEL}
                     </td>,
                     <td key="c2" className={cellClassName}>
                         {batch.supplier_code
@@ -114,9 +105,6 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                         {batch.supplier_price ?? "—"}
                     </td>,
                     <td key="c5" className={cellClassName}>
-                        {batch.warehouse_name || "—"}
-                    </td>,
-                    <td key="c6" className={cellClassName}>
                         {batch.qty} шт.
                     </td>,
                 ],
@@ -129,8 +117,8 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
             lines.push({
                 key: `warehouse-only-${variant.id}-${idx}`,
                 cells: [
-                    <td key="c1" className={`${cellClassName} text-admin-text-secondary`}>
-                        Магазин
+                    <td key="c1" className={cellClassName}>
+                        {ON_WAREHOUSE_LABEL}
                     </td>,
                     <td key="c2" className={`${cellClassName} text-admin-text-secondary`}>
                         —
@@ -142,9 +130,6 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                         —
                     </td>,
                     <td key="c5" className={cellClassName}>
-                        {warehouse.warehouse_name || "—"}
-                    </td>,
-                    <td key="c6" className={cellClassName}>
                         {warehouse.stock} шт.
                     </td>,
                 ],
@@ -165,7 +150,7 @@ export default function VariantSuppliersTableRows({ variant, cellClassName }: Pr
     if (lines.length === 0) {
         return (
             <tr className="border-t">
-                <td colSpan={6} className={`${cellClassName} text-admin-text-secondary`}>
+                <td colSpan={5} className={`${cellClassName} text-admin-text-secondary`}>
                     {emptyMessage}
                 </td>
             </tr>

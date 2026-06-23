@@ -15,7 +15,6 @@ import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
-import VariantSuppliersSummaryRow from "@/components/admin/products/variant-suppliers-summary-row";
 import ProductCatalogTabs from "@/components/admin/products/product-catalog-tabs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
@@ -340,6 +339,7 @@ export default function AdminProductsPage() {
             {variantsTarget ? (
                 <ProductVariantSuppliersModal
                     open
+                    layout="flat"
                     onCloseAction={() => setVariantsTarget(null)}
                     productId={variantsTarget.id}
                     productName={variantsTarget.name}
@@ -347,40 +347,25 @@ export default function AdminProductsPage() {
                     suppliers={variantSuppliers}
                     suppliersLoading={variantsLoading}
                     suppliersError={error}
-                    renderVariantToolbarAction={(variant) => (
-                        <VariantSuppliersSummaryRow
-                            variant={variant}
-                            productId={variantsTarget.id}
-                            onPromotionUpdatedAction={(variantId, next) => {
-                                setVariantSuppliers((prev) =>
-                                    prev.map((row) =>
-                                        row.id === variantId ? { ...row, is_promotion: next } : row,
-                                    ),
-                                );
-                            }}
-                            onPromotionErrorAction={setError}
-                            priceSlot={
-                                <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={getVariantPriceInputValue(variant)}
-                                        onChange={(e) =>
-                                            setVariantPriceDrafts((prev) => ({
-                                                ...prev,
-                                                [variant.id]: e.target.value,
-                                            }))
-                                        }
-                                        onBlur={() => void saveVariantSitePriceOnBlur(variant)}
-                                        disabled={variantPriceSavingId === variant.id}
-                                        placeholder="—"
-                                        className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
-                                    />
-                                    <span>{variantPriceSavingId === variant.id ? "…" : "BYN"}</span>
-                                </span>
-                            }
-                        />
-                    )}
+                    flatTableOptions={{
+                        productId: variantsTarget.id,
+                        onPromotionUpdatedAction: (variantId, next) => {
+                            setVariantSuppliers((prev) =>
+                                prev.map((row) =>
+                                    row.id === variantId ? { ...row, is_promotion: next } : row,
+                                ),
+                            );
+                        },
+                        onPromotionErrorAction: setError,
+                        getVariantPriceInputValue: getVariantPriceInputValue,
+                        onVariantPriceChange: (variantId, value) =>
+                            setVariantPriceDrafts((prev) => ({
+                                ...prev,
+                                [variantId]: value,
+                            })),
+                        onVariantPriceBlur: (variant) => void saveVariantSitePriceOnBlur(variant),
+                        variantPriceSavingId,
+                    }}
                 />
             ) : null}
         </AdminPageCard>

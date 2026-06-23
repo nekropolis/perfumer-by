@@ -9,19 +9,9 @@ import VariantSuppliersTableRows from "@/components/admin/products/variant-suppl
 import VariantSuppliersSummaryRow, {
     formatProductSuppliersModalTitle,
 } from "@/components/admin/products/variant-suppliers-summary-row";
-
-const SUPPLIER_TABLE_HEAD = (
-    <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
-        <tr>
-            <th className="px-3 py-2">Поставщик</th>
-            <th className="px-3 py-2">Код</th>
-            <th className="px-3 py-2">Название у поставщика</th>
-            <th className="px-3 py-2">Закуп. цена</th>
-            <th className="px-3 py-2">Склад</th>
-            <th className="px-3 py-2">Кол-во</th>
-        </tr>
-    </thead>
-);
+import ProductVariantSuppliersFlatTable, {
+    SUPPLIER_TABLE_HEAD,
+} from "@/components/admin/products/product-variant-suppliers-flat-table";
 
 export type ProductVariantSuppliersModalProps = {
     open: boolean;
@@ -44,6 +34,16 @@ export type ProductVariantSuppliersModalProps = {
     suppliers?: ProductVariantSupplierItem[] | null;
     suppliersLoading?: boolean;
     suppliersError?: string;
+    layout?: "grouped" | "flat";
+    flatTableOptions?: {
+        productId: number;
+        onPromotionUpdatedAction?: (variantId: number, next: boolean) => void;
+        onPromotionErrorAction?: (message: string) => void;
+        getVariantPriceInputValue?: (variant: ProductVariantSupplierItem) => string;
+        onVariantPriceChange?: (variantId: number, value: string) => void;
+        onVariantPriceBlur?: (variant: ProductVariantSupplierItem) => void;
+        variantPriceSavingId?: number | null;
+    };
 };
 
 export function ProductVariantSuppliersGroupedTable({
@@ -105,6 +105,8 @@ export default function ProductVariantSuppliersModal({
     suppliers: suppliersFromParent,
     suppliersLoading: suppliersLoadingFromParent,
     suppliersError: suppliersErrorFromParent,
+    layout = "grouped",
+    flatTableOptions,
 }: ProductVariantSuppliersModalProps) {
     const [items, setItems] = useState<ProductVariantSupplierItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -176,6 +178,12 @@ export default function ProductVariantSuppliersModal({
                             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                                 {error}
                             </div>
+                        ) : layout === "flat" ? (
+                            <ProductVariantSuppliersFlatTable
+                                variants={items}
+                                highlightVariantId={highlightVariantId}
+                                flatTableOptions={flatTableOptions}
+                            />
                         ) : (
                             <ProductVariantSuppliersGroupedTable
                                 variants={items}

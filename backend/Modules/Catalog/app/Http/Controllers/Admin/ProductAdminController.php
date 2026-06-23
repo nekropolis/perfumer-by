@@ -17,6 +17,7 @@ use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\ImportExport\Services\ImportRetryQueue;
@@ -418,9 +419,9 @@ class ProductAdminController extends Controller
                 },
                 'warehouseStocks.warehouse',
             ])
-            ->orderBy('sort_order')
-            ->orderBy('id')
             ->get();
+
+        $variants = VariantDefinitionVolume::sortVariantLinks($variants);
 
         $receiptItemsByVariant = StockReceiptItem::query()
             ->whereIn('variant_id', $variants->pluck('id')->all())

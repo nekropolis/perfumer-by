@@ -45,9 +45,7 @@ export default function VariantPromotionToggle({
 
     return (
         <label
-            className={`inline-flex items-center gap-1.5 text-xs text-admin-text ${
-                disabled || saving ? "opacity-60" : ""
-            }`}
+            className={`inline-flex items-center ${disabled || saving ? "opacity-60" : ""}`}
             title="Акция на витрине"
         >
             <input
@@ -56,8 +54,8 @@ export default function VariantPromotionToggle({
                 disabled={disabled || saving}
                 onChange={(e) => void handleChange(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-gray-300"
+                aria-label="Акция на витрине"
             />
-            <span className="whitespace-nowrap">Акция</span>
         </label>
     );
 }
