@@ -11,6 +11,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Modules\Catalog\Services\Pricing\SupplierPriceFileStorage;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Throwable;
@@ -184,9 +185,12 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
             self::clearActiveJobIfMatches($this->jobId);
 
             if (isset($disk)) {
-                try {
-                    Storage::disk($disk)->delete($this->storedFilePath);
-                } catch (Throwable) {
+                $fileStorage = app(SupplierPriceFileStorage::class);
+                if (!$fileStorage->isPersistentStoragePath($this->storedFilePath)) {
+                    try {
+                        Storage::disk($disk)->delete($this->storedFilePath);
+                    } catch (Throwable) {
+                    }
                 }
             }
         }

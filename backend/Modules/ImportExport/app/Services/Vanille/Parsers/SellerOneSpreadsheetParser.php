@@ -17,7 +17,11 @@ class SellerOneSpreadsheetParser
     {
         $path = $file->getRealPath();
 
-        return $path ? $this->readRowsFromPath($path) : [];
+        if (!$path) {
+            throw new \InvalidArgumentException('Не удалось прочитать загруженный файл.');
+        }
+
+        return $this->readRowsFromPath($path);
     }
 
     /**
@@ -42,12 +46,20 @@ class SellerOneSpreadsheetParser
 
         $spreadsheet = $reader->load($absolutePath);
         $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray(null, false, false, false);
+        $rawRows = $sheet->toArray(null, false, false, false);
 
         $result = [];
-        if ($rows !== []) {
-            $map = $this->resolveColumnMapping($rows);
-            foreach ($rows as $rowIndex => $row) {
+        $map = [
+            'code' => 0,
+            'title' => 1,
+            'price' => 2,
+            'stock' => null,
+            'header_row_index' => null,
+        ];
+
+        if ($rawRows !== []) {
+            $map = $this->resolveColumnMapping($rawRows);
+            foreach ($rawRows as $rowIndex => $row) {
                 if ($map['header_row_index'] !== null && $rowIndex === $map['header_row_index']) {
                     continue;
                 }
@@ -75,7 +87,8 @@ class SellerOneSpreadsheetParser
             }
         }
 
-        unset($rows, $sheet);
+        $rawRowsForValidation = $rawRows;
+        unset($rawRows, $sheet);
         if (method_exists($spreadsheet, 'disconnectWorksheets')) {
             $spreadsheet->disconnectWorksheets();
         }
@@ -84,7 +97,53 @@ class SellerOneSpreadsheetParser
             gc_collect_cycles();
         }
 
+        $this->assertParsedRowsValid($rawRowsForValidation, $result);
+
         return $result;
+    }
+
+    private const FORMAT_ERROR_MESSAGE = 'Неверный формат прайса. Ожидаются колонки: код, название, цена (первая строка может быть заголовком с «код» в первой колонке).';
+
+    /**
+     * @param  list<array<int, mixed>>  $rawRows
+     * @param  list<array{code: string, title: string, supplier_price: ?float, in_stock: ?bool}>  $parsedRows
+     */
+    private function assertParsedRowsValid(array $rawRows, array $parsedRows): void
+    {
+        foreach ($parsedRows as $row) {
+            if ($row['supplier_price'] !== null) {
+                return;
+            }
+        }
+
+        if ($rawRows === []) {
+            throw new \InvalidArgumentException('Файл прайса пуст или не содержит данных.');
+        }
+
+        $nonEmptyRows = 0;
+        foreach ($rawRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $hasContent = false;
+            foreach ($row as $cell) {
+                if (trim((string) $cell) !== '') {
+                    $hasContent = true;
+                    break;
+                }
+            }
+
+            if ($hasContent) {
+                $nonEmptyRows++;
+            }
+        }
+
+        if ($nonEmptyRows === 0) {
+            throw new \InvalidArgumentException('Файл прайса пуст или не содержит данных.');
+        }
+
+        throw new \InvalidArgumentException(self::FORMAT_ERROR_MESSAGE);
     }
 
     /**

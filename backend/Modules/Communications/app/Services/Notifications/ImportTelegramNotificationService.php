@@ -63,6 +63,24 @@ class ImportTelegramNotificationService
     }
 
     /**
+     * @param array<string, mixed> $status
+     */
+    public function notifyPriceRefreshFinished(int $runId, string $jobId, array $status): void
+    {
+        $text = $this->formatter->formatPriceRefreshFinished($runId, $jobId, $status);
+        if ($text === null) {
+            return;
+        }
+
+        $this->send($text, [
+            'scope' => 'price_refresh',
+            'run_id' => $runId,
+            'job_id' => $jobId,
+            'status' => (string) ($status['status'] ?? ''),
+        ]);
+    }
+
+    /**
      * @param array<string, mixed> $context
      */
     private function send(string $text, array $context): void

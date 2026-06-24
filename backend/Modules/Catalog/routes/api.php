@@ -5,6 +5,9 @@ use Modules\Catalog\Http\Controllers\Admin\AttributeController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeOptionController;
 use Modules\Catalog\Http\Controllers\Admin\BrandController;
 use Modules\Catalog\Http\Controllers\Admin\AdminProductLinkSearchController;
+use Modules\Catalog\Http\Controllers\Admin\PriceFormulaController;
+use Modules\Catalog\Http\Controllers\Admin\PriceRefreshController;
+use Modules\Catalog\Http\Controllers\Admin\WarehouseManualPriceReviewController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
@@ -131,6 +134,27 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::post('/{id}/variants', [ProductVariantAdminController::class, 'store']);
     Route::put('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'update']);
     Route::delete('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'destroy']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/pricing')->group(function () {
+    Route::get('/refresh/runs', [PriceRefreshController::class, 'index']);
+    Route::get('/refresh/runs/{id}', [PriceRefreshController::class, 'show']);
+    Route::post('/refresh/start', [PriceRefreshController::class, 'start']);
+    Route::get('/refresh/active', [PriceRefreshController::class, 'active']);
+    Route::get('/refresh/status/{jobId}', [PriceRefreshController::class, 'status']);
+    Route::get('/price-files', [PriceRefreshController::class, 'priceFiles']);
+    Route::post('/price-files/upload', [PriceRefreshController::class, 'uploadPriceFile']);
+    Route::get('/sources', [PriceRefreshController::class, 'sources']);
+
+    Route::get('/formulas', [PriceFormulaController::class, 'index']);
+    Route::post('/formulas', [PriceFormulaController::class, 'store']);
+    Route::get('/formulas/{id}', [PriceFormulaController::class, 'show']);
+    Route::put('/formulas/{id}', [PriceFormulaController::class, 'update']);
+    Route::delete('/formulas/{id}', [PriceFormulaController::class, 'destroy']);
+
+    Route::get('/manual-reviews/stats', [WarehouseManualPriceReviewController::class, 'stats']);
+    Route::get('/manual-reviews', [WarehouseManualPriceReviewController::class, 'index']);
+    Route::patch('/manual-reviews/{id}', [WarehouseManualPriceReviewController::class, 'update']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/attributes')->group(function () {

@@ -6,6 +6,9 @@ import {
     fetchSellerOneActiveStatus,
     fetchVanilleParseStatus,
 } from "@/lib/admin-vanille-api";
+import { fetchActivePriceRefresh } from "@/lib/admin-pricing-api";
+import type { PriceRefreshJobStatus } from "@/lib/admin-pricing-api";
+import { resolvePriceRefreshProgress } from "@/lib/price-refresh-ui";
 import type {
     SellerOneParseStatus,
     VanilleImportQueueJob,
@@ -61,6 +64,17 @@ function isVanilleActive(status: VanilleImportQueueJob["status"] | undefined): b
     return status === "pending" || status === "running";
 }
 
+const PRICE_REFRESH_STATUS_LABELS: Record<string, string> = {
+    queued: "в очереди",
+    running: "выполняется",
+    completed: "завершено",
+    failed: "ошибка",
+};
+
+function isPriceRefreshActive(status: string | undefined): boolean {
+    return status === "queued" || status === "running";
+}
+
 function isSellerOneActive(status: SellerOneParseStatus["status"] | undefined): boolean {
     return status === "queued" || status === "running";
 }
@@ -87,6 +101,27 @@ function buildVanilleTask(job: VanilleImportQueueJob): ActiveTask {
         message: job.message,
         counter: extractCounter(job.message),
         progress: clampProgress(job.progress),
+    };
+}
+
+function buildPriceRefreshTask(status: PriceRefreshJobStatus): ActiveTask {
+    const isRunning = status.status === "running" || status.status === "queued";
+    const { processed, total, progress, message } = resolvePriceRefreshProgress(status, isRunning);
+
+    const phaseLabel =
+        status.phase === "supplier"
+            ? `Поставщик: ${status.supplier_name ?? status.supplier_code ?? "—"}`
+            : status.phase === "warehouse"
+                ? "Склад"
+                : "Обновление цен";
+
+    return {
+        key: `price-refresh:${status.job_id}`,
+        title: "Обновление цен",
+        statusLabel: PRICE_REFRESH_STATUS_LABELS[status.status] ?? status.status,
+        message: message || phaseLabel,
+        counter: total > 0 ? `${processed} / ${total}` : extractCounter(status.message),
+        progress,
     };
 }
 
@@ -134,9 +169,10 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
         //   • Seller One — используем discovery-эндпоинт (/supplier-price/active),
         //     чтобы не зависеть от localStorage: джоб мог быть запущен в другой
         //     вкладке / браузере / сессии — всё равно нужно показать.
-        const [vanilleRes, sellerOneRes] = await Promise.allSettled([
+        const [vanilleRes, sellerOneRes, priceRefreshRes] = await Promise.allSettled([
             fetchVanilleParseStatus(),
             fetchSellerOneActiveStatus(),
+            fetchActivePriceRefresh(),
         ]);
 
         const next: ActiveTask[] = [];
@@ -152,6 +188,13 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
             const status = sellerOneRes.value?.data ?? null;
             if (status && isSellerOneActive(status.status)) {
                 next.push(buildSellerOneTask(status));
+            }
+        }
+
+        if (priceRefreshRes.status === "fulfilled") {
+            const status = priceRefreshRes.value?.data ?? null;
+            if (status && isPriceRefreshActive(status.status)) {
+                next.push(buildPriceRefreshTask(status));
             }
         }
 

@@ -973,24 +973,8 @@ export default function SellerOneImportPage() {
                     >
                         {supplierPreviewLoading ? "Парсинг..." : "Новый парсинг"}
                     </button>
-                    <button
-                        type="button"
-                        onClick={handleRefreshLinkedPrices}
-                        disabled={
-                            supplierRefreshPricesLoading
-                            || supplierPreviewLoading
-                            || !!activeJobId
-                            || !supplierFile
-                        }
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
-                    >
-                        {supplierRefreshPricesLoading ? "Обновление..." : "Обновить цены"}
-                    </button>
                     <button type="button" onClick={() => void openRulesModal()} className="rounded-xl border px-4 py-2 text-sm">
                         Правила поиска
-                    </button>
-                    <button type="button" onClick={() => void openPricingModal()} className="rounded-xl border px-4 py-2 text-sm">
-                        Формула цены
                     </button>
                     <button
                         type="button"
@@ -1318,16 +1302,6 @@ export default function SellerOneImportPage() {
                     onCreateAction={saveRule}
                     onToggleRuleAction={toggleRule}
                     onDeleteRuleAction={removeRule}
-                />
-                <PricingSettingsModal
-                    open={pricingOpen}
-                    form={pricingForm}
-                    saving={pricingSaving}
-                    onCloseAction={() => setPricingOpen(false)}
-                    onChangeAction={(field, value) => {
-                        setPricingForm((prev) => ({ ...prev, [field]: Number.isFinite(value) ? value : 0 }));
-                    }}
-                    onSaveAction={savePricingSettings}
                 />
                 {duplicateLinksOpen ? (
                     <DuplicateVariantLinksModal

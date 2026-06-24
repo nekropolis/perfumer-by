@@ -2,7 +2,12 @@
 
 namespace Modules\ImportExport\Services\Vanille\Support;
 
+use Modules\Catalog\Models\PriceFormula;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SellerOneSetting;
+use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Services\Pricing\PriceFormulaCalculator;
+use Modules\Catalog\Services\Pricing\PriceFormulaResolver;
 
 class SellerOnePricingService
 {
@@ -14,6 +19,12 @@ class SellerOnePricingService
     public const SETTING_PRICE_RATE = 'seller_one.price_rate';
     public const SETTING_PRICE_FIXED_FEE = 'seller_one.price_fixed_fee';
     public const SETTING_PRICE_PRECISION = 'seller_one.price_precision';
+
+    public function __construct(
+        private readonly PriceFormulaResolver $formulaResolver,
+        private readonly PriceFormulaCalculator $calculator,
+    ) {
+    }
 
     public function getSettings(): array
     {
@@ -71,15 +82,49 @@ class SellerOnePricingService
         return $this->getSettings();
     }
 
-    public function calculateRetailPrice(float $supplierPrice): float
+    public function calculateRetailPrice(float $supplierPrice, ?ProductVariantLink $variant = null, ?int $supplierId = null): float
     {
-        $settings = $this->getSettings();
-        $markup = (float) $settings['price_markup'];
-        $rate = (float) $settings['price_rate'];
-        $fixedFee = (float) $settings['price_fixed_fee'];
-        $precision = (int) $settings['price_precision'];
+        if ($variant instanceof ProductVariantLink && $supplierId !== null && $supplierId > 0) {
+            $resolved = $this->formulaResolver->calculateRetailPrice(
+                $variant,
+                $supplierPrice,
+                PriceFormula::SOURCE_SUPPLIER,
+                $supplierId,
+            );
+            if ($resolved !== null) {
+                return $resolved;
+            }
+        }
 
-        return round(($supplierPrice * $markup + $fixedFee) * $rate, $precision);
+        $settings = $this->getSettings();
+
+        return $this->calculator->calculateFromScalars(
+            $supplierPrice,
+            (float) $settings['price_markup'],
+            (float) $settings['price_rate'],
+            (float) $settings['price_fixed_fee'],
+            (int) $settings['price_precision'],
+        );
+    }
+
+    public function calculateRetailPriceForWarehouse(ProductVariantLink $variant, int $warehouseId, float $purchasePrice): float
+    {
+        $resolved = $this->formulaResolver->calculateRetailPrice(
+            $variant,
+            $purchasePrice,
+            PriceFormula::SOURCE_WAREHOUSE,
+            $warehouseId,
+        );
+        if ($resolved !== null) {
+            return $resolved;
+        }
+
+        return $this->calculateRetailPrice($purchasePrice);
+    }
+
+    public function resolveDefaultSupplierId(): int
+    {
+        return (int) (Supplier::query()->where('code', 'supplier-price-xls')->value('id') ?? 0);
     }
 
     private function resolveFloatSetting(mixed $storedValue, string $envKey, float $default): float

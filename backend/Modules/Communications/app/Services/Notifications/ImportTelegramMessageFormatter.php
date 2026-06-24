@@ -105,6 +105,61 @@ class ImportTelegramMessageFormatter
         return $this->trimForTelegram(implode("\n", $lines));
     }
 
+    /**
+     * @param array<string, mixed> $status
+     */
+    public function formatPriceRefreshFinished(int $runId, string $jobId, array $status): ?string
+    {
+        $state = (string) ($status['status'] ?? '');
+        if (!in_array($state, ['completed', 'failed'], true)) {
+            return null;
+        }
+
+        $lines = [
+            ($state === 'completed' ? '✅ ' : '❌ ') . 'Обновление цен',
+            'Run #' . $runId,
+            'Job #' . $jobId,
+            'Статус: ' . ($state === 'completed' ? 'выполнено' : 'ошибка'),
+            'Время: ' . now()->format('d.m.Y H:i:s'),
+        ];
+
+        if ($state === 'failed') {
+            if (!empty($status['message'])) {
+                $lines[] = 'Ошибка: ' . (string) $status['message'];
+            }
+
+            return $this->trimForTelegram(implode("\n", $lines));
+        }
+
+        $stats = $status['stats'] ?? [];
+        if (!is_array($stats)) {
+            return $this->trimForTelegram(implode("\n", $lines));
+        }
+
+        $warehouse = $stats['warehouse'] ?? null;
+        if (is_array($warehouse)) {
+            $lines[] = 'Склад: обновлено ' . (int) ($warehouse['updated'] ?? 0)
+                . ', смешанная база ' . (int) ($warehouse['blended_updated'] ?? 0)
+                . ', ручная очередь +' . (int) ($warehouse['manual_queued'] ?? 0)
+                . ', снято ' . (int) ($warehouse['manual_resolved'] ?? 0);
+        }
+
+        $suppliers = $stats['suppliers'] ?? [];
+        if (is_array($suppliers)) {
+            foreach ($suppliers as $code => $row) {
+                if (!is_array($row) || !empty($row['skipped'])) {
+                    continue;
+                }
+
+                $lines[] = (string) $code . ': обновлено ' . (int) ($row['updated'] ?? 0)
+                    . ', без изменений ' . (int) ($row['unchanged'] ?? 0)
+                    . ', пропало ' . (int) ($row['missing_from_price_file'] ?? 0);
+            }
+        }
+
+        return $this->trimForTelegram(implode("\n", $lines));
+    }
+
     private function trimForTelegram(string $text): string
     {
         if (mb_strlen($text) <= 3500) {

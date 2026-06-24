@@ -22,6 +22,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\SellerOneSetting;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Services\Pricing\VariantPromotionService;
 use Modules\Catalog\Services\VariantSupplierRetailPriceService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
@@ -50,6 +51,7 @@ class SupplierPriceImportService
         private readonly SellerOnePreviewSyncService $previewSyncService,
         private readonly StockInventoryService $stockInventory,
         private readonly VariantSupplierRetailPriceService $variantRetailPriceService,
+        private readonly VariantPromotionService $promotionService,
     ) {
     }
 
@@ -777,7 +779,11 @@ class SupplierPriceImportService
             }
 
             $wasListed = CatalogVariantStockPresenter::supplierListingActive($variant);
-            $resolvedPrice = $this->pricingService->calculateRetailPrice($supplierPrice);
+            $resolvedPrice = $this->pricingService->calculateRetailPrice(
+                $supplierPrice,
+                $variant,
+                (int) $supplier->id,
+            );
             $offerBucketExisting = $offersGroupedByExternal->get($externalCode);
             $existingOffer = ($offerBucketExisting instanceof Collection && $offerBucketExisting->isNotEmpty())
                 ? $offerBucketExisting->first()
@@ -959,7 +965,9 @@ class SupplierPriceImportService
             }
         }
 
-        $this->syncRetailPricesForVariants(array_keys($touchedVariantIds));
+        $this->syncRetailPricesForVariants(array_keys($touchedVariantIds), (int) $supplier->id);
+
+        $this->promotionService->clearPromotionForVariantsWithoutMainStock(array_keys($touchedVariantIds));
 
         foreach (array_keys($deferredStockProductIds) as $productIdSynced) {
             $this->stockInventory->syncProductStockFlagsByProductId((int) $productIdSynced);
@@ -968,6 +976,8 @@ class SupplierPriceImportService
         $missingCodes = array_values(array_unique($missingCodes));
         $deactivatedOffers = 0;
         $clearedSupplierShelfVariants = 0;
+        /** @var array<int, true> */
+        $deferredMissingProductIds = [];
 
         if ($missingSupplierProductIds !== []) {
             SupplierProduct::query()
@@ -1032,13 +1042,18 @@ class SupplierPriceImportService
             $clearedSupplierShelfVariants = count($shelfVariantIds);
 
             foreach ($shelfVariantIds as $vid) {
-                $v = ProductVariant::query()->find($vid);
-                if ($v) {
-                    $this->stockInventory->syncProductStockFlagsByProductId((int) $v->product_id);
+                $productId = ProductVariantLink::query()->whereKey($vid)->value('product_id');
+                if ($productId) {
+                    $deferredMissingProductIds[(int) $productId] = true;
                 }
             }
 
-            $this->syncRetailPricesForVariants($shelfVariantIds);
+            $this->syncRetailPricesForVariants($shelfVariantIds, (int) $supplier->id);
+            $this->promotionService->clearPromotionForVariantsWithoutMainStock($shelfVariantIds);
+        }
+
+        foreach (array_keys($deferredMissingProductIds) as $productIdSynced) {
+            $this->stockInventory->syncProductStockFlagsByProductId((int) $productIdSynced);
         }
 
         $message = sprintf(
@@ -2204,7 +2219,7 @@ class SupplierPriceImportService
     /**
      * @param  list<int>  $variantIds
      */
-    private function syncRetailPricesForVariants(array $variantIds): void
+    private function syncRetailPricesForVariants(array $variantIds, ?int $supplierId = null): void
     {
         $uniqueIds = array_values(array_unique(array_filter(
             array_map(static fn (mixed $id): int => (int) $id, $variantIds),
@@ -2219,7 +2234,13 @@ class SupplierPriceImportService
         foreach ($variants as $variant) {
             $this->variantRetailPriceService->syncFromListingOffers(
                 $variant,
-                fn (float $purchase): float => $this->pricingService->calculateRetailPrice($purchase),
+                function (float $purchase) use ($variant, $supplierId): float {
+                    return $this->pricingService->calculateRetailPrice(
+                        $purchase,
+                        $variant,
+                        $supplierId,
+                    );
+                },
             );
         }
     }

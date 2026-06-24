@@ -10,6 +10,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Services\Pricing\VariantPromotionService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockMovement;
@@ -1216,6 +1217,11 @@ class StockInventoryService
             'stock' => (int) ($totals->stock_total ?? 0),
             'reserved_stock' => (int) ($totals->reserved_total ?? 0),
         ]);
+
+        app(VariantPromotionService::class)->clearPromotionIfMainWarehouseEmpty(
+            $variantId,
+            $this->getMainWarehouseId(),
+        );
     }
 
     /**

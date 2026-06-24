@@ -254,7 +254,11 @@ class StockReceiptService
         $qty = (int) $storedItem->qty;
         $supplierPrice = round((float) $storedItem->supplier_price, 2);
         $retailPrice = $supplierPrice > 0
-            ? round($this->pricingService->calculateRetailPrice($supplierPrice), 2)
+            ? round($this->pricingService->calculateRetailPriceForWarehouse(
+                $variant,
+                (int) $receipt->warehouse_id,
+                $supplierPrice,
+            ), 2)
             : null;
 
         $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();

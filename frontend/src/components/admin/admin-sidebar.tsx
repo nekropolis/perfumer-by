@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import {
     BarChart3,
     BellRing,
+    Calculator,
+    ClipboardList,
     CreditCard,
     FileBarChart,
     FolderSync,
@@ -17,6 +19,7 @@ import {
     PackageMinus,
     PanelsTopLeft,
     Phone,
+    RefreshCw,
     ScrollText,
     Settings,
     ShieldUser,
@@ -102,6 +105,15 @@ const sections: SidebarSection[] = [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/retry-queue", label: "Ошибки импорта", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
+        ],
+    },
+    {
+        key: "pricing",
+        label: "Цена",
+        items: [
+            { type: "link", href: "/admin/pricing/refresh", label: "Обновить цены", icon: RefreshCw },
+            { type: "link", href: "/admin/pricing/formulas", label: "Формулы цен", icon: Calculator },
+            { type: "link", href: "/admin/pricing/manual-reviews", label: "Ручная установка", icon: ClipboardList },
         ],
     },
     {
