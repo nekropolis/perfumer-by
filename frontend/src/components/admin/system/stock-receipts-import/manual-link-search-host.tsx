@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { ManualLinkModal } from "@/components/admin/import-export/seller-one/ui";
+import type { ManualLinkState } from "@/components/admin/import-export/seller-one/types";
 import {
     SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
@@ -166,24 +167,46 @@ export function StockReceiptManualLinkSearchHost({
         };
     }, [manualLink.mapKey, manualLink.selectedProductId, debouncedDefinitionSearch, setManualLink, setError]);
 
+    const setManualLinkForModal: Dispatch<SetStateAction<ManualLinkState | null>> = (update) => {
+        setManualLink((prev) => {
+            if (typeof update === "function") {
+                if (!prev) {
+                    return prev;
+                }
+                const next = update(prev);
+                if (next === null) {
+                    return null;
+                }
+
+                return { ...next, mapKey: prev.mapKey };
+            }
+
+            if (update === null) {
+                return null;
+            }
+
+            return prev ? { ...update, mapKey: prev.mapKey } : null;
+        });
+    };
+
     return (
         <ManualLinkModal
             manualLink={manualLink}
             isProductSearchDebouncing={isProductSearchDebouncing}
             linkingRowId={null}
-            setManualLink={setManualLink}
+            setManualLink={setManualLinkForModal}
             onCloseAction={() => setManualLink(null)}
             onPickProductAction={pickProduct}
             onPickVariantAction={onPickVariantAction}
             onPickDefinitionAction={attachDefinitionFromDictionary}
-            onConfirmAction={(_rowId, variantId) => {
+            onConfirmAction={async (_rowId, variantId) => {
                 const selected = manualLink.variants.find((variant) => variant.id === variantId);
-                const product = manualLink.products.find((item) => item.id === manualLink.selectedProductId)
-                    ?? manualLink.products.find((item) => item.id === selected?.product_id);
+                const productId = manualLink.selectedProductId;
+                const product = manualLink.products.find((item) => item.id === productId);
 
                 onConfirmAction(manualLink.mapKey, variantId, {
                     id: variantId,
-                    product_id: selected?.product_id ?? product?.id,
+                    product_id: productId ?? undefined,
                     product_name: product?.name ?? null,
                     display_name: product?.brand?.name
                         ? `${product.brand.name} ${product.name}`.trim()
