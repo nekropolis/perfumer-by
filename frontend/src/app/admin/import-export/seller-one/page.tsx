@@ -943,7 +943,7 @@ export default function SellerOneImportPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h1 className="text-lg font-semibold">Seller One</h1>
-                        <p className="mt-1 text-sm text-admin-text-secondary">Пасринг парйса и сопоставление товаров с каталогом</p>
+                        <p className="mt-1 text-sm text-admin-text-secondary">Пасринг прайса и сопоставление товаров с каталогом</p>
                     </div>
 
                     <div className="flex w-full min-w-0 flex-row items-center gap-2 md:w-auto md:justify-end">
