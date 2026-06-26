@@ -1,77 +1,112 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
-import { fetchProductLinkSearch, type ProductAdminItem } from "@/lib/admin-products-api";
-import { fetchVariantDefinitions } from "@/lib/admin-product-variants-api";
+import { ManualLinkModal } from "@/components/admin/import-export/seller-one/ui";
 import {
     SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS,
     SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
 } from "@/components/admin/import-export/seller-one/constants";
-import type { StockReceiptManualLinkState } from "./types";
-import { StockReceiptManualLinkModal } from "./manual-link-modal";
+import { fetchProductLinkSearch, type ProductAdminItem } from "@/lib/admin-products-api";
+import { fetchVariantDefinitions } from "@/lib/admin-product-variants-api";
+import { formatVariantOptionLabel } from "@/components/admin/import-export/seller-one/utils";
+import type { StockReceiptImportCatalogVariant, StockReceiptManualLinkState } from "./types";
 
 type StockReceiptManualLinkSearchHostProps = {
     manualLink: StockReceiptManualLinkState;
     setManualLink: Dispatch<SetStateAction<StockReceiptManualLinkState | null>>;
     setError: Dispatch<SetStateAction<string>>;
-    loadManualVariants: (productId: number, preferVariantId?: number) => Promise<void>;
+    pickProduct: (product: ProductAdminItem) => Promise<void>;
     attachDefinitionFromDictionary: (definitionId: number) => Promise<void>;
-    onConfirmVariant: (mapKey: string, variantId: number) => void;
+    onConfirmAction: (mapKey: string, variantId: number, linkedVariant: StockReceiptImportCatalogVariant) => void;
+    onPickVariantAction: (variantId: number) => void;
 };
 
 export function StockReceiptManualLinkSearchHost({
     manualLink,
     setManualLink,
     setError,
-    loadManualVariants,
+    pickProduct,
     attachDefinitionFromDictionary,
-    onConfirmVariant,
+    onConfirmAction,
+    onPickVariantAction,
 }: StockReceiptManualLinkSearchHostProps) {
     const debouncedProductSearch = useDebouncedValue(
         manualLink.productSearch,
-        SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS
+        SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS,
     );
     const debouncedDefinitionSearch = useDebouncedValue(
         manualLink.definitionSearch,
-        SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS
+        SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS,
     );
+    const isProductSearchDebouncing = manualLink.productSearch.trim() !== debouncedProductSearch.trim();
+    const lastFetchedProductQueryRef = useRef<string | null>(null);
+    const inFlightProductQueryRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        lastFetchedProductQueryRef.current = null;
+        inFlightProductQueryRef.current = null;
+    }, [manualLink.mapKey]);
 
     useEffect(() => {
         const mapKey = manualLink.mapKey;
+        const linkSearchBrandId = manualLink.linkSearchBrandId;
+
+        if (manualLink.selectedProductId !== null) {
+            return;
+        }
+
+        const query = debouncedProductSearch.trim();
+        if (query.length < 2) {
+            lastFetchedProductQueryRef.current = null;
+            inFlightProductQueryRef.current = null;
+            setManualLink((prev) =>
+                prev && prev.mapKey === mapKey ? { ...prev, products: [], productsLoading: false } : prev,
+            );
+            return;
+        }
+
+        if (query === lastFetchedProductQueryRef.current || query === inFlightProductQueryRef.current) {
+            return;
+        }
+
         let cancelled = false;
+        inFlightProductQueryRef.current = query;
 
         const run = async () => {
-            setManualLink((prev) => (prev && prev.mapKey === mapKey ? { ...prev, productsLoading: true } : prev));
+            setManualLink((prev) =>
+                prev && prev.mapKey === mapKey && prev.selectedProductId === null
+                    ? { ...prev, productsLoading: true }
+                    : prev,
+            );
             try {
-                const query = debouncedProductSearch.trim();
-                let products: ProductAdminItem[] = [];
-                if (query.length >= 2) {
-                    const data = await fetchProductLinkSearch({ q: query, limit: 40 });
-                    products = data.data || [];
-                }
+                const data = await fetchProductLinkSearch({
+                    q: query,
+                    brand_id: linkSearchBrandId ?? undefined,
+                    limit: 40,
+                });
+                const nextProducts = data.data || [];
 
                 if (cancelled) {
                     return;
                 }
 
+                lastFetchedProductQueryRef.current = query;
+                inFlightProductQueryRef.current = null;
+
                 setManualLink((prev) => {
-                    if (!prev || prev.mapKey !== mapKey) {
+                    if (!prev || prev.mapKey !== mapKey || prev.selectedProductId !== null) {
                         return prev;
                     }
-                    const keepProduct =
-                        prev.selectedProductId != null && products.some((p) => p.id === prev.selectedProductId);
+
                     return {
                         ...prev,
-                        products,
+                        products: nextProducts,
                         productsLoading: false,
-                        selectedProductId: keepProduct ? prev.selectedProductId : null,
-                        selectedVariantId: keepProduct ? prev.selectedVariantId : null,
-                        variants: keepProduct ? prev.variants : [],
-                        variantsLoading: keepProduct ? prev.variantsLoading : false,
                     };
                 });
             } catch (e: unknown) {
                 if (!cancelled) {
+                    inFlightProductQueryRef.current = null;
                     setManualLink((prev) => (prev && prev.mapKey === mapKey ? { ...prev, productsLoading: false } : prev));
                     setError(e instanceof Error ? e.message : "Ошибка поиска товаров");
                 }
@@ -82,7 +117,7 @@ export function StockReceiptManualLinkSearchHost({
         return () => {
             cancelled = true;
         };
-    }, [manualLink.mapKey, debouncedProductSearch, setManualLink, setError]);
+    }, [manualLink.mapKey, manualLink.linkSearchBrandId, manualLink.selectedProductId, debouncedProductSearch, setManualLink, setError]);
 
     useEffect(() => {
         const mapKey = manualLink.mapKey;
@@ -97,9 +132,7 @@ export function StockReceiptManualLinkSearchHost({
         const run = async () => {
             if (q === "") {
                 setManualLink((prev) =>
-                    prev && prev.mapKey === mapKey
-                        ? { ...prev, definitions: [], definitionsLoading: false }
-                        : prev
+                    prev && prev.mapKey === mapKey ? { ...prev, definitions: [], definitionsLoading: false } : prev,
                 );
                 return;
             }
@@ -117,7 +150,7 @@ export function StockReceiptManualLinkSearchHost({
                             definitions: res.data || [],
                             definitionsLoading: false,
                         }
-                        : prev
+                        : prev,
                 );
             } catch (e: unknown) {
                 if (!cancelled) {
@@ -134,14 +167,30 @@ export function StockReceiptManualLinkSearchHost({
     }, [manualLink.mapKey, manualLink.selectedProductId, debouncedDefinitionSearch, setManualLink, setError]);
 
     return (
-        <StockReceiptManualLinkModal
+        <ManualLinkModal
             manualLink={manualLink}
+            isProductSearchDebouncing={isProductSearchDebouncing}
+            linkingRowId={null}
             setManualLink={setManualLink}
             onCloseAction={() => setManualLink(null)}
-            onPickProductAction={loadManualVariants}
+            onPickProductAction={pickProduct}
+            onPickVariantAction={onPickVariantAction}
             onPickDefinitionAction={attachDefinitionFromDictionary}
-            onConfirmAction={(variantId) => {
-                onConfirmVariant(manualLink.mapKey, variantId);
+            onConfirmAction={(_rowId, variantId) => {
+                const selected = manualLink.variants.find((variant) => variant.id === variantId);
+                const product = manualLink.products.find((item) => item.id === manualLink.selectedProductId)
+                    ?? manualLink.products.find((item) => item.id === selected?.product_id);
+
+                onConfirmAction(manualLink.mapKey, variantId, {
+                    id: variantId,
+                    product_id: selected?.product_id ?? product?.id,
+                    product_name: product?.name ?? null,
+                    display_name: product?.brand?.name
+                        ? `${product.brand.name} ${product.name}`.trim()
+                        : product?.name ?? null,
+                    brand_name: product?.brand?.name ?? null,
+                    display: selected ? formatVariantOptionLabel(selected) : "",
+                });
                 setManualLink(null);
             }}
         />

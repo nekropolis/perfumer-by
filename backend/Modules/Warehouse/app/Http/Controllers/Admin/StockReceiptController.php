@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Models\Supplier;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptImportSessionState;
@@ -75,11 +76,22 @@ class StockReceiptController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:150'],
         ]);
 
-        $result = $service->resolveImportBatch(
-            $validated['session_id'],
-            (int) $validated['offset'],
-            (int) ($validated['limit'] ?? 75)
-        );
+        try {
+            $result = $service->resolveImportBatch(
+                $validated['session_id'],
+                (int) $validated['offset'],
+                (int) ($validated['limit'] ?? 75)
+            );
+        } catch (\Throwable $e) {
+            Log::error('Stock receipt XLS resolve-batch failed', [
+                'session_id' => $validated['session_id'],
+                'offset' => $validated['offset'],
+                'limit' => $validated['limit'] ?? 75,
+                'exception' => $e,
+            ]);
+
+            throw $e;
+        }
 
         return response()->json($result);
     }

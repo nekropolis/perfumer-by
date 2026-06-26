@@ -1,13 +1,27 @@
-import type { ProductAdminItem } from "@/lib/admin-products-api";
-import type { AdminProductVariantItem, VariantDefinitionItem } from "@/lib/admin-product-variants-api";
+import type { ManualLinkState } from "@/components/admin/import-export/seller-one/types";
+import type { SellerOneSupplierProductItem } from "@/types/Vanille";
 
 export type StockReceiptImportParsed = {
     brand?: string | null;
+    brand_id?: number | null;
     product_name?: string | null;
     volume?: number | null;
+    volume_is_multipack?: boolean;
+    volume_multipack_count?: number | null;
+    volume_multipack_unit_ml?: number | null;
     concentration?: string | null;
     is_tester?: boolean | null;
+    is_vial?: boolean | null;
     skip_auto_match?: boolean | null;
+};
+
+export type StockReceiptImportCatalogVariant = {
+    id: number;
+    product_id?: number;
+    product_name?: string | null;
+    display_name?: string | null;
+    brand_name?: string | null;
+    display?: string;
 };
 
 export type StockReceiptImportUnresolvedRow = {
@@ -15,38 +29,25 @@ export type StockReceiptImportUnresolvedRow = {
     code?: string;
     title?: string;
     qty?: number;
-    suggested_variant?: {
-        id?: number;
-        product_id?: number;
-        product_name?: string;
+    supplier_price?: number | null;
+    suggested_variant?: StockReceiptImportCatalogVariant | null;
+    suggested_product?: {
+        id: number;
+        name: string;
         display_name?: string | null;
+        slug?: string | null;
         brand_name?: string | null;
-        display?: string;
+        variants_count?: number;
     } | null;
+    /** Подтверждённая связка (сохраняется в session state вместе с unresolved). */
+    linked_variant?: StockReceiptImportCatalogVariant | null;
+    /** Строка сопоставлена автоматически на бэкенде (100% / сохранённый mapping). */
+    auto_resolved?: boolean;
     parsed?: StockReceiptImportParsed | null;
+    match_confidence?: number;
+    match_confidence_breakdown?: SellerOneSupplierProductItem["match_confidence_breakdown"];
 };
 
-export type StockReceiptManualLinkState = {
+export type StockReceiptManualLinkState = ManualLinkState & {
     mapKey: string;
-    rowTitle: string;
-    /** Предпочесть этот вариант после выбора товара (например, из suggested_variant бэкенда). */
-    pendingPreferVariantId: number | null;
-    productSearch: string;
-    sourceHint: {
-        brand: string;
-        productName: string;
-        volume: number | null;
-        concentration: string | null;
-        isTester: boolean;
-    };
-    products: ProductAdminItem[];
-    productsLoading: boolean;
-    selectedProductId: number | null;
-    variants: AdminProductVariantItem[];
-    variantsLoading: boolean;
-    selectedVariantId: number | null;
-    definitionSearch: string;
-    definitions: VariantDefinitionItem[];
-    definitionsLoading: boolean;
-    attachingDefinition: boolean;
 };

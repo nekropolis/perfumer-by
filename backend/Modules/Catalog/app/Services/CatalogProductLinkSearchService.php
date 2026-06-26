@@ -192,16 +192,37 @@ class CatalogProductLinkSearchService
             return [];
         }
 
-        $normalizedQuery = CatalogSearchScoring::normalizeSearchText($query);
-        $rows = $pool->map(function (Product $product) use ($normalizedQuery) {
+        $rows = $pool->map(function (Product $product) use ($query) {
             $name = (string) $product->name;
             $brandName = (string) ($product->brand?->name ?? '');
-            $full = CatalogSearchScoring::normalizeSearchText(trim($brandName.' '.$name));
-            $score = CatalogSearchScoring::similarityScore($normalizedQuery, $full);
+            $rank = CatalogSearchScoring::productSearchRank($query, $brandName, $name);
 
-            return ['product' => $product, 'score' => $score];
+            return [
+                'product' => $product,
+                'score' => $rank['score'],
+                'full' => $rank['full'],
+                'tier' => $rank['tier'],
+                'full_len' => $rank['full_len'],
+            ];
         })
-            ->sortByDesc('score')
+            ->sort(function (array $left, array $right): int {
+                $tierCompare = ($left['tier'] ?? 99) <=> ($right['tier'] ?? 99);
+                if ($tierCompare !== 0) {
+                    return $tierCompare;
+                }
+
+                $scoreCompare = ($right['score'] ?? 0) <=> ($left['score'] ?? 0);
+                if ($scoreCompare !== 0) {
+                    return $scoreCompare;
+                }
+
+                $lenCompare = ($left['full_len'] ?? 0) <=> ($right['full_len'] ?? 0);
+                if ($lenCompare !== 0) {
+                    return $lenCompare;
+                }
+
+                return strcmp((string) $left['product']->name, (string) $right['product']->name);
+            })
             ->take($limit)
             ->pluck('product');
 

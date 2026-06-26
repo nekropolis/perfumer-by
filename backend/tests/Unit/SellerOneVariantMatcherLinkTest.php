@@ -954,6 +954,202 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('full', $match['link_match_level']);
     }
 
+    public function test_female_marker_finds_for_her_catalog_line(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $forHerProduct = $this->makeProductWithGenderOption(
+            991,
+            95,
+            'Evoke Silver for Her',
+            3,
+            9911,
+            75,
+            'edp',
+        );
+        $forHimProduct = $this->makeProductWithGenderOption(
+            992,
+            95,
+            'Evoke Silver for Him',
+            35,
+            9921,
+            75,
+            'edp',
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            95,
+            'Ajmal',
+            'Evoke Silver for Her',
+            '75ml edp',
+            75.0,
+            'edp',
+            false,
+            [95 => [$forHimProduct, $forHerProduct]],
+            null,
+            'Evoke Silver',
+            'l',
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(991, $match['product']->id);
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+    }
+
+    public function test_male_marker_finds_for_him_catalog_line(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $forHerProduct = $this->makeProductWithGenderOption(
+            993,
+            96,
+            'Evoke Silver for Her',
+            3,
+            9931,
+            75,
+            'edp',
+        );
+        $forHimProduct = $this->makeProductWithGenderOption(
+            994,
+            96,
+            'Evoke Silver for Him',
+            35,
+            9941,
+            75,
+            'edp',
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            96,
+            'Ajmal',
+            'Evoke Silver for Him',
+            '75ml edp',
+            75.0,
+            'edp',
+            false,
+            [96 => [$forHerProduct, $forHimProduct]],
+            null,
+            'Evoke Silver',
+            'm',
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(994, $match['product']->id);
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+    }
+
+    public function test_female_marker_cascade_reaches_for_her_suffix(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $cascade = new ReflectionMethod($matcher, 'runGenderSuffixNameCascade');
+        $cascade->setAccessible(true);
+        $suffixes = new ReflectionMethod($matcher, 'genderSearchSuffixesForFemale');
+        $suffixes->setAccessible(true);
+
+        $forHerProduct = $this->makeProductWithGenderOption(
+            995,
+            97,
+            'Evoke Silver for Her',
+            3,
+            9951,
+            75,
+            'edp',
+        );
+        $forHimProduct = $this->makeProductWithGenderOption(
+            996,
+            97,
+            'Evoke Silver for Him',
+            35,
+            9961,
+            75,
+            'edp',
+        );
+
+        $match = $cascade->invoke(
+            $matcher,
+            null,
+            97,
+            'Ajmal',
+            'Evoke Silver',
+            $suffixes->invoke($matcher, 'Evoke Silver'),
+            '75ml edp',
+            75.0,
+            'edp',
+            false,
+            [97 => [$forHimProduct, $forHerProduct]],
+            'l',
+            collect([]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(995, $match['product']->id);
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+    }
+
+    public function test_ormonde_woman_in_title_is_line_name_not_gender_suffix_without_l_marker(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+        $tokens = new ReflectionMethod($matcher, 'productNameTokens');
+        $tokens->setAccessible(true);
+
+        $this->assertSame(
+            ['ormonde', 'woman'],
+            $tokens->invoke($matcher, 'Ormonde Woman', 'Ormonde Jayne', null),
+        );
+
+        $baseProduct = $this->makeProductWithGenderOption(1001, 100, 'Ormonde', 438, 10011, 120, 'edp');
+        $womanProduct = $this->makeProductWithGenderOption(1002, 100, 'Ormonde Woman', 3, 10021, 120, 'edp');
+        $baseProduct->brand->name = 'Ormonde Jayne';
+        $womanProduct->brand->name = 'Ormonde Jayne';
+
+        $matchToBase = $find->invoke(
+            $matcher,
+            100,
+            'Ormonde Jayne',
+            'Ormonde Woman',
+            '120ml edp',
+            120.0,
+            'edp',
+            false,
+            [100 => [$baseProduct, $womanProduct]],
+            null,
+            'Ormonde Woman',
+            null,
+        );
+
+        $this->assertNotNull($matchToBase);
+        $this->assertSame(1002, $matchToBase['product']->id);
+        $this->assertSame('exact', $matchToBase['name_level']);
+
+        $matchOnlyBase = $find->invoke(
+            $matcher,
+            100,
+            'Ormonde Jayne',
+            'Ormonde Woman',
+            '120ml edp',
+            120.0,
+            'edp',
+            false,
+            [100 => [$baseProduct]],
+            null,
+            'Ormonde Woman',
+            null,
+        );
+
+        $this->assertNull($matchOnlyBase);
+    }
+
     public function test_rouge_smoking_extrait_prefers_extrait_product_over_base_line(): void
     {
         $matcher = new SellerOneVariantMatcher();
@@ -2064,5 +2260,181 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $product->setRelation('variants', collect([$variant]));
 
         return $product;
+    }
+
+    public function test_male_supplier_test_50ml_edt_matches_tester_variant_on_ice_dive(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+        $brand = new Brand(['name' => 'Adidas']);
+        $brand->id = 501;
+
+        $regularDefinition = new VariantDefinition([
+            'volume_ml' => 50,
+            'concentration_code' => 'edt',
+            'is_tester' => false,
+        ]);
+        $regularVariant = new ProductVariantLink(['product_id' => 5010]);
+        $regularVariant->id = 50101;
+        $regularVariant->volume = 50;
+        $regularVariant->concentration = 'edt';
+        $regularVariant->setRelation('definition', $regularDefinition);
+
+        $testerDefinition = new VariantDefinition([
+            'volume_ml' => 50,
+            'concentration_code' => 'edt',
+            'is_tester' => true,
+        ]);
+        $testerVariant = new ProductVariantLink(['product_id' => 5010]);
+        $testerVariant->id = 50102;
+        $testerVariant->volume = 50;
+        $testerVariant->concentration = 'edt';
+        $testerVariant->setRelation('definition', $testerDefinition);
+
+        $product = $this->makeProductWithGenderOption(5010, 501, 'Ice Dive', 35, 50101, 50, 'edt');
+        $regularVariant->setRelation('product', $product);
+        $testerVariant->setRelation('product', $product);
+        $product->setRelation('variants', collect([$regularVariant, $testerVariant]));
+
+        $match = $find->invoke(
+            $matcher,
+            501,
+            'Adidas',
+            'Ice Dive for Man',
+            'test 50ml edt',
+            50.0,
+            'edt',
+            true,
+            [501 => [$product]],
+            null,
+            'Ice Dive',
+            'm',
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(5010, $match['product']->id);
+        $this->assertSame(50102, $match['variant']?->id);
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+    }
+
+    public function test_gender_cascade_not_resolved_when_product_name_only_without_variant(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $isResolved = new ReflectionMethod($matcher, 'isGenderCascadeProductResolved');
+        $isResolved->setAccessible(true);
+
+        $nameOnlyMatch = [
+            'product' => new Product(['name' => 'Ice Dive for Man']),
+            'variant' => null,
+            'name_level' => 'exact',
+            'total' => 90,
+            'link_match_level' => 'name_only',
+        ];
+
+        $this->assertFalse($isResolved->invoke($matcher, $nameOnlyMatch));
+
+        $fullMatch = [
+            'product' => new Product(['name' => 'Ice Dive']),
+            'variant' => new ProductVariantLink(['product_id' => 1]),
+            'name_level' => 'exact',
+            'total' => 100,
+            'link_match_level' => 'full',
+        ];
+
+        $this->assertTrue($isResolved->invoke($matcher, $fullMatch));
+    }
+
+    public function test_male_cascade_pass2_finds_variant_after_for_man_product_name_only(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+        $brand = new Brand(['name' => 'Adidas']);
+        $brand->id = 502;
+
+        $wrongDefinition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edt',
+            'is_tester' => false,
+        ]);
+        $wrongVariant = new ProductVariantLink(['product_id' => 5020]);
+        $wrongVariant->id = 50201;
+        $wrongVariant->volume = 100;
+        $wrongVariant->concentration = 'edt';
+        $wrongVariant->setRelation('definition', $wrongDefinition);
+
+        $forManProduct = $this->makeProductWithGenderOption(
+            5020,
+            502,
+            'Ice Dive for Man',
+            35,
+            50201,
+            100,
+            'edt',
+        );
+        $wrongVariant->setRelation('product', $forManProduct);
+        $forManProduct->setRelation('variants', collect([$wrongVariant]));
+
+        $testerDefinition = new VariantDefinition([
+            'volume_ml' => 50,
+            'concentration_code' => 'edt',
+            'is_tester' => true,
+        ]);
+        $testerVariant = new ProductVariantLink(['product_id' => 5021]);
+        $testerVariant->id = 50211;
+        $testerVariant->volume = 50;
+        $testerVariant->concentration = 'edt';
+        $testerVariant->setRelation('definition', $testerDefinition);
+
+        $plainProduct = $this->makeProductWithGenderOption(5021, 502, 'Ice Dive', 35, 50211, 50, 'edt', true);
+        $testerVariant->setRelation('product', $plainProduct);
+        $plainProduct->setRelation('variants', collect([$testerVariant]));
+
+        $productsIndex = [502 => [$forManProduct]];
+
+        $pass1 = $find->invoke(
+            $matcher,
+            502,
+            'Adidas',
+            'Ice Dive for Man',
+            'test 50ml edt',
+            50.0,
+            'edt',
+            true,
+            $productsIndex,
+            null,
+            'Ice Dive',
+            'm',
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($pass1);
+        $this->assertSame(5020, $pass1['product']->id);
+        $this->assertNull($pass1['variant']);
+        $this->assertSame(90, $pass1['total']);
+
+        $pass2 = $find->invoke(
+            $matcher,
+            502,
+            'Adidas',
+            'Ice Dive',
+            'test 50ml edt',
+            50.0,
+            'edt',
+            true,
+            [502 => [$forManProduct, $plainProduct]],
+            'male',
+            'Ice Dive',
+            'm',
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($pass2);
+        $this->assertSame(5021, $pass2['product']->id);
+        $this->assertSame(50211, $pass2['variant']?->id);
+        $this->assertSame(100, $pass2['total']);
     }
 }

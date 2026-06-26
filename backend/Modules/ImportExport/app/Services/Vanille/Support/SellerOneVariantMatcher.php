@@ -40,8 +40,11 @@ use Modules\Catalog\Support\ProductDisplayName;
  * «parfum» в хвосте варианта (50ml parfum test) = parfum в каталоге.
  *
  * EDP + имя линии в каталоге с суффиксом «Eau de Parfum» (первый прогон, до каскада (L)/(M)):
- *   (M) → «… for Man Eau de Parfum», (L) → «… for Woman Eau de Parfum», без маркера → «… Eau de Parfum».
- *   Только exact по токенам; «… Eau de Parfum Intense» не подходит. (U) — этот прогон не применяется.
+ *   (L) → for Woman / woman / for Her / Her + «Eau de Parfum»; (M) → for Man / man / for Him / Him + «Eau de Parfum»;
+ *   без маркера → «… Eau de Parfum». Только exact по токенам. (U) — этот прогон не применяется.
+ *
+ * Каскад (L)/(M): суффиксы пола в имени только при маркере в скобках; затем fallback по атрибуту «Для кого».
+ * Woman/Man/Her/Him в названии без (L)/(M) — часть имени линии (Ormonde Woman), не маркер пола.
  *
  * Строки с «***» в названии не парсятся (пропуск матча и upsert в preview).
  */
@@ -156,97 +159,96 @@ class SellerOneVariantMatcher
             }
 
             if (! $this->isGenderCascadeProductResolved($match) && $genderMarker === 'l') {
-                $femaleSearchName = $baseProductName;
-                if ($baseProductName !== '' && !$this->containsFemaleMarker($baseProductName) && ! $this->supplierBaseContainsPourLineWords($baseProductName)) {
-                    $femaleSearchName = $baseProductName.' for Woman';
-                }
-                $productName = $femaleSearchName;
-                $match = $this->findBestMatch(
+                $match = $this->runGenderSuffixNameCascade(
+                    $match,
                     $brandId,
                     $brandName,
-                    $femaleSearchName,
+                    $baseProductName,
+                    $this->genderSearchSuffixesForFemale($baseProductName),
                     $variantTail,
                     $volume,
                     $concentration,
                     $isTester,
                     $productsIndex,
-                    null,
-                    $baseProductName,
                     $genderMarker,
                     $brands,
                 );
                 if (! $this->isGenderCascadeProductResolved($match) && $baseProductName !== '') {
                     $productName = $baseProductName;
-                    $match = $this->findBestMatch(
-                        $brandId,
-                        $brandName,
-                        $baseProductName,
-                        $variantTail,
-                        $volume,
-                        $concentration,
-                        $isTester,
-                        $productsIndex,
-                        'female',
-                        $baseProductName,
-                        $genderMarker,
-                        $brands,
+                    $match = $this->pickBetterGenderCascadeMatch(
+                        $match,
+                        $this->findBestMatch(
+                            $brandId,
+                            $brandName,
+                            $baseProductName,
+                            $variantTail,
+                            $volume,
+                            $concentration,
+                            $isTester,
+                            $productsIndex,
+                            'female',
+                            $baseProductName,
+                            $genderMarker,
+                            $brands,
+                        ),
                     );
                 }
                 if (! $this->isGenderCascadeProductResolved($match) && $baseProductName !== '') {
                     $productName = $baseProductName;
-                    $match = $this->findBestMatch(
-                        $brandId,
-                        $brandName,
-                        $baseProductName,
-                        $variantTail,
-                        $volume,
-                        $concentration,
-                        $isTester,
-                        $productsIndex,
-                        'unisex',
-                        $baseProductName,
-                        $genderMarker,
-                        $brands,
+                    $match = $this->pickBetterGenderCascadeMatch(
+                        $match,
+                        $this->findBestMatch(
+                            $brandId,
+                            $brandName,
+                            $baseProductName,
+                            $variantTail,
+                            $volume,
+                            $concentration,
+                            $isTester,
+                            $productsIndex,
+                            'unisex',
+                            $baseProductName,
+                            $genderMarker,
+                            $brands,
+                        ),
                     );
                 }
                 if ($this->isGenderCascadeProductResolved($match)) {
                     $productName = $baseProductName;
                 }
             } elseif (! $this->isGenderCascadeProductResolved($match) && $genderMarker === 'm') {
-                $maleSearchName = $baseProductName;
-                if ($baseProductName !== '' && ! $this->containsMaleMarker($baseProductName) && ! $this->supplierBaseContainsPourLineWords($baseProductName)) {
-                    $maleSearchName = $baseProductName.' for Man';
-                }
-                $productName = $maleSearchName;
-                $match = $this->findBestMatch(
+                $match = $this->runGenderSuffixNameCascade(
+                    $match,
                     $brandId,
                     $brandName,
-                    $maleSearchName,
+                    $baseProductName,
+                    $this->genderSearchSuffixesForMale($baseProductName),
                     $variantTail,
                     $volume,
                     $concentration,
                     $isTester,
                     $productsIndex,
-                    null,
-                    $baseProductName,
                     $genderMarker,
                     $brands,
                 );
                 if (! $this->isGenderCascadeProductResolved($match) && $baseProductName !== '') {
                     $productName = $baseProductName;
-                    $match = $this->findBestMatch(
-                        $brandId,
-                        $brandName,
-                        $baseProductName,
-                        $variantTail,
-                        $volume,
-                        $concentration,
-                        $isTester,
-                        $productsIndex,
-                        'male',
-                        $baseProductName,
-                        $genderMarker,
-                        $brands,
+                    $match = $this->pickBetterGenderCascadeMatch(
+                        $match,
+                        $this->findBestMatch(
+                            $brandId,
+                            $brandName,
+                            $baseProductName,
+                            $variantTail,
+                            $volume,
+                            $concentration,
+                            $isTester,
+                            $productsIndex,
+                            'male',
+                            $baseProductName,
+                            $genderMarker,
+                            $brands,
+                        ),
                     );
                 }
                 if ($this->isGenderCascadeProductResolved($match)) {
@@ -274,19 +276,22 @@ class SellerOneVariantMatcher
                 );
                 if (! $this->isGenderCascadeProductResolved($match) && $baseProductName !== '' && $unisexSearchName !== $baseProductName) {
                     $productName = $baseProductName;
-                    $match = $this->findBestMatch(
-                        $brandId,
-                        $brandName,
-                        $baseProductName,
-                        $variantTail,
-                        $volume,
-                        $concentration,
-                        $isTester,
-                        $productsIndex,
-                        'unisex',
-                        $baseProductName,
-                        $genderMarker,
-                        $brands,
+                    $match = $this->pickBetterGenderCascadeMatch(
+                        $match,
+                        $this->findBestMatch(
+                            $brandId,
+                            $brandName,
+                            $baseProductName,
+                            $variantTail,
+                            $volume,
+                            $concentration,
+                            $isTester,
+                            $productsIndex,
+                            'unisex',
+                            $baseProductName,
+                            $genderMarker,
+                            $brands,
+                        ),
                     );
                 }
                 if ($this->isGenderCascadeProductResolved($match)) {
@@ -689,18 +694,107 @@ class SellerOneVariantMatcher
 
     /**
      * Первый прогон для edp: имя линии в каталоге часто заканчивается на «Eau de Parfum».
-     * (M)/(L) → for Man / for Woman; без маркера — только суффикс концентрации. (U) — не вызывается.
+     * (M)/(L) — каскад суффиксов пола; без маркера — только суффикс концентрации. (U) — не вызывается.
+     *
+     * @return list<string>
      */
-    private function buildEdpCatalogLineSearchName(string $baseProductName, ?string $genderMarker): string
+    private function buildEdpCatalogLineSearchNames(string $baseProductName, ?string $genderMarker): array
     {
         $name = trim($baseProductName);
-        if ($genderMarker === 'm') {
-            $name = trim($name.' for Man');
-        } elseif ($genderMarker === 'l') {
-            $name = trim($name.' for Woman');
+        if ($name === '') {
+            return [];
         }
 
-        return trim($name.' Eau de Parfum');
+        $suffixes = match ($genderMarker) {
+            'l' => $this->genderSearchSuffixesForFemale($name),
+            'm' => $this->genderSearchSuffixesForMale($name),
+            default => [''],
+        };
+
+        $names = [];
+        foreach ($suffixes as $suffix) {
+            $names[] = trim($name.$suffix.' Eau de Parfum');
+        }
+
+        return array_values(array_unique(array_filter($names, static fn (string $n): bool => $n !== '')));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function genderSearchSuffixesForFemale(string $baseProductName): array
+    {
+        if (
+            $baseProductName === ''
+            || $this->containsFemaleMarker($baseProductName)
+            || $this->supplierBaseContainsPourLineWords($baseProductName)
+        ) {
+            return [];
+        }
+
+        return [' for Woman', ' woman', ' for Her', ' Her'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function genderSearchSuffixesForMale(string $baseProductName): array
+    {
+        if (
+            $baseProductName === ''
+            || $this->containsMaleMarker($baseProductName)
+            || $this->supplierBaseContainsPourLineWords($baseProductName)
+        ) {
+            return [];
+        }
+
+        return [' for Man', ' man', ' for Him', ' Him'];
+    }
+
+    /**
+     * @param  list<string>  $suffixes
+     * @param  array<int, list<Product>>  $productsIndex
+     */
+    private function runGenderSuffixNameCascade(
+        ?array $match,
+        ?int $brandId,
+        ?string $brandName,
+        string $baseProductName,
+        array $suffixes,
+        string $variantTail,
+        ?float $volume,
+        ?string $concentration,
+        bool $isTester,
+        array $productsIndex,
+        string $genderMarker,
+        Collection $brands,
+    ): ?array {
+        foreach ($suffixes as $suffix) {
+            if ($this->isGenderCascadeProductResolved($match)) {
+                break;
+            }
+
+            $searchName = $baseProductName.$suffix;
+            $match = $this->pickBetterGenderCascadeMatch(
+                $match,
+                $this->findBestMatch(
+                    $brandId,
+                    $brandName,
+                    $searchName,
+                    $variantTail,
+                    $volume,
+                    $concentration,
+                    $isTester,
+                    $productsIndex,
+                    null,
+                    $baseProductName,
+                    $genderMarker,
+                    $brands,
+                ),
+            );
+        }
+
+        return $match;
     }
 
     /**
@@ -736,49 +830,59 @@ class SellerOneVariantMatcher
             return null;
         }
 
-        $searchName = $this->buildEdpCatalogLineSearchName($baseProductName, $genderMarker);
-        $targetTokens = $this->productNameTokens($searchName, $brandName);
-        if ($targetTokens === []) {
+        $searchNames = $this->buildEdpCatalogLineSearchNames($baseProductName, $genderMarker);
+        if ($searchNames === []) {
             return null;
         }
 
         $best = null;
-        foreach ($this->collectProductsForBrandMatch($brandId, $brandName, $productsIndex, $brands) as $product) {
-            $candidateBrandName = $product->relationLoaded('brand') && $product->brand
-                ? trim((string) $product->brand->name)
-                : trim((string) ($brandName ?? ''));
-            $candidateTokens = $this->productTokensCache[(int) $product->id]
-                ??= $this->productNameTokens(
-                    (string) $product->name,
-                    $candidateBrandName !== '' ? $candidateBrandName : null,
-                );
-            if (! $this->productLineTokensMatchExactly($targetTokens, $candidateTokens)) {
+        foreach ($searchNames as $searchName) {
+            $targetTokens = $this->productNameTokens($searchName, $brandName, $genderMarker);
+            if ($targetTokens === []) {
                 continue;
             }
 
-            $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, 'edp');
-            $candidate = [
-                'product' => $product,
-                'variant' => $variantMatch['variant'],
-                'base_points' => 80,
-                'name_level' => 'exact',
-                'name_percent' => (float) $variantMatch['total'],
-                'link_match_level' => $variantMatch['link_match_level'],
-                'volume_match' => $variantMatch['volume_match'],
-                'volume_points' => $variantMatch['volume_points'],
-                'concentration_match' => $variantMatch['concentration_match'],
-                'concentration_points' => $variantMatch['concentration_points'],
-                'tester_match' => $variantMatch['tester_match'],
-                'tester_points' => 0,
-                'total' => $variantMatch['total'],
-            ];
+            foreach ($this->collectProductsForBrandMatch($brandId, $brandName, $productsIndex, $brands) as $product) {
+                $candidateBrandName = $product->relationLoaded('brand') && $product->brand
+                    ? trim((string) $product->brand->name)
+                    : trim((string) ($brandName ?? ''));
+                $candidateTokens = $this->productTokensCache[(int) $product->id]
+                    ??= $this->productNameTokens(
+                        (string) $product->name,
+                        $candidateBrandName !== '' ? $candidateBrandName : null,
+                    );
+                if (! $this->productLineTokensMatchExactly($targetTokens, $candidateTokens)) {
+                    continue;
+                }
 
-            if (
-                ! $best
-                || $candidate['total'] > $best['total']
-                || ($candidate['total'] === $best['total'] && $candidate['variant'] && ! $best['variant'])
-            ) {
-                $best = $candidate;
+                $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, 'edp');
+                $candidate = [
+                    'product' => $product,
+                    'variant' => $variantMatch['variant'],
+                    'base_points' => 80,
+                    'name_level' => 'exact',
+                    'name_percent' => (float) $variantMatch['total'],
+                    'link_match_level' => $variantMatch['link_match_level'],
+                    'volume_match' => $variantMatch['volume_match'],
+                    'volume_points' => $variantMatch['volume_points'],
+                    'concentration_match' => $variantMatch['concentration_match'],
+                    'concentration_points' => $variantMatch['concentration_points'],
+                    'tester_match' => $variantMatch['tester_match'],
+                    'tester_points' => 0,
+                    'total' => $variantMatch['total'],
+                ];
+
+                if (
+                    ! $best
+                    || $candidate['total'] > $best['total']
+                    || ($candidate['total'] === $best['total'] && $candidate['variant'] && ! $best['variant'])
+                ) {
+                    $best = $candidate;
+                }
+            }
+
+            if ($this->isGenderCascadeProductResolved($best)) {
+                break;
             }
         }
 
@@ -811,7 +915,7 @@ class SellerOneVariantMatcher
             return null;
         }
 
-        $targetTokens = $this->productNameTokens($productName, $brandName);
+        $targetTokens = $this->productNameTokens($productName, $brandName, $supplierGenderMarker);
         if (empty($targetTokens)) {
             return null;
         }
@@ -903,7 +1007,7 @@ class SellerOneVariantMatcher
                 $supplierBaseProductName !== null
                 && $supplierBaseProductName !== ''
                 && $this->catalogNameContainsForHerHimLineSuffix((string) $product->name)
-                && ! $this->supplierBaseContainsForHerHimLineWords($supplierBaseProductName)
+                && ! $this->supplierSearchAlignsWithForHerHimCatalog($productName)
             ) {
                 continue;
             }
@@ -992,7 +1096,10 @@ class SellerOneVariantMatcher
             }
 
             if ($catalogExtraToken) {
-                if ($this->catalogExtraIsGenderOnlySuffix($targetTokens, $candidateTokens)) {
+                if (
+                    $this->genderMarkerAllowsGenderSuffixMatch($supplierGenderMarker)
+                    && $this->catalogExtraIsGenderOnlySuffix($targetTokens, $candidateTokens)
+                ) {
                     $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, $concentration);
                     $candidate = [
                         'product' => $product,
@@ -1053,7 +1160,10 @@ class SellerOneVariantMatcher
                     continue;
                 }
 
-                if ($this->supplierExtraIsGenderOnlySuffix($targetTokens, $candidateTokens)) {
+                if (
+                    $this->genderMarkerAllowsGenderSuffixMatch($supplierGenderMarker)
+                    && $this->supplierExtraIsGenderOnlySuffix($targetTokens, $candidateTokens)
+                ) {
                     $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, $concentration);
                     $candidate = [
                         'product' => $product,
@@ -1549,9 +1659,18 @@ class SellerOneVariantMatcher
      *
      * @return list<string>
      */
-    private function productNameTokens(string $name, ?string $brandName): array
+    private function productNameTokens(string $name, ?string $brandName, ?string $supplierGenderMarker = null): array
     {
-        return CatalogProductLinkNameTokenizer::variantMatchTokens($name, $brandName);
+        return CatalogProductLinkNameTokenizer::variantMatchTokens(
+            $name,
+            $brandName,
+            applyStandaloneGenderTokens: $this->genderMarkerAllowsGenderSuffixMatch($supplierGenderMarker),
+        );
+    }
+
+    private function genderMarkerAllowsGenderSuffixMatch(?string $supplierGenderMarker): bool
+    {
+        return in_array($supplierGenderMarker, ['l', 'm'], true);
     }
 
     /**
@@ -1709,7 +1828,40 @@ class SellerOneVariantMatcher
             return false;
         }
 
-        return in_array((string) ($match['name_level'] ?? ''), ['exact', 'exact_multiset'], true);
+        if (! in_array((string) ($match['name_level'] ?? ''), ['exact', 'exact_multiset'], true)) {
+            return false;
+        }
+
+        if (($match['variant'] ?? null) !== null) {
+            return true;
+        }
+
+        return ($match['link_match_level'] ?? 'none') !== 'name_only';
+    }
+
+    private function pickBetterGenderCascadeMatch(?array $current, ?array $candidate): ?array
+    {
+        if ($candidate === null) {
+            return $current;
+        }
+
+        if ($current === null) {
+            return $candidate;
+        }
+
+        if ($candidate['total'] > $current['total']) {
+            return $candidate;
+        }
+
+        if (
+            $candidate['total'] === $current['total']
+            && ($candidate['variant'] ?? null)
+            && ! ($current['variant'] ?? null)
+        ) {
+            return $candidate;
+        }
+
+        return $current;
     }
 
     /**
@@ -2007,6 +2159,21 @@ class SellerOneVariantMatcher
         return (bool) preg_match('/\bfor\s+(?:her|him)\b/iu', $supplierBaseProductName);
     }
 
+    /** Каталог «… for Her/Him» — только если в строке поиска явно for Her/Him или хвост Her/Him. */
+    private function supplierSearchAlignsWithForHerHimCatalog(string $supplierSearchName): bool
+    {
+        $trimmed = trim($supplierSearchName);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if ($this->supplierBaseContainsForHerHimLineWords($trimmed)) {
+            return true;
+        }
+
+        return (bool) preg_match('/\b(?:her|him)\s*$/iu', $trimmed);
+    }
+
     /**
      * @param  list<string>  $supplier
      * @param  list<string>  $catalog
@@ -2103,7 +2270,7 @@ class SellerOneVariantMatcher
     private function containsFemaleMarker(string $name): bool
     {
         return (bool) preg_match(
-            '/\b(for\s*women|women|woman|lady|ladies|for\s*her|female|жен(?:ский|ская|ское|щин))\b/iu',
+            '/\b(for\s*women|for\s*woman|for\s*her|women|woman|lady|ladies|female|жен(?:ский|ская|ское|щин))\b/iu',
             $name
         );
     }
@@ -2111,7 +2278,7 @@ class SellerOneVariantMatcher
     private function containsMaleMarker(string $name): bool
     {
         return (bool) preg_match(
-            '/\b(for\s*men|for\s*man|for\s*him|male|муж(?:ской|ская|ское|чин))\b/iu',
+            '/\b(for\s*men|for\s*man|for\s*him|men|man|him|male|муж(?:ской|ская|ское|чин))\b/iu',
             $name
         );
     }

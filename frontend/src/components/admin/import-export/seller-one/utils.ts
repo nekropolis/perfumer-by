@@ -38,6 +38,51 @@ export function formatParsedSupplierVariantHint(parsed: {
     return parts.length > 0 ? parts.join(" / ") : "—";
 }
 
+export function isSimilarProductMatch(
+    breakdown: { name_match_level?: string | null } | null | undefined,
+): boolean {
+    return breakdown?.name_match_level === "catalog_extra"
+        || breakdown?.name_match_level === "partial";
+}
+
+/** Как tryAutoConfirmLink на бэкенде: галочка «Связь» только при 100% и exact-имени. */
+export function canConfirmSuggestedLink(row: {
+    suggested_variant?: { id: number } | null;
+    match_confidence?: number;
+    match_confidence_breakdown?: { name_match_level?: string | null } | null;
+    is_linked?: boolean;
+}): boolean {
+    if (row.is_linked) {
+        return true;
+    }
+
+    if (!row.suggested_variant?.id) {
+        return false;
+    }
+
+    const nameLevel = row.match_confidence_breakdown?.name_match_level ?? "";
+    if (nameLevel !== "exact" && nameLevel !== "exact_multiset") {
+        return false;
+    }
+
+    return (row.match_confidence ?? 0) >= 100;
+}
+
+export function getSuggestedProductOnlyMessage(
+    breakdown: { name_match_level?: string | null } | null | undefined,
+    variantsCount: number,
+): string {
+    if (isSimilarProductMatch(breakdown)) {
+        return "Похожий продукт, проверьте название";
+    }
+
+    if (variantsCount > 0) {
+        return "Совпал продукт, выберите вариант";
+    }
+
+    return "Совпал продукт, вариантов пока нет";
+}
+
 export function formatVariantOptionLabel(variant: AdminProductVariantItem): string {
     const title = (variant.title || "").trim();
     if (title) {
@@ -128,11 +173,46 @@ export function formatCatalogProductLabel(product: ProductAdminItem): string {
         : product.name;
 }
 
+/** Строка для сравнения при ранжировании (без дубля бренда в name). */
+export function buildComparableProductLabel(product: ProductAdminItem): string {
+    const brand = normalizeSearchText(product.brand?.name || "").toLowerCase();
+    const name = normalizeSearchText(product.name).toLowerCase();
+
+    if (!name) {
+        return brand;
+    }
+    if (!brand) {
+        return name;
+    }
+    if (name === brand || name.startsWith(`${brand} `)) {
+        return name;
+    }
+
+    return `${brand} ${name}`.trim();
+}
+
 export function buildSupplierLabelFromHint(hint: {
     brand: string;
     productName: string;
 }): string {
     return [hint.brand.trim(), hint.productName.trim()].filter(Boolean).join(" ").trim();
+}
+
+export function productSearchMatchTier(full: string, target: string): number {
+    if (full === target) {
+        return 0;
+    }
+    if (
+        full.startsWith(target)
+        && (full.length === target.length || full[target.length] === " ")
+    ) {
+        return 1;
+    }
+    if (full.includes(target)) {
+        return 2;
+    }
+
+    return 3;
 }
 
 export function rankProducts(products: ProductAdminItem[], query: string): ProductAdminItem[] {
@@ -142,14 +222,16 @@ export function rankProducts(products: ProductAdminItem[], query: string): Produ
     const scored = products.map((product) => {
         const name = normalizeSearchText(product.name).toLowerCase();
         const brand = normalizeSearchText(product.brand?.name || "").toLowerCase();
-        const full = `${brand} ${name}`.trim();
+        const full = buildComparableProductLabel(product);
+        const tier = productSearchMatchTier(full, target);
         let score = 0;
 
-        if (full === target) {
+        if (tier === 0) {
             score += 1000;
-        }
-        if (full.includes(target)) {
-            score += 400;
+        } else if (tier === 1) {
+            score += 900 * (target.length / Math.max(full.length, 1));
+        } else if (tier === 2) {
+            score += 400 * (target.length / Math.max(full.length, 1));
         }
         if (name.includes(target)) {
             score += 250;
@@ -161,11 +243,17 @@ export function rankProducts(products: ProductAdminItem[], query: string): Produ
             if (brand.includes(word)) score += 20;
         }
 
-        return { product, score };
+        return { product, score, tier, fullLength: full.length };
     });
 
     return scored
-        .sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name))
+        .sort(
+            (a, b) =>
+                a.tier - b.tier
+                || b.score - a.score
+                || a.fullLength - b.fullLength
+                || a.product.name.localeCompare(b.product.name),
+        )
         .map((item) => item.product);
 }
 

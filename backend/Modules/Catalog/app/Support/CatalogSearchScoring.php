@@ -21,6 +21,34 @@ class CatalogSearchScoring
     }
 
     /**
+     * Сравнимая строка «бренд + продукт» без дубля бренда в name (Ormonde Jayne + Ormonde Jayne Ormond).
+     */
+    public static function buildProductSearchLabel(string $brandName, string $productName): string
+    {
+        $brandName = trim($brandName);
+        $productName = trim($productName);
+
+        if ($productName === '') {
+            return self::normalizeSearchText($brandName);
+        }
+        if ($brandName === '') {
+            return self::normalizeSearchText($productName);
+        }
+
+        $normalizedBrand = self::normalizeSearchText($brandName);
+        $normalizedName = self::normalizeSearchText($productName);
+
+        if ($normalizedName === $normalizedBrand) {
+            return $normalizedBrand;
+        }
+        if ($normalizedBrand !== '' && str_starts_with($normalizedName, $normalizedBrand.' ')) {
+            return $normalizedName;
+        }
+
+        return self::normalizeSearchText($brandName.' '.$productName);
+    }
+
+    /**
      * @return list<string>
      */
     public static function splitWords(string $value): array
@@ -36,8 +64,20 @@ class CatalogSearchScoring
         if ($needle === $haystack) {
             return 1.0;
         }
+
+        $needleLen = mb_strlen($needle, 'UTF-8');
+        $haystackLen = max(1, mb_strlen($haystack, 'UTF-8'));
+        $coverageRatio = $needleLen / $haystackLen;
+
+        if (str_starts_with($haystack, $needle)) {
+            $tail = mb_substr($haystack, $needleLen, null, 'UTF-8');
+            if ($tail === '' || preg_match('/^\s/u', $tail) === 1) {
+                return 0.97 * $coverageRatio + 0.03;
+            }
+        }
+
         if (str_contains($haystack, $needle)) {
-            return self::SCORE_SIMILARITY_CONTAINS;
+            return self::SCORE_SIMILARITY_CONTAINS * $coverageRatio;
         }
 
         $needleTokens = self::splitWords($needle);
@@ -56,6 +96,40 @@ class CatalogSearchScoring
         $phraseScore = self::diceCoefficient($needle, $haystack);
 
         return max($avgTokenScore, $phraseScore * self::SCORE_PHRASE_FACTOR);
+    }
+
+    /**
+     * Ранг для сортировки выдачи: exact > расширение (Ormond Elixir) > contains > fuzzy.
+     *
+     * @return array{tier: int, score: float, full: string, full_len: int}
+     */
+    public static function productSearchRank(string $query, string $brandName, string $productName): array
+    {
+        $normalizedQuery = self::normalizeSearchText($query);
+        $full = self::buildProductSearchLabel($brandName, $productName);
+        $score = self::similarityScore($normalizedQuery, $full);
+        $fullLen = mb_strlen($full, 'UTF-8');
+
+        if ($normalizedQuery === '' || $full === '') {
+            return ['tier' => 3, 'score' => 0.0, 'full' => $full, 'full_len' => $fullLen];
+        }
+
+        if ($full === $normalizedQuery) {
+            return ['tier' => 0, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+        }
+
+        if (str_starts_with($full, $normalizedQuery)) {
+            $tail = mb_substr($full, mb_strlen($normalizedQuery, 'UTF-8'), null, 'UTF-8');
+            if ($tail === '' || preg_match('/^\s/u', $tail) === 1) {
+                return ['tier' => 1, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+            }
+        }
+
+        if (str_contains($full, $normalizedQuery)) {
+            return ['tier' => 2, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+        }
+
+        return ['tier' => 3, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
     }
 
     public static function diceCoefficient(string $a, string $b): float

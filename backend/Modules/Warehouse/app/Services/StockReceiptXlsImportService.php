@@ -6,14 +6,15 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SellerOneMatchRule;
-use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Catalog\Support\ProductDisplayName;
+use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
+use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantLinkAutoCreator;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptImportMapping;
@@ -26,14 +27,15 @@ class StockReceiptXlsImportService
 
     private const RESOLVE_BATCH_MAX = 150;
 
-    private const TITLE_BRAND_ALIASES = [
-        '/^a\.?\s*banderas\b/ui' => 'antonio banderas',
-    ];
+    /** product_attributes: «Для кого» — единственный атрибут, который читает SellerOneVariantMatcher. */
+    private const GENDER_ATTRIBUTE_ID = 3;
 
     public function __construct(
         private readonly StockReceiptService $receiptService,
         private readonly StockInventoryService $inventoryService,
+        private readonly SupplierPriceImportService $supplierPriceImportService,
         private readonly SellerOneVariantMatcher $variantMatcher,
+        private readonly SellerOneVariantLinkAutoCreator $variantLinkAutoCreator,
     ) {
     }
 
@@ -54,6 +56,9 @@ class StockReceiptXlsImportService
         if (function_exists('set_time_limit')) {
             @set_time_limit(300);
         }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '768M');
+        }
 
         $rows = $this->readRows($file);
         $aggregated = $this->aggregateRows($rows);
@@ -63,19 +68,19 @@ class StockReceiptXlsImportService
         $unresolved = [];
 
         foreach ($aggregated as $row) {
-            $resolved = $this->tryResolveAggregatedRow($row, $mappingIndex);
-            if (!$resolved) {
-                $unresolved[] = $this->buildUnresolvedRow($row);
+            $processed = $this->processAggregatedRow($row, $mappingIndex);
+            if ($processed['resolved']) {
+                $items[] = [
+                    'product_id' => $processed['product_id'],
+                    'variant_id' => $processed['variant_id'],
+                    'qty' => (int) $row['qty'],
+                    'supplier_price' => (float) ($row['supplier_price'] ?? 0),
+                    'supplier_sku' => $row['code'] ?: null,
+                ];
                 continue;
             }
 
-            $items[] = [
-                'product_id' => $resolved['product_id'],
-                'variant_id' => $resolved['variant_id'],
-                'qty' => (int) $row['qty'],
-                'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                'supplier_sku' => $row['code'] ?: null,
-            ];
+            $unresolved[] = $processed['unresolved'];
         }
 
         if (!empty($unresolved)) {
@@ -183,7 +188,10 @@ class StockReceiptXlsImportService
     public function resolveImportBatch(string $sessionId, int $offset, int $limit): array
     {
         if (function_exists('set_time_limit')) {
-            @set_time_limit(120);
+            @set_time_limit(180);
+        }
+        if (function_exists('ini_set')) {
+            @ini_set('memory_limit', '768M');
         }
 
         $userId = Auth::id();
@@ -194,68 +202,82 @@ class StockReceiptXlsImportService
         $dir = $this->sessionDir($sessionId);
         $this->assertSessionOwned($dir, (int) $userId);
 
-        $aggregated = $this->readSessionJson($dir . '/aggregated.json');
-        $outcomes = $this->readSessionJson($dir . '/outcomes.json');
-        if (!is_array($outcomes)) {
-            $outcomes = [];
+        $this->productsIndex = null;
+
+        try {
+            $aggregated = $this->readSessionJson($dir . '/aggregated.json');
+            $outcomes = $this->readSessionJson($dir . '/outcomes.json');
+            if (!is_array($outcomes)) {
+                $outcomes = [];
+            }
+
+            $total = count($aggregated);
+            $offset = max(0, $offset);
+            $limit = max(1, min($limit, self::RESOLVE_BATCH_MAX));
+            $slice = array_slice($aggregated, $offset, $limit);
+
+            $batchUnresolved = [];
+            $mappingIndex = [];
+
+            foreach ($slice as $row) {
+                $key = trim((string) ($row['map_key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+
+                if (array_key_exists($key, $outcomes)) {
+                    continue;
+                }
+
+                $processed = $this->processAggregatedRow($row, $mappingIndex);
+                if ($processed['resolved']) {
+                    $outcomes[$key] = [
+                        'resolved' => true,
+                        'product_id' => $processed['product_id'],
+                        'variant_id' => $processed['variant_id'],
+                        'qty' => (int) ($row['qty'] ?? 0),
+                        'supplier_price' => (float) ($row['supplier_price'] ?? 0),
+                        'code' => $row['code'] ?? '',
+                        'title' => $row['title'] ?? '',
+                    ];
+                    if (!empty($processed['unresolved'])) {
+                        $batchUnresolved[] = $processed['unresolved'];
+                    }
+                } else {
+                    $unresolvedRow = $processed['unresolved'];
+                    $outcomes[$key] = [
+                        'resolved' => false,
+                        'qty' => (int) ($row['qty'] ?? 0),
+                        'supplier_price' => (float) ($row['supplier_price'] ?? 0),
+                        'code' => $row['code'] ?? '',
+                        'title' => $row['title'] ?? '',
+                        'unresolved' => $unresolvedRow,
+                    ];
+                    $batchUnresolved[] = $unresolvedRow;
+                }
+            }
+
+            Storage::disk(self::IMPORT_SESSION_DISK)->put(
+                $dir . '/outcomes.json',
+                json_encode($outcomes, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
+
+            $nextOffset = $offset + $limit;
+
+            return [
+                'next_offset' => $nextOffset,
+                'total_rows' => $total,
+                'done' => $nextOffset >= $total,
+                'unresolved' => $batchUnresolved,
+            ];
+        } finally {
+            $this->productsIndex = null;
+            $this->brands = null;
+            $this->matchRules = null;
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
         }
-
-        $total = count($aggregated);
-        $offset = max(0, $offset);
-        $limit = max(1, min($limit, self::RESOLVE_BATCH_MAX));
-        $slice = array_slice($aggregated, $offset, $limit);
-
-        $batchUnresolved = [];
-        $mappingIndex = [];
-
-        foreach ($slice as $row) {
-            $key = trim((string) ($row['map_key'] ?? ''));
-            if ($key === '') {
-                continue;
-            }
-
-            if (array_key_exists($key, $outcomes)) {
-                continue;
-            }
-
-            $resolved = $this->tryResolveAggregatedRow($row, $mappingIndex);
-            if ($resolved) {
-                $outcomes[$key] = [
-                    'resolved' => true,
-                    'product_id' => $resolved['product_id'],
-                    'variant_id' => $resolved['variant_id'],
-                    'qty' => (int) ($row['qty'] ?? 0),
-                    'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                    'code' => $row['code'] ?? '',
-                    'title' => $row['title'] ?? '',
-                ];
-            } else {
-                $unresolvedRow = $this->buildUnresolvedRow($row);
-                $outcomes[$key] = [
-                    'resolved' => false,
-                    'qty' => (int) ($row['qty'] ?? 0),
-                    'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                    'code' => $row['code'] ?? '',
-                    'title' => $row['title'] ?? '',
-                    'unresolved' => $unresolvedRow,
-                ];
-                $batchUnresolved[] = $unresolvedRow;
-            }
-        }
-
-        Storage::disk(self::IMPORT_SESSION_DISK)->put(
-            $dir . '/outcomes.json',
-            json_encode($outcomes, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-        );
-
-        $nextOffset = $offset + $limit;
-
-        return [
-            'next_offset' => $nextOffset,
-            'total_rows' => $total,
-            'done' => $nextOffset >= $total,
-            'unresolved' => $batchUnresolved,
-        ];
     }
 
     /**
@@ -498,19 +520,69 @@ class StockReceiptXlsImportService
     }
 
     /**
-     * @return array{product_id: int, variant_id: int}|null
+     * @return array{
+     *     resolved: true,
+     *     product_id: int,
+     *     variant_id: int,
+     *     unresolved: array<string, mixed>,
+     * }|array{
+     *     resolved: false,
+     *     unresolved: array<string, mixed>,
+     * }
      */
-    private function tryResolveAggregatedRow(array $row, array $mappingIndex): ?array
+    private function processAggregatedRow(array $row, array $mappingIndex): array
     {
-        $resolved = $this->resolveVariant($row['code'] ?? '', $row['title'] ?? '');
-        if (!$resolved) {
-            $resolved = $this->resolveVariantFromMapping($row, $mappingIndex);
-        }
+        $resolved = $this->resolveVariantFromMapping($row, $mappingIndex);
         if (!$resolved) {
             $resolved = $this->resolveVariantFromStoredMapping($row);
         }
 
-        return $resolved;
+        if (!$resolved && $this->variantMatcher->shouldSkipParsingRow([
+            'code' => $row['code'] ?? '',
+            'title' => $row['title'] ?? '',
+        ])) {
+            return [
+                'resolved' => false,
+                'unresolved' => $this->buildUnresolvedRowFromParsed($row, [
+                    'parsed' => ['skip_auto_match' => true],
+                    'suggested_variant' => null,
+                    'suggested_product' => null,
+                ]),
+            ];
+        }
+
+        $parsed = null;
+        if (!$resolved) {
+            $parsed = $this->parseImportRowWithMatcher($row);
+            if ($this->canAutoResolveReceiptLink($parsed)) {
+                $variantId = (int) ($parsed['selected_variant_id'] ?? $parsed['suggested_variant']['id'] ?? 0);
+                $variant = ProductVariantLink::query()->find($variantId);
+                if ($variant) {
+                    $resolved = [
+                        'product_id' => (int) $variant->product_id,
+                        'variant_id' => (int) $variant->id,
+                    ];
+                }
+            }
+        }
+
+        if ($resolved) {
+            return [
+                'resolved' => true,
+                'product_id' => $resolved['product_id'],
+                'variant_id' => $resolved['variant_id'],
+                'unresolved' => $this->buildUnresolvedRowFromAutoResolved(
+                    $row,
+                    (int) $resolved['variant_id'],
+                    $parsed,
+                ),
+            ];
+        }
+
+        return [
+            'resolved' => false,
+            'unresolved' => $this->buildUnresolvedRowFromParsed($row, $parsed ?? []),
+        ];
     }
 
     private function readRows(UploadedFile $file): array
@@ -595,96 +667,22 @@ class StockReceiptXlsImportService
         return array_values($grouped);
     }
 
-    private function resolveVariant(string $code, string $title): ?array
+    /**
+     * Как tryAutoConfirmLink в Seller One: 100% + exact/exact_multiset имени.
+     *
+     * @param  array<string, mixed>  $parsed
+     */
+    private function canAutoResolveReceiptLink(array $parsed): bool
     {
-        // 1) Основной путь: сопоставление по названию (после дедупа в XLS).
-        $titleCandidates = $this->buildTitleCandidates($title);
-        if (empty($titleCandidates)) {
-            return null;
+        $confidence = (int) ($parsed['suggested_variant']['confidence'] ?? 0);
+        $variantId = (int) ($parsed['selected_variant_id'] ?? $parsed['suggested_variant']['id'] ?? 0);
+        if ($confidence < 100 || $variantId <= 0) {
+            return false;
         }
 
-        $offerByName = SupplierVariantOffer::query()
-            ->with('productVariant')
-            ->where(function ($query) use ($titleCandidates) {
-                foreach ($titleCandidates as $normalizedTitle) {
-                    $query
-                        ->orWhereRaw('LOWER(TRIM(COALESCE(external_product_name, ""))) = ?', [$normalizedTitle])
-                        ->orWhereRaw('LOWER(TRIM(COALESCE(external_variant_name, ""))) = ?', [$normalizedTitle])
-                        ->orWhereRaw('LOWER(TRIM(CONCAT(COALESCE(external_product_name, ""), " ", COALESCE(external_variant_name, "")))) = ?', [$normalizedTitle]);
-                }
-            })
-            ->orderByDesc('is_active')
-            ->orderByDesc('id')
-            ->first();
-        if ($offerByName?->productVariant) {
-            return [
-                'product_id' => (int) $offerByName->productVariant->product_id,
-                'variant_id' => (int) $offerByName->productVariant->id,
-            ];
-        }
+        $nameLevel = (string) ($parsed['suggested_variant']['confidence_breakdown']['name_match_level'] ?? '');
 
-        $variantId = null;
-        foreach ($titleCandidates as $normalizedTitle) {
-            $variantId = DB::table('product_variant_links as pvl')
-                ->join('products as p', 'p.id', '=', 'pvl.product_id')
-                ->leftJoin('brands as b', 'b.id', '=', 'p.brand_id')
-                ->join('variant_definitions as vd', 'vd.id', '=', 'pvl.variant_definition_id')
-                ->where(function ($query) use ($normalizedTitle): void {
-                    $query
-                        ->whereRaw(
-                            'LOWER(TRIM(CONCAT_WS(" ", NULLIF(TRIM(b.name), ""), TRIM(p.name), TRIM(vd.title)))) = ?',
-                            [$normalizedTitle]
-                        )
-                        ->orWhereRaw(
-                            'LOWER(TRIM(CONCAT(TRIM(p.name), " ", TRIM(vd.title)))) = ?',
-                            [$normalizedTitle]
-                        );
-                })
-                ->value('pvl.id');
-            if ($variantId) {
-                break;
-            }
-        }
-
-        if ($variantId) {
-            $variant = ProductVariantLink::query()->find((int) $variantId);
-            if ($variant) {
-                return [
-                    'product_id' => (int) $variant->product_id,
-                    'variant_id' => (int) $variant->id,
-                ];
-            }
-        }
-
-        // 2) Фолбек: если код есть и в офферах он все-таки заведен — пробуем матч по коду.
-        if ($code !== '') {
-            $codeCandidates = $this->buildCodeCandidates($code);
-            $offerByCode = SupplierVariantOffer::query()
-                ->with('productVariant')
-                ->where(function ($query) use ($codeCandidates) {
-                    $query
-                        ->whereIn('external_id', $codeCandidates)
-                        ->orWhereIn('sku', $codeCandidates);
-                })
-                ->orderByDesc('is_active')
-                ->orderByDesc('id')
-                ->first();
-
-            if ($offerByCode?->productVariant) {
-                return [
-                    'product_id' => (int) $offerByCode->productVariant->product_id,
-                    'variant_id' => (int) $offerByCode->productVariant->id,
-                ];
-            }
-        }
-
-        // 3) Fuzzy fallback по правилам парсера из SupplierPriceImportService.
-        $matchedByParser = $this->resolveVariantByMatcher($code, $title);
-        if ($matchedByParser) {
-            return $matchedByParser;
-        }
-
-        return null;
+        return in_array($nameLevel, ['exact', 'exact_multiset'], true);
     }
 
     private function toFloat(mixed $value): ?float
@@ -711,101 +709,8 @@ class StockReceiptXlsImportService
         $normalized = mb_strtolower(trim($value));
         $normalized = str_replace('ё', 'е', $normalized);
         $normalized = preg_replace('/\s+/u', ' ', $normalized) ?: '';
+
         return trim($normalized);
-    }
-
-    private function buildTitleCandidates(string $title): array
-    {
-        $base = $this->normalizeExactTitle($title);
-        if ($base === '') {
-            return [];
-        }
-
-        $candidates = [$base];
-        foreach (self::TITLE_BRAND_ALIASES as $pattern => $replacement) {
-            $aliased = preg_replace($pattern, $replacement, $base);
-            if (is_string($aliased) && $aliased !== '') {
-                $candidates[] = $this->normalizeExactTitle($aliased);
-            }
-        }
-
-        return array_values(array_unique($candidates));
-    }
-
-    private function buildCodeCandidates(string $code): array
-    {
-        $raw = trim($code);
-        if ($raw === '') {
-            return [];
-        }
-
-        $candidates = [$raw];
-        $noSpaces = preg_replace('/\s+/u', '', $raw) ?? $raw;
-        $candidates[] = $noSpaces;
-
-        if (preg_match('/^\d+(\.0+)?$/', $noSpaces) === 1) {
-            $intCode = (string) (int) ((float) $noSpaces);
-            $candidates[] = $intCode;
-            $candidates[] = ltrim($intCode, '0');
-        }
-
-        $normalized = array_values(array_unique(array_filter($candidates, static function ($value) {
-            return is_string($value) && $value !== '';
-        })));
-
-        return $normalized;
-    }
-
-    private function resolveVariantByMatcher(string $code, string $title): ?array
-    {
-        foreach ($this->buildMatcherTitleCandidates($title) as $titleCandidate) {
-            $parsed = $this->variantMatcher->parseSupplierRow(
-                [
-                    'code' => $code,
-                    'title' => $titleCandidate,
-                    'supplier_price' => null,
-                ],
-                $this->getBrands(),
-                $this->getMatchRules(),
-                $this->getProductsIndex()
-            );
-
-            $variantId = (int) ($parsed['selected_variant_id'] ?? 0);
-            $confidence = (int) ($parsed['suggested_variant']['confidence'] ?? 0);
-            if ($variantId <= 0 || $confidence < 100) {
-                continue;
-            }
-
-            $variant = ProductVariantLink::query()->find($variantId);
-            if (!$variant) {
-                continue;
-            }
-
-            return [
-                'product_id' => (int) $variant->product_id,
-                'variant_id' => (int) $variant->id,
-            ];
-        }
-
-        return null;
-    }
-
-    private function buildMatcherTitleCandidates(string $title): array
-    {
-        $raw = trim($title);
-        if ($raw === '') {
-            return [];
-        }
-
-        $candidates = [$raw];
-        foreach (self::TITLE_BRAND_ALIASES as $pattern => $replacement) {
-            $aliased = preg_replace($pattern, $replacement, $raw);
-            if (is_string($aliased) && trim($aliased) !== '') {
-                $candidates[] = trim($aliased);
-            }
-        }
-
-        return array_values(array_unique($candidates));
     }
 
     private function getBrands(): Collection
@@ -822,7 +727,9 @@ class StockReceiptXlsImportService
     private function getMatchRules(): Collection
     {
         if ($this->matchRules === null) {
+            $supplier = $this->supplierPriceImportService->getOrCreateSellerOneSupplier();
             $this->matchRules = SellerOneMatchRule::query()
+                ->where('supplier_id', $supplier->id)
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('id')
@@ -837,28 +744,41 @@ class StockReceiptXlsImportService
      */
     private function getProductsIndex(): array
     {
-        if ($this->productsIndex === null) {
-            $products = Product::query()
+        if ($this->productsIndex !== null) {
+            return $this->productsIndex;
+        }
+
+        $this->productsIndex = $this->buildProductsIndexFromDb();
+
+        return $this->productsIndex;
+    }
+
+    /**
+     * @return array<int, list<Product>>
+     */
+    private function buildProductsIndexFromDb(): array
+    {
+        $grouped = [];
+
+        foreach (
+            Product::query()
+                ->whereNotNull('brand_id')
                 ->with([
                     'brand',
                     'variants.definition',
-                    'attributeValues.productAttribute:id,name',
-                    'attributeValues.selectedOptions.productAttributeOption:id,name',
+                    'attributeValues' => static fn ($query) => $query->where(
+                        'product_attribute_id',
+                        self::GENDER_ATTRIBUTE_ID,
+                    ),
+                    'attributeValues.selectedOptions',
                 ])
-                ->get();
-
-            $grouped = [];
-            foreach ($products as $product) {
-                if (!$product->brand_id) {
-                    continue;
-                }
-                $grouped[$product->brand_id][] = $product;
-            }
-
-            $this->productsIndex = $grouped;
+                ->orderBy('id')
+                ->cursor() as $product
+        ) {
+            $grouped[(int) $product->brand_id][] = $product;
         }
 
-        return $this->productsIndex;
+        return $grouped;
     }
 
     /**
@@ -942,11 +862,14 @@ class StockReceiptXlsImportService
         ];
     }
 
-    private function buildUnresolvedRow(array $row): array
+    /**
+     * @param  array{code?: string, title?: string, supplier_price?: mixed, map_key?: string, qty?: int}  $row
+     * @return array<string, mixed>
+     */
+    private function parseImportRowWithMatcher(array $row): array
     {
         $code = trim((string) ($row['code'] ?? ''));
         $title = trim((string) ($row['title'] ?? ''));
-        $mapKey = trim((string) ($row['map_key'] ?? ($code !== '' ? 'sku:' . $code : 'title:' . $this->normalizeExactTitle($title))));
 
         $parsed = $this->variantMatcher->parseSupplierRow(
             [
@@ -956,8 +879,50 @@ class StockReceiptXlsImportService
             ],
             $this->getBrands(),
             $this->getMatchRules(),
-            $this->getProductsIndex()
+            $this->getProductsIndex(),
         );
+
+        $parsed = $this->variantLinkAutoCreator->apply(
+            $parsed,
+            [
+                'code' => $code,
+                'title' => $title,
+                'supplier_price' => $row['supplier_price'] ?? null,
+            ],
+            $this->getProductsIndex(),
+            requirePositiveSupplierPrice: true,
+        );
+
+        return $this->enrichParsedBrandId($parsed);
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @return array<string, mixed>
+     */
+    private function enrichParsedBrandId(array $parsed): array
+    {
+        $brandName = trim((string) ($parsed['parsed']['brand'] ?? ''));
+        if ($brandName === '' || !is_array($parsed['parsed'] ?? null)) {
+            return $parsed;
+        }
+
+        $normalizedBrand = mb_strtolower($brandName);
+        $brand = $this->getBrands()->first(
+            static fn (Brand $candidate): bool => mb_strtolower(trim((string) $candidate->name)) === $normalizedBrand,
+        );
+        if ($brand) {
+            $parsed['parsed']['brand_id'] = (int) $brand->id;
+        }
+
+        return $parsed;
+    }
+
+    private function buildUnresolvedRowFromParsed(array $row, array $parsed): array
+    {
+        $code = trim((string) ($row['code'] ?? ''));
+        $title = trim((string) ($row['title'] ?? ''));
+        $mapKey = trim((string) ($row['map_key'] ?? ($code !== '' ? 'sku:' . $code : 'title:' . $this->normalizeExactTitle($title))));
 
         return [
             'map_key' => $mapKey,
@@ -973,6 +938,75 @@ class StockReceiptXlsImportService
                 ?? $parsed['suggested_product']['confidence']
                 ?? 0
             ),
+            'match_confidence_breakdown' => $parsed['suggested_variant']['confidence_breakdown']
+                ?? $parsed['suggested_product']['confidence_breakdown']
+                ?? null,
+        ];
+    }
+
+    /**
+     * Строка для UI: автосвязка есть в outcomes, но в таблице показываем галочку «Связка».
+     *
+     * @param  array<string, mixed>|null  $parsed
+     * @return array<string, mixed>
+     */
+    private function buildUnresolvedRowFromAutoResolved(array $row, int $variantId, ?array $parsed): array
+    {
+        $base = $parsed !== null && $parsed !== []
+            ? $this->buildUnresolvedRowFromParsed($row, $parsed)
+            : $this->buildUnresolvedRowFromParsed($row, []);
+
+        $catalogVariant = $this->formatCatalogVariantForUi($variantId, $parsed);
+        if ($catalogVariant === null) {
+            return $base;
+        }
+
+        $base['linked_variant'] = $catalogVariant;
+        if ($base['suggested_variant'] === null) {
+            $base['suggested_variant'] = $catalogVariant;
+        }
+        if ((int) ($base['match_confidence'] ?? 0) < 100) {
+            $base['match_confidence'] = 100;
+        }
+        if ($base['match_confidence_breakdown'] === null) {
+            $base['match_confidence_breakdown'] = [
+                'total' => 100,
+                'name_match_level' => 'exact',
+            ];
+        }
+        $base['auto_resolved'] = true;
+
+        return $base;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $parsed
+     * @return array<string, mixed>|null
+     */
+    private function formatCatalogVariantForUi(int $variantId, ?array $parsed): ?array
+    {
+        $variant = ProductVariantLink::query()
+            ->with(['product.brand', 'definition'])
+            ->find($variantId);
+        if (!$variant) {
+            return null;
+        }
+
+        $product = $variant->product;
+
+        return [
+            'id' => (int) $variant->id,
+            'product_id' => (int) $variant->product_id,
+            'product_name' => $product?->name,
+            'display_name' => $product ? ProductDisplayName::forProduct($product) : null,
+            'brand_name' => $product?->brand?->name,
+            'display' => $this->variantMatcher->buildVariantLabel($variant),
+            'confidence' => (int) ($parsed['suggested_variant']['confidence'] ?? 100),
+            'confidence_breakdown' => $parsed['suggested_variant']['confidence_breakdown']
+                ?? [
+                    'total' => 100,
+                    'name_match_level' => 'exact',
+                ],
         ];
     }
 

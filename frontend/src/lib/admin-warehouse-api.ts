@@ -469,7 +469,7 @@ export async function resolveStockReceiptXlsImportBatch(payload: {
         body: JSON.stringify({
             session_id: payload.session_id,
             offset: payload.offset,
-            limit: payload.limit ?? 75,
+            limit: payload.limit ?? 35,
         }),
         cache: "no-store",
     });

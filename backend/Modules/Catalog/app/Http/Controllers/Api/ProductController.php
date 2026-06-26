@@ -627,22 +627,26 @@ class ProductController extends Controller
                 ? (int) config('catalog_search.slo.header_p95_ms', 250)
                 : (int) config('catalog_search.slo.search_page_p95_ms', 450);
 
-            Log::info('catalog.smart_search', [
-                'query' => $query,
-                'has_results' => ($productResultCount + count($rankedBrands)) > 0,
-                'brand_count' => count($rankedBrands),
-                'product_count' => $productResultCount,
-                'suggested_query' => $response['data']['suggested_query'],
-                'backend' => $searchBackend,
-                'lightweight_pool' => $usesLightweightPool,
-                'candidate_pool_count' => $usesLightweightPool ? count($candidateIds) : null,
-                'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
-                'backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
-                'total_elapsed_ms' => $totalElapsedMs,
-                'slo_target_ms' => $targetP95Ms,
-                'slo_exceeded' => $totalElapsedMs > $targetP95Ms,
-                'quality_probe_query' => in_array($normalizedForProbe, $probeQueries, true),
-            ]);
+            try {
+                Log::info('catalog.smart_search', [
+                    'query' => $query,
+                    'has_results' => ($productResultCount + count($rankedBrands)) > 0,
+                    'brand_count' => count($rankedBrands),
+                    'product_count' => $productResultCount,
+                    'suggested_query' => $response['data']['suggested_query'],
+                    'backend' => $searchBackend,
+                    'lightweight_pool' => $usesLightweightPool,
+                    'candidate_pool_count' => $usesLightweightPool ? count($candidateIds) : null,
+                    'product_pool_limit' => $usesLightweightPool ? $meiliPoolLimit : self::SMART_SEARCH_POOL_LIMIT,
+                    'backend_elapsed_ms' => (int) ($meiliResult['elapsed_ms'] ?? 0),
+                    'total_elapsed_ms' => $totalElapsedMs,
+                    'slo_target_ms' => $targetP95Ms,
+                    'slo_exceeded' => $totalElapsedMs > $targetP95Ms,
+                    'quality_probe_query' => in_array($normalizedForProbe, $probeQueries, true),
+                ]);
+            } catch (\Throwable) {
+                // Metrics logging must not break the search response.
+            }
         }
 
         if ($responseCacheKey !== null && $responseCacheTtl > 0) {
@@ -1022,11 +1026,22 @@ class ProductController extends Controller
             return null;
         }
 
+        if ($normalizedDisplay === $normalizedQuery) {
+            return self::SMART_SEARCH_MATCH_EXACT;
+        }
+
+        if (str_starts_with($normalizedDisplay, $normalizedQuery)) {
+            $tail = mb_substr($normalizedDisplay, mb_strlen($normalizedQuery, 'UTF-8'), null, 'UTF-8');
+            if ($tail === '' || preg_match('/^\s/u', $tail) === 1) {
+                return self::SMART_SEARCH_MATCH_CONSECUTIVE;
+            }
+        }
+
         if (
             ($typoCorrectedQuery !== null && str_contains($normalizedDisplay, $typoCorrectedQuery))
             || str_contains($normalizedDisplay, $normalizedQuery)
         ) {
-            return self::SMART_SEARCH_MATCH_EXACT;
+            return self::SMART_SEARCH_MATCH_CONSECUTIVE;
         }
 
         $significantTokens = array_values(array_filter(
@@ -1492,11 +1507,24 @@ class ProductController extends Controller
      */
     private function smartSearchSortRankedProducts($rankedProducts): \Illuminate\Support\Collection
     {
-        return $rankedProducts->sortBy([
-            ['_match_tier', 'asc'],
-            ['score', 'desc'],
-            ['_availability_rank', 'desc'],
-        ])->values();
+        return $rankedProducts->sort(function (array $left, array $right): int {
+            $tierCompare = (int) ($left['_match_tier'] ?? 99) <=> (int) ($right['_match_tier'] ?? 99);
+            if ($tierCompare !== 0) {
+                return $tierCompare;
+            }
+
+            $scoreCompare = ((float) ($right['score'] ?? 0)) <=> ((float) ($left['score'] ?? 0));
+            if ($scoreCompare !== 0) {
+                return $scoreCompare;
+            }
+
+            $lenCompare = (int) ($left['_display_label_len'] ?? 0) <=> (int) ($right['_display_label_len'] ?? 0);
+            if ($lenCompare !== 0) {
+                return $lenCompare;
+            }
+
+            return (int) ($right['_availability_rank'] ?? 0) <=> (int) ($left['_availability_rank'] ?? 0);
+        })->values();
     }
 
     /**
@@ -1602,17 +1630,10 @@ class ProductController extends Controller
             $minOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->min(), 2, '.', '');
             $maxOldPrice = $oldPrices->isEmpty() ? null : number_format((float) $oldPrices->max(), 2, '.', '');
 
-            $normalizedDisplay = CatalogSearchScoring::normalizeSearchText(trim($brandName.' '.$name));
+            $normalizedDisplay = CatalogSearchScoring::buildProductSearchLabel($brandName, $name);
             $scoreDisplay = $normalizedDisplay !== ''
                 ? CatalogSearchScoring::similarityScore($normalizedQuery, $normalizedDisplay)
                 : 0.0;
-            if (
-                $normalizedDisplay !== ''
-                && $normalizedQuery !== ''
-                && str_contains($normalizedDisplay, $normalizedQuery)
-            ) {
-                $scoreDisplay = max($scoreDisplay, self::SCORE_CONTAINS_BONUS);
-            }
 
             $scoreName = CatalogSearchScoring::similarityScore($normalizedQuery, $normalizedName);
             $scoreSlug = CatalogSearchScoring::similarityScore($normalizedQuery, $normalizedSlug);
@@ -1637,7 +1658,7 @@ class ProductController extends Controller
                 $bestScore = max($bestScore, 1.0);
             }
 
-            $normalizedDisplay = trim($normalizedBrand !== '' ? $normalizedBrand.' '.$normalizedName : $normalizedName);
+            $normalizedDisplay = CatalogSearchScoring::buildProductSearchLabel($brandName, $name);
             $matchTier = $this->smartSearchResolveProductMatchTier(
                 $normalizedQuery,
                 $tokens,
@@ -1694,6 +1715,7 @@ class ProductController extends Controller
                 '_availability_rank' => $phaseOneScoring
                     ? ($product->is_out_of_stock ? 0 : 1)
                     : (($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0),
+                '_display_label_len' => mb_strlen($normalizedDisplay, 'UTF-8'),
                 '_match_tier' => $matchTier,
                 '_typo_phrase' => $typoPhrase,
                 'score' => round($bestScore, 6),

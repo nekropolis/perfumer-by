@@ -31,8 +31,12 @@ final class CatalogProductLinkNameTokenizer
      *
      * @return list<string>
      */
-    public static function variantMatchTokens(string $name, ?string $brandName, bool $applyLineSuffixTokens = true): array
-    {
+    public static function variantMatchTokens(
+        string $name,
+        ?string $brandName,
+        bool $applyLineSuffixTokens = true,
+        bool $applyStandaloneGenderTokens = false,
+    ): array {
         $normalized = self::normalizeText($name);
         if ($normalized === '') {
             return [];
@@ -43,7 +47,7 @@ final class CatalogProductLinkNameTokenizer
             if ($brandNorm !== '') {
                 if ($normalized !== $brandNorm && Str::startsWith($normalized, $brandNorm.' ')) {
                     $remainder = trim((string) mb_substr($normalized, mb_strlen($brandNorm)));
-                    if ($remainder !== '' && self::textIsOnlyGenderMarker($remainder)) {
+                    if ($remainder !== '' && self::textIsOnlyGenderMarker($remainder, $applyStandaloneGenderTokens)) {
                         $normalized = $brandNorm.' '.$remainder;
                     } else {
                         $normalized = $remainder;
@@ -52,7 +56,7 @@ final class CatalogProductLinkNameTokenizer
             }
         }
 
-        $normalized = self::applyGenderCanonicalTokens($normalized);
+        $normalized = self::applyGenderCanonicalTokens($normalized, $applyStandaloneGenderTokens);
         $normalized = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $normalized);
         if ($applyLineSuffixTokens) {
             $normalized = self::applyTrailingLineSuffixToken($normalized);
@@ -150,14 +154,14 @@ final class CatalogProductLinkNameTokenizer
         return false;
     }
 
-    private static function textIsOnlyGenderMarker(string $text): bool
+    private static function textIsOnlyGenderMarker(string $text, bool $applyStandaloneGenderTokens = false): bool
     {
         $normalized = self::normalizeText($text);
         if ($normalized === '') {
             return false;
         }
 
-        $withGender = self::applyGenderCanonicalTokens($normalized);
+        $withGender = self::applyGenderCanonicalTokens($normalized, $applyStandaloneGenderTokens);
         $withGender = preg_replace('/\s+/u', ' ', trim($withGender)) ?: '';
         if ($withGender === '') {
             return false;
@@ -261,7 +265,7 @@ final class CatalogProductLinkNameTokenizer
         );
     }
 
-    private static function applyGenderCanonicalTokens(string $normalized): string
+    private static function applyGenderCanonicalTokens(string $normalized, bool $applyStandaloneGenderTokens = false): string
     {
         $s = $normalized;
         $replacements = [
@@ -273,6 +277,16 @@ final class CatalogProductLinkNameTokenizer
             '/\bfor\s+him\b/iu' => ' '.self::TOKEN_GM.' ',
             '/\bunisex\b/iu' => ' '.self::TOKEN_GU.' ',
         ];
+        if ($applyStandaloneGenderTokens) {
+            $replacements = array_merge($replacements, [
+                '/\bwomen\b/iu' => ' '.self::TOKEN_GF.' ',
+                '/\bwoman\b/iu' => ' '.self::TOKEN_GF.' ',
+                '/\bher\b/iu' => ' '.self::TOKEN_GF.' ',
+                '/\bmen\b/iu' => ' '.self::TOKEN_GM.' ',
+                '/\bman\b/iu' => ' '.self::TOKEN_GM.' ',
+                '/\bhim\b/iu' => ' '.self::TOKEN_GM.' ',
+            ]);
+        }
         foreach ($replacements as $pattern => $replacement) {
             $s = (string) preg_replace($pattern, $replacement, $s);
         }

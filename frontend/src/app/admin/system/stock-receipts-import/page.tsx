@@ -18,14 +18,31 @@ import {
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
 import { createProductVariant, fetchProductVariants } from "@/lib/admin-product-variants-api";
-import { buildInitialSearchFromImportRow } from "@/components/admin/system/stock-receipts-import/utils";
+import type { ProductAdminItem } from "@/lib/admin-products-api";
+import {
+    buildDefinitionSearchFromHint,
+    canConfirmSuggestedLink,
+    formatCatalogProductLabel,
+    getVariantMatchFlags,
+    isFullVariantMatch,
+    variantMatchesVolumeHint,
+} from "@/components/admin/import-export/seller-one/utils";
+import {
+    buildInitialMappingFromImportRows,
+    buildInitialSearchFromImportRow,
+    countImportRowsNeedingManualLink,
+    importRowAsSellerOneView,
+    mapKeyToRowId,
+} from "@/components/admin/system/stock-receipts-import/utils";
 import type {
+    StockReceiptImportCatalogVariant,
     StockReceiptImportUnresolvedRow,
     StockReceiptManualLinkState,
 } from "@/components/admin/system/stock-receipts-import/types";
 import { StockReceiptManualLinkSearchHost } from "@/components/admin/system/stock-receipts-import/manual-link-search-host";
+import { StockReceiptUnresolvedTable } from "@/components/admin/system/stock-receipts-import/unresolved-table";
 
-const RESOLVE_BATCH_SIZE = 75;
+const RESOLVE_BATCH_SIZE = 35;
 
 function parseImportError(raw: string): { message: string; unresolved: StockReceiptImportUnresolvedRow[] } {
     try {
@@ -146,6 +163,23 @@ export default function StockReceiptsImportSystemPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const applyRowLink = (mapKey: string, linkedVariant: StockReceiptImportCatalogVariant | null) => {
+        setMappingByKey((prev) => {
+            const next = { ...prev };
+            if (linkedVariant?.id) {
+                next[mapKey] = String(linkedVariant.id);
+            } else {
+                delete next[mapKey];
+            }
+            return next;
+        });
+        setUnresolved((prev) =>
+            prev.map((row) =>
+                row.map_key === mapKey ? { ...row, linked_variant: linkedVariant } : row,
+            ),
+        );
+    };
+
     const buildMappingPayload = () =>
         Object.entries(mappingByKey)
             .filter(([, variantId]) => Number(variantId) > 0)
@@ -203,39 +237,31 @@ export default function StockReceiptsImportSystemPage() {
             setImportProgress("");
 
             const mergedUnresolved = Array.from(byKey.values());
+            const initialMapping = buildInitialMappingFromImportRows(mergedUnresolved);
             setUnresolved(mergedUnresolved);
-            setMappingByKey((prev) => {
-                const next = { ...prev };
-                mergedUnresolved.forEach((row) => {
-                    if (!next[row.map_key] && row.suggested_variant?.id) {
-                        next[row.map_key] = String(row.suggested_variant.id);
-                    }
-                });
-                return next;
-            });
+            setMappingByKey(initialMapping);
+
+            const autoLinkedCount = Object.keys(initialMapping).length;
+            const manualCount = countImportRowsNeedingManualLink(mergedUnresolved, initialMapping);
 
             if (mergedUnresolved.length === 0) {
                 setSuccess(
-                    `Разбор завершён (${prep.total_rows} строк). Все позиции сопоставлены автоматически. Нажмите «Создать приход», чтобы создать черновик документа.`,
+                    `Разбор завершён (${prep.total_rows} строк). Нажмите «Создать приход», чтобы создать черновик документа.`,
+                );
+            } else if (manualCount === 0) {
+                setSuccess(
+                    `Разбор завершён: ${autoLinkedCount} из ${prep.total_rows} строк с галочкой «Связка» (100%). Проверьте таблицу и нажмите «Создать приход».`,
                 );
             } else {
                 setSuccess(
-                    `Разбор завершён: ${mergedUnresolved.length} из ${prep.total_rows} строк требуют ручной связки. Таблица остаётся на экране; после связок нажимайте «Добавить в приход».`,
+                    `Разбор завершён: ${autoLinkedCount} автосвязок (галочки), ${manualCount} строк требуют ручной связки.`,
                 );
             }
         } catch (e) {
             const parsed = parseImportError(e instanceof Error ? e.message : "Ошибка импорта");
             setError(parsed.message);
             setUnresolved(parsed.unresolved);
-            setMappingByKey((prev) => {
-                const next = { ...prev };
-                parsed.unresolved.forEach((row) => {
-                    if (!next[row.map_key] && row.suggested_variant?.id) {
-                        next[row.map_key] = String(row.suggested_variant.id);
-                    }
-                });
-                return next;
-            });
+            setMappingByKey({});
         } finally {
             setLoadingXls(false);
             setImportProgress("");
@@ -250,7 +276,7 @@ export default function StockReceiptsImportSystemPage() {
 
         const mappingPayload = buildMappingPayload();
         if (unresolved.length > 0 && mappingPayload.length === 0) {
-            setError("Укажите variant_id хотя бы для одной строки таблицы или дождитесь автосопоставления.");
+            setError("Отметьте связку хотя бы для одной строки (чекбокс или ручной поиск) или дождитесь автосопоставления.");
             return;
         }
 
@@ -309,53 +335,91 @@ export default function StockReceiptsImportSystemPage() {
         }
     };
 
+    const handleToggleLink = (row: StockReceiptImportUnresolvedRow, checked: boolean) => {
+        const sellerOneRow = importRowAsSellerOneView(row, mappingByKey);
+
+        if (checked) {
+            if (!canConfirmSuggestedLink(sellerOneRow)) {
+                setError(
+                    row.suggested_variant?.id
+                        ? "Автосвязка доступна только при 100% и точном совпадении имени. Выберите связь вручную."
+                        : "Нет автокандидата для связывания",
+                );
+                return;
+            }
+            applyRowLink(row.map_key, row.suggested_variant!);
+            return;
+        }
+
+        applyRowLink(row.map_key, null);
+    };
+
     const openManualLink = (row: StockReceiptImportUnresolvedRow) => {
         const initialSearch = buildInitialSearchFromImportRow(row);
         const parsed = row.parsed;
+        const sourceHint = {
+            brand: parsed?.brand?.trim() || "",
+            productName: parsed?.product_name?.trim() || row.title || "",
+            volume: parsed?.volume ?? null,
+            volumeIsMultipack: Boolean(parsed?.volume_is_multipack),
+            volumeMultipackCount: parsed?.volume_multipack_count ?? null,
+            volumeMultipackUnitMl: parsed?.volume_multipack_unit_ml ?? null,
+            concentration: parsed?.concentration ?? null,
+            isTester: Boolean(parsed?.is_tester),
+            isVial: Boolean(parsed?.is_vial),
+        };
         setManualLink({
             mapKey: row.map_key,
-            rowTitle: row.title || row.code || row.map_key,
-            pendingPreferVariantId: row.suggested_variant?.id ?? null,
+            rowId: mapKeyToRowId(row.map_key),
+            rowName: row.title || row.code || row.map_key,
+            linkSearchBrandId: row.parsed?.brand_id ?? null,
             productSearch: initialSearch,
-            sourceHint: {
-                brand: parsed?.brand?.trim() || "",
-                productName: parsed?.product_name?.trim() || row.title || "",
-                volume: parsed?.volume ?? null,
-                concentration: parsed?.concentration ?? null,
-                isTester: Boolean(parsed?.is_tester),
-            },
+            sourceHint,
             products: [],
             productsLoading: false,
             selectedProductId: null,
             variants: [],
             variantsLoading: false,
             selectedVariantId: null,
-            definitionSearch: "",
+            definitionSearch: buildDefinitionSearchFromHint(sourceHint),
             definitions: [],
             definitionsLoading: false,
             attachingDefinition: false,
         });
     };
 
-    const loadManualVariants = async (productId: number, explicitPreferVariantId?: number) => {
-        let preferVariantId: number | undefined;
+    const loadManualVariants = async (
+        productId: number,
+        preferVariantId?: number,
+        pickedProduct?: ProductAdminItem,
+    ) => {
         setManualLink((prev) => {
             if (!prev) {
                 return prev;
             }
-            preferVariantId = explicitPreferVariantId ?? prev.pendingPreferVariantId ?? undefined;
+
+            const productSearch = pickedProduct
+                ? formatCatalogProductLabel(pickedProduct)
+                : prev.productSearch;
+            const products =
+                pickedProduct && !prev.products.some((p) => p.id === pickedProduct.id)
+                    ? [pickedProduct, ...prev.products]
+                    : prev.products;
+
             return {
                 ...prev,
+                productSearch,
+                products,
                 selectedProductId: productId,
                 variants: [],
                 selectedVariantId: null,
                 variantsLoading: true,
                 definitions: [],
-                definitionSearch: "",
+                definitionSearch: buildDefinitionSearchFromHint(prev.sourceHint),
                 definitionsLoading: false,
-                pendingPreferVariantId: null,
             };
         });
+
         try {
             const data = await fetchProductVariants(productId);
             const variants = data.data || [];
@@ -364,83 +428,17 @@ export default function StockReceiptsImportSystemPage() {
                     return prev;
                 }
 
-                const rowTitle = (prev.rowTitle || "").toLowerCase();
-                const parsedVolumeFromTitle = (() => {
-                    const m = rowTitle.match(/(\d+(?:[.,]\d+)?)\s*(ml|мл)\b/i);
-                    if (!m?.[1]) return null;
-                    const n = Number(String(m[1]).replace(",", "."));
-                    return Number.isFinite(n) ? n : null;
-                })();
-                const hintVolume = prev.sourceHint.volume ?? parsedVolumeFromTitle;
-
-                const normalizeConcentration = (value: string): string => {
-                    const v = value.trim().toLowerCase();
-                    if (v === "") return "";
-                    if (v.includes("туалет")) return "edt";
-                    if (v.includes("парфюмер") || v.includes("eau de parfum")) return "edp";
-                    if (v.includes("одекол")) return "edc";
-                    if (v.includes("духи") || v.includes("parfum") || v.includes("extrait")) return "parfum";
-                    if (v.includes("edt")) return "edt";
-                    if (v.includes("edp")) return "edp";
-                    if (v.includes("edc")) return "edc";
-                    return v;
-                };
-
-                const concentrationFromTitle = (() => {
-                    if (/\bedt\b/i.test(rowTitle)) return "edt";
-                    if (/\bedp\b/i.test(rowTitle)) return "edp";
-                    if (/\bedc\b/i.test(rowTitle)) return "edc";
-                    if (/\b(parfum|extrait)\b/i.test(rowTitle)) return "parfum";
-                    return "";
-                })();
-
-                const normalizedHintConcentration = normalizeConcentration(
-                    prev.sourceHint.concentration || concentrationFromTitle
+                const fullMatchVariant = variants.find((variant) =>
+                    isFullVariantMatch(getVariantMatchFlags(variant, prev.sourceHint)),
                 );
-                const hintIsTester = prev.sourceHint.isTester || /\b(test|tester|тестер)\b/i.test(rowTitle);
-
-                let bestVariantId: number | null = null;
-                let bestScore = Number.NEGATIVE_INFINITY;
-
-                for (const variant of variants) {
-                    let score = 0;
-                    const variantVolume = variant.volume != null ? Number(variant.volume) : null;
-                    const variantConcentration = normalizeConcentration(
-                        `${variant.concentration || ""} ${variant.type || ""} ${variant.title || ""}`
-                    );
-                    const variantIsTester =
-                        variant.definition?.is_tester === true ||
-                        /(?:^|\s)(test|tester|тестер)(?:\s|$)/i.test(variant.title || "");
-
-                    if (
-                        hintVolume != null &&
-                        variantVolume != null &&
-                        Math.abs(variantVolume - hintVolume) <= 0.01
-                    ) {
-                        score += 70;
-                    }
-
-                    if (normalizedHintConcentration && variantConcentration === normalizedHintConcentration) {
-                        score += 30;
-                    }
-
-                    // Для строк с "test/tester/тестер" приоритетно выбираем тестерный вариант.
-                    if (hintIsTester) {
-                        score += variantIsTester ? 80 : -120;
-                    } else if (variantIsTester) {
-                        score -= 10;
-                    }
-
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestVariantId = variant.id;
-                    }
-                }
 
                 const preferred =
-                    preferVariantId && variants.some((v) => v.id === preferVariantId)
+                    preferVariantId
+                        && variants.some(
+                            (v) => v.id === preferVariantId && variantMatchesVolumeHint(v, prev.sourceHint),
+                        )
                         ? preferVariantId
-                        : bestVariantId ?? (variants.length === 1 ? variants[0].id : null);
+                        : fullMatchVariant?.id ?? null;
 
                 return {
                     ...prev,
@@ -453,6 +451,14 @@ export default function StockReceiptsImportSystemPage() {
             setManualLink((prev) => (prev ? { ...prev, variantsLoading: false } : prev));
             setError(e instanceof Error ? e.message : "Ошибка загрузки вариантов");
         }
+    };
+
+    const pickProduct = async (product: ProductAdminItem) => {
+        await loadManualVariants(product.id, undefined, product);
+    };
+
+    const pickManualVariant = (variantId: number) => {
+        setManualLink((prev) => (prev ? { ...prev, selectedVariantId: variantId } : prev));
     };
 
     const attachDefinitionFromDictionary = async (definitionId: number) => {
@@ -608,49 +614,12 @@ export default function StockReceiptsImportSystemPage() {
             </div>
 
             {unresolved.length > 0 ? (
-                <div className="mt-4 overflow-x-auto rounded-xl border">
-                    <table className="min-w-full text-xs">
-                        <thead className="bg-admin-muted text-left text-admin-text-secondary">
-                            <tr>
-                                <th className="px-3 py-2">Код</th>
-                                <th className="px-3 py-2">Название</th>
-                                <th className="px-3 py-2">Qty</th>
-                                <th className="px-3 py-2">Авто</th>
-                                <th className="px-3 py-2">Связка</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {unresolved.map((row) => (
-                                <tr key={row.map_key} className="border-t">
-                                    <td className="px-3 py-2">{row.code || "—"}</td>
-                                    <td className="px-3 py-2">{row.title || "—"}</td>
-                                    <td className="px-3 py-2">{row.qty ?? 0}</td>
-                                    <td className="px-3 py-2">{row.suggested_variant?.id ? `#${row.suggested_variant.id}` : "—"}</td>
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                value={mappingByKey[row.map_key] ?? ""}
-                                                onChange={(e) =>
-                                                    setMappingByKey((prev) => ({ ...prev, [row.map_key]: e.target.value }))
-                                                }
-                                                className="w-24 rounded border px-2 py-1"
-                                                placeholder="variant_id"
-                                            />
-                                            <button type="button" onClick={() => openManualLink(row)} className="rounded border px-2 py-1">
-                                                Поиск товара и варианта
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            ) : importSessionId && parsedTotalRows != null && parsedTotalRows > 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-admin-text-secondary">
-                    Все строки этого файла сопоставлены автоматически (или уже добавлены в приход). Нажмите «Создать приход», чтобы
-                    записать их в черновик документа.
-                </div>
+                <StockReceiptUnresolvedTable
+                    rows={unresolved}
+                    mappingByKey={mappingByKey}
+                    onToggleLinkAction={handleToggleLink}
+                    onOpenManualLinkAction={openManualLink}
+                />
             ) : null}
 
             {manualLink ? (
@@ -658,10 +627,12 @@ export default function StockReceiptsImportSystemPage() {
                     manualLink={manualLink}
                     setManualLink={setManualLink}
                     setError={setError}
-                    loadManualVariants={loadManualVariants}
+                    pickProduct={pickProduct}
                     attachDefinitionFromDictionary={attachDefinitionFromDictionary}
-                    onConfirmVariant={(mapKey, variantId) => {
-                        setMappingByKey((prev) => ({ ...prev, [mapKey]: String(variantId) }));
+                    onPickVariantAction={pickManualVariant}
+                    onConfirmAction={(mapKey, variantId, linkedVariant) => {
+                        applyRowLink(mapKey, linkedVariant);
+                        setSuccess(`Связка сохранена для строки ${mapKey}`);
                     }}
                 />
             ) : null}

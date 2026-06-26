@@ -57,8 +57,10 @@ import {
     buildInitialSearchFromRow,
     findSellerOneRowNameMatchInfo,
     formatCatalogProductLabel,
-    formatParsedSupplierVariantHint,
+    canConfirmSuggestedLink,
     getRowCatalogProductLabel,
+    getSuggestedProductOnlyMessage,
+    isSimilarProductMatch,
     getVariantMatchFlags,
     isFullVariantMatch,
     isTransientNetworkError,
@@ -695,11 +697,15 @@ export default function SellerOneImportPage() {
 
     const handleToggleLink = async (row: SellerOneSupplierProductItem, checked: boolean) => {
         if (checked) {
-            if (!row.suggested_variant) {
-                setSupplierError("Нет автокандидата для связывания");
+            if (!canConfirmSuggestedLink(row)) {
+                setSupplierError(
+                    row.suggested_variant
+                        ? "Автосвязка доступна только при 100% и точном совпадении имени. Выберите связь вручную."
+                        : "Нет автокандидата для связывания",
+                );
                 return;
             }
-            await doForceLink(row.id, row.suggested_variant.id);
+            await doForceLink(row.id, row.suggested_variant!.id);
             return;
         }
 
@@ -1124,9 +1130,14 @@ export default function SellerOneImportPage() {
                                                     <input
                                                         type="checkbox"
                                                         checked={Boolean(row.is_linked)}
-                                                        disabled={linkingRowId === row.id || (!row.is_linked && !row.suggested_variant)}
+                                                        disabled={linkingRowId === row.id || !canConfirmSuggestedLink(row)}
+                                                        title={
+                                                            !canConfirmSuggestedLink(row) && !row.is_linked
+                                                                ? "Галочка только при 100% и точном имени; иначе — ручная связка"
+                                                                : undefined
+                                                        }
                                                         onChange={(e) => void handleToggleLink(row, e.target.checked)}
-                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
+                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed"
                                                     />
                                                 </td>
                                                 <td className="px-2 py-3 text-center">
@@ -1213,6 +1224,14 @@ export default function SellerOneImportPage() {
                                                             <div className="break-words text-admin-text-secondary">
                                                                 {row.suggested_variant.display || "Вариант без параметров"}
                                                             </div>
+                                                            {isSimilarProductMatch(row.match_confidence_breakdown) ? (
+                                                                <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
+                                                                    {getSuggestedProductOnlyMessage(
+                                                                        row.match_confidence_breakdown,
+                                                                        0,
+                                                                    )}
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                     ) : row.suggested_product ? (
                                                         <div>
@@ -1227,19 +1246,10 @@ export default function SellerOneImportPage() {
                                                                 className="break-words font-medium"
                                                             />
                                                             <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
-                                                                {row.match_confidence_breakdown?.name_match_level === "catalog_extra"
-                                                                    || row.match_confidence_breakdown?.name_match_level === "partial"
-                                                                    ? "Похожий продукт, проверьте название"
-                                                                    : "Совпал продукт, вариантов пока нет"}
-                                                            </div>
-                                                            <div className="mt-1 break-words text-admin-text-secondary">
-                                                                {formatParsedSupplierVariantHint(row.parsed)}
-                                                                {" · "}
-                                                                <span className="text-gray-400">
-                                                                    {row.suggested_product.variants_count
-                                                                        ? `есть ${row.suggested_product.variants_count} вар.`
-                                                                        : "вариантов нет"}
-                                                                </span>
+                                                                {getSuggestedProductOnlyMessage(
+                                                                    row.match_confidence_breakdown,
+                                                                    row.suggested_product.variants_count ?? 0,
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ) : row.linked_variant ? (
