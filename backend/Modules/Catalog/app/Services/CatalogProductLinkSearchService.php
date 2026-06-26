@@ -9,6 +9,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
+use Modules\Catalog\Support\CatalogSearchScoring;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -72,7 +73,7 @@ class CatalogProductLinkSearchService
             return [];
         }
 
-        $normalizedQuery = $this->normalizeSearchText($query);
+        $normalizedQuery = CatalogSearchScoring::normalizeSearchText($query);
         $eager = $this->adminSmartSearchProductEagerLoads();
 
         $pool = $pool->map(function (Product $p) use ($eager) {
@@ -101,11 +102,11 @@ class CatalogProductLinkSearchService
                 }
             }
 
-            $scoreName = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($name));
-            $scoreSlug = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($slug));
-            $scoreBrand = $brandName !== '' ? $this->similarityScore($normalizedQuery, $this->normalizeSearchText($brandName)) : 0.0;
+            $scoreName = CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($name));
+            $scoreSlug = CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($slug));
+            $scoreBrand = $brandName !== '' ? CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($brandName)) : 0.0;
             $scoreVariant = $variantSlices->reduce(function (float $carry, string $piece) use ($normalizedQuery) {
-                $score = $this->similarityScore($normalizedQuery, $this->normalizeSearchText($piece));
+                $score = CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($piece));
 
                 return max($carry, $score);
             }, 0.0);
@@ -191,12 +192,12 @@ class CatalogProductLinkSearchService
             return [];
         }
 
-        $normalizedQuery = $this->normalizeSearchText($query);
+        $normalizedQuery = CatalogSearchScoring::normalizeSearchText($query);
         $rows = $pool->map(function (Product $product) use ($normalizedQuery) {
             $name = (string) $product->name;
             $brandName = (string) ($product->brand?->name ?? '');
-            $full = $this->normalizeSearchText(trim($brandName.' '.$name));
-            $score = $this->similarityScore($normalizedQuery, $full);
+            $full = CatalogSearchScoring::normalizeSearchText(trim($brandName.' '.$name));
+            $score = CatalogSearchScoring::similarityScore($normalizedQuery, $full);
 
             return ['product' => $product, 'score' => $score];
         })
@@ -251,7 +252,7 @@ class CatalogProductLinkSearchService
         }
 
         foreach ($significant as $token) {
-            $escaped = $this->escapeLikeValue($token);
+            $escaped = CatalogSearchScoring::escapeLikeValue($token);
             $needle = '%'.$escaped.'%';
             $q->where(function ($w) use ($needle): void {
                 $w->where('name', 'like', $needle)
@@ -295,7 +296,7 @@ class CatalogProductLinkSearchService
         $w->where(function ($group) use ($phrases): void {
             $first = true;
             foreach ($phrases as $phrase) {
-                $escaped = $this->escapeLikeValue($phrase);
+                $escaped = CatalogSearchScoring::escapeLikeValue($phrase);
                 $needle = '%'.$escaped.'%';
                 if ($first) {
                     $group->where(function ($sub) use ($needle): void {
@@ -316,7 +317,7 @@ class CatalogProductLinkSearchService
      */
     private function fetchPoolByFullNeedle(string $query, ?int $brandId): Collection
     {
-        $escaped = $this->escapeLikeValue($query);
+        $escaped = CatalogSearchScoring::escapeLikeValue($query);
         $needle = '%'.$escaped.'%';
 
         $q = Product::query()
@@ -332,11 +333,6 @@ class CatalogProductLinkSearchService
         }
 
         return $q->orderByDesc('id')->limit(self::POOL_LIMIT)->get();
-    }
-
-    private function escapeLikeValue(string $value): string
-    {
-        return addcslashes($value, '%_\\');
     }
 
     /**
@@ -410,93 +406,6 @@ class CatalogProductLinkSearchService
         return $out;
     }
 
-    private function normalizeSearchText(string $value): string
-    {
-        $value = mb_strtolower($value, 'UTF-8');
-        $value = preg_replace('/[^[:alnum:]\s]+/u', ' ', $value) ?? '';
-        $value = preg_replace('/\s+/u', ' ', $value) ?? '';
-
-        return trim($value);
-    }
-
-    private function similarityScore(string $needle, string $haystack): float
-    {
-        if ($needle === '' || $haystack === '') {
-            return 0.0;
-        }
-        if ($needle === $haystack) {
-            return 1.0;
-        }
-        if (str_contains($haystack, $needle)) {
-            return 0.96;
-        }
-
-        $needleTokens = array_values(array_filter(explode(' ', $needle)));
-        $haystackTokens = array_values(array_filter(explode(' ', $haystack)));
-
-        $tokenScoreSum = 0.0;
-        foreach ($needleTokens as $needleToken) {
-            $bestTokenScore = $this->diceCoefficient($needleToken, $haystack);
-            foreach ($haystackTokens as $haystackToken) {
-                $bestTokenScore = max($bestTokenScore, $this->diceCoefficient($needleToken, $haystackToken));
-            }
-            $tokenScoreSum += $bestTokenScore;
-        }
-
-        $avgTokenScore = $tokenScoreSum / max(1, count($needleTokens));
-        $phraseScore = $this->diceCoefficient($needle, $haystack);
-
-        return max($avgTokenScore, $phraseScore * 0.9);
-    }
-
-    private function diceCoefficient(string $a, string $b): float
-    {
-        if ($a === '' || $b === '') {
-            return 0.0;
-        }
-        if ($a === $b) {
-            return 1.0;
-        }
-
-        $aBigrams = $this->mbBigrams($a);
-        $bBigrams = $this->mbBigrams($b);
-
-        if (empty($aBigrams) || empty($bBigrams)) {
-            return 0.0;
-        }
-
-        $aCounts = array_count_values($aBigrams);
-        $bCounts = array_count_values($bBigrams);
-        $intersection = 0;
-
-        foreach ($aCounts as $gram => $count) {
-            if (! isset($bCounts[$gram])) {
-                continue;
-            }
-            $intersection += min($count, $bCounts[$gram]);
-        }
-
-        return (2 * $intersection) / (count($aBigrams) + count($bBigrams));
-    }
-
-    /**
-     * @return string[]
-     */
-    private function mbBigrams(string $value): array
-    {
-        $length = mb_strlen($value, 'UTF-8');
-        if ($length < 2) {
-            return [];
-        }
-
-        $grams = [];
-        for ($i = 0; $i < $length - 1; $i++) {
-            $grams[] = mb_substr($value, $i, 2, 'UTF-8');
-        }
-
-        return $grams;
-    }
-
     /**
      * Поиск в админском списке товаров: «Kenzo Flower By Legere» = бренд + AND по токенам имени.
      *
@@ -545,7 +454,7 @@ class CatalogProductLinkSearchService
                     }
 
                     foreach ($significant as $token) {
-                        $needle = '%'.$this->escapeLikeValue($token).'%';
+                        $needle = '%'.CatalogSearchScoring::escapeLikeValue($token).'%';
                         $tokenized->where(function ($w) use ($needle): void {
                             $this->applyAdminListTokenMatch($w, $needle);
                         });
@@ -591,7 +500,7 @@ class CatalogProductLinkSearchService
                     && $rest !== ''
                     && mb_strtolower($rest, 'UTF-8') !== mb_strtolower($search, 'UTF-8')
                 ) {
-                    $restLike = '%'.$this->escapeLikeValue($rest).'%';
+                    $restLike = '%'.CatalogSearchScoring::escapeLikeValue($rest).'%';
                     $legacy->orWhere(function ($brandRest) use ($brandFilter, $restLike): void {
                         $brandRest->where('brand_id', $brandFilter)
                             ->where(function ($nameMatch) use ($restLike): void {
@@ -665,7 +574,7 @@ class CatalogProductLinkSearchService
         }
 
         if (mb_strlen($trim, 'UTF-8') >= 2) {
-            $escaped = $this->escapeLikeValue($trim);
+            $escaped = CatalogSearchScoring::escapeLikeValue($trim);
             $productIds = SupplierVariantOffer::query()
                 ->where('supplier_variant_offers.is_active', true)
                 ->where(function ($q) use ($escaped): void {
