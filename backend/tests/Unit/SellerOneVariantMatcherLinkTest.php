@@ -2438,4 +2438,97 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame(50211, $pass2['variant']?->id);
         $this->assertSame(100, $pass2['total']);
     }
+
+    public function test_hyphenated_catalog_name_does_not_match_non_hyphenated_supplier(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $brand = new Brand(['name' => 'Masaki']);
+        $brand->id = 600;
+
+        $definition = new VariantDefinition([
+            'volume_ml' => 40,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+        ]);
+        $variant = new ProductVariantLink(['product_id' => 6000]);
+        $variant->id = 60001;
+        $variant->volume = 40;
+        $variant->concentration = 'edp';
+        $variant->setRelation('definition', $definition);
+
+        $product = new Product(['name' => 'T-mat', 'brand_id' => 600]);
+        $product->id = 6000;
+        $product->setRelation('brand', $brand);
+        $product->setRelation('variants', collect([$variant]));
+        $variant->setRelation('product', $product);
+
+        $match = $find->invoke(
+            $matcher,
+            600,
+            'Masaki',
+            'Mat',
+            '40ml edp',
+            40.0,
+            'edp',
+            false,
+            [600 => [$product]],
+            null,
+            'Mat',
+            'l',
+            collect([$brand]),
+        );
+
+        $this->assertNull($match);
+    }
+
+    public function test_hyphenated_catalog_name_matches_hyphenated_supplier(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $brand = new Brand(['name' => 'Masaki']);
+        $brand->id = 601;
+
+        $definition = new VariantDefinition([
+            'volume_ml' => 40,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+        ]);
+        $variant = new ProductVariantLink(['product_id' => 6010]);
+        $variant->id = 60101;
+        $variant->volume = 40;
+        $variant->concentration = 'edp';
+        $variant->setRelation('definition', $definition);
+
+        $product = new Product(['name' => 'T-mat', 'brand_id' => 601]);
+        $product->id = 6010;
+        $product->setRelation('brand', $brand);
+        $product->setRelation('variants', collect([$variant]));
+        $variant->setRelation('product', $product);
+
+        $match = $find->invoke(
+            $matcher,
+            601,
+            'Masaki',
+            'T-mat',
+            '40ml edp',
+            40.0,
+            'edp',
+            false,
+            [601 => [$product]],
+            null,
+            'T-mat',
+            'l',
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(6010, $match['product']->id);
+        $this->assertSame(60101, $match['variant']?->id);
+        $this->assertSame(100, $match['total']);
+    }
 }

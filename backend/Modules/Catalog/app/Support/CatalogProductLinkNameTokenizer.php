@@ -186,7 +186,9 @@ final class CatalogProductLinkNameTokenizer
         $value = Str::lower($value);
         $value = self::canonicalizeProductLineAbbreviations($value);
         $value = self::canonicalizeDottedInitialismAbbreviations($value);
-        $value = preg_replace('/[^[:alnum:]\s]+/u', ' ', $value) ?: '';
+        // Сохраняем дефис внутри слов (T-mat), убираем остальную пунктуацию.
+        $value = preg_replace('/[^[:alnum:]\s-]+/u', ' ', $value) ?: '';
+        $value = preg_replace('/(?<![[:alnum:]])-(?![[:alnum:]])/u', ' ', $value) ?: '';
         $value = preg_replace('/\s+/u', ' ', trim($value)) ?: '';
 
         return $value;

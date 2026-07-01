@@ -33,4 +33,30 @@ class CatalogProductLinkNameTokenizerSearchTest extends TestCase
         $this->assertContains('flora', $tokens);
         $this->assertContains('lineg', $tokens);
     }
+
+    public function test_hyphenated_name_keeps_hyphen_as_single_token(): void
+    {
+        $tokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Masaki T-mat', 'Masaki');
+
+        $this->assertSame(['t-mat'], $tokens);
+    }
+
+    public function test_hyphenated_name_does_not_match_non_hyphenated_name(): void
+    {
+        $matTokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Masaki Mat', 'Masaki');
+        $tMatTokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Masaki T-mat', 'Masaki');
+
+        $this->assertSame(['mat'], $matTokens);
+        $this->assertSame(['t-mat'], $tMatTokens);
+        $this->assertNotSame($matTokens, $tMatTokens);
+    }
+
+    public function test_standalone_hyphens_are_trimmed(): void
+    {
+        $tokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Product - name -', null);
+
+        $this->assertContains('product', $tokens);
+        $this->assertContains('name', $tokens);
+        $this->assertNotContains('-', $tokens);
+    }
 }

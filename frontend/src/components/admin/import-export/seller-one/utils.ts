@@ -134,12 +134,15 @@ export function normalizeSearchText(value: string): string {
         // L'Envol, L'Homme — не разбивать на отдельную «L» до удаления маркеров пола.
         .replace(/(\p{L})[''\u2019](?=\p{L})/gu, "$1")
         // Только одиночные (M)/(L)/(U); не выкидывать «women» из бренда Women Secret.
-        .replace(/\b(m|w|l|u)\b/gi, " ")
+        // Только когда буква отделена пробелом/границей строки, чтобы не съесть «T» в «T-mat».
+        .replace(/(?<=\s|^)(m|w|l|u)(?=\s|$)/gi, " ")
         .replace(/\b(unisex)\b/gi, " ")
         .replace(/\b(test|tester)\b/gi, " ")
         .replace(/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/gi, " ")
         .replace(/\b(edp|edt|edc|parfum|extrait)\b/gi, " ")
-        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        // Сохраняем дефис внутри слов (T-mat), убираем остальную пунктуацию и одиночные дефисы.
+        .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+        .replace(/(?<![\p{L}\p{N}])-(?![\p{L}\p{N}])/gu, " ")
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -279,7 +282,9 @@ function normalizeMatcherProductBaseText(value: string): string {
         .replace(/\b(test|tester|тестер)\b/gi, " ")
         .replace(/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/gi, " ")
         .replace(/\b(edp|edt|edc|extrait)\b/gi, " ")
-        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        // Сохраняем дефис внутри слов (T-mat), убираем остальную пунктуацию и одиночные дефисы.
+        .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+        .replace(/(?<![\p{L}\p{N}])-(?![\p{L}\p{N}])/gu, " ")
         .replace(/\s+/g, " ")
         .trim()
         .toLowerCase();
