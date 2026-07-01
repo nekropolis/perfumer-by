@@ -434,7 +434,7 @@ class CatalogProductLinkSearchService
      */
     public function applyAdminProductListSearch(Builder $query, string $search): void
     {
-        $search = trim($search);
+        $search = trim(preg_replace('/\s+/u', ' ', $search) ?: $search);
         if ($search === '') {
             return;
         }
@@ -465,9 +465,18 @@ class CatalogProductLinkSearchService
                 && ! CatalogProductLinkNameTokenizer::isGenderCanonToken($t)
         ));
         $hasGender = CatalogProductLinkNameTokenizer::tokensContainGenderCanon($tokens);
-        $useTokenizedPath = $brandFilter !== null || $significant !== [] || $hasGender;
+        $distinguishingTokens = count($tokens) > count($significant) + ($hasGender ? 1 : 0);
 
-        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath, $rest): void {
+        // Проверяем спецсимволы в исходном запросе $search, а не в $rest
+        // (потому что splitLeadingBrand может распознать "T" как бренд и $rest = "mat" без дефиса)
+        $searchHasSpecialChars = str_contains($search, '-') || str_contains($search, '"') || preg_match('/[\(\)]/', $search) !== 0;
+
+        // Если rest содержит спец-символы, то токенизация ломает поиск — используем только legacy.
+        $tokensLostSignificance = ($rest !== '' && $distinguishingTokens)
+            && (str_contains($rest, '-') || str_contains($rest, '"') || preg_match('/[\(\)]/', $rest) !== 0);
+        $useTokenizedPath = !$tokensLostSignificance && !$searchHasSpecialChars && ($brandFilter !== null || $significant !== [] || $hasGender);
+
+        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath, $rest, $tokensLostSignificance, $searchHasSpecialChars): void {
             if ($useTokenizedPath) {
                 $outer->where(function ($tokenized) use ($brandFilter, $significant, $hasGender, $tokens): void {
                     if ($brandFilter !== null && $brandFilter > 0) {
@@ -489,7 +498,7 @@ class CatalogProductLinkSearchService
                 });
             }
 
-            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch, $brandFilter, $rest): void {
+            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch, $brandFilter, $rest, $tokensLostSignificance, $searchHasSpecialChars): void {
                 $legacy->where('name', 'like', "%{$search}%")
                     ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
                         $brandQuery->where('name', 'like', "%{$search}%");
@@ -497,12 +506,22 @@ class CatalogProductLinkSearchService
                             $brandQuery->orWhere('name', 'like', "%{$stem}%");
                         }
                     })
-                    ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhereHas('variants.definition', function ($def) use ($search): void {
                         $def->where('title', 'like', "%{$search}%")
                             ->orWhere('concentration_label', 'like', "%{$search}%")
                             ->orWhere('concentration_code', 'like', "%{$search}%");
                     });
+
+                // ОТображаемое имя товара: CONCAT(brand.name, ' ', name)
+                $legacy->orWhereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE((SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1), ''), ' ', COALESCE(`products`.`name`, '')))) LIKE LOWER(?)",
+                    ["%{$search}%"]
+                );
+
+                // Слаг не ищем, если в запросе спецсимволы — иначе дефисные slugs дают cross-boundary ложные совпадения.
+                if (!$searchHasSpecialChars) {
+                    $legacy->orWhere('slug', 'like', "%{$search}%");
+                }
 
                 if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
                     $legacy->orWhereRaw('LOWER(TRIM(`name`)) = LOWER(?)', [$stem]);
@@ -522,16 +541,20 @@ class CatalogProductLinkSearchService
                     && mb_strtolower($rest, 'UTF-8') !== mb_strtolower($search, 'UTF-8')
                 ) {
                     $restLike = '%'.CatalogSearchScoring::escapeLikeValue($rest).'%';
-                    $legacy->orWhere(function ($brandRest) use ($brandFilter, $restLike): void {
+                    $legacy->orWhere(function ($brandRest) use ($brandFilter, $restLike, $searchHasSpecialChars, $search): void {
                         $brandRest->where('brand_id', $brandFilter)
-                            ->where(function ($nameMatch) use ($restLike): void {
+                            ->where(function ($nameMatch) use ($restLike, $searchHasSpecialChars, $search): void {
                                 $nameMatch->where('name', 'like', $restLike)
-                                    ->orWhere('slug', 'like', $restLike)
                                     ->orWhereHas('variants.definition', function ($def) use ($restLike): void {
                                         $def->where('title', 'like', $restLike)
                                             ->orWhere('concentration_label', 'like', $restLike)
                                             ->orWhere('concentration_code', 'like', $restLike);
                                     });
+
+                                // Слаг не ищем, если в запросе спецсимволы — иначе дефисные slugs дают cross-boundary ложные совпадения.
+                                if (!$searchHasSpecialChars) {
+                                    $nameMatch->orWhere('slug', 'like', $restLike);
+                                }
                             });
                     });
                 }

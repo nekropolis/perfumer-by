@@ -26,7 +26,7 @@ class RunSellerOneParseJob implements ShouldQueue
     public int $timeout = 7200;
     public bool $failOnTimeout = true;
 
-    private const CHUNK_TIME_BUDGET_SECONDS = 3300;
+    private const int CHUNK_TIME_BUDGET_SECONDS = 3300;
 
     public function __construct(
         public string $jobId,
@@ -36,6 +36,13 @@ class RunSellerOneParseJob implements ShouldQueue
 
     public function handle(SupplierPriceImportService $service): void
     {
+        $globalLockKey = 'seller_one_parse_running:' . $this->jobId;
+
+        if (!Cache::add($globalLockKey, 1, now()->addHours(3))) {
+
+            return; // уже выполняется
+        }
+
         $cacheKey = self::cacheKey($this->jobId);
 
         // 🛑 HARD STOP если уже завершено
@@ -102,6 +109,20 @@ class RunSellerOneParseJob implements ShouldQueue
                     'total_rows' => $totalRows,
                 ]);
 
+                if (Cache::get($cacheKey . ':finished')) {
+                    return;
+                }
+
+                if (($nextOffset ?? 0) <= $this->rowOffset) {
+                    Log::error('SellerOne infinite loop prevented', [
+                        'jobId' => $this->jobId,
+                        'nextOffset' => $nextOffset,
+                        'currentOffset' => $this->rowOffset,
+                    ]);
+
+                    return;
+                }
+
                 self::dispatch($this->jobId, $this->storedFilePath, $nextOffset);
                 return;
             }
@@ -123,7 +144,9 @@ class RunSellerOneParseJob implements ShouldQueue
             ], now()->addHours(24));
 
             // 🛑 lock finished
-            Cache::put($cacheKey . ':finished', true, now()->addHours(24));
+            Cache::put($cacheKey . ':finished', [
+                'at' => now()->toDateTimeString()
+            ], now()->addDays(7));
 
             $shouldCleanup = true;
 
@@ -137,6 +160,8 @@ class RunSellerOneParseJob implements ShouldQueue
             $shouldCleanup = true;
             self::markFailed($cacheKey, $this->jobId, $e->getMessage());
         } finally {
+            Cache::forget('seller_one_parse_running:' . $this->jobId);
+
             if ($shouldCleanup) {
                 self::clearActiveJobIfMatches($this->jobId);
                 $service->clearSellerOneParseArtifacts($this->jobId);
@@ -153,10 +178,10 @@ class RunSellerOneParseJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            (new WithoutOverlapping('seller_one_heavy_global'))
+            (new WithoutOverlapping('seller_one_heavy_global:' . $this->jobId))
                 ->shared()
                 ->expireAfter(7500)
-                ->releaseAfter(45),
+                ->releaseAfter(30),
         ];
     }
 

@@ -29,7 +29,7 @@ use Modules\Warehouse\Services\StockInventoryService;
 
 class ProductAdminController extends Controller
 {
-    private const SMART_SEARCH_RESULT_LIMIT = 40;
+    private const int SMART_SEARCH_RESULT_LIMIT = 40;
 
     public function index(Request $request, CatalogProductLinkSearchService $linkSearch): JsonResponse
     {
@@ -46,36 +46,54 @@ class ProductAdminController extends Controller
             ]);
 
         if ($request->filled('search')) {
-            $search = trim($request->string('search')->toString());
+            $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
             $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
 
             $linkSearch->applyAdminProductListSearch($query, $search);
 
-            // Сортировка: точное имя (полная строка или stem) и slug выше частичных совпадений, затем id.
+            // display_name суб-кей: CONCAT(brand.name, ' ', products.name).
+            // brands.name берётся через correlated subquery, т.к. JOIN отсутствует (with('brand') — eager load).
+            $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
+
+            $hasStem = mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8');
 
             $bindings = [
-                $search,
-                $stem,
-                $search,
-                $stem,
-                $search . '%',
+                $search,          // 0 — display exact match
+                $stem,            // 1 — display stem exact
+                $search,          // 2 — name exact
+                $stem,            // 3 — name stem exact
+                $search,          // 4 — slug exact
+                $stem,            // 5 — slug stem exact
+                $search . '%',    // 6 — display starts with
+                $stem . '%',      // 7 — display stem starts with
+                $search . '%',    // 8 — name starts with
+                $stem . '%',      // 9 — name stem starts with
+                '%' . $search . '%', // 10 — name LIKE partial
+                '%' . $stem . '%', // 11 — name stem LIKE partial
+                '%' . $search . '%', // 12 — slug LIKE partial
+                '%' . $stem . '%', // 13 — slug stem LIKE partial
             ];
-            $relevanceCase = '(CASE
-                WHEN LOWER(TRIM(`name`)) = LOWER(?) OR LOWER(TRIM(`name`)) = LOWER(?) THEN 0
-                WHEN LOWER(TRIM(`slug`)) = LOWER(?) OR LOWER(TRIM(`slug`)) = LOWER(?) THEN 1
-                WHEN LOWER(`name`) LIKE LOWER(?) THEN 2';
 
-            if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
-                $bindings[] = $stem . '%';
-                $relevanceCase .= '
-                WHEN LOWER(`name`) LIKE LOWER(?) THEN 3
-                ELSE 4 END)';
-            } else {
-                $relevanceCase .= '
-                ELSE 3 END)';
-            }
+            // display name expression для точного и префиксного совпадения (brand.name + ' ' + product.name).
+            $displayNameExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
+
+            $relevanceCase = '(CASE
+                WHEN ' . $displayNameExpr . " = LOWER(?) THEN 0
+                WHEN " . $displayNameExpr . " = LOWER(?) THEN 1
+                WHEN LOWER(TRIM(`products`.`name`)) = LOWER(?) OR LOWER(TRIM(`products`.`name`)) = LOWER(?) THEN 2
+                WHEN LOWER(TRIM(`products`.`slug`)) = LOWER(?) OR LOWER(TRIM(`products`.`slug`)) = LOWER(?) THEN 3
+                WHEN " . $displayNameExpr . ' LIKE LOWER(?) THEN 4
+                WHEN ' . $displayNameExpr . ' LIKE LOWER(?) THEN 5
+                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 6
+                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 7
+                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 8
+                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 9
+                WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 10
+                WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 11
+                ELSE 12 END)';
 
             $query->orderByRaw($relevanceCase, $bindings);
+            $query->orderByDesc('products.id');
         } else {
             $query->orderByDesc('id');
         }
@@ -111,9 +129,7 @@ class ProductAdminController extends Controller
             }
         }
 
-        $products = $query
-            ->when($request->filled('search'), fn ($q) => $q->orderByDesc('id'))
-            ->paginate(20);
+        $products = $query->paginate(20);
 
         if ($request->filled('search')) {
             $search = trim($request->string('search')->toString());

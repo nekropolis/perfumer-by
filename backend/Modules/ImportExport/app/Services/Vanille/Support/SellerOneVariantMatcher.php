@@ -844,14 +844,14 @@ class SellerOneVariantMatcher
 
             foreach ($this->collectProductsForBrandMatch($brandId, $brandName, $productsIndex, $brands) as $product) {
                 $candidateBrandName = $product->relationLoaded('brand') && $product->brand
-                    ? trim((string) $product->brand->name)
-                    : trim((string) ($brandName ?? ''));
-                $candidateTokens = $this->productTokensCache[(int) $product->id]
+                    ? trim((string)$product->brand->name)
+                    : trim((string)($brandName ?? ''));
+                $candidateTokens = $this->productTokensCache[(int)$product->id]
                     ??= $this->productNameTokens(
-                        (string) $product->name,
-                        $candidateBrandName !== '' ? $candidateBrandName : null,
-                    );
-                if (! $this->productLineTokensMatchExactly($targetTokens, $candidateTokens)) {
+                    (string)$product->name,
+                    $brandName !== '' ? $brandName : $candidateBrandName,
+                );
+                if (!$this->productLineTokensMatchExactly($targetTokens, $candidateTokens)) {
                     continue;
                 }
 
@@ -930,13 +930,16 @@ class SellerOneVariantMatcher
 
         foreach ($candidateProducts as $product) {
             $candidateBrandName = $product->relationLoaded('brand') && $product->brand
-                ? trim((string) $product->brand->name)
-                : trim((string) ($brandName ?? ''));
-            $candidateTokens = $this->productTokensCache[(int) $product->id]
+                ? trim((string)$product->brand->name)
+                : trim((string)($brandName ?? ''));
+            $candidateTokens = $this->productTokensCache[(int)$product->id]
                 ??= $this->productNameTokens(
-                    (string) $product->name,
-                    $candidateBrandName !== '' ? $candidateBrandName : null,
-                );
+                (string)$product->name,
+                // Use supplier parse brand (not catalog brand) so brand stripping works
+                // even when catalog brand name doesn't match parse brand
+                $brandName !== '' ? $brandName : $candidateBrandName,
+                $supplierGenderMarker ?? $requireGenderAttribute,
+            );
             if (empty($candidateTokens)) {
                 continue;
             }
@@ -1670,7 +1673,7 @@ class SellerOneVariantMatcher
 
     private function genderMarkerAllowsGenderSuffixMatch(?string $supplierGenderMarker): bool
     {
-        return in_array($supplierGenderMarker, ['l', 'm'], true);
+        return in_array($supplierGenderMarker, ['l', 'm', 'u'], true);
     }
 
     /**

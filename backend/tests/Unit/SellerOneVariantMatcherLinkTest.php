@@ -183,6 +183,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'volume_ml' => 2,
             'concentration_code' => 'edp',
             'is_tester' => false,
+            'is_vial' => true,
         ]);
         $variant = new ProductVariantLink(['product_id' => 31]);
         $variant->id = 31;

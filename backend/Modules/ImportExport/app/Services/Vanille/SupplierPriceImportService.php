@@ -326,11 +326,38 @@ class SupplierPriceImportService
             ->orderBy('id')
             ->get();
 
+        // ── Индекс существующих SupplierProduct: грузим ОДИН РАЗ вместо WhereIn на батч ──
+        // Храним как array(string => array{id,external_url,is_linked,external_name,payload})
+        // чтобы не зависеть от Laravel-моделей и сериализации.
+        /** @var array<string, array{id:int,external_url:string,is_linked:bool,external_name:string,payload:array}> $supplierProductIndex */
+        $supplierProductIndex = [];
+        if ($isContinuation && $jobId !== null) {
+            $supplierProductIndex = $this->restoreSupplierProductIndex($jobId);
+        }
+        if ($supplierProductIndex === []) {
+            $models = SupplierProduct::query()
+                ->where('supplier_id', $supplier->id)
+                ->select(['id', 'external_url', 'is_linked', 'external_name', 'payload'])
+                ->get();
+            foreach ($models as $m) {
+                $supplierProductIndex[$m->external_url] = [
+                    'id' => (int) $m->id,
+                    'external_url' => $m->external_url,
+                    'is_linked' => (bool) $m->is_linked,
+                    'external_name' => $m->external_name ?? '',
+                    'payload' => is_array($m->payload) ? $m->payload : [],
+                ];
+            }
+            if ($jobId !== null) {
+                $this->persistSupplierProductIndex($jobId, $supplierProductIndex);
+            }
+        }
+
         $pausedCodes = [];
         foreach (SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
             ->where('link_parsing_active', false)
-            ->cursor() as $pausedRow) {
+            ->cursor(['id', 'external_url', 'payload']) as $pausedRow) {
             $pp = is_array($pausedRow->payload) ? $pausedRow->payload : [];
             $c = trim((string) ($pp['external_code'] ?? str_replace('supplier-xls://', '', (string) $pausedRow->external_url)));
             if ($c !== '') {
@@ -354,45 +381,50 @@ class SupplierPriceImportService
         $stoppedEarly = false;
         $nextOffset = $totalRows;
 
+        // ── Non-linked existing: batch-load как реальные модели ──
+        $nonLinkedExistingIds = array_values(array_filter(array_map(
+            static fn (array $rec): ?int => empty($rec['is_linked']) ? ($rec['id'] ?? null) : null,
+            $supplierProductIndex,
+        ), static fn (?int $id): bool => $id !== null));
+        $nonLinkedExistingModels = $nonLinkedExistingIds !== []
+            ? SupplierProduct::query()
+                ->whereIn('id', $nonLinkedExistingIds)
+                ->select(['id', 'supplier_id', 'external_url', 'external_name', 'external_slug', 'brand_id', 'product_id', 'is_linked', 'is_active', 'payload', 'last_seen_at'])
+                ->get()
+                ->keyBy('id')
+            : collect([]);
+
         for ($offset = $startOffset; $offset < $totalRows; $offset += $batchSize) {
             $rows = array_slice($allRows, $offset, $batchSize);
-            $isFinalBatch = ($offset + $batchSize) >= $totalRows;
 
-            $externalUrls = array_map(
-                static fn (array $row): string => 'supplier-xls://' . (string) ($row['code'] ?? ''),
-                $rows,
-            );
-
-            $existingByUrl = SupplierProduct::query()
-                ->where('supplier_id', $supplier->id)
-                ->whereIn('external_url', $externalUrls)
-                ->get()
-                ->keyBy('external_url');
+            // Batch-collect связанных строк → один bulk upsert
+            $linkedRecords = [];
+            $linkedRows = [];
 
             foreach ($rows as $row) {
                 $externalCode = (string) ($row['code'] ?? '');
                 if (isset($pausedCodes[$externalCode])) {
                     $totalSkippedParsingInactive++;
                     $totalProcessed++;
-
                     continue;
                 }
                 if ($this->variantMatcher->shouldSkipParsingRow($row)) {
                     $totalSkippedSkipMarker++;
                     $totalProcessed++;
-
                     continue;
                 }
                 $externalUrl = "supplier-xls://{$externalCode}";
-                /** @var SupplierProduct|null $existing */
-                $existing = $existingByUrl->get($externalUrl);
+                $existing = $supplierProductIndex[$externalUrl] ?? null;
 
-                if ($existing && $existing->is_linked) {
-                    $this->previewSyncService->touchLinkedSupplierRow($existing, $row);
-                    $totalSkippedLinked++;
-                    $totalProcessed++;
+                if ($existing && !empty($existing['is_linked'])) {
+                    $linkedRecords[] = $existing;
+                    $linkedRows[] = $row;
                     continue;
                 }
+
+                $existingModel = $existing !== null
+                    ? $nonLinkedExistingModels->get($existing['id'])
+                    : null;
 
                 $parsed = $this->parseSupplierRow($row, $brands, $rules, $productsIndex);
                 if ($parsed['suggested_variant']) {
@@ -405,16 +437,36 @@ class SupplierPriceImportService
                     function (SupplierProduct $supplierProduct, array $parsedRow) use ($supplier): void {
                         $this->tryAutoConfirmLink($supplier, $supplierProduct, $parsedRow);
                     },
-                    $existing,
+                    $existingModel,
                 );
                 if ($upsert === 'inserted') {
                     $totalInserted++;
                 } else {
                     $totalUpdated++;
                 }
-
                 $totalProcessed++;
                 unset($parsed);
+            }
+
+            // ── Batch-update связанных строк через массивы ──
+            if ($linkedRecords !== []) {
+                $batchUpdated = $this->previewSyncService->touchLinkedSupplierRowsBatchFromRecords($supplier->id, $linkedRecords, $linkedRows);
+                foreach ($linkedRecords as $idx => $rec) {
+                    $row = $linkedRows[$idx] ?? [];
+                    $rec['external_name'] = (string) ($row['title'] ?? $rec['external_name']);
+                    $rec['payload'] = [
+                        ...$rec['payload'],
+                        'source' => 'seller-one-xls',
+                        'external_code' => (string) ($row['code'] ?? ''),
+                        'supplier_price' => $row['supplier_price'] ?? null,
+                        'min_price' => $row['supplier_price'] ?? null,
+                        'price_file_in_stock' => true,
+                        'last_parsed_at' => now()->toDateTimeString(),
+                    ];
+                    $supplierProductIndex['supplier-xls://'.($row['code'] ?? '')] = $rec;
+                }
+                $totalSkippedLinked += $batchUpdated;
+                $totalProcessed += $batchUpdated;
             }
 
             if ($onBatch) {
@@ -431,7 +483,7 @@ class SupplierPriceImportService
                 ]);
             }
 
-            unset($rows, $existingByUrl, $externalUrls);
+            unset($rows, $linkedRecords, $linkedRows);
             if (function_exists('gc_collect_cycles')) {
                 gc_collect_cycles();
             }
@@ -539,6 +591,81 @@ class SupplierPriceImportService
 
         $this->removeProductsIndexCache($jobId);
         $this->removeParsedRowsCache($jobId);
+        $this->removeSupplierProductIndexCache($jobId);
+    }
+
+    // ─── SupplierProduct Index persistence ───
+
+    /**
+     * @param  \Illuminate\Support\Collection|array  $index  keyBy('external_url')
+     */
+    private function persistSupplierProductIndex(string $jobId, $index): void
+    {
+        $records = [];
+        foreach ($index as $externalUrl => $model) {
+            if ($model instanceof \stdClass) {
+                continue;
+            }
+            $id = is_array($model) ? ($model['id'] ?? null) : ($model->id ?? null);
+            $isLinked = is_array($model) ? ($model['is_linked'] ?? false) : ($model->is_linked ?? false);
+            $externalName = is_array($model) ? ($model['external_name'] ?? '') : ($model->external_name ?? '');
+            $payload = is_array($model) ? ($model['payload'] ?? []) : (is_array($model->payload) ? $model->payload : ($model->getAttributes()['payload'] ?? []));
+            $records[] = [
+                'external_url' => $externalUrl,
+                'id' => $id,
+                'is_linked' => $isLinked,
+                'external_name' => $externalName,
+                'payload' => $payload,
+            ];
+        }
+        $path = $this->supplierProductIndexCachePath($jobId);
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+        file_put_contents($path, serialize($records));
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<string, \stdClass>
+     */
+    private function restoreSupplierProductIndex(string $jobId): \Illuminate\Support\Collection
+    {
+        $path = $this->supplierProductIndexCachePath($jobId);
+        if (!is_file($path)) {
+            return collect([]);
+        }
+        $raw = file_get_contents($path);
+        if ($raw === false) {
+            return collect([]);
+        }
+        $records = @unserialize($raw);
+        if (!is_array($records)) {
+            return collect([]);
+        }
+        $collection = collect();
+        foreach ($records as $r) {
+            $obj = new \stdClass();
+            $obj->id = $r['id'] ?? null;
+            $obj->external_url = $r['external_url'] ?? '';
+            $obj->is_linked = $r['is_linked'] ?? false;
+            $obj->external_name = $r['external_name'] ?? '';
+            $obj->payload = $r['payload'] ?? [];
+            $collection->put($obj->external_url, $obj);
+        }
+        return $collection;
+    }
+
+    private function removeSupplierProductIndexCache(string $jobId): void
+    {
+        $path = $this->supplierProductIndexCachePath($jobId);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    private function supplierProductIndexCachePath(string $jobId): string
+    {
+        return storage_path('app/seller-one-temp/sp-index-'.$jobId.'.ser');
     }
 
     public function refreshLinkedPrices(UploadedFile $file): array
