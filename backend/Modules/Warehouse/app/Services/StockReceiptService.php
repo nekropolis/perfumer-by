@@ -263,11 +263,7 @@ class StockReceiptService
 
         $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
         if ($isMainWarehouseReceipt) {
-            $previousPrice = $variant->price !== null ? (float) $variant->price : null;
             $variant->update([
-                'old_price' => $retailPrice !== null && $previousPrice !== null && $previousPrice !== $retailPrice
-                    ? $previousPrice
-                    : $variant->old_price,
                 'price' => $retailPrice,
                 'is_preorder' => false,
                 'is_active' => true,
@@ -322,7 +318,6 @@ class StockReceiptService
                 ],
                 [
                     'price' => null,
-                    'old_price' => null,
                     'stock' => 0,
                     'reserved_stock' => 0,
                     'is_preorder' => false,
@@ -367,7 +362,6 @@ class StockReceiptService
             ],
             [
                 'price' => null,
-                'old_price' => null,
                 'stock' => 0,
                 'reserved_stock' => 0,
                 'is_preorder' => false,

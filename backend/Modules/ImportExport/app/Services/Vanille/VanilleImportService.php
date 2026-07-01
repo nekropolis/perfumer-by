@@ -376,7 +376,6 @@ class VanilleImportService
             if ($offers->isEmpty()) {
                 $variant->update([
                     'price' => null,
-                    'old_price' => null,
                     'stock' => 0,
                     'is_active' => false,
                 ]);
@@ -387,7 +386,6 @@ class VanilleImportService
 
             $variant->update([
                 'price' => $bestOffer->price,
-                'old_price' => $bestOffer->old_price,
                 'stock' => (int)$offers->max('stock'),
                 'is_active' => true,
                 'is_preorder' => (bool)$offers->every(fn($offer) => $offer->is_preorder),
@@ -1406,7 +1404,6 @@ class VanilleImportService
                 'product_id' => $product->id,
                 'variant_definition_id' => $definition->id,
                 'price' => null,
-                'old_price' => null,
                 'stock' => 0,
                 'is_preorder' => false,
                 'is_active' => true,

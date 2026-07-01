@@ -56,18 +56,11 @@ class WarehouseManualPriceReviewController extends Controller
 
         DB::transaction(function () use ($review, $variant, $validated, $listingMinPrice): void {
             $retail = number_format((float) $validated['manual_retail_price'], 2, '.', '');
-            $current = $variant->price !== null ? number_format((float) $variant->price, 2, '.', '') : null;
 
-            $variantUpdates = [
+            $variant->update([
                 'price' => $retail,
                 'is_active' => (bool) $validated['list_on_storefront'],
-            ];
-
-            if ($current !== null && $current !== $retail) {
-                $variantUpdates['old_price'] = $current;
-            }
-
-            $variant->update($variantUpdates);
+            ]);
 
             $review->update([
                 'manual_retail_price' => $retail,

@@ -242,11 +242,7 @@ final class WarehousePriceRefreshService
             return false;
         }
 
-        $previousPrice = $current;
         $variant->update([
-            'old_price' => $previousPrice !== null && abs($previousPrice - $retail) >= 0.004
-                ? $previousPrice
-                : $variant->old_price,
             'price' => $retail,
         ]);
 
