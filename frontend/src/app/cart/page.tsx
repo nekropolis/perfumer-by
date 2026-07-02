@@ -26,6 +26,7 @@ import {
     discountCardForBreakdownFromQuote,
     giftForBreakdownFromQuote,
     merchandisePayFromQuote,
+    waitingDiscountAmountForLines,
 } from "@/lib/checkout-line-selection";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -196,6 +197,12 @@ export default function CartPage() {
         }
         return n;
     }, [cart, selectedCartItemIds, selectedGiftLineIds]);
+
+    const selectedWaitingDiscountAmount = useMemo(() => {
+        if (!cart) return "0.00";
+        const selectedItems = cart.items.filter((item) => selectedCartItemIds.has(item.id));
+        return waitingDiscountAmountForLines(selectedItems);
+    }, [cart, selectedCartItemIds]);
 
     const partialCheckoutSelection = useMemo(() => {
         if (!cart || !partialLineSelection) {
@@ -499,23 +506,30 @@ export default function CartPage() {
                                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                                         <div className="font-medium text-[var(--foreground)]">
                                             {formatMoneyRub(item.price)}
-                                            {item.old_price && (
+                                            {(item.waiting_discount ? item.base_price : item.old_price) && (
                                                 <span className="ml-2 font-normal text-[var(--text-secondary)] line-through">
-                                                    {formatMoneyRub(item.old_price)}
+                                                    {formatMoneyRub(item.waiting_discount ? item.base_price : item.old_price)}
                                                 </span>
                                             )}
                                         </div>
 
-                                        {item.is_available ? (
-                                            item.is_preorder ? (
-                                                <div className="text-amber-600">Под заказ</div>
-                                            ) : (
-                                                <div className="text-emerald-600">
-                                                    Товар в наличии
-                                                </div>
-                                            )
-                                        ) : (
+                                        {item.waiting_discount && item.waiting_discount_percent !== null && (
+                                            <div className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                                -{item.waiting_discount_percent}% за ожидание
+                                            </div>
+                                        )}
+
+                                        {!item.is_available ? (
                                             <div className="text-red-600">Нет в наличии</div>
+                                        ) : item.waiting_discount ? (
+                                            <div className="text-amber-600">
+                                                Отправка с{" "}
+                                                {cart?.waiting_discount_delivery_date || "xx.xx.xxxx"}
+                                            </div>
+                                        ) : item.is_preorder ? (
+                                            <div className="text-amber-600">Под заказ</div>
+                                        ) : (
+                                            <div className="text-emerald-600">Товар в наличии в магазине</div>
                                         )}
                                     </div>
                                 </div>
@@ -616,6 +630,7 @@ export default function CartPage() {
                             total={pricingBreakdown.total}
                             discountCard={pricingBreakdown.discountCard}
                             giftCertificate={pricingBreakdown.giftCertificate}
+                            waitingDiscountAmount={selectedWaitingDiscountAmount}
                         />
 
                         {partialLineSelection && !partialQuote ? (

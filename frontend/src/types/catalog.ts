@@ -1,5 +1,7 @@
 import type { ReviewItem } from "@/types/reviews";
 
+export type ProductAvailabilitySource = "main" | "main+supplier" | "supplier_only" | "supplier_warehouse" | "unavailable";
+
 export type ProductVariantData = {
     id: number;
     volume: number | null;
@@ -10,12 +12,15 @@ export type ProductVariantData = {
     display_name: string;
     price: string | null;
     old_price: string | null;
+    waiting_price: string | null;
+    waiting_discount_percent: number | null;
     discount_percent: number | null;
     stock: number;
     available_stock: number;
     is_preorder: boolean;
     is_available: boolean;
     is_promotion: boolean;
+    availability_source: ProductAvailabilitySource;
 };
 
 export type ProductAttributeOptionData = {

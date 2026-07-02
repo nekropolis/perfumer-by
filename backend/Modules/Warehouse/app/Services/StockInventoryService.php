@@ -947,69 +947,63 @@ class StockInventoryService
         }
 
         $qty = (int) $item->qty;
-        $mainWarehouseId = $this->getMainWarehouseId();
-        $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
+        $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
+        $waitingDiscount = (bool) $item->waiting_discount;
 
-        $mainQty = 0;
-        if ($mainWarehouseId > 0) {
-            $mainStock = $this->getWarehouseStock($mainWarehouseId, (int) $variant->product_id, (int) $variant->id, true);
-            $mainAvailable = max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock);
-            $mainQty = min($qty, $mainAvailable);
-        }
+        // Резервируем только физический остаток на основном складе без скидки за ожидание.
+        // Всё, что по каналу поставщика (supplier_only / supplier_warehouse / waiting_discount),
+        // остаётся без резерва — учёт продажи ведётся по OrderItem.
+        $canReserveMain = in_array($availabilitySource, ['main', 'main+supplier'], true) && !$waitingDiscount;
 
-        $remainder = $qty - $mainQty;
-        $supplierQty = 0;
-        if ($remainder > 0 && $supplierWarehouseId > 0) {
-            $hasOffer = SupplierVariantOffer::query()
-                ->where('product_variant_id', $variant->id)
-                ->where('is_active', true)
-                ->exists();
-            if ($hasOffer) {
-                $supplierQty = $remainder;
-            }
-        }
-
-        $details = [];
-        $anyReserved = false;
-
-        if ($mainQty > 0) {
-            $r = $this->placeWarehouseReservation($order, $item, $variant, $mainWarehouseId, $mainQty, false);
-            $details[] = $r;
-            if (!empty($r['reserved'])) {
-                $anyReserved = true;
-            }
-        }
-
-        if ($supplierQty > 0) {
-            $r = $this->placeWarehouseReservation($order, $item, $variant, $supplierWarehouseId, $supplierQty, true);
-            $details[] = $r;
-            if (!empty($r['reserved'])) {
-                $anyReserved = true;
-            }
-        }
-
-        if ($anyReserved) {
-            $this->syncVariantAggregates((int) $variant->id);
-            $this->syncProductStockFlagsByProductId((int) $variant->product_id);
-
+        if (!$canReserveMain) {
             return [
-                'reserved' => true,
-                'details' => $details,
+                'reserved' => false,
+                'reason' => 'virtual_supplier_channel',
+                'variant_id' => $variant->id,
+                'requested_qty' => $qty,
+                'main_reserved_qty' => 0,
             ];
         }
 
-        $reason = 'nothing_to_reserve';
-        if ($remainder > 0 && $supplierQty === 0) {
-            $reason = 'no_supplier_offer_for_remainder';
+        $mainWarehouseId = $this->getMainWarehouseId();
+        if ($mainWarehouseId <= 0) {
+            return [
+                'reserved' => false,
+                'reason' => 'no_main_warehouse',
+                'variant_id' => $variant->id,
+                'requested_qty' => $qty,
+                'main_reserved_qty' => 0,
+            ];
+        }
+
+        $mainStock = $this->getWarehouseStock($mainWarehouseId, (int) $variant->product_id, (int) $variant->id, true);
+        $mainAvailable = max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock);
+        $mainQty = min($qty, $mainAvailable);
+
+        if ($mainQty <= 0) {
+            return [
+                'reserved' => false,
+                'reason' => 'main_stock_unavailable',
+                'variant_id' => $variant->id,
+                'requested_qty' => $qty,
+                'main_reserved_qty' => 0,
+            ];
+        }
+
+        $r = $this->placeWarehouseReservation($order, $item, $variant, $mainWarehouseId, $mainQty, false);
+
+        if (!empty($r['reserved'])) {
+            $this->syncVariantAggregates((int) $variant->id);
+            $this->syncProductStockFlagsByProductId((int) $variant->product_id);
         }
 
         return [
-            'reserved' => false,
-            'reason' => $reason,
+            'reserved' => !empty($r['reserved']),
+            'reason' => empty($r['reserved']) ? ($r['reason'] ?? 'nothing_to_reserve') : null,
             'variant_id' => $variant->id,
             'requested_qty' => $qty,
-            'main_reserved_qty' => 0,
-            'details' => $details,
+            'main_reserved_qty' => !empty($r['reserved']) ? $mainQty : 0,
+            'details' => [$r],
         ];
     }
 

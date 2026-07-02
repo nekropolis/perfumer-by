@@ -11,6 +11,7 @@ export type SiteContent = {
     contact_phone_life: string;
     contact_telegram_url: string;
     contact_viber_url: string;
+    waiting_discount_delivery_date: string;
 };
 
 export type SiteContentResponse = {
@@ -28,15 +29,25 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     contact_phone_life: "+375256408833",
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
+    waiting_discount_delivery_date: "10.07.2026",
 };
 
-export async function fetchSiteContent(): Promise<SiteContentResponse> {
+type FetchSiteContentOptions = {
+    /** Отключить Next.js fetch-кэш (например, для страниц, где дата должна быть свежей). */
+    noCache?: boolean;
+};
+
+export async function fetchSiteContent(options?: FetchSiteContentOptions): Promise<SiteContentResponse> {
     const base = getApiBase();
     const isServer = typeof window === "undefined";
 
-    const res = await fetch(`${base}/site/content`, isServer
-        ? { next: { revalidate: 3600, tags: ["site-content"] } }
-        : { cache: "no-store" });
+    const fetchInit: RequestInit = isServer
+        ? options?.noCache
+            ? { cache: "no-store" }
+            : { next: { revalidate: 3600, tags: ["site-content"] } }
+        : { cache: "no-store" };
+
+    const res = await fetch(`${base}/site/content`, fetchInit);
 
     if (!res.ok) {
         const text = await res.text();

@@ -7,6 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductVariantResource extends JsonResource
@@ -29,6 +30,10 @@ class ProductVariantResource extends JsonResource
         $presented = $stockContext->presentedForListing($variant);
         $effectivePrice = $stockContext->storefrontVariantPrice($variant, $presented);
         [$mainStock, $supplierStock] = $stockContext->warehouseStocksForVariant($variant);
+
+        $waitingPrice = $effectivePrice !== null && !(bool) $variant->is_promotion
+            ? WaitingDiscountPricing::apply($effectivePrice)
+            : null;
 
         $effectiveOldPrice = $effectivePrice !== null ? $this->old_price : null;
         $effectivePreorder = $presented['is_preorder'];
@@ -65,6 +70,8 @@ class ProductVariantResource extends JsonResource
 
             'price' => $effectivePrice,
             'old_price' => $effectiveOldPrice,
+            'waiting_price' => $waitingPrice,
+            'waiting_discount_percent' => $waitingPrice !== null ? WaitingDiscountPricing::DISCOUNT_PERCENT : null,
             'discount_percent' => $effectivePrice !== null ? $this->discount_percent : null,
 
             'stock' => $presented['stock'],
@@ -72,6 +79,7 @@ class ProductVariantResource extends JsonResource
             'is_preorder' => $effectivePreorder,
             'is_available' => $presented['is_available'],
             'is_promotion' => (bool) $variant->is_promotion,
+            'availability_source' => $presented['availability_source'],
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
             'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),

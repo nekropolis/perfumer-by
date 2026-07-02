@@ -71,7 +71,8 @@ class CheckoutTelegramMessageFormatter
             $title = trim(($item->product_name ?? '') . ' ' . ($item->variant_title ?? ''));
             $qty = (int) ($item->qty ?? 0);
             $total = number_format((float) ($item->total ?? 0), 2, '.', '');
-            $positionLines[] = sprintf('- %s × %d = %s BYN', $title !== '' ? $title : 'Товар', $qty, $total);
+            $suffix = (bool) $item->waiting_discount ? ' (предзаказ -3%)' : '';
+            $positionLines[] = sprintf('- %s × %d = %s BYN%s', $title !== '' ? $title : 'Товар', $qty, $total, $suffix);
         }
 
         if ($positionLines !== []) {

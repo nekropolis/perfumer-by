@@ -61,6 +61,11 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                                 )}
                                             </div>
                                         )}
+                                        {item.waiting_discount && (
+                                            <div className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                                                Предзаказ со скидкой 3%
+                                            </div>
+                                        )}
                                         {item.sku && (
                                             <div className="mt-0.5 flex items-center gap-1 text-xs text-admin-text-secondary">
                                                 <span>SKU:</span>

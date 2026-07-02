@@ -245,7 +245,8 @@ final class CatalogVariantStockPresenter
      *     available_stock: int,
      *     is_available: bool,
      *     is_preorder: bool,
-     *     supplier_listing_price: bool
+     *     supplier_listing_price: bool,
+     *     availability_source: string
      * }
      */
     /**
@@ -256,7 +257,8 @@ final class CatalogVariantStockPresenter
      *     available_stock: int,
      *     is_available: bool,
      *     is_preorder: bool,
-     *     supplier_listing_price: bool
+     *     supplier_listing_price: bool,
+     *     availability_source: string
      * }
      */
     public static function forListing(
@@ -271,6 +273,8 @@ final class CatalogVariantStockPresenter
             ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
             : 0;
 
+        $supplierListingActive = self::supplierListingActive($variant, $preloadedEligibleOffers);
+
         if ($mainAvailable > 0) {
             return [
                 'stock' => (int) $mainStock->stock,
@@ -278,12 +282,13 @@ final class CatalogVariantStockPresenter
                 'available_stock' => $mainAvailable,
                 'is_available' => $mainAvailable > 0 || $preorder,
                 'is_preorder' => $preorder,
-                'supplier_listing_price' => false,
+                'supplier_listing_price' => $supplierListingActive,
+                'availability_source' => $supplierListingActive ? 'main+supplier' : 'main',
             ];
         }
 
         // Канал поставщика по активной связке прайса (строка склада может ещё не существовать).
-        if (self::supplierListingActive($variant, $preloadedEligibleOffers)) {
+        if ($supplierListingActive) {
             return [
                 'stock' => self::SUPPLIER_LISTING_QTY,
                 'reserved_stock' => 0,
@@ -291,6 +296,7 @@ final class CatalogVariantStockPresenter
                 'is_available' => true,
                 'is_preorder' => $preorder,
                 'supplier_listing_price' => true,
+                'availability_source' => 'supplier_only',
             ];
         }
 
@@ -307,6 +313,7 @@ final class CatalogVariantStockPresenter
                 'is_available' => $supplierAvailable > 0 || $preorder,
                 'is_preorder' => $preorder,
                 'supplier_listing_price' => false,
+                'availability_source' => $supplierAvailable > 0 ? 'supplier_warehouse' : 'unavailable',
             ];
         }
 
@@ -317,6 +324,7 @@ final class CatalogVariantStockPresenter
             'is_available' => $preorder,
             'is_preorder' => $preorder,
             'supplier_listing_price' => false,
+            'availability_source' => 'unavailable',
         ];
     }
 }

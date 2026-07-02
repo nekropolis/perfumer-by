@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 use Modules\Loyalty\Services\LoyaltyPricingService;
+use Modules\Settings\Services\ShopSettingService;
 
 class CartResource extends JsonResource
 {
@@ -23,6 +24,8 @@ class CartResource extends JsonResource
         });
         $grandSubtotal = round((float) $pricing['subtotal'] + $giftCertificatesSubtotal, 2);
         $grandTotal = max(0, round((float) $pricing['total'] + $giftCertificatesSubtotal, 2));
+
+        $shopSettings = app(ShopSettingService::class);
 
         return [
             'id' => $this->id,
@@ -43,6 +46,7 @@ class CartResource extends JsonResource
                 'discount_amount' => number_format((float) $pricing['loyalty_discount_amount'], 2, '.', ''),
                 'session_only' => (bool) $this->discount_card_session_only,
             ] : null,
+            'waiting_discount_delivery_date' => $shopSettings->get('waiting_discount_delivery_date', '10.07.2026'),
             'items' => CartItemResource::collection($items),
             'gift_certificate_items' => CartGiftCertificateItemResource::collection($giftCertificateItems),
         ];

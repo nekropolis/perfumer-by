@@ -295,19 +295,22 @@ export type StockSalesReportResponse = {
     };
 };
 
+export type SupplierOrderReservationSupplier = {
+    name: string | null;
+    product_name: string | null;
+    code: string | null;
+    price: string | null;
+};
+
 export type SupplierOrderReservationRow = {
-    reservation_id: number;
+    id: string;
     order_id: number;
     product_id: number;
     variant_id: number;
     product_name: string | null;
     variant_title: string | null;
     qty: number;
-    reserved_at: string | null;
-    supplier_name: string | null;
-    supplier_product_name: string | null;
-    supplier_code: string | null;
-    supplier_price: string | null;
+    suppliers: SupplierOrderReservationSupplier[];
 };
 
 export type SupplierOrderReservationsResponse = {

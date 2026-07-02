@@ -83,6 +83,20 @@ export function countCheckoutLinesQty(
     return n;
 }
 
+/** Сумма скидки 3% за ожидание доставки по выбранным позициям. */
+export function waitingDiscountAmountForLines(items: CartData["items"]): string {
+    let cents = 0;
+    for (const item of items) {
+        if (!item.waiting_discount || !item.base_price) {
+            continue;
+        }
+        const baseCents = Math.round(parseCheckoutMoney(item.base_price) * 100);
+        const priceCents = Math.round(parseCheckoutMoney(item.price) * 100);
+        cents += Math.max(0, baseCents - priceCents) * item.qty;
+    }
+    return (cents / 100).toFixed(2);
+}
+
 export function breakdownSubtotalFromQuote(quote: CheckoutQuote): string {
     const giftPurchase = quote.gift_certificates_purchase_subtotal
         ? parseCheckoutMoney(quote.gift_certificates_purchase_subtotal)

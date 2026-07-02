@@ -62,6 +62,7 @@ export type OrderItem = {
     qty: number;
     price: string;
     total: string;
+    waiting_discount: boolean;
     product_country?: string | null;
     image?: string | null;
     supplier_offers?: OrderItemSupplierOffer[];

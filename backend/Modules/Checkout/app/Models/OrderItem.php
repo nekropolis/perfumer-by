@@ -23,6 +23,8 @@ class OrderItem extends Model
         'qty',
         'price',
         'total',
+        'waiting_discount',
+        'availability_source',
     ];
 
     public function order(): BelongsTo

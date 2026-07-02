@@ -10,9 +10,8 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockReceipt;
-use Modules\Warehouse\Models\StockReservation;
+use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\StockWriteoff;
-use Modules\Warehouse\Models\Warehouse;
 
 class StockReportController extends Controller
 {
@@ -22,38 +21,19 @@ class StockReportController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 50;
 
-        $supplierWarehouseId = (int) Warehouse::query()
-            ->where('code', Warehouse::CODE_SUPPLIER)
-            ->value('id');
+        $query = OrderItem::query()
+            ->select('order_items.*')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->with(['product', 'variant'])
+            ->whereIn('orders.status', ['new', 'processing'])
+            ->when($productId > 0, fn ($subQuery) => $subQuery->where('order_items.product_id', $productId))
+            ->orderByDesc('orders.id')
+            ->orderBy('order_items.product_name')
+            ->orderBy('order_items.variant_title');
 
-        if ($supplierWarehouseId <= 0) {
-            return response()->json([
-                'data' => [],
-                'current_page' => $page,
-                'last_page' => 1,
-                'total' => 0,
-            ]);
-        }
+        $items = $query->get();
 
-        $query = StockReservation::query()
-            ->with([
-                'variant',
-                'warehouse',
-            ])
-            ->where('status', 'active')
-            ->where('warehouse_id', $supplierWarehouseId)
-            ->whereHas('variant')
-            ->whereHas('warehouse', fn ($warehouseQuery) => $warehouseQuery->where('code', Warehouse::CODE_SUPPLIER))
-            ->whereHas('product')
-            ->whereIn('order_id', Order::query()->where('status', 'new')->select('id'))
-            ->when($productId > 0, fn ($subQuery) => $subQuery->where('product_id', $productId))
-            ->orderByDesc('reserved_at')
-            ->orderByDesc('id');
-
-        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-        $rows = collect($paginator->items());
-
-        $variantIds = $rows
+        $variantIds = $items
             ->pluck('variant_id')
             ->filter(fn ($id) => $id !== null)
             ->map(fn ($id) => (int) $id)
@@ -66,39 +46,107 @@ class StockReportController extends Controller
                 ->with('supplier')
                 ->whereIn('product_variant_id', $variantIds->all())
                 ->where('is_active', true)
+                ->orderBy('purchase_price')
                 ->orderByDesc('last_seen_at')
                 ->orderByDesc('id')
                 ->get()
                 ->groupBy('product_variant_id');
 
-        $data = $rows->map(function (StockReservation $reservation) use ($offersByVariant): array {
-            /** @var SupplierVariantOffer|null $offer */
-            $offer = $offersByVariant->get((int) $reservation->variant_id)?->first();
+        $receiptItemsByVariant = $variantIds->isEmpty()
+            ? collect()
+            : StockReceiptItem::query()
+                ->with(['receipt'])
+                ->whereIn('variant_id', $variantIds->all())
+                ->whereHas('receipt', fn ($receiptQuery) => $receiptQuery->whereNotNull('supplier_name'))
+                ->orderByDesc('id')
+                ->get()
+                ->groupBy('variant_id');
 
-            return [
-                'reservation_id' => (int) $reservation->id,
-                'order_id' => (int) $reservation->order_id,
-                'product_id' => (int) $reservation->product_id,
-                'variant_id' => (int) $reservation->variant_id,
-                'product_name' => $reservation->product?->name,
-                'variant_title' => $reservation->variant?->title,
-                'qty' => (int) $reservation->qty,
-                'reserved_at' => $reservation->reserved_at?->toIso8601String(),
-                'supplier_name' => $offer?->supplier?->name,
-                'supplier_product_name' => $offer?->external_product_name
-                    ?: $offer?->external_variant_name,
-                'supplier_code' => $offer?->external_id ?: $offer?->sku,
-                'supplier_price' => $offer?->purchase_price !== null
-                    ? number_format((float) $offer->purchase_price, 2, '.', '')
-                    : null,
+        $rows = [];
+        foreach ($items as $item) {
+            $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
+            $hasMainStock = in_array($availabilitySource, ['main', 'main+supplier'], true);
+            $suppliers = [];
+
+            // Складские строки: для товара на нашем складе показываем каждый приход
+            // с ценой закупки, чтобы видеть себестоимость остатка.
+            if ($hasMainStock) {
+                $receiptItems = $receiptItemsByVariant->get((int) $item->variant_id);
+
+                if ($receiptItems !== null && $receiptItems->isNotEmpty()) {
+                    foreach ($receiptItems as $receiptItem) {
+                        $payload = is_array($receiptItem->payload) ? $receiptItem->payload : [];
+
+                        $suppliers[] = [
+                            'name' => 'Склад',
+                            'product_name' => $payload['supplier_product_name']
+                                ?? $payload['name']
+                                ?? $receiptItem->variant_title,
+                            'code' => $receiptItem->supplier_sku,
+                            'price' => $receiptItem->supplier_price !== null
+                                ? number_format((float) $receiptItem->supplier_price, 2, '.', '')
+                                : null,
+                        ];
+                    }
+                } else {
+                    $suppliers[] = [
+                        'name' => 'Склад',
+                        'product_name' => null,
+                        'code' => null,
+                        'price' => null,
+                    ];
+                }
+            }
+
+            // Активные офферы поставщиков для варианта.
+            $offers = $offersByVariant->get((int) $item->variant_id);
+            if ($offers !== null) {
+                foreach ($offers as $offer) {
+                    $suppliers[] = [
+                        'name' => $offer->supplier?->name,
+                        'product_name' => $offer->external_product_name
+                            ?: $offer->external_variant_name,
+                        'code' => $offer->external_id ?: $offer->sku,
+                        'price' => $offer->purchase_price !== null
+                            ? number_format((float) $offer->purchase_price, 2, '.', '')
+                            : null,
+                    ];
+                }
+            }
+
+            // Если нет ни склада, ни офферов — показываем пустую строку,
+            // чтобы товар не потерялся из списка.
+            if ($suppliers === []) {
+                $suppliers[] = [
+                    'name' => null,
+                    'product_name' => null,
+                    'code' => null,
+                    'price' => null,
+                ];
+            }
+
+            $rows[] = [
+                'id' => "oi-{$item->id}",
+                'order_id' => (int) $item->order_id,
+                'product_id' => (int) $item->product_id,
+                'variant_id' => (int) $item->variant_id,
+                'product_name' => $item->product_name ?: $item->product?->name,
+                'variant_title' => $item->variant_title ?: $item->variant?->title,
+                'qty' => (int) $item->qty,
+                'suppliers' => $suppliers,
             ];
-        })->values();
+        }
+
+        $total = count($rows);
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+        $pageRows = array_slice($rows, $offset, $perPage);
 
         return response()->json([
-            'data' => $data,
-            'current_page' => $paginator->currentPage(),
-            'last_page' => $paginator->lastPage(),
-            'total' => $paginator->total(),
+            'data' => $pageRows,
+            'current_page' => $page,
+            'last_page' => $lastPage,
+            'total' => $total,
         ]);
     }
 

@@ -15,7 +15,14 @@ import ProductServiceInfo from "@/components/product/product-service-info";
 import ProductReviewsTab from "@/components/product/product-reviews-tab";
 import ProductDetailGallery from "@/components/product/product-detail-gallery";
 import { productDisplayName } from "@/lib/product-display-name";
-import { applyPercentDiscount, isVariantEligibleForLoyaltyCardDiscount, resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
+import {
+    applyWaitingDiscount,
+    isVariantEligibleForLoyaltyCardDiscount,
+    isVariantEligibleForWaitingDiscount,
+    resolveActiveLoyaltyCard,
+    resolveDiscountedPrice,
+    WAITING_DISCOUNT_PERCENT,
+} from "@/lib/loyalty-pricing";
 import {
     formatProductDetailPrice,
     formatVariantConcentrationLabel,
@@ -29,6 +36,7 @@ type Props = {
     initialProductReviews?: ReviewItem[];
     attributesContent: React.ReactNode;
     descriptionContent: React.ReactNode;
+    deliveryDate?: string | null;
 };
 
 export default function ProductDetailInteractive({
@@ -36,6 +44,7 @@ export default function ProductDetailInteractive({
     initialProductReviews,
     attributesContent,
     descriptionContent,
+    deliveryDate,
 }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "reviews">("attributes");
@@ -59,10 +68,12 @@ export default function ProductDetailInteractive({
     }, [product.default_variant_id, searchParams, variants]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<number | null>(initialVariantId);
+    const [waitingDiscountByVariant, setWaitingDiscountByVariant] = useState<Record<number, boolean>>({});
 
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
     }, [variants, selectedVariantId]);
+
     const isSelectedVariantInCart = Boolean(
         selectedVariant?.id && cart?.items?.some((item) => item.product_variant_id === selectedVariant.id),
     );
@@ -71,10 +82,22 @@ export default function ProductDetailInteractive({
     const selectedVariantEligibleForLoyalty = isVariantEligibleForLoyaltyCardDiscount(
         selectedVariant?.is_promotion,
     );
-    const loyaltyPrice =
-        selectedVariantEligibleForLoyalty && loyaltyCard
-            ? applyPercentDiscount(selectedVariant?.price ?? null, loyaltyCard.discountPercent ?? 0)
-            : null;
+    const selectedVariantEligibleForWaiting = Boolean(
+        selectedVariant &&
+            isVariantEligibleForWaitingDiscount(selectedVariant.is_promotion) &&
+            selectedVariant.availability_source !== "unavailable",
+    );
+    const waitingDiscountForced = selectedVariant?.availability_source === "supplier_only";
+    const waitingDiscountActive = waitingDiscountForced ||
+        (selectedVariant ? (waitingDiscountByVariant[selectedVariant.id] ?? false) : false);
+
+    const loyaltyPercent = isAuthenticated && selectedVariantEligibleForLoyalty
+        ? (loyaltyCard?.discountPercent ?? 0)
+        : 0;
+
+    const displayPrice = waitingDiscountActive && selectedVariantEligibleForWaiting
+        ? (selectedVariant?.waiting_price ?? applyWaitingDiscount(selectedVariant?.price ?? null))
+        : selectedVariant?.price ?? null;
 
     const inWishlist = isInWishlist(product.id);
 
@@ -85,7 +108,9 @@ export default function ProductDetailInteractive({
 
         startTransition(async () => {
             try {
-                const response = await addToCart(selectedVariant.id, 1);
+                const response = await addToCart(selectedVariant.id, 1, {
+                    waiting_discount: waitingDiscountActive,
+                });
                 setCartState(response.data);
             } catch (error) {
                 console.error(error);
@@ -146,16 +171,15 @@ export default function ProductDetailInteractive({
                                             variant,
                                             product.is_out_of_stock,
                                         );
-                                        const displayPrice =
-                                            isAuthenticated &&
-                                            loyaltyCard &&
-                                            variant.price &&
-                                            isVariantEligibleForLoyaltyCardDiscount(variant.is_promotion)
-                                                ? applyPercentDiscount(
-                                                      variant.price,
-                                                      loyaltyCard.discountPercent,
-                                                  )
-                                                : variant.price;
+                                        const gridWaitingActive = variant.availability_source === "supplier_only";
+                                        const gridPrice = resolveDiscountedPrice(variant.price, {
+                                            isPromotion: variant.is_promotion,
+                                            loyaltyPercent:
+                                                isAuthenticated && !variant.is_promotion
+                                                    ? (loyaltyCard?.discountPercent ?? 0)
+                                                    : 0,
+                                            waitingActive: gridWaitingActive,
+                                        });
 
                                         return (
                                             <button
@@ -184,9 +208,9 @@ export default function ProductDetailInteractive({
                                                 </span>
 
                                                 <div className="flex items-baseline gap-1.5 pt-0.5">
-                                                    {displayPrice ? (
+                                                    {gridPrice ? (
                                                         <span className="text-[13px] font-semibold leading-4 text-admin-text">
-                                                            {formatProductDetailPrice(displayPrice)}
+                                                            {formatProductDetailPrice(gridPrice)}
                                                         </span>
                                                     ) : (
                                                         <span className="text-[13px] font-semibold leading-4 text-admin-text-secondary">
@@ -228,17 +252,27 @@ export default function ProductDetailInteractive({
                         productId={product.id}
                         productName={productDisplayName(product)}
                         isProductOutOfStock={product.is_out_of_stock}
+                        displayPrice={displayPrice}
                         loyaltyCardNumber={
                             isAuthenticated && selectedVariantEligibleForLoyalty
                                 ? (loyaltyCard?.number ?? null)
                                 : null
                         }
-                        loyaltyPercent={
-                            isAuthenticated && selectedVariantEligibleForLoyalty
-                                ? (loyaltyCard?.discountPercent ?? 0)
-                                : 0
-                        }
-                        loyaltyPrice={isAuthenticated ? loyaltyPrice : null}
+                        loyaltyPercent={loyaltyPercent}
+                        waitingDiscountActive={waitingDiscountActive}
+                        waitingDiscountForced={waitingDiscountForced}
+                        waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
+                        onWaitingDiscountChangeAction={(active) => {
+                            if (!selectedVariant || waitingDiscountForced) {
+                                return;
+                            }
+                            setWaitingDiscountByVariant((prev) => ({
+                                ...prev,
+                                [selectedVariant.id]: active,
+                            }));
+                        }}
+                        waitingDiscountApplicable={selectedVariantEligibleForWaiting}
+                        deliveryDate={deliveryDate}
                     />
                 </aside>
 

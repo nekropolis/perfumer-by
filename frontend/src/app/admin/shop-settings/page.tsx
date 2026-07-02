@@ -11,7 +11,7 @@ import {
     type ShopSettings,
 } from "@/lib/admin-shop-settings-api";
 
-type ShopTab = "delivery" | "contacts";
+type ShopTab = "delivery" | "contacts" | "discounts";
 
 const empty: ShopSettings = {
     delivery_minsk_free_threshold: 50,
@@ -23,6 +23,7 @@ const empty: ShopSettings = {
     contact_phone_life: "+375256408833",
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
+    waiting_discount_delivery_date: "10.07.2026",
 };
 
 const tabButtonClass = (active: boolean) =>
@@ -31,6 +32,20 @@ const tabButtonClass = (active: boolean) =>
             ? "border-slate-900 text-slate-900"
             : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
     }`;
+
+function parseDisplayDateToIso(displayDate: string): string | null {
+    const match = displayDate.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return null;
+    const [, day, month, year] = match;
+    return `${year}-${month}-${day}`;
+}
+
+function formatIsoToDisplayDate(isoDate: string): string {
+    const match = isoDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return isoDate;
+    const [, year, month, day] = match;
+    return `${day}.${month}.${year}`;
+}
 
 export default function AdminShopSettingsPage() {
     const [tab, setTab] = useState<ShopTab>("delivery");
@@ -90,7 +105,9 @@ export default function AdminShopSettingsPage() {
             <p className="mb-4 text-sm text-admin-text-secondary">
                 {tab === "delivery"
                     ? "Пороги и тарифы доставки для витрины (Минск / РБ)."
-                    : "Телефоны и мессенджеры для шапки и контактов на витрине."}
+                    : tab === "contacts"
+                        ? "Телефоны и мессенджеры для шапки и контактов на витрине."
+                        : "Настройки скидки за ожидание доставки."}
             </p>
 
             <div className="mb-6 flex flex-wrap gap-1 border-b border-admin-border">
@@ -99,6 +116,9 @@ export default function AdminShopSettingsPage() {
                 </button>
                 <button type="button" className={tabButtonClass(tab === "contacts")} onClick={() => setTab("contacts")}>
                     Контакты
+                </button>
+                <button type="button" className={tabButtonClass(tab === "discounts")} onClick={() => setTab("discounts")}>
+                    Скидки
                 </button>
             </div>
 
@@ -158,6 +178,30 @@ export default function AdminShopSettingsPage() {
                                     }
                                     className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                                 />
+                            </div>
+                        </div>
+                    ) : tab === "discounts" ? (
+                        <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">
+                                    Дата отправки товаров под заказ (скидка 3%)
+                                </label>
+                                <input
+                                    type="date"
+                                    value={parseDisplayDateToIso(form.waiting_discount_delivery_date) ?? ""}
+                                    onChange={(e) =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            waiting_discount_delivery_date: e.target.value
+                                                ? formatIsoToDisplayDate(e.target.value)
+                                                : "",
+                                        }))
+                                    }
+                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                />
+                                <p className="mt-1 text-xs text-admin-text-secondary">
+                                    Отображается в карточке товара и корзине для позиций со скидкой за ожидание.
+                                </p>
                             </div>
                         </div>
                     ) : (

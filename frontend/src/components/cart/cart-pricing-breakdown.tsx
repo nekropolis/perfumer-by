@@ -23,6 +23,7 @@ type Props = {
     giftCertificate: GiftLine | null;
     deliveryFee?: string | null;
     grandTotal?: string | null;
+    waitingDiscountAmount?: string | null;
     className?: string;
 };
 
@@ -39,15 +40,18 @@ export default function CartPricingBreakdown({
     giftCertificate,
     deliveryFee,
     grandTotal,
+    waitingDiscountAmount,
     className = "",
 }: Props) {
     const sub = parseMoney(subtotal);
     const tot = parseMoney(total);
     const cardAmt = discountCard ? parseMoney(discountCard.discount_amount) : 0;
     const certAmt = giftCertificate ? parseMoney(giftCertificate.amount) : 0;
+    const waitingAmt = waitingDiscountAmount ? parseMoney(waitingDiscountAmount) : 0;
     const savings = Math.max(0, sub - tot);
     const hasCard = discountCard && cardAmt > 0;
     const hasCert = giftCertificate && certAmt > 0;
+    const hasWaiting = waitingAmt > 0.004;
 
     return (
         <div className={`space-y-2 text-sm text-admin-text-secondary ${className}`}>
@@ -74,6 +78,15 @@ export default function CartPricingBreakdown({
                             −{formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount} руб.
                         </span>
                     </div>
+                </div>
+            ) : null}
+
+            {hasWaiting ? (
+                <div className="flex items-center justify-between text-amber-700">
+                    <span>Скидка 3% за ожидание доставки</span>
+                    <span className="font-medium">
+                        −{formatMoneyDisplay(waitingDiscountAmount!) ?? waitingDiscountAmount} руб.
+                    </span>
                 </div>
             ) : null}
 

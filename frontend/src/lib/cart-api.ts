@@ -100,12 +100,17 @@ export async function fetchCart(init?: FetchCartOptions): Promise<CartResponse> 
     });
 }
 
-export async function addToCart(variantId: number, qty = 1): Promise<CartResponse> {
+export async function addToCart(
+    variantId: number,
+    qty = 1,
+    options?: { waiting_discount?: boolean },
+): Promise<CartResponse> {
     return cartFetch<CartResponse>("/cart/items", {
         method: "POST",
         body: JSON.stringify({
             variant_id: variantId,
             qty,
+            waiting_discount: options?.waiting_discount ?? false,
         }),
     });
 }

@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\WaitingDiscountPricing;
+use Modules\Settings\Services\ShopSettingService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -22,6 +24,9 @@ class CartItemResource extends JsonResource
         $isAvailable = false;
         $price = 0.0;
 
+        $waitingDiscount = (bool) $this->waiting_discount;
+        $basePrice = 0.0;
+
         if ($variant) {
             $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
             $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
@@ -37,8 +42,13 @@ class CartItemResource extends JsonResource
             $displayStock = $presented['stock'];
             $displayReserved = $presented['reserved_stock'];
             $isAvailable = $presented['is_available'];
-            $price = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
+            $basePrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
+            $price = $waitingDiscount && !(bool) $variant->is_promotion
+                ? WaitingDiscountPricing::apply($basePrice)
+                : $basePrice;
         }
+
+        $formattedBasePrice = $basePrice > 0 ? number_format($basePrice, 2, '.', '') : null;
 
         $total = $price * $this->qty;
 
@@ -86,6 +96,7 @@ class CartItemResource extends JsonResource
             ] : null,
 
             'price' => number_format($price, 2, '.', ''),
+            'base_price' => $formattedBasePrice,
             'old_price' => $variant?->old_price
                 ? number_format((float) $variant->old_price, 2, '.', '')
                 : null,
@@ -96,6 +107,11 @@ class CartItemResource extends JsonResource
             'available_stock' => $availableStock,
             'is_preorder' => (bool) ($variant?->is_preorder ?? false),
             'is_available' => $variant ? $isAvailable : false,
+            'waiting_discount' => $waitingDiscount,
+            'waiting_discount_percent' => $waitingDiscount && !(bool) $variant->is_promotion
+                ? WaitingDiscountPricing::DISCOUNT_PERCENT
+                : null,
+            'availability_source' => $this->availability_source ?: ($variant ? $presented['availability_source'] : 'unavailable'),
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace Modules\Loyalty\Services;
 
 use Modules\Cart\Models\Cart;
+use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\UserDiscountCard;
@@ -172,7 +173,16 @@ class LoyaltyPricingService
         }
 
         return (float) $rows->sum(function ($item) {
-            return ((float) ($item->variant?->price ?? 0)) * (int) $item->qty;
+            $basePrice = (float) ($item->variant?->price ?? 0);
+            if ($basePrice <= 0) {
+                return 0.0;
+            }
+
+            if ((bool) $item->waiting_discount && !(bool) ($item->variant?->is_promotion ?? false)) {
+                $basePrice = WaitingDiscountPricing::apply($basePrice);
+            }
+
+            return $basePrice * (int) $item->qty;
         });
     }
 

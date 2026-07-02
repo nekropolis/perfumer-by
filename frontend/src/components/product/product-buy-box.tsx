@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
@@ -23,9 +23,15 @@ type Props = {
     productName: string;
     /** Нет остатка на своём складе; заказ через поставщика — другой текст, чем «В наличии». */
     isProductOutOfStock?: boolean;
+    displayPrice?: string | null;
     loyaltyCardNumber?: string | null;
     loyaltyPercent?: number;
-    loyaltyPrice?: string | null;
+    waitingDiscountActive?: boolean;
+    waitingDiscountForced?: boolean;
+    waitingDiscountPercent?: number;
+    waitingDiscountApplicable?: boolean;
+    onWaitingDiscountChangeAction?: (active: boolean) => void;
+    deliveryDate?: string | null;
 };
 
 export default function ProductBuyBox({
@@ -37,32 +43,61 @@ export default function ProductBuyBox({
     productId,
     productName,
     isProductOutOfStock = false,
+    displayPrice,
     loyaltyCardNumber,
     loyaltyPercent = 0,
-    loyaltyPrice,
+    waitingDiscountActive = false,
+    waitingDiscountForced = false,
+    waitingDiscountPercent = 3,
+    waitingDiscountApplicable = false,
+    onWaitingDiscountChangeAction,
+    deliveryDate,
 }: Props) {
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
 
-    const hasLoyaltyDiscount = Boolean(
-        loyaltyCardNumber &&
-            loyaltyPercent > 0 &&
-            loyaltyPrice &&
-            selectedVariant?.price &&
-            !selectedVariant.is_promotion,
-    );
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
     const selectedVariantId = selectedVariant?.id ?? null;
     const selectedVariantTitle = selectedVariant?.display_name ?? null;
 
-    const displayPrice = hasLoyaltyDiscount
-        ? loyaltyPrice
-        : selectedVariant?.price ?? null;
+    const hasLoyaltyDiscount = Boolean(
+        loyaltyCardNumber &&
+            loyaltyPercent > 0 &&
+            selectedVariant?.price &&
+            !selectedVariant.is_promotion,
+    );
+    const hasWaitingDiscount = Boolean(
+        waitingDiscountActive && waitingDiscountApplicable && selectedVariant?.price && !selectedVariant.is_promotion,
+    );
+    const showWaitingCheckbox = Boolean(
+        waitingDiscountApplicable && selectedVariant && !selectedVariant.is_promotion && selectedVariant.availability_source !== 'supplier_only',
+    );
 
-    const availability = selectedVariant
-        ? getVariantAvailabilityState(selectedVariant, isProductOutOfStock)
-        : null;
+    const effectivePrice = displayPrice ?? selectedVariant?.price ?? null;
+
+    const deliveryDateText = deliveryDate?.trim() || "xx.xx.xxxx";
+
+    const availability = useMemo(() => {
+        if (!selectedVariant) {
+            return null;
+        }
+
+        if (waitingDiscountApplicable) {
+            if (waitingDiscountActive || waitingDiscountForced) {
+                return {
+                    text: `Доступен к заказу. Отправка с ${deliveryDateText}`,
+                    className: "text-amber-600",
+                };
+            }
+
+            return { text: "Наличие в магазине", className: "text-emerald-600" };
+        }
+
+        return getVariantAvailabilityState(selectedVariant, isProductOutOfStock);
+    }, [selectedVariant, waitingDiscountApplicable, waitingDiscountForced, waitingDiscountActive, deliveryDateText, isProductOutOfStock]);
+
+    const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -104,6 +139,56 @@ export default function ProductBuyBox({
         </button>
     );
 
+    const renderWaitingDiscountRow = () => {
+        if (!showWaitingCheckbox) {
+            return null;
+        }
+
+        return (
+            <label
+                className={`flex cursor-pointer items-start gap-2.5 text-xs ${
+                    waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""
+                }`}
+            >
+                <span className="relative flex h-5 w-5 shrink-0 select-none items-center justify-center pt-0.5">
+                    <input
+                        type="checkbox"
+                        checked={waitingDiscountActive}
+                        disabled={waitingDiscountForced}
+                        onChange={(e) => onWaitingDiscountChangeAction?.(e.target.checked)}
+                        className="peer sr-only"
+                    />
+                    <span
+                        aria-hidden
+                        className={[
+                            "pointer-events-none flex h-5 w-5 items-center justify-center rounded-md border-2 bg-admin-surface shadow-sm transition-all duration-200 ease-out",
+                            "border-admin-border",
+                            "peer-hover:border-admin-border-strong peer-hover:shadow-md",
+                            "peer-focus-visible:ring-2 peer-focus-visible:ring-admin-primary/20 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-admin-surface",
+                            "peer-checked:border-admin-primary peer-checked:bg-admin-primary peer-checked:shadow-sm",
+                            "peer-checked:[&>svg]:scale-100 peer-checked:[&>svg]:opacity-100",
+                            "[&>svg]:scale-90 [&>svg]:opacity-0",
+                            waitingDiscountForced ? "opacity-70" : "",
+                        ].join(" ")}
+                    >
+                        <svg viewBox="0 0 12 10" fill="none" className="h-2.5 w-2.5 text-white transition-[opacity,transform] duration-200 ease-out" aria-hidden>
+                            <path
+                                d="M1 5l3.5 3.5L11 1.5"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </span>
+                </span>
+                <span className="text-admin-text">
+                    Хочу скидку {waitingDiscountPercent}% за ожидание доставки
+                </span>
+            </label>
+        );
+    };
+
     const renderCartAction = (compact: boolean) => {
         if (!hasVariant) {
             return (
@@ -129,7 +214,7 @@ export default function ProductBuyBox({
                         ) : (
                             <>
                                 <span aria-hidden>✓</span>
-                                <span>В корзине (оформить)</span>
+                                <span>&nbsp;В корзине (оформить)</span>
                             </>
                         )}
                     </Link>
@@ -160,7 +245,7 @@ export default function ProductBuyBox({
                             />
                         </svg>
                     )}
-                    <span>{isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}</span>
+                    <span>&nbsp;{isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}</span>
                 </button>
             );
         }
@@ -195,14 +280,14 @@ export default function ProductBuyBox({
 
                         <div className="mb-4 flex flex-wrap items-end gap-2">
                             <div className="text-4xl font-semibold leading-none">
-                                {displayPrice
-                                    ? formatPriceAction(displayPrice)
+                                {effectivePrice
+                                    ? formatPriceAction(effectivePrice)
                                     : selectedVariant.is_preorder
                                         ? "Предзаказ"
                                         : "Цена уточняется"}
                             </div>
 
-                            {(selectedVariant.old_price || hasLoyaltyDiscount) && (
+                            {(selectedVariant.old_price || hasAnyDiscount) && (
                                 <div className="text-base text-admin-text-secondary line-through">
                                     {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                                 </div>
@@ -210,8 +295,14 @@ export default function ProductBuyBox({
                         </div>
 
                         {hasLoyaltyDiscount && (
-                            <div className="mb-4 text-sm text-green-700">
+                            <div className="mb-2 text-sm text-green-700">
                                 Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
+                            </div>
+                        )}
+
+                        {hasWaitingDiscount && (
+                            <div className="mb-2 text-sm text-green-700">
+                                Скидка {waitingDiscountPercent}% за ожидание доставки
                             </div>
                         )}
 
@@ -221,13 +312,19 @@ export default function ProductBuyBox({
                             </div>
                         )}
 
-                        <div className="mb-6">
+                        <div className="mb-4">
                             {availability ? (
                                 <div className={`text-sm font-medium ${availability.className}`}>
                                     {availability.text}
                                 </div>
                             ) : null}
                         </div>
+
+                        {showWaitingCheckbox && (
+                            <div className="mb-4 rounded-xl border border-admin-border bg-admin-bg p-3">
+                                {renderWaitingDiscountRow()}
+                            </div>
+                        )}
 
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                             {canAddToCart ? renderCartAction(false) : null}
@@ -291,8 +388,8 @@ export default function ProductBuyBox({
                                 </div>
                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                                     <span className="text-base font-semibold text-admin-text">
-                                        {displayPrice
-                                            ? formatPriceAction(displayPrice)
+                                        {effectivePrice
+                                            ? formatPriceAction(effectivePrice)
                                             : selectedVariant.is_preorder
                                                 ? "Предзаказ"
                                                 : "Цена уточняется"}
@@ -303,6 +400,9 @@ export default function ProductBuyBox({
                                         </span>
                                     ) : null}
                                 </div>
+                                {showWaitingCheckbox && (
+                                    <div className="mt-1">{renderWaitingDiscountRow()}</div>
+                                )}
                             </>
                         ) : (
                             <>

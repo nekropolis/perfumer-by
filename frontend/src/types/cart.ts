@@ -1,3 +1,5 @@
+import type { ProductAvailabilitySource } from "@/types/catalog";
+
 export type CartItemData = {
     id: number;
     qty: number;
@@ -22,11 +24,15 @@ export type CartItemData = {
     } | null;
 
     price: string;
+    base_price: string | null;
     old_price: string | null;
     total: string;
     stock: number;
     is_preorder: boolean;
     is_available: boolean;
+    waiting_discount: boolean;
+    waiting_discount_percent: number | null;
+    availability_source: ProductAvailabilitySource;
 };
 
 export type CartDiscountCard = {
@@ -59,6 +65,7 @@ export type CartData = {
         amount: string;
     } | null;
     discount_card: CartDiscountCard | null;
+    waiting_discount_delivery_date: string;
     items: CartItemData[];
     gift_certificate_items: CartGiftCertificateItem[];
 };

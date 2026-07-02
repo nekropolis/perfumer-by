@@ -19,6 +19,7 @@ export type ShopContactSettings = {
     contact_phone_life: string;
     contact_telegram_url: string;
     contact_viber_url: string;
+    waiting_discount_delivery_date: string;
 };
 
 export type ShopSettings = ShopDeliverySettings & ShopContactSettings;

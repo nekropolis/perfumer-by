@@ -49,6 +49,7 @@ import {
     parseCheckoutMoney,
     sanitizeCheckoutLineSelectionForCart,
     selectionSignature,
+    waitingDiscountAmountForLines,
 } from "@/lib/checkout-line-selection";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
@@ -171,6 +172,11 @@ export default function CheckoutPage() {
     const checkoutLinesQty = useMemo(
         () => countCheckoutLinesQty(checkoutCartLines.items, checkoutCartLines.giftItems),
         [checkoutCartLines],
+    );
+
+    const waitingDiscountAmount = useMemo(
+        () => waitingDiscountAmountForLines(checkoutCartLines.items),
+        [checkoutCartLines.items],
     );
 
     const checkoutQuotePayload = useMemo(() => {
@@ -340,7 +346,7 @@ export default function CheckoutPage() {
 
     if (loading) {
         return (
-            <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
                 <p className="text-sm text-admin-text-secondary">Загрузка корзины…</p>
             </main>
         );
@@ -351,7 +357,7 @@ export default function CheckoutPage() {
         (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)
     ) {
         return (
-            <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
                 <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h1 className="text-3xl font-semibold">Оформление заказа</h1>
                     <Link
@@ -382,7 +388,7 @@ export default function CheckoutPage() {
     const merchandisePayStr = quote != null ? merchandisePayFromQuote(quote) : (cart.total ?? cart.subtotal);
 
     return (
-        <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
             <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h1 className="text-3xl font-semibold">Оформление заказа</h1>
                 <Link href="/cart" className={`${siteBtnSecondary} gap-1.5 self-start`}>
@@ -659,8 +665,20 @@ export default function CheckoutPage() {
                                 <div className="text-sm text-[var(--text-secondary)]">
                                     {item.variant?.display_name || item.variant?.title}
                                 </div>
-                                <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                                    {item.qty} × {formatMoneyRub(item.price)}
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-secondary)]">
+                                    <span>
+                                        {item.qty} × {formatMoneyRub(item.price)}
+                                        {item.waiting_discount && item.base_price && (
+                                            <span className="ml-2 line-through">
+                                                {formatMoneyRub(item.base_price)}
+                                            </span>
+                                        )}
+                                    </span>
+                                    {item.waiting_discount && item.waiting_discount_percent !== null && (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                            -{item.waiting_discount_percent}% за ожидание
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -676,6 +694,7 @@ export default function CheckoutPage() {
                             giftCertificate={giftForBreakdown}
                             deliveryFee={quote?.delivery_fee}
                             grandTotal={quote?.total}
+                            waitingDiscountAmount={waitingDiscountAmount}
                         />
                     </div>
 

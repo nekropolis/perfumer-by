@@ -1,5 +1,7 @@
 export const MAX_LOYALTY_CARD_DISCOUNT_PERCENT = 10;
 
+export const WAITING_DISCOUNT_PERCENT = 3;
+
 export type ActiveLoyaltyCard = {
     number: string;
     discountPercent: number;
@@ -74,6 +76,71 @@ export function applyPercentDiscount(price: string | null, percent: number): str
 /** Скидка по накопительной карте не применяется к акционным вариантам. */
 export function isVariantEligibleForLoyaltyCardDiscount(isPromotion?: boolean | null): boolean {
     return !isPromotion;
+}
+
+/** Скидка 3% за ожидание доставки не применяется к акционным вариантам. */
+export function isVariantEligibleForWaitingDiscount(isPromotion?: boolean | null): boolean {
+    return !isPromotion;
+}
+
+/** Применить скидку 3% за ожидание доставки с округлением вниз до целых BYN. */
+export function applyWaitingDiscount(price: string | null): string | null {
+    const discounted = applyPercentDiscount(price, WAITING_DISCOUNT_PERCENT);
+    return roundMoneyDownToWhole(discounted);
+}
+
+/** Округлить сумму вниз до целых BYN (например 25,026 → 25,00). */
+export function roundMoneyDownToWhole(raw: string | null): string | null {
+    if (!raw) {
+        return null;
+    }
+
+    const value = Number(raw);
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+
+    return Math.floor(value).toFixed(2);
+}
+
+/** Итоговая цена с учётом накопительной карты и скидки за ожидание.
+ *  Порядок расчёта как в корзине: сначала скидка за ожидание (округление вниз до целых),
+ *  затем скидка по карте от исходной цены. */
+export function resolveDiscountedPrice(
+    price: string | null,
+    options: {
+        isPromotion?: boolean | null;
+        loyaltyPercent?: number;
+        waitingActive?: boolean;
+    },
+): string | null {
+    if (!price || options.isPromotion) {
+        return price;
+    }
+
+    const waitingPrice = options.waitingActive ? applyWaitingDiscount(price) : price;
+    if (!waitingPrice) {
+        return null;
+    }
+
+    const loyaltyPercent = options.loyaltyPercent ?? 0;
+    if (loyaltyPercent <= 0) {
+        return waitingPrice;
+    }
+
+    const loyaltyDiscounted = applyPercentDiscount(price, loyaltyPercent);
+    if (!loyaltyDiscounted) {
+        return waitingPrice;
+    }
+
+    const loyaltyAmount = Number(price) - Number(loyaltyDiscounted);
+    const final = Number(waitingPrice) - loyaltyAmount;
+
+    if (final <= 0) {
+        return "0.00";
+    }
+
+    return final.toFixed(2);
 }
 
 type LoyaltyCardPriceRange = {

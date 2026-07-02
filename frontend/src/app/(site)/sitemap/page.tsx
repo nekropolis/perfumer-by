@@ -57,7 +57,7 @@ export default async function SitemapHtmlPage() {
 
     return (
         <main className="min-h-screen bg-admin-bg text-admin-text">
-            <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Карта сайта</h1>
                 <p className="mt-2 max-w-2xl text-sm text-admin-text-secondary">
                     Полный перечень индексируемых URL (без служебных и noindex-страниц). Для краулеров —

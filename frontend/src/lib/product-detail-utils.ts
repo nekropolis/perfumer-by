@@ -58,6 +58,9 @@ export function getVariantAvailabilityState(
     if (variant.is_preorder) {
         return { text: "Предзаказ", className: "text-amber-600" };
     }
+    if (variant.availability_source === 'supplier_only') {
+        return { text: "Доступен", className: "text-sky-700" };
+    }
     if (isProductOutOfStock) {
         return { text: "Под заказ", className: "text-sky-700" };
     }

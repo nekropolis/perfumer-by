@@ -22,6 +22,7 @@ class ShopSettingAdminController extends Controller
                 'contact_phone_life' => (string) $settings->get('contact_phone_life', '+375256408833'),
                 'contact_telegram_url' => (string) $settings->get('contact_telegram_url', 'https://t.me/perfumer_support'),
                 'contact_viber_url' => (string) $settings->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
+                'waiting_discount_delivery_date' => (string) $settings->get('waiting_discount_delivery_date', '10.07.2026'),
             ],
         ]);
     }
@@ -38,6 +39,7 @@ class ShopSettingAdminController extends Controller
             'contact_phone_life' => ['nullable', 'string', 'max:64'],
             'contact_telegram_url' => ['nullable', 'string', 'max:512'],
             'contact_viber_url' => ['nullable', 'string', 'max:512'],
+            'waiting_discount_delivery_date' => ['nullable', 'string', 'max:64'],
         ]);
 
         $map = [];
@@ -51,6 +53,7 @@ class ShopSettingAdminController extends Controller
             'contact_phone_life',
             'contact_telegram_url',
             'contact_viber_url',
+            'waiting_discount_delivery_date',
         ] as $key) {
             if (! array_key_exists($key, $validated) || $validated[$key] === null) {
                 continue;

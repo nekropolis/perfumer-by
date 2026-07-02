@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
+use Modules\Cart\Models\CartItem;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
@@ -18,10 +20,13 @@ use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Services\CheckoutQuoteService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
+use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Loyalty\Services\LoyaltyPricingService;
 use Modules\Users\Models\User as CustomerUser;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockInventoryService;
 use Throwable;
 
@@ -60,6 +65,31 @@ class CheckoutController extends Controller
         $phone = $this->normalizePhone($validated['phone']);
         $user = $request->user() ?? Auth::guard('sanctum')->user();
         $orderUserId = $this->resolveOrderUserId($user, $phone);
+
+        $cartItemAvailabilitySource = function (CartItem $cartItem): string {
+            if ($cartItem->availability_source) {
+                return $cartItem->availability_source;
+            }
+
+            $variant = $cartItem->variant;
+            if (!$variant) {
+                return 'unavailable';
+            }
+
+            $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+            $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+            $rows = WarehouseVariantStock::query()
+                ->where('variant_id', $variant->id)
+                ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+                ->get()
+                ->keyBy('warehouse_id');
+            $mainStock = $mainWarehouseId > 0 ? $rows->get($mainWarehouseId) : null;
+            $supplierStock = $supplierWarehouseId > 0 ? $rows->get($supplierWarehouseId) : null;
+
+            $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+            return $presented['availability_source'];
+        };
 
         $cartToken = $request->header('X-Cart-Token') ?: $request->input('cart_token');
 
@@ -139,6 +169,7 @@ class CheckoutController extends Controller
             $checkoutProductLineIds,
             $checkoutGiftLineIds,
             $user,
+            $cartItemAvailabilitySource,
         ) {
             $subtotal = 0;
             $itemsQty = 0;
@@ -168,8 +199,12 @@ class CheckoutController extends Controller
                 if ($partialCheckout && !in_array((int) $cartItem->id, $checkoutProductLineIds, true)) {
                     continue;
                 }
-                $price = (float) ($cartItem->variant?->price ?? 0);
-                $lineTotal = $price * $cartItem->qty;
+                $basePrice = (float) ($cartItem->variant?->price ?? 0);
+                $waitingDiscount = (bool) $cartItem->waiting_discount && !(bool) ($cartItem->variant?->is_promotion ?? false);
+                $price = $waitingDiscount && $basePrice > 0
+                    ? WaitingDiscountPricing::apply($basePrice)
+                    : $basePrice;
+                $lineTotal = round($price * $cartItem->qty, 2);
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,
@@ -185,6 +220,8 @@ class CheckoutController extends Controller
                     'qty' => $cartItem->qty,
                     'price' => $price,
                     'total' => $lineTotal,
+                    'waiting_discount' => $waitingDiscount,
+                    'availability_source' => $cartItemAvailabilitySource($cartItem),
                 ]);
 
                 $subtotal += $lineTotal;

@@ -114,6 +114,7 @@ class OrderResource extends JsonResource
                     'qty' => $item->qty,
                     'price' => number_format((float) $item->price, 2, '.', ''),
                     'total' => number_format((float) $item->total, 2, '.', ''),
+                    'waiting_discount' => (bool) $item->waiting_discount,
                     'product_country' => $this->productCountry($item),
                     'image' => $item->relationLoaded('product')
                         ? ($item->product?->mainImage?->path ?? null)

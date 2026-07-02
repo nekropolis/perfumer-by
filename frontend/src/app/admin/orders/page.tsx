@@ -48,7 +48,7 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     {
         id: "order_products",
         label: "Товары для заказов",
-        description: "Резервы новых заказов на складе поставщика",
+        description: "Все товары из новых заказов и заказов в обработке",
         icon: ShoppingCart,
     },
 ];
@@ -289,7 +289,7 @@ export default function AdminOrdersPage() {
                     <p className="mt-0.5 text-sm text-admin-text-secondary">
                         {activeTab === "orders"
                             ? "Поиск по номеру заказа, имени клиента или телефону"
-                            : "Резервы по новым заказам только для склада Поставщик"}
+                            : "Все товары из новых заказов и заказов в обработке"}
                     </p>
                 </div>
             </div>
@@ -439,12 +439,12 @@ export default function AdminOrdersPage() {
                 </>
             )}
 
-            {!loading && activeTab === "order_products" && orderProducts.length === 0 && (
-                <AdminEmptyState
-                    title="Товаров для заказа нет"
-                    description="Нет активных резервов по новым заказам на складе поставщика."
-                />
-            )}
+                {!loading && activeTab === "order_products" && orderProducts.length === 0 && (
+                    <AdminEmptyState
+                        title="Товаров для заказа нет"
+                        description="Нет товаров в новых заказах и заказах в обработке."
+                    />
+                )}
 
             {!loading && activeTab === "order_products" && orderProducts.length > 0 && (
                 <div className="overflow-x-auto rounded-2xl border">
@@ -462,16 +462,40 @@ export default function AdminOrdersPage() {
                         </thead>
                         <tbody>
                             {orderProducts.map((row) => (
-                                <tr key={row.reservation_id} className="border-b last:border-b-0">
+                                <tr key={row.id} className="border-b last:border-b-0">
                                     <td className="px-4 py-3 font-medium">#{row.order_id}</td>
                                     <td className="px-4 py-3">
                                         <div>{row.product_name ?? "—"}</div>
                                         <div className="text-xs text-admin-text-secondary">{row.variant_title ?? "—"}</div>
                                     </td>
-                                    <td className="px-4 py-3">{row.supplier_name ?? "—"}</td>
-                                    <td className="px-4 py-3">{row.supplier_product_name ?? "—"}</td>
-                                    <td className="px-4 py-3">{row.supplier_code ?? "—"}</td>
-                                    <td className="px-4 py-3">{row.supplier_price ?? "—"}</td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            {row.suppliers.map((s, i) => (
+                                                <span key={`name-${i}`}>{s.name ?? "—"}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            {row.suppliers.map((s, i) => (
+                                                <span key={`prod-${i}`}>{s.product_name ?? "—"}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            {row.suppliers.map((s, i) => (
+                                                <span key={`code-${i}`}>{s.code ?? "—"}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            {row.suppliers.map((s, i) => (
+                                                <span key={`price-${i}`}>{s.price ?? "—"}</span>
+                                            ))}
+                                        </div>
+                                    </td>
                                     <td className="px-4 py-3">{row.qty}</td>
                                 </tr>
                             ))}

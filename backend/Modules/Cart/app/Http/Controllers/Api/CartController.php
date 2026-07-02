@@ -17,6 +17,9 @@ use Modules\Cart\Http\Resources\CartResource;
 use Modules\Cart\Models\Cart;
 use Modules\Cart\Models\CartItem;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class CartController extends Controller
 {
@@ -44,6 +47,23 @@ class CartController extends Controller
         }
 
         return $cart;
+    }
+
+    private function resolveAvailabilitySource(ProductVariantLink $variant): string
+    {
+        $mainWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        $supplierWarehouseId = (int) Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id');
+        $rows = WarehouseVariantStock::query()
+            ->where('variant_id', $variant->id)
+            ->whereIn('warehouse_id', array_filter([$mainWarehouseId, $supplierWarehouseId]))
+            ->get()
+            ->keyBy('warehouse_id');
+        $mainStock = $mainWarehouseId > 0 ? $rows->get($mainWarehouseId) : null;
+        $supplierStock = $supplierWarehouseId > 0 ? $rows->get($supplierWarehouseId) : null;
+
+        $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+        return $presented['availability_source'];
     }
 
     public function show(Request $request): JsonResponse
@@ -74,9 +94,11 @@ class CartController extends Controller
         $validated = $request->validate([
             'variant_id' => ['required', 'integer', 'exists:product_variant_links,id'],
             'qty' => ['nullable', 'integer', 'min:1'],
+            'waiting_discount' => ['nullable', 'boolean'],
         ]);
 
         $qty = $validated['qty'] ?? 1;
+        $waitingDiscount = (bool) ($validated['waiting_discount'] ?? false);
 
         $cart = $this->resolveCart($request);
 
@@ -85,6 +107,8 @@ class CartController extends Controller
             ->where('is_active', true)
             ->firstOrFail();
 
+        $availabilitySource = $this->resolveAvailabilitySource($variant);
+
         $existingItem = CartItem::query()
             ->where('cart_id', $cart->id)
             ->where('variant_id', $variant->id)
@@ -92,12 +116,20 @@ class CartController extends Controller
 
         if ($existingItem) {
             $existingItem->increment('qty', $qty);
+            if ($waitingDiscount) {
+                $existingItem->update([
+                    'waiting_discount' => true,
+                    'availability_source' => $availabilitySource,
+                ]);
+            }
         } else {
             CartItem::query()->create([
                 'cart_id' => $cart->id,
                 'product_id' => $variant->product_id,
                 'variant_id' => $variant->id,
                 'qty' => $qty,
+                'waiting_discount' => $waitingDiscount,
+                'availability_source' => $availabilitySource,
             ]);
         }
 

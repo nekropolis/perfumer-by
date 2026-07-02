@@ -76,6 +76,7 @@ class ShopSettingService
             'contact_phone_life' => (string) $this->get('contact_phone_life', '+375256408833'),
             'contact_telegram_url' => (string) $this->get('contact_telegram_url', 'https://t.me/perfumer_support'),
             'contact_viber_url' => (string) $this->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
+            'waiting_discount_delivery_date' => (string) $this->get('waiting_discount_delivery_date', '10.07.2026'),
         ]);
     }
 
