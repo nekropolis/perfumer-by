@@ -205,7 +205,7 @@ export default function AdminStockNotificationsPage() {
                             {items.map((item) => {
                                 const productHref =
                                     item.product?.slug != null
-                                        ? `/product/${item.product.slug}`
+                                        ? `/${item.product.slug}`
                                         : null;
                                 const kindFull = KIND_LABEL[item.kind] ?? item.kind;
 

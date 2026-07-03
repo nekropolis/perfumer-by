@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import CmsPageView from "@/components/cms/cms-page-view";
@@ -9,9 +10,35 @@ import {
     breadcrumbListJsonLd,
     cmsPageWebPageJsonLd,
     newsArticleJsonLd,
+    productJsonLd,
 } from "@/lib/json-ld";
 import { fetchCmsPageBySlug, fetchCmsPostBySlug } from "@/lib/cms-pages-api";
-import { buildSeoMetadata } from "@/lib/seo";
+import { buildSeoMetadata, mainProductImageUrlForOg } from "@/lib/seo";
+import { isApiNotFoundError } from "@/lib/api";
+import { fetchCatalogProductDetail } from "@/lib/catalog-api";
+import type { ProductDetailData } from "@/types/catalog";
+import type { ReviewItem } from "@/types/reviews";
+import ProductDetailPage from "@/components/product/product-detail-page";
+import ProductReviewsSeoHtml from "@/components/product/product-reviews-seo-html";
+import {
+    buildProductMetaDescription,
+    buildProductMetaTitle,
+    primaryProductImageAlt,
+} from "@/lib/product-page-seo";
+import { getProductBreadcrumbItems } from "@/lib/product-breadcrumbs";
+
+type ProductPagePayload = {
+    product: ProductDetailData;
+    reviews: ReviewItem[];
+};
+
+const getProductPagePayload = cache(async (slug: string): Promise<ProductPagePayload> => {
+    const response = await fetchCatalogProductDetail(slug);
+    return {
+        product: response.data,
+        reviews: response.reviews?.data ?? [],
+    };
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug } = await params;
@@ -45,6 +72,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
             ogType: "article",
             imageUrl: article.cover_image ?? undefined,
         });
+    }
+
+    try {
+        const { product } = await getProductPagePayload(slug);
+        const title = buildProductMetaTitle(product);
+        const description = buildProductMetaDescription(product);
+        const imageUrl = mainProductImageUrlForOg(product);
+        const ogImageAlt = primaryProductImageAlt(product);
+        return buildSeoMetadata({
+            title,
+            description,
+            canonicalPath: `/${product.slug}`,
+            ...(imageUrl ? { imageUrl, ogImageAlt } : {}),
+        });
+    } catch (e) {
+        if (!isApiNotFoundError(e)) {
+            throw e;
+        }
     }
 
     return {
@@ -113,6 +158,23 @@ export default async function RootSlugPage({ params }: { params: Promise<{ slug:
                 <ArticlePostDetailView post={article} />
             </>
         );
+    }
+
+    try {
+        const payload = await getProductPagePayload(slug);
+        const { product, reviews: initialProductReviews } = payload;
+        const crumbs = getProductBreadcrumbItems(product);
+        return (
+            <>
+                <JsonLd data={[productJsonLd(product, initialProductReviews), breadcrumbListJsonLd(crumbs)]} />
+                <ProductReviewsSeoHtml reviews={initialProductReviews} />
+                <ProductDetailPage product={product} initialProductReviews={initialProductReviews} />
+            </>
+        );
+    } catch (e) {
+        if (!isApiNotFoundError(e)) {
+            throw e;
+        }
     }
 
     notFound();

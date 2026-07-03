@@ -45,8 +45,8 @@ export default function ProductCardBody({
     const { cardTitle, brandName, showBrandLine, productTitle } = getProductCardTitleParts(product);
     const oldPrice = formatProductCardOldPrice(product);
     const productHref = product.listing_variant_id
-        ? `/product/${product.slug}?variant=${product.listing_variant_id}`
-        : `/product/${product.slug}`;
+        ? `/${product.slug}?variant=${product.listing_variant_id}`
+        : `/${product.slug}`;
 
     return (
         <Link

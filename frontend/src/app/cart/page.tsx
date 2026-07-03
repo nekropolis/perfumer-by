@@ -487,7 +487,7 @@ export default function CartPage() {
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <Link
-                                        href={`/product/${item.product_slug}`}
+                                        href={`/${item.product_slug}`}
                                         className="block text-lg font-medium leading-6 text-[var(--foreground)] transition hover:opacity-80"
                                     >
                                         {lineItemProductTitle(item)}

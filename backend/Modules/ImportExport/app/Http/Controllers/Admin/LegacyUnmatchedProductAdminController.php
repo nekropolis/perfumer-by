@@ -178,7 +178,7 @@ class LegacyUnmatchedProductAdminController extends Controller
             $target->refresh();
 
             $fromPath = $this->normalizePath($legacy->legacy_slug ? '/'.$legacy->legacy_slug : '/');
-            $toPath = '/product/'.$target->slug;
+            $toPath = '/'.$target->slug;
 
             $redirect = DB::table('seo_redirects')
                 ->where('from_path', $fromPath)

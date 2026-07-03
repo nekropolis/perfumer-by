@@ -46,12 +46,16 @@ export default async function SitemapHtmlPage() {
     const entries = await getCachedSitemapEntries();
 
     const main = entries.filter((e) => MAIN_PATHS.has(e.path));
-    const products = entries.filter((e) => e.path.startsWith("/product/"));
+    const productPaths = entries.filter((e) => {
+        if (MAIN_PATHS.has(e.path)) return false;
+        if (e.path.startsWith("/brands/") || e.path.startsWith("/articles/") || e.path.startsWith("/news/") || e.path.startsWith("/reviews/") || e.path.startsWith("/gift-certificates/") || e.path.startsWith("/admin/") || e.path.startsWith("/account/") || e.path.startsWith("/cart/") || e.path.startsWith("/checkout/") || e.path.startsWith("/login/") || e.path.startsWith("/search/") || e.path.startsWith("/sitemap/")) return false;
+        return e.path.startsWith("/");
+    });
     const brandPages = entries.filter((e) => e.path.startsWith("/brands/") && e.path !== "/brands");
     const other = entries.filter(
         (e) =>
             !MAIN_PATHS.has(e.path) &&
-            !e.path.startsWith("/product/") &&
+            !productPaths.some((p) => p.path === e.path) &&
             !(e.path.startsWith("/brands/") && e.path !== "/brands"),
     );
 
@@ -105,14 +109,14 @@ export default async function SitemapHtmlPage() {
                         </section>
                     ) : null}
 
-                    {products.length > 0 ? (
+                    {productPaths.length > 0 ? (
                         <section className="py-8 first:pt-0 last:pb-0">
                             {sectionTitle("Товары")}
                             <ul className="columns-1 gap-x-8 text-sm sm:columns-2 lg:columns-3">
-                                {products.map((e) => (
+                                {productPaths.map((e) => (
                                     <li key={e.path} className="mb-2 break-inside-avoid">
                                         <Link href={e.path} className="hover:text-admin-primary hover:underline">
-                                            {e.path.replace("/product/", "")}
+                                            {e.path.replace("/", "")}
                                         </Link>
                                     </li>
                                 ))}

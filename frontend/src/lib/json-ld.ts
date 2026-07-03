@@ -204,7 +204,7 @@ function productReviewsJsonLdPayload(reviews: ReviewItem[]): {
 
 export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]): Record<string, unknown> {
     const site = getSiteUrl();
-    const productUrl = `${site}/product/${product.slug}`;
+    const productUrl = `${site}/${product.slug}`;
     const descFromHtml = stripHtml(product.description || "");
     const descRaw =
         descFromHtml ||

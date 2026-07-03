@@ -29,7 +29,7 @@ export default function OrderItemCard({ item, linkMode }: Props) {
                             </Link>
                         ) : item.product_slug ? (
                             <Link
-                                href={`/product/${item.product_slug}`}
+                                href={`/${item.product_slug}`}
                                 className="underline decoration-gray-400 underline-offset-2 hover:text-gray-900"
                             >
                                 Страница в магазине

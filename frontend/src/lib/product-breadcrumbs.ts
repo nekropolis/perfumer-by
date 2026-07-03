@@ -13,6 +13,6 @@ export function getProductBreadcrumbItems(product: ProductDetailData): Breadcrum
         ...(product.brand
             ? [{ label: product.brand.name, href: `/brands/${product.brand.slug}` } satisfies BreadcrumbNavItem]
             : []),
-        { label: productDisplayName(product), href: `/product/${product.slug}` },
+        { label: productDisplayName(product), href: `/${product.slug}` },
     ];
 }

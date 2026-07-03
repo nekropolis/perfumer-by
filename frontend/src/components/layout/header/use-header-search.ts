@@ -187,7 +187,7 @@ export function useHeaderSearch({
         persistRecentSearch(searchQuery);
         resetSearch();
         onAfterNavigateAction();
-        router.push(`/product/${slug}`);
+        router.push(`/${slug}`);
     };
 
     const handleSelectBrand = (slug: string) => {

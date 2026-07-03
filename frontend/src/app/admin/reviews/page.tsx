@@ -235,7 +235,7 @@ export default function AdminReviewsPage() {
                                         <td className="max-w-[180px] px-3 py-2 text-admin-text">
                                             {row.product ? (
                                                 <Link
-                                                    href={`/product/${row.product.slug}`}
+                                                    href={`/${row.product.slug}`}
                                                     className="line-clamp-2 text-[var(--accent)] underline-offset-2 hover:underline"
                                                     target="_blank"
                                                     rel="noreferrer"

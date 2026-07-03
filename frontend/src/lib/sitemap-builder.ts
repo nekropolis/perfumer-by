@@ -20,8 +20,14 @@ export type BuiltSitemapEntry = {
 
 function priorityForPath(path: string): number {
     if (path === "/" || path === "") return 1;
-    if (path.startsWith("/product/")) return 0.65;
     if (path.startsWith("/brands/")) return 0.75;
+    if (path.startsWith("/articles/")) return 0.6;
+    if (path.startsWith("/news/")) return 0.6;
+    if (path.startsWith("/reviews/")) return 0.6;
+    if (path.startsWith("/gift-certificates/")) return 0.6;
+    const knownPrefixes = ["/catalog", "/brands", "/articles", "/news", "/reviews", "/gift-certificates", "/admin", "/account", "/cart", "/checkout", "/login", "/search", "/sitemap"];
+    const isProductPath = path.startsWith("/") && !knownPrefixes.some(p => path.startsWith(p + "/"));
+    if (isProductPath) return 0.65;
     return 0.6;
 }
 
@@ -97,7 +103,7 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
                 lastPage = res.meta?.last_page ?? 1;
                 for (const p of res.data ?? []) {
                     if (!p.slug) continue;
-                    pushPath(`/product/${p.slug}`, now, 0.65);
+                    pushPath(`/${p.slug}`, now, 0.65);
                 }
                 page += 1;
             } while (page <= lastPage);

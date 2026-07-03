@@ -57,7 +57,7 @@ class SeoSitemapController extends Controller
             if ($product->slug === '') {
                 continue;
             }
-            $path = '/product/'.$product->slug;
+            $path = '/'.$product->slug;
             $byPath[$path] = $this->row($path, $product->updated_at);
         }
 
