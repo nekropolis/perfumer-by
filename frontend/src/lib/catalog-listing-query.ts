@@ -5,7 +5,7 @@
 export function buildCatalogProductsQuery(sp: Record<string, string | undefined>): URLSearchParams {
     const currentPage = Math.max(1, Number(sp?.page || "1") || 1);
     const brand = sp?.brand ? String(sp.brand) : "";
-    const sort = sp?.sort ? String(sp.sort) : "price_asc";
+    const sort = sp?.sort ? String(sp.sort) : "popular";
     const priceMin = sp?.price_min ? String(sp.price_min) : "";
     const priceMax = sp?.price_max ? String(sp.price_max) : "";
     const volume = sp?.volume ? String(sp.volume) : "";

@@ -24,6 +24,7 @@ type SortOption = {
 };
 
 const SORT_OPTIONS: SortOption[] = [
+    { value: "popular", label: "Популярные" },
     { value: "price_asc", label: "Сначала дешевле" },
     { value: "price_desc", label: "Сначала дороже" },
     { value: "name_asc", label: "По названию (А-Я)" },
@@ -56,7 +57,7 @@ type PinMetrics = {
 export default function CatalogGridToolbar({ basePath, brands, attributes, mobileRightAction }: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
-    const currentSort = searchParams.get("sort") || "price_asc";
+    const currentSort = searchParams.get("sort") || "popular";
     const safeAttributes = useMemo(() => (Array.isArray(attributes) ? attributes : []), [attributes]);
     const [isSortOpen, setIsSortOpen] = useState(false);
     const sortMenuRef = useRef<HTMLDivElement | null>(null);

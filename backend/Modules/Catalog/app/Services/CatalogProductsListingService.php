@@ -7,6 +7,7 @@ use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
+use Modules\Warehouse\Models\Warehouse;
 
 class CatalogProductsListingService
 {
@@ -83,7 +84,23 @@ class CatalogProductsListingService
 
         $sort = $request->string('sort')->toString();
 
-        if ($sort === 'price_desc') {
+        if ($sort === 'popular') {
+            $mainWarehouseId = (int) Warehouse::query()
+                ->where('code', Warehouse::CODE_MAIN)
+                ->value('id');
+
+            $query->orderByRaw(
+                'COALESCE((SELECT 0 FROM warehouse_variant_stocks '
+                . 'INNER JOIN product_variant_links ON product_variant_links.id = warehouse_variant_stocks.variant_id '
+                . 'WHERE warehouse_variant_stocks.warehouse_id = ? '
+                . 'AND warehouse_variant_stocks.stock > 0 '
+                . 'AND product_variant_links.product_id = products.id '
+                . 'AND product_variant_links.is_active = 1 '
+                . 'LIMIT 1), 1)',
+                [$mainWarehouseId]
+            )
+                ->orderByRaw('RAND(DAY(CURDATE()))');
+        } elseif ($sort === 'price_desc') {
             $query->orderByRaw('CASE WHEN listing_min_price IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('listing_min_price')
                 ->orderBy('name');
