@@ -275,6 +275,7 @@ sudo chmod -R 775 storage bootstrap/cache
 cd /var/www/perfumer-by/frontend
 cat > .env.local <<'EOF'
 NEXT_PUBLIC_API_URL=https://perfumer.by/api
+API_URL=http://127.0.0.1/api
 NEXT_ALLOWED_DEV_ORIGINS=https://perfumer.by
 EOF
 ```
@@ -326,7 +327,37 @@ server {
     # certbot подложит challenge сюда
     location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
 
-    return 301 https://$host$request_uri;
+    # Next.js SSR во время build обращается к API по loopback.
+    # Если редиректить 127.0.0.1 на HTTPS, fetch пойдёт на https://127.0.0.1
+    # и свалится на невалидном сертификате.
+    if ($host = "127.0.0.1") {
+        set $no_redirect 1;
+    }
+
+    if ($no_redirect != 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    # API и admin-API через PHP-FPM (доступно только с loopback)
+    location ^~ /api/ {
+        root /var/www/perfumer-by/backend/public;
+        try_files $uri /index.php?$query_string;
+
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+            fastcgi_read_timeout 120s;
+        }
+    }
+
+    location = /up {
+        root /var/www/perfumer-by/backend/public;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME /var/www/perfumer-by/backend/public/index.php;
+        fastcgi_param QUERY_STRING $query_string;
+    }
 }
 
 server {
@@ -364,12 +395,10 @@ server {
     # health
     location = /up {
         root /var/www/perfumer-by/backend/public;
-        try_files $uri /index.php?$query_string;
-        location ~ \.php$ {
-            include snippets/fastcgi-php.conf;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME $document_root/index.php;
-        }
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME /var/www/perfumer-by/backend/public/index.php;
+        fastcgi_param QUERY_STRING $query_string;
     }
 
     # Next.js static (_next/*, /public, /favicon и т.д.)

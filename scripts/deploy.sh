@@ -38,6 +38,21 @@ require_dir() {
     fi
 }
 
+require_service() {
+    local name="$1"
+    local unit="${2:-$name}"
+    if systemctl is-active --quiet "$unit" 2>/dev/null; then
+        return 0
+    fi
+    warn "$unit is not running — attempting to start it"
+    if command -v sudo >/dev/null 2>&1; then
+        sudo systemctl start "$unit" || warn "Failed to start $unit"
+    else
+        systemctl start "$unit" || warn "Failed to start $unit"
+    fi
+    systemctl is-active --quiet "$unit" 2>/dev/null || warn "$unit is still not running — next build may fail"
+}
+
 require_dir "$BACKEND"
 require_dir "$FRONTEND"
 
@@ -64,6 +79,10 @@ log "Rebuilding Laravel caches"
 (cd "$BACKEND" && "$PHP_BIN" artisan config:cache)
 (cd "$BACKEND" && "$PHP_BIN" artisan route:cache)
 (cd "$BACKEND" && "$PHP_BIN" artisan view:cache || true)
+
+log "Ensuring web services are running before frontend build"
+require_service "nginx"
+require_service "php8.3-fpm" "php8.3-fpm"
 
 log "npm ci (frontend)"
 (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund)
