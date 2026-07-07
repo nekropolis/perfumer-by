@@ -651,6 +651,88 @@ sudo -u deploy sudo supervisorctl status perfumer-queue:*
 
 ---
 
+## 12) P1: тюнинг и безопасность
+
+После того как базовый мониторинг и бэкапы работают, настраиваем производительность и защиту.
+
+### 12.1. PHP-FPM pool tuning
+
+Для 4 ГБ RAM ограничиваем количество воркеров, чтобы избежать OOM:
+
+`/etc/php/8.3/fpm/pool.d/www.conf`:
+
+```ini
+pm = dynamic
+pm.max_children = 8
+pm.start_servers = 2
+pm.min_spare_servers = 2
+pm.max_spare_servers = 4
+pm.max_requests = 500
+```
+
+```bash
+sudo systemctl reload php8.3-fpm
+```
+
+### 12.2. Queue worker tuning
+
+Снижаем лимиты воркера, чтобы он чаще перезапускался и не копил утечки памяти:
+
+`/etc/supervisor/conf.d/perfumer-queue.conf`:
+
+```ini
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=200 --max-time=1800 --memory=512
+```
+
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl restart perfumer-queue:*
+```
+
+### 12.3. fail2ban
+
+Защита от брутфорса SSH и подбора паролей к админке:
+
+```bash
+sudo /var/www/perfumer-by/scripts/setup-fail2ban.sh
+```
+
+Скрипт установит fail2ban, настроит jail для `sshd`, `nginx-auth`, `nginx-limit-req` и перезапустит сервис.
+
+### 12.4. Автообновления безопасности
+
+Автоматически ставить security-апдейты:
+
+```bash
+sudo /var/www/perfumer-by/scripts/setup-unattended-upgrades.sh
+```
+
+### 12.5. Проверка SSL
+
+Убедиться, что certbot сам обновит сертификат:
+
+```bash
+sudo certbot renew --dry-run
+systemctl list-timers | grep certbot
+```
+
+### 12.6. Nginx tuning (опционально)
+
+Для небольшого сервера можно включить gzip и ограничить таймауты. В HTTP/HTTPS `server {}`:
+
+```nginx
+gzip on;
+gzip_vary on;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+client_body_timeout 30s;
+client_header_timeout 30s;
+send_timeout 30s;
+```
+
+---
+
 ## 13) Release-style деплой (Capistrano / Deployer-подобный)
 
 Альтернатива «in-place» деплою (§9): релизы лежат в отдельных директориях,
