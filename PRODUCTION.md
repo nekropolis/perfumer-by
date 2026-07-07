@@ -324,6 +324,9 @@ server {
     listen [::]:80;
     server_name perfumer.by www.perfumer.by;
 
+    root /var/www/perfumer-by/backend/public;
+    index index.php;
+
     # certbot подложит challenge сюда
     location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
 
@@ -340,23 +343,18 @@ server {
 
     # API и admin-API через PHP-FPM (доступно только с loopback)
     location ^~ /api/ {
-        root /var/www/perfumer-by/backend/public;
         try_files $uri /index.php?$query_string;
-
-        location ~ \.php$ {
-            include snippets/fastcgi-php.conf;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME $document_root/index.php;
-            fastcgi_read_timeout 120s;
-        }
     }
 
     location = /up {
-        root /var/www/perfumer-by/backend/public;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location ~ ^/index\.php(/|$) {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME /var/www/perfumer-by/backend/public/index.php;
-        fastcgi_param QUERY_STRING $query_string;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_read_timeout 120s;
     }
 }
 
@@ -364,6 +362,9 @@ server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
     server_name perfumer.by www.perfumer.by;
+
+    root /var/www/perfumer-by/backend/public;
+    index index.php;
 
     # ssl_certificate / ssl_certificate_key — выдаст certbot, см. ниже
     # include snippets/ssl-perfumer.conf;
@@ -379,26 +380,19 @@ server {
         try_files $uri =404;
     }
 
-    # API и админ-API через PHP-FPM
-    location ^~ /api/ {
-        root /var/www/perfumer-by/backend/public;
         try_files $uri /index.php?$query_string;
-
-        location ~ \.php$ {
-            include snippets/fastcgi-php.conf;
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME $document_root/index.php;
-            fastcgi_read_timeout 120s;
-        }
     }
 
     # health
     location = /up {
-        root /var/www/perfumer-by/backend/public;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location ~ ^/index\.php(/|$) {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME /var/www/perfumer-by/backend/public/index.php;
-        fastcgi_param QUERY_STRING $query_string;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_read_timeout 120s;
     }
 
     # Next.js static (_next/*, /public, /favicon и т.д.)

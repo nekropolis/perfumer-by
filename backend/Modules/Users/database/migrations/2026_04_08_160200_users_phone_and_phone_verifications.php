@@ -22,21 +22,23 @@ return new class extends Migration
             }
         });
 
-        Schema::create('phone_verifications', function (Blueprint $table) {
-            $table->id();
-            $table->string('phone', 32)->index();
-            $table->string('code', 10);
-            $table->string('delivery_channel', 16)->nullable();
-            $table->string('delivery_status', 32)->nullable();
-            $table->string('delivery_provider_message_id', 191)->nullable();
-            $table->text('delivery_error')->nullable();
-            $table->timestamp('delivered_at')->nullable();
-            $table->timestamp('expires_at');
-            $table->timestamp('verified_at')->nullable();
-            $table->timestamps();
+        if (! Schema::hasTable('phone_verifications')) {
+            Schema::create('phone_verifications', function (Blueprint $table) {
+                $table->id();
+                $table->string('phone', 32)->index();
+                $table->string('code', 10);
+                $table->string('delivery_channel', 16)->nullable();
+                $table->string('delivery_status', 32)->nullable();
+                $table->string('delivery_provider_message_id', 191)->nullable();
+                $table->text('delivery_error')->nullable();
+                $table->timestamp('delivered_at')->nullable();
+                $table->timestamp('expires_at');
+                $table->timestamp('verified_at')->nullable();
+                $table->timestamps();
 
-            $table->index(['phone', 'code']);
-        });
+                $table->index(['phone', 'code']);
+            });
+        }
     }
 
     public function down(): void
