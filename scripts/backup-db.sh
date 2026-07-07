@@ -83,6 +83,7 @@ if ! mysqldump \
     --user="$DB_USERNAME" \
     --password="$DB_PASSWORD" \
     --single-transaction \
+    --no-tablespaces \
     --quick \
     --routines \
     "$DB_DATABASE" > "$DUMP_FILE"; then

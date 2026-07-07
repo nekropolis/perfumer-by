@@ -134,7 +134,7 @@ fi
 
 # 4. Queue worker status.
 if command -v supervisorctl >/dev/null 2>&1; then
-    if ! supervisorctl status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
+    if ! sudo supervisorctl status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
         ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING")
     fi
 fi
