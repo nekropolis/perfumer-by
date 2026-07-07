@@ -1155,7 +1155,7 @@ class VanilleImportService
             }
         }
 
-        foreach ($chunk as $link) {
+        foreach ($chunk as $index => $link) {
             $url = $link['url'] ?? null;
 
             if (!$url) {
@@ -1177,6 +1177,10 @@ class VanilleImportService
                 $message = $e->getMessage();
                 $log[] = 'ERROR: ' . $url . ' -> ' . $message;
                 $this->recordParseError($url, $message);
+            }
+
+            if ($index !== array_key_last($chunk)) {
+                usleep(50_000);
             }
         }
 
