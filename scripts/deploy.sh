@@ -21,7 +21,7 @@ NPM_BIN="${NPM_BIN:-npm}"
 PM2_BIN="${PM2_BIN:-pm2}"
 
 FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
-QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"root
+QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
 COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
 
 MAINT_DOWN=0
@@ -30,13 +30,43 @@ trap 'on_error $?' ERR
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
 
+load_env() {
+    local key="$1"
+    local default="${2:-}"
+    if [[ -f "$BACKEND/.env" ]]; then
+        grep -E "^${key}=" "$BACKEND/.env" 2>/dev/null | tail -n 1 | sed "s/^${key}=//" | tr -d "'\"" || printf '%s' "$default"
+    else
+        printf '%s' "$default"
+    fi
+}
+
+send_telegram() {
+    local text="$1"
+    local enabled token chat_id
+    enabled="$(load_env TELEGRAM_NOTIFICATIONS_ENABLED true)"
+    token="$(load_env TELEGRAM_BOT_TOKEN '')"
+    chat_id="$(load_env TELEGRAM_CHAT_ID '')"
+
+    if [[ "$enabled" != "true" ]] || [[ -z "$token" ]] || [[ -z "$chat_id" ]]; then
+        return 0
+    fi
+
+    local payload
+    payload=$(printf '{"chat_id":"%s","text":"%s","disable_web_page_preview":true}' "$chat_id" "$text")
+    curl -fsSL -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+        -H "Content-Type: application/json" \
+        -d "$payload" >/dev/null 2>&1 || warn "Failed to send Telegram alert"
+}
+
 on_error() {
     local code="$1"
     if [[ $MAINT_DOWN -eq 1 ]]; then
         warn "Deploy failed (exit $code). Backend will stay in maintenance mode."
         warn "Fix the issue and either re-run ./scripts/deploy.sh or 'php artisan up' manually."
+        send_telegram "🚨 *Deploy failed* on $(hostname) at $(date +'%Y-%m-%d %H:%M')\n\nExit code: ${code}\nBackend is in maintenance mode."
     else
         warn "Deploy failed (exit $code). Backend was NOT put into maintenance mode."
+        send_telegram "🚨 *Deploy failed* on $(hostname) at $(date +'%Y-%m-%d %H:%M')\n\nExit code: ${code}\nBackend is NOT in maintenance mode."
     fi
     exit "$code"
 }

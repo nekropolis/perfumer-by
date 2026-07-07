@@ -561,23 +561,93 @@ cd /var/www/perfumer-by
 
 ---
 
-## 11) Бэкапы (минимум)
+## 11) Бэкапы, мониторинг и ротация логов
 
-Простой вариант с `cron`:
+### 11.1. Бэкап базы (3 последних дня)
+
+Скрипт `scripts/backup-db.sh` делает дамп, жмёт `gzip`, хранит 3 последние версии и шлёт Telegram-алерт при ошибке.
 
 ```bash
 sudo mkdir -p /var/backups/perfumer
 sudo chown deploy:deploy /var/backups/perfumer
-crontab -e
 ```
+
+Добавь в cron пользователя `deploy`:
 
 ```cron
-# Ежедневный дамп БД в 03:15, хранить 14 дней
-15 3 * * * mysqldump --single-transaction --quick --routines perfumer | gzip > /var/backups/perfumer/db-$(date +\%F).sql.gz
-30 3 * * * find /var/backups/perfumer -type f -mtime +14 -delete
+# Ежедневный дамп БД в 03:15, хранить 3 дня
+15 3 * * * /var/www/perfumer-by/scripts/backup-db.sh >/dev/null 2>&1
 ```
 
-Отдельно — `backend/storage/app/public/imports` (парсинг-дампы) синхронизируем `rsync` / S3 раз в неделю.
+Проверить вручную:
+
+```bash
+/var/www/perfumer-by/scripts/backup-db.sh
+ls -lh /var/backups/perfumer
+```
+
+### 11.2. Health-check и Telegram-алерты
+
+Скрипт `scripts/health-check.sh` каждые 5 минут проверяет:
+
+- занято ли место на диске ≥ 85 %,
+- осталось ли доступной RAM < 500 МБ,
+- используется ли swap > 100 МБ,
+- работает ли queue worker,
+- отвечает ли сайт по `/up`.
+
+При любой проблеме шлёт Telegram-уведомление в тот же чат, что и бизнес-уведомления.
+
+```cron
+*/5 * * * * /var/www/perfumer-by/scripts/health-check.sh >/dev/null 2>&1
+```
+
+Проверить вручную:
+
+```bash
+/var/www/perfumer-by/scripts/health-check.sh
+```
+
+### 11.3. Ротация логов
+
+При 30 ГБ диска логи могут занять всё место за несколько дней парсинга. Установи конфиг `logrotate`:
+
+```bash
+sudo cp /var/www/perfumer-by/scripts/logrotate-perfumer.conf /etc/logrotate.d/perfumer
+sudo chmod 644 /etc/logrotate.d/perfumer
+sudo logrotate -d /etc/logrotate.d/perfumer   # сухой прогон
+```
+
+Это настроит ротацию для nginx, PM2, supervisor и Laravel daily-логов.
+
+### 11.4. sudoers для deploy (supervisorctl)
+
+`scripts/deploy.sh` перезапускает воркеры через `sudo supervisorctl`. Чтобы не вводить пароль, добавь в sudoers:
+
+```bash
+sudo visudo
+```
+
+```sudoers
+deploy ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl
+```
+
+Проверь:
+
+```bash
+sudo -u deploy sudo supervisorctl status perfumer-queue:*
+```
+
+Должно выполняться без запроса пароля.
+
+### 11.5. Бэкап конфигов и импортов
+
+Кроме БД стоит бэкапить:
+
+- `backend/storage/app/public/` — картинки товаров и парсинг-дампы.
+- `.env`, `.env.local`, nginx-конфиг.
+
+Для импортов можно добавить в cron синхронизацию `rsync` на другой диск/сервер раз в неделю. Пока места 30 ГБ хватает, можно ограничиться локальными бэкапами.
 
 ---
 
