@@ -21,7 +21,7 @@ NPM_BIN="${NPM_BIN:-npm}"
 PM2_BIN="${PM2_BIN:-pm2}"
 
 FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
-QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
+QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"root
 COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
 
 MAINT_DOWN=0
@@ -71,6 +71,13 @@ cd "$ROOT"
 
 log "git pull --ff-only"
 git pull --ff-only
+
+# If deploy.sh itself was updated, restart with the new version.
+# Otherwise bash keeps executing the old copy that is already loaded in memory.
+if [[ -n "$(git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -Fx "scripts/deploy.sh")" ]]; then
+    log "deploy.sh was updated — restarting with the new version"
+    exec "$0" "$@"
+fi
 
 log "composer install --no-dev --optimize-autoloader"
 export COMPOSER_ALLOW_SUPERUSER=1
