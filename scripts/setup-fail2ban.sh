@@ -23,12 +23,13 @@ cat > /etc/fail2ban/jail.local <<'EOF'
 findtime  = 10m
 maxretry  = 3
 bantime   = 1h
-backend   = systemd
+backend   = auto
 
 [sshd]
 enabled   = true
 port      = ssh
 filter    = sshd
+backend   = systemd
 logpath   = /var/log/auth.log
 
 [nginx-limit-req]
@@ -57,6 +58,14 @@ EOF
 log "Restarting fail2ban"
 systemctl enable fail2ban
 systemctl restart fail2ban
+
+sleep 2
+
+if ! systemctl is-active --quiet fail2ban; then
+    warn "fail2ban failed to start"
+    journalctl -u fail2ban -n 30 --no-pager
+    exit 1
+fi
 
 log "Status"
 fail2ban-client status
