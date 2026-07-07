@@ -2,6 +2,12 @@
 # Production deploy script for perfumer-by.
 # Run on server:  cd /var/www/perfumer-by && ./scripts/deploy.sh
 # See PRODUCTION.md for the full setup story.
+#
+# Order matters:
+#   1. Build frontend while the current backend is still live (Next.js SSR
+#      needs reachable API during prerender).
+#   2. Only then put Laravel into maintenance mode, run migrations and caches.
+#   3. Reload services and bring the site back up.
 
 set -Eeuo pipefail
 
@@ -26,8 +32,12 @@ warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
 
 on_error() {
     local code="$1"
-    warn "Deploy failed (exit $code). Backend will stay in maintenance mode."
-    warn "Fix the issue and either re-run ./scripts/deploy.sh or 'php artisan up' manually."
+    if [[ $MAINT_DOWN -eq 1 ]]; then
+        warn "Deploy failed (exit $code). Backend will stay in maintenance mode."
+        warn "Fix the issue and either re-run ./scripts/deploy.sh or 'php artisan up' manually."
+    else
+        warn "Deploy failed (exit $code). Backend was NOT put into maintenance mode."
+    fi
     exit "$code"
 }
 
@@ -62,23 +72,10 @@ cd "$ROOT"
 log "git pull --ff-only"
 git pull --ff-only
 
-log "Switching Laravel into maintenance mode"
-(cd "$BACKEND" && "$PHP_BIN" artisan down --render="errors::503" --retry=15 || true)
-MAINT_DOWN=1
-
 log "composer install --no-dev --optimize-autoloader"
 export COMPOSER_ALLOW_SUPERUSER=1
 (cd "$BACKEND" && "$PHP_BIN" -d memory_limit="$COMPOSER_MEMORY_LIMIT" "$COMPOSER_BIN" install \
     --no-dev --optimize-autoloader --no-interaction --prefer-dist)
-
-log "artisan migrate --force"
-(cd "$BACKEND" && "$PHP_BIN" artisan migrate --force)
-
-log "Rebuilding Laravel caches"
-(cd "$BACKEND" && "$PHP_BIN" artisan optimize:clear)
-(cd "$BACKEND" && "$PHP_BIN" artisan config:cache)
-(cd "$BACKEND" && "$PHP_BIN" artisan route:cache)
-(cd "$BACKEND" && "$PHP_BIN" artisan view:cache || true)
 
 log "Ensuring web services are running before frontend build"
 require_service "nginx"
@@ -89,6 +86,23 @@ log "npm ci (frontend)"
 
 log "next build"
 (cd "$FRONTEND" && rm -rf .next && "$NPM_BIN" run build)
+
+# ---------------------------------------------------------------------------
+# From here on the site goes down briefly for backend-only updates.
+# ---------------------------------------------------------------------------
+
+log "Switching Laravel into maintenance mode"
+(cd "$BACKEND" && "$PHP_BIN" artisan down --render="errors::503" --retry=15 || true)
+MAINT_DOWN=1
+
+log "artisan migrate --force"
+(cd "$BACKEND" && "$PHP_BIN" artisan migrate --force)
+
+log "Rebuilding Laravel caches"
+(cd "$BACKEND" && "$PHP_BIN" artisan optimize:clear)
+(cd "$BACKEND" && "$PHP_BIN" artisan config:cache)
+(cd "$BACKEND" && "$PHP_BIN" artisan route:cache)
+(cd "$BACKEND" && "$PHP_BIN" artisan view:cache || true)
 
 log "Reloading PM2 process: $FRONT_PROD_NAME"
 if "$PM2_BIN" describe "$FRONT_PROD_NAME" >/dev/null 2>&1; then
