@@ -188,6 +188,7 @@ class VanilleBrandParser
             $href = html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
             $rawName = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $rawName = preg_replace('/<span\b[^>]*\bbrend-count\b[^>]*>.*?<\/span>/isu', '', $rawName);
             $rawName = preg_replace('/<(small|sup)\b[^>]*>.*?<\/\\1>/isu', '', $rawName);
             $name = trim(strip_tags($rawName));
 

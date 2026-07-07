@@ -89,4 +89,46 @@ HTML;
         $this->assertSame(914, $stats['total_including_duplicate_slugs']);
         $this->assertSame(1, $stats['duplicate_slug_entries']);
     }
+
+    public function test_parse_strips_brend_count_from_brand_name(): void
+    {
+        $html = <<<'HTML'
+<a href="https://vanille.by/nina-ricci">Nina Ricci<span class="brend-count">12</span></a>
+<a href="https://vanille.by/tom-ford">Tom Ford<span class="brend-count">111</span></a>
+<a href="https://vanille.by/montale">Montale<span class="brend-count">166</span></a>
+<a href="https://vanille.by/kilian">Kilian<span class="brend-count">98</span></a>
+<a href="https://vanille.by/a-lab-on-fire">A Lab on Fire<span class="brend-count">6</span></a>
+<a href="https://vanille.by/apieu">A'PIEU<span class="brend-count">6</span></a>
+<a href="https://vanille.by/brendyi">Бренды<span class="brend-count">999</span></a>
+HTML;
+
+        $httpClient = new class extends \Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient {
+            private string $body;
+
+            public function setBody(string $body): void
+            {
+                $this->body = $body;
+            }
+
+            public function fetchUrl(string $url, int $timeout = 10): string
+            {
+                return $this->body;
+            }
+        };
+        $httpClient->setBody($html);
+
+        $parser = new VanilleBrandParser($httpClient);
+        $brands = $parser->parse();
+
+        $names = array_column($brands, 'name');
+        $this->assertContains('Nina Ricci', $names);
+        $this->assertContains('Tom Ford', $names);
+        $this->assertContains('Montale', $names);
+        $this->assertContains('Kilian', $names);
+        $this->assertContains("A Lab on Fire", $names);
+        $this->assertContains("A'PIEU", $names);
+        $this->assertNotContains('Tom Ford111', $names);
+        $this->assertNotContains("A'PIEU6", $names);
+        $this->assertNotContains('Бренды', $names);
+    }
 }
