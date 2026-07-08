@@ -188,14 +188,18 @@ log "Restarting queue workers: $QUEUE_GROUP"
 if command -v supervisorctl >/dev/null 2>&1; then
     sudo supervisorctl reread || warn "supervisorctl reread failed"
     sudo supervisorctl update || warn "supervisorctl update failed"
-    sudo supervisorctl stop "$QUEUE_GROUP" >/dev/null 2>&1 || true
-    sleep 2
-    if ! sudo supervisorctl start "$QUEUE_GROUP"; then
-        warn "supervisorctl start failed — check manually"
-    else
-        sleep 2
-        sudo supervisorctl status "$QUEUE_GROUP" || true
+
+    # Мягкий перезапуск через queue:restart — worker завершит текущий job и выйдет,
+    # supervisor с autorestart=true поднимет его заново с новым кодом.
+    (cd "$BACKEND" && "$PHP_BIN" artisan queue:restart) || warn "queue:restart failed"
+    sleep 5
+
+    # Если worker не RUNNING после queue:restart — стартуем вручную
+    if ! sudo supervisorctl status "$QUEUE_GROUP" 2>/dev/null | grep -q RUNNING; then
+        sudo supervisorctl start "$QUEUE_GROUP" || warn "supervisorctl start failed — check manually"
     fi
+    sleep 2
+    sudo supervisorctl status "$QUEUE_GROUP" || true
 else
     warn "supervisorctl not found — skipping queue worker restart"
 fi
