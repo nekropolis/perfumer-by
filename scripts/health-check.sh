@@ -133,8 +133,15 @@ if [[ "$SWAP_USED_MB" -gt "$SWAP_WARN_MB" ]]; then
 fi
 
 # 4. Queue worker status.
+SUPERVISORCTL=""
 if command -v supervisorctl >/dev/null 2>&1; then
-    if ! sudo supervisorctl status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
+    SUPERVISORCTL="$(command -v supervisorctl)"
+elif [[ -x /usr/bin/supervisorctl ]]; then
+    SUPERVISORCTL="/usr/bin/supervisorctl"
+fi
+
+if [[ -n "$SUPERVISORCTL" ]]; then
+    if ! sudo "$SUPERVISORCTL" status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
         ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING")
     fi
 fi

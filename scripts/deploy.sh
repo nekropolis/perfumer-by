@@ -24,6 +24,13 @@ FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
 QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
 COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
 
+SUPERVISORCTL=""
+if command -v supervisorctl >/dev/null 2>&1; then
+    SUPERVISORCTL="$(command -v supervisorctl)"
+elif [[ -x /usr/bin/supervisorctl ]]; then
+    SUPERVISORCTL="/usr/bin/supervisorctl"
+fi
+
 MAINT_DOWN=0
 trap 'on_error $?' ERR
 
@@ -185,9 +192,9 @@ fi
 "$PM2_BIN" save >/dev/null || true
 
 log "Restarting queue workers: $QUEUE_GROUP"
-if command -v supervisorctl >/dev/null 2>&1; then
-    sudo supervisorctl reread || warn "supervisorctl reread failed"
-    sudo supervisorctl update || warn "supervisorctl update failed"
+if [[ -n "$SUPERVISORCTL" ]]; then
+    sudo "$SUPERVISORCTL" reread || warn "supervisorctl reread failed"
+    sudo "$SUPERVISORCTL" update || warn "supervisorctl update failed"
 
     # Мягкий перезапуск через queue:restart — worker завершит текущий job и выйдет,
     # supervisor с autorestart=true поднимет его заново с новым кодом.
@@ -195,11 +202,11 @@ if command -v supervisorctl >/dev/null 2>&1; then
     sleep 5
 
     # Если worker не RUNNING после queue:restart — стартуем вручную
-    if ! sudo supervisorctl status "$QUEUE_GROUP" 2>/dev/null | grep -q RUNNING; then
-        sudo supervisorctl start "$QUEUE_GROUP" || warn "supervisorctl start failed — check manually"
+    if ! sudo "$SUPERVISORCTL" status "$QUEUE_GROUP" 2>/dev/null | grep -q RUNNING; then
+        sudo "$SUPERVISORCTL" start "$QUEUE_GROUP" || warn "supervisorctl start failed — check manually"
     fi
     sleep 2
-    sudo supervisorctl status "$QUEUE_GROUP" || true
+    sudo "$SUPERVISORCTL" status "$QUEUE_GROUP" || true
 else
     warn "supervisorctl not found — skipping queue worker restart"
 fi
