@@ -129,7 +129,12 @@ innodb_buffer_pool_size = 1G
 innodb_log_file_size    = 256M
 max_connections         = 100
 default_authentication_plugin = mysql_native_password
+binlog_expire_logs_seconds = 86400
 ```
+
+> **`binlog_expire_logs_seconds = 86400`** — без этого binlog разрастается до
+> десятков ГБ (каждый файл ~100 МБ, парсинг генерирует сотни файлов в день).
+> На одиночном сервере без реплики 1 день — достаточно для Point-in-Time Recovery.
 
 ```bash
 sudo systemctl restart mysql
