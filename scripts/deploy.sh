@@ -100,11 +100,13 @@ log "Project root: $ROOT"
 cd "$ROOT"
 
 log "git pull --ff-only"
+DEPLOY_HASH_BEFORE=$(md5sum "$0" | awk '{print $1}')
 git pull --ff-only
+DEPLOY_HASH_AFTER=$(md5sum "$0" | awk '{print $1}')
 
 # If deploy.sh itself was updated, restart with the new version.
 # Otherwise bash keeps executing the old copy that is already loaded in memory.
-if [[ -n "$(git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -Fx "scripts/deploy.sh")" ]]; then
+if [[ "$DEPLOY_HASH_BEFORE" != "$DEPLOY_HASH_AFTER" ]]; then
     log "deploy.sh was updated — restarting with the new version"
     exec "$0" "$@"
 fi
