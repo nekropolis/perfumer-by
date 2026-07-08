@@ -484,7 +484,7 @@ sudo systemctl reload php8.3-fpm
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=1000 --max-time=7200 --memory=1024
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=768
 autostart=true
 autorestart=true
 startretries=20
@@ -512,7 +512,7 @@ sudo supervisorctl status perfumer-queue:*
 > задают `timeout = 3600`). Значение `65` убивает джобу на минуте, overlap-lock в Redis
 > может висеть до `expireAfter`, UI остаётся «в очереди / 0%», в логе воркера — короткий `DONE`.
 >
-> `--memory=1024` — тяжёлые прайсы и индексация Meilisearch; при нехватке памяти воркер перезапустится после джобы.
+> `--memory=768` — тяжёлые прайсы и индексация Meilisearch; при нехватке памяти воркер перезапустится после джобы.
 
 ---
 

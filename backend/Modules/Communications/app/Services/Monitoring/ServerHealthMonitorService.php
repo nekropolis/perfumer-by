@@ -352,13 +352,80 @@ class ServerHealthMonitorService
             ]];
         }
 
-        $running = array_values(array_filter($matched, static fn (string $line): bool => str_contains($line, 'RUNNING')));
+        $checks = [];
+        foreach ($matched as $line) {
+            $status = $this->parseSupervisorStatusLine($line);
+            $state = $status['state'];
+            $uptimeSeconds = $status['uptime_seconds'];
 
-        return [[
-            'name' => 'Supervisor',
-            'status' => count($running) === count($matched) ? 'ok' : 'fail',
-            'message' => implode('; ', $matched),
-        ]];
+            if ($state !== 'RUNNING') {
+                $checks[] = [
+                    'name' => 'Supervisor',
+                    'status' => 'fail',
+                    'message' => $line,
+                ];
+
+                continue;
+            }
+
+            $minUptimeSeconds = (int) config('communications.server_monitor.supervisor_min_uptime_seconds', 120);
+            if ($uptimeSeconds !== null && $minUptimeSeconds > 0 && $uptimeSeconds < $minUptimeSeconds) {
+                $checks[] = [
+                    'name' => 'Supervisor',
+                    'status' => 'warn',
+                    'message' => "только что перезапустился: {$line}",
+                ];
+
+                continue;
+            }
+
+            $checks[] = [
+                'name' => 'Supervisor',
+                'status' => 'ok',
+                'message' => $line,
+            ];
+        }
+
+        return $checks;
+    }
+
+    /**
+     * @return array{state: string, uptime_seconds: int|null}
+     */
+    private function parseSupervisorStatusLine(string $line): array
+    {
+        $line = trim($line);
+        $parts = preg_split('/\s+/', $line) ?: [];
+        $state = '';
+        foreach ($parts as $part) {
+            if (in_array($part, ['RUNNING', 'STOPPED', 'STARTING', 'BACKOFF', 'FATAL', 'EXITED', 'UNKNOWN'], true)) {
+                $state = $part;
+                break;
+            }
+        }
+
+        $uptimeSeconds = null;
+        if (preg_match('/uptime\s+(.+)$/iu', $line, $matches)) {
+            $uptimeSeconds = $this->parseUptimeToSeconds($matches[1]);
+        }
+
+        return ['state' => $state, 'uptime_seconds' => $uptimeSeconds];
+    }
+
+    private function parseUptimeToSeconds(string $uptime): ?int
+    {
+        $uptime = trim($uptime);
+        $seconds = 0;
+
+        if (preg_match('/(\d+)\s+days?/iu', $uptime, $daysMatch)) {
+            $seconds += (int) $daysMatch[1] * 86400;
+        }
+
+        if (preg_match('/(\d+):(\d+):(\d+)$/u', $uptime, $timeMatch)) {
+            $seconds += (int) $timeMatch[1] * 3600 + (int) $timeMatch[2] * 60 + (int) $timeMatch[3];
+        }
+
+        return $seconds > 0 ? $seconds : null;
     }
 
     /**

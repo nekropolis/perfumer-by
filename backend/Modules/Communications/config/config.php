@@ -45,5 +45,6 @@ return [
         'queue_warn_size' => (int) env('SERVER_MONITOR_QUEUE_WARN_SIZE', 100),
         'pm2_process' => env('SERVER_MONITOR_PM2_PROCESS', 'perfumer-frontend'),
         'supervisor_program' => env('SERVER_MONITOR_SUPERVISOR_PROGRAM', 'perfumer-queue'),
+        'supervisor_min_uptime_seconds' => (int) env('SERVER_MONITOR_SUPERVISOR_MIN_UPTIME_SECONDS', 120),
     ],
 ];
