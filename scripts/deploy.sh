@@ -93,6 +93,37 @@ require_service() {
     systemctl is-active --quiet "$unit" 2>/dev/null || warn "$unit is still not running — next build may fail"
 }
 
+ensure_meilisearch() {
+    local enabled
+    enabled="$(load_env CATALOG_SEARCH_ENABLED false)"
+    if [[ "$enabled" != "true" ]]; then
+        log "Meilisearch is disabled in .env (CATALOG_SEARCH_ENABLED != true) — skipping"
+        return 0
+    fi
+
+    local unit_path="/etc/systemd/system/meilisearch.service"
+    local source_unit="$ROOT/scripts/systemd/meilisearch.service"
+
+    if [[ ! -f "$unit_path" ]] && [[ -f "$source_unit" ]]; then
+        log "Installing meilisearch systemd unit"
+        if command -v sudo >/dev/null 2>&1; then
+            sudo cp "$source_unit" "$unit_path" || warn "Failed to copy meilisearch unit"
+            sudo systemctl daemon-reload || warn "Failed to daemon-reload"
+            sudo systemctl enable meilisearch || warn "Failed to enable meilisearch"
+        else
+            cp "$source_unit" "$unit_path" || warn "Failed to copy meilisearch unit"
+            systemctl daemon-reload || warn "Failed to daemon-reload"
+            systemctl enable meilisearch || warn "Failed to enable meilisearch"
+        fi
+    fi
+
+    if [[ -f "$unit_path" ]]; then
+        require_service "meilisearch"
+    else
+        warn "meilisearch.service not found — skipping"
+    fi
+}
+
 require_dir "$BACKEND"
 require_dir "$FRONTEND"
 
@@ -119,7 +150,7 @@ export COMPOSER_ALLOW_SUPERUSER=1
 log "Ensuring web services are running before frontend build"
 require_service "nginx"
 require_service "php8.3-fpm" "php8.3-fpm"
-require_service "meilisearch"
+ensure_meilisearch
 
 log "npm ci (frontend)"
 (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund)
