@@ -186,7 +186,16 @@ fi
 
 log "Restarting queue workers: $QUEUE_GROUP"
 if command -v supervisorctl >/dev/null 2>&1; then
-    sudo supervisorctl restart "$QUEUE_GROUP" || warn "supervisorctl restart failed — check manually"
+    sudo supervisorctl reread || warn "supervisorctl reread failed"
+    sudo supervisorctl update || warn "supervisorctl update failed"
+    sudo supervisorctl stop "$QUEUE_GROUP" >/dev/null 2>&1 || true
+    sleep 2
+    if ! sudo supervisorctl start "$QUEUE_GROUP"; then
+        warn "supervisorctl start failed — check manually"
+    else
+        sleep 2
+        sudo supervisorctl status "$QUEUE_GROUP" || true
+    fi
 else
     warn "supervisorctl not found — skipping queue worker restart"
 fi
