@@ -117,6 +117,7 @@ export COMPOSER_ALLOW_SUPERUSER=1
 log "Ensuring web services are running before frontend build"
 require_service "nginx"
 require_service "php8.3-fpm" "php8.3-fpm"
+require_service "meilisearch"
 
 log "npm ci (frontend)"
 (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund)

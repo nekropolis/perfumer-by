@@ -324,11 +324,11 @@ pm2 save
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=512
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=1000 --max-time=7200 --memory=1024
 autostart=true
 autorestart=true
-startretries=10
-startsecs=5
+startretries=20
+startsecs=10
 stopasgroup=true
 killasgroup=true
 stopwaitsecs=70

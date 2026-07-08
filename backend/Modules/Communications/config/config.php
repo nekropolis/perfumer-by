@@ -43,7 +43,7 @@ return [
         'disk_critical_percent' => (int) env('SERVER_MONITOR_DISK_CRITICAL_PERCENT', 95),
         'queue_name' => env('SERVER_MONITOR_QUEUE_NAME', 'default'),
         'queue_warn_size' => (int) env('SERVER_MONITOR_QUEUE_WARN_SIZE', 100),
-        'pm2_process' => env('SERVER_MONITOR_PM2_PROCESS', 'frontend-staging'),
+        'pm2_process' => env('SERVER_MONITOR_PM2_PROCESS', 'perfumer-frontend'),
         'supervisor_program' => env('SERVER_MONITOR_SUPERVISOR_PROGRAM', 'perfumer-queue'),
     ],
 ];

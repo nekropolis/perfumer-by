@@ -148,7 +148,23 @@ sudo systemctl restart redis-server
 redis-cli ping   # → PONG
 ```
 
-### 2.8. Node.js 22 + npm + pm2
+### 2.8. Meilisearch
+
+```bash
+cd /tmp
+curl -L https://install.meilisearch.com | sh
+sudo mv meilisearch /usr/local/bin/meilisearch
+sudo chmod +x /usr/local/bin/meilisearch
+
+sudo mkdir -p /var/lib/meilisearch
+sudo chown -R www-data:www-data /var/lib/meilisearch
+
+sudo cp /var/www/perfumer-by/scripts/systemd/meilisearch.service /etc/systemd/system/meilisearch.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now meilisearch
+```
+
+### 2.9. Node.js 22 + npm + pm2
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -157,7 +173,7 @@ sudo npm install -g pm2
 pm2 startup systemd -u deploy --hp /home/deploy
 ```
 
-### 2.9. Nginx
+### 2.10. Nginx
 
 ```bash
 sudo apt install -y nginx
@@ -468,11 +484,11 @@ sudo systemctl reload php8.3-fpm
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=512
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=1000 --max-time=7200 --memory=1024
 autostart=true
 autorestart=true
-startretries=10
-startsecs=5
+startretries=20
+startsecs=10
 stopasgroup=true
 killasgroup=true
 stopwaitsecs=70
@@ -496,7 +512,7 @@ sudo supervisorctl status perfumer-queue:*
 > задают `timeout = 3600`). Значение `65` убивает джобу на минуте, overlap-lock в Redis
 > может висеть до `expireAfter`, UI остаётся «в очереди / 0%», в логе воркера — короткий `DONE`.
 >
-> `--memory=512` — тяжёлые прайсы; при нехватке памяти воркер перезапустится после джобы.
+> `--memory=1024` — тяжёлые прайсы и индексация Meilisearch; при нехватке памяти воркер перезапустится после джобы.
 
 ---
 

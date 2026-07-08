@@ -376,12 +376,15 @@ class ServerHealthMonitorService
             ]];
         }
 
-        $list = json_decode(trim($result->output()), true);
+        $output = trim($result->output());
+        $list = json_decode($output, true);
         if (!is_array($list)) {
+            $stderr = trim($result->errorOutput());
+
             return [[
                 'name' => 'PM2',
                 'status' => 'fail',
-                'message' => 'не удалось разобрать pm2 jlist',
+                'message' => 'не удалось разобрать pm2 jlist' . ($stderr !== '' ? ': ' . Str::limit($stderr, 80) : ''),
             ]];
         }
 

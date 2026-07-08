@@ -210,15 +210,26 @@ sudo chmod +x /usr/local/bin/meilisearch
 
 sudo mkdir -p /var/lib/meilisearch
 sudo chown -R www-data:www-data /var/lib/meilisearch
+```
 
-MEILI_MASTER_KEY="yourStrongMasterKey" \
-MEILI_NO_ANALYTICS=true \
-meilisearch --http-addr 127.0.0.1:7700 --db-path /var/lib/meilisearch
+Добавь в `backend/.env`:
+
+```dotenv
+MEILI_MASTER_KEY=yourStrongMasterKey
+```
+
+Установи и запусти systemd unit:
+
+```bash
+sudo cp /var/www/perfumer-by/scripts/systemd/meilisearch.service /etc/systemd/system/meilisearch.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now meilisearch
 ```
 
 Проверка:
 
 ```bash
+sudo systemctl status meilisearch
 curl http://127.0.0.1:7700/health
 ```
 
