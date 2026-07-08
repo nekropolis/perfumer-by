@@ -212,10 +212,10 @@ sudo mkdir -p /var/lib/meilisearch
 sudo chown -R www-data:www-data /var/lib/meilisearch
 ```
 
-Добавь в `backend/.env`:
+Убедись, что в `backend/.env` заполнен:
 
 ```dotenv
-MEILI_MASTER_KEY=yourStrongMasterKey
+CATALOG_SEARCH_MEILI_KEY=yourStrongMasterKey
 ```
 
 Установи и запусти systemd unit:

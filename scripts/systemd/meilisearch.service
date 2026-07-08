@@ -11,7 +11,7 @@ Environment="MEILI_NO_ANALYTICS=true"
 Environment="MEILI_HTTP_ADDR=127.0.0.1:7700"
 Environment="MEILI_DB_PATH=/var/lib/meilisearch"
 EnvironmentFile=/var/www/perfumer-by/backend/.env
-ExecStart=/usr/local/bin/meilisearch
+ExecStart=/bin/bash -c 'MEILI_MASTER_KEY="$CATALOG_SEARCH_MEILI_KEY" exec /usr/local/bin/meilisearch'
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:/var/log/meilisearch.log
