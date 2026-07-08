@@ -434,7 +434,8 @@ class ServerHealthMonitorService
     private function checkPm2(): array
     {
         $processName = (string) config('communications.server_monitor.pm2_process', 'perfumer-frontend');
-        $result = Process::run(['bash', '-lc', 'command -v pm2 >/dev/null && pm2 jlist || echo "[]"']);
+        $pm2Home = (string) config('communications.server_monitor.pm2_home', '/home/deploy');
+        $result = Process::run(['bash', '-lc', 'export HOME=' . escapeshellarg($pm2Home) . ' && command -v pm2 >/dev/null && pm2 jlist || echo "[]"']);
         if (!$result->successful()) {
             return [[
                 'name' => 'PM2',
