@@ -651,6 +651,7 @@ sudo visudo
 
 ```sudoers
 deploy ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl
+www-data ALL=(deploy) NOPASSWD: /usr/local/bin/pm2, /usr/bin/pm2, /usr/bin/env pm2
 ```
 
 Проверь:

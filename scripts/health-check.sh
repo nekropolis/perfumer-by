@@ -132,7 +132,7 @@ if [[ "$SWAP_USED_MB" -gt "$SWAP_WARN_MB" ]]; then
     ALERTS+=("🐌 Swap usage is ${SWAP_USED_MB} MB")
 fi
 
-# 4. Queue worker status.
+# 4. Queue worker status (3 retries with pause — covers supervisor restart window).
 SUPERVISORCTL=""
 if command -v supervisorctl >/dev/null 2>&1; then
     SUPERVISORCTL="$(command -v supervisorctl)"
@@ -141,7 +141,15 @@ elif [[ -x /usr/bin/supervisorctl ]]; then
 fi
 
 if [[ -n "$SUPERVISORCTL" ]]; then
-    if ! sudo "$SUPERVISORCTL" status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
+    worker_ok=false
+    for attempt in 1 2 3; do
+        if sudo "$SUPERVISORCTL" status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
+            worker_ok=true
+            break
+        fi
+        sleep 10
+    done
+    if [[ "$worker_ok" != true ]]; then
         ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING")
     fi
 fi

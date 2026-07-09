@@ -345,11 +345,24 @@ class ServerHealthMonitorService
         $matched = array_values(array_filter($lines, static fn (string $line): bool => str_contains($line, $program)));
 
         if ($matched === []) {
-            return [[
-                'name' => 'Supervisor',
-                'status' => 'fail',
-                'message' => "процесс {$program} не найден",
-            ]];
+            // Retry 3x — worker может быть в процессе перезапуска supervisor.
+            for ($attempt = 2; $attempt <= 3; $attempt++) {
+                sleep(10);
+                $result = Process::run(['bash', '-lc', 'command -v supervisorctl >/dev/null && supervisorctl status || true']);
+                $lines = preg_split('/\r\n|\r|\n/', trim($result->output())) ?: [];
+                $matched = array_values(array_filter($lines, static fn (string $line): bool => str_contains($line, $program)));
+                if ($matched !== []) {
+                    break;
+                }
+            }
+
+            if ($matched === []) {
+                return [[
+                    'name' => 'Supervisor',
+                    'status' => 'fail',
+                    'message' => "процесс {$program} не найден",
+                ]];
+            }
         }
 
         $checks = [];
@@ -357,6 +370,27 @@ class ServerHealthMonitorService
             $status = $this->parseSupervisorStatusLine($line);
             $state = $status['state'];
             $uptimeSeconds = $status['uptime_seconds'];
+
+            // Если не RUNNING — подождать и проверить ещё раз (worker может перезапускаться).
+            if ($state !== 'RUNNING') {
+                $recovered = false;
+                for ($attempt = 2; $attempt <= 3; $attempt++) {
+                    sleep(10);
+                    $result = Process::run(['bash', '-lc', 'command -v supervisorctl >/dev/null && supervisorctl status || true']);
+                    $retryLines = preg_split('/\r\n|\r|\n/', trim($result->output())) ?: [];
+                    $retryMatched = array_values(array_filter($retryLines, static fn (string $l): bool => str_contains($l, $program)));
+                    foreach ($retryMatched as $retryLine) {
+                        $retryStatus = $this->parseSupervisorStatusLine($retryLine);
+                        if ($retryStatus['state'] === 'RUNNING') {
+                            $state = 'RUNNING';
+                            $uptimeSeconds = $retryStatus['uptime_seconds'];
+                            $line = $retryLine;
+                            $recovered = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
 
             if ($state !== 'RUNNING') {
                 $checks[] = [
@@ -434,8 +468,8 @@ class ServerHealthMonitorService
     private function checkPm2(): array
     {
         $processName = (string) config('communications.server_monitor.pm2_process', 'perfumer-frontend');
-        $pm2Home = (string) config('communications.server_monitor.pm2_home', '/home/deploy');
-        $result = Process::run(['bash', '-lc', 'export HOME=' . escapeshellarg($pm2Home) . ' && command -v pm2 >/dev/null && pm2 jlist || echo "[]"']);
+        $pm2User = (string) config('communications.server_monitor.pm2_user', 'deploy');
+        $result = Process::run(['bash', '-lc', 'sudo -u ' . escapeshellarg($pm2User) . ' pm2 jlist 2>/dev/null || echo "[]"']);
         if (!$result->successful()) {
             return [[
                 'name' => 'PM2',

@@ -44,7 +44,7 @@ return [
         'queue_name' => env('SERVER_MONITOR_QUEUE_NAME', 'default'),
         'queue_warn_size' => (int) env('SERVER_MONITOR_QUEUE_WARN_SIZE', 100),
         'pm2_process' => env('SERVER_MONITOR_PM2_PROCESS', 'perfumer-frontend'),
-        'pm2_home' => env('SERVER_MONITOR_PM2_HOME', '/home/deploy'),
+        'pm2_user' => env('SERVER_MONITOR_PM2_USER', 'deploy'),
         'supervisor_program' => env('SERVER_MONITOR_SUPERVISOR_PROGRAM', 'perfumer-queue'),
         'supervisor_min_uptime_seconds' => (int) env('SERVER_MONITOR_SUPERVISOR_MIN_UPTIME_SECONDS', 120),
     ],
