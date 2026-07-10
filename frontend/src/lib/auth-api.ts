@@ -61,7 +61,9 @@ export type MeResponse = {
     data: AuthUserProfile | null;
 };
 
-/** Имя для оформления заказа из профиля (без плейсхолдера «Пользователь»). */
+const CHECKOUT_NAME_PLACEHOLDERS = new Set(["Пользователь", "Клиент"]);
+
+/** Имя для оформления заказа из профиля (без плейсхолдеров вроде «Пользователь» / «Клиент»). */
 export function authUserCheckoutName(
     user: Pick<AuthUserProfile, "name" | "first_name"> | null | undefined,
 ): string {
@@ -70,7 +72,10 @@ export function authUserCheckoutName(
         return firstName;
     }
     const name = user?.name?.trim() ?? "";
-    return name && name !== "Пользователь" ? name : "";
+    if (!name || CHECKOUT_NAME_PLACEHOLDERS.has(name) || name.startsWith("Покупатель #")) {
+        return "";
+    }
+    return name;
 }
 
 export type UpdateProfilePayload = {

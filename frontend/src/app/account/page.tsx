@@ -44,7 +44,7 @@ export default function AccountPage() {
         if (!loading && isAuthenticated && isPrivilegedRole(user)) {
             router.replace("/admin");
         }
-    }, [loading, isAuthenticated, user?.role, router]);
+    }, [loading, isAuthenticated, user?.actor_type, user?.role, router]);
 
     useEffect(() => {
         if (!isAuthenticated) {
