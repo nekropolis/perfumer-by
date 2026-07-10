@@ -22,6 +22,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariant;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Models\SellerOneMatchRule;
+use Modules\Catalog\Rules\ValidUploadedSpreadsheet;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Throwable;
 
@@ -385,7 +386,7 @@ class VanilleImportController extends Controller
     public function previewSupplierPrice(Request $request, SupplierPriceImportService $service)
     {
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:xls,xlsx'],
+            'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
             'offset' => ['nullable', 'integer', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ]);
@@ -402,7 +403,7 @@ class VanilleImportController extends Controller
     public function startSellerOneParse(Request $request): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:xls,xlsx'],
+            'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
         ]);
 
         if (Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey())) {
@@ -527,7 +528,7 @@ class VanilleImportController extends Controller
     public function startSellerOneRefreshLinkedPrices(Request $request): \Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:xls,xlsx'],
+            'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
         ]);
 
         if (Cache::get(RunSellerOneParseJob::activeKey())) {

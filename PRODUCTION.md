@@ -480,6 +480,36 @@ pm.max_requests = 500
 sudo systemctl reload php8.3-fpm
 ```
 
+### 6.3. Лимиты загрузки файлов (прайсы Seller One, xls/xlsx)
+
+По умолчанию в PHP-FPM часто `upload_max_filesize = 2M`. Тогда Laravel отвечает `422` с `validation.uploaded` — файл до валидации не доходит.
+
+Проверка на сервере:
+
+```bash
+php -i | grep -E 'upload_max_filesize|post_max_size'
+```
+
+Рекомендуемые значения (согласованы с `client_max_body_size 32M` в nginx):
+
+`/etc/php/8.3/fpm/php.ini` и `/etc/php/8.3/cli/php.ini`:
+
+```ini
+upload_max_filesize = 32M
+post_max_size = 36M
+```
+
+В nginx в `server { }` для prod-домена (если ещё нет):
+
+```nginx
+client_max_body_size 32M;
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl reload php8.3-fpm
+```
+
 ---
 
 ## 7) Queue worker через supervisor

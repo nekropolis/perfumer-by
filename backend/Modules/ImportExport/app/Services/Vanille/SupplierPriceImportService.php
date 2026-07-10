@@ -502,6 +502,9 @@ class SupplierPriceImportService
         $markedPreorder = 0;
         $markedAbsentUnlinked = 0;
         if ($stoppedEarly) {
+            if ($jobId !== null) {
+                $this->persistSupplierProductIndex($jobId, $supplierProductIndex);
+            }
             unset($allRows, $brands, $productsIndex, $rules);
 
             return [
@@ -597,25 +600,21 @@ class SupplierPriceImportService
     // ─── SupplierProduct Index persistence ───
 
     /**
-     * @param  \Illuminate\Support\Collection|array  $index  keyBy('external_url')
+     * @param  array<string, array{id:int,external_url:string,is_linked:bool,external_name:string,payload:array}>  $index
      */
-    private function persistSupplierProductIndex(string $jobId, $index): void
+    private function persistSupplierProductIndex(string $jobId, array $index): void
     {
         $records = [];
-        foreach ($index as $externalUrl => $model) {
-            if ($model instanceof \stdClass) {
+        foreach ($index as $externalUrl => $record) {
+            if (!is_array($record)) {
                 continue;
             }
-            $id = is_array($model) ? ($model['id'] ?? null) : ($model->id ?? null);
-            $isLinked = is_array($model) ? ($model['is_linked'] ?? false) : ($model->is_linked ?? false);
-            $externalName = is_array($model) ? ($model['external_name'] ?? '') : ($model->external_name ?? '');
-            $payload = is_array($model) ? ($model['payload'] ?? []) : (is_array($model->payload) ? $model->payload : ($model->getAttributes()['payload'] ?? []));
             $records[] = [
                 'external_url' => $externalUrl,
-                'id' => $id,
-                'is_linked' => $isLinked,
-                'external_name' => $externalName,
-                'payload' => $payload,
+                'id' => $record['id'] ?? null,
+                'is_linked' => $record['is_linked'] ?? false,
+                'external_name' => $record['external_name'] ?? '',
+                'payload' => is_array($record['payload'] ?? null) ? $record['payload'] : [],
             ];
         }
         $path = $this->supplierProductIndexCachePath($jobId);
@@ -626,33 +625,41 @@ class SupplierPriceImportService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<string, \stdClass>
+     * @return array<string, array{id:int,external_url:string,is_linked:bool,external_name:string,payload:array}>
      */
-    private function restoreSupplierProductIndex(string $jobId): \Illuminate\Support\Collection
+    private function restoreSupplierProductIndex(string $jobId): array
     {
         $path = $this->supplierProductIndexCachePath($jobId);
         if (!is_file($path)) {
-            return collect([]);
+            return [];
         }
         $raw = file_get_contents($path);
         if ($raw === false) {
-            return collect([]);
+            return [];
         }
         $records = @unserialize($raw);
         if (!is_array($records)) {
-            return collect([]);
+            return [];
         }
-        $collection = collect();
+        $index = [];
         foreach ($records as $r) {
-            $obj = new \stdClass();
-            $obj->id = $r['id'] ?? null;
-            $obj->external_url = $r['external_url'] ?? '';
-            $obj->is_linked = $r['is_linked'] ?? false;
-            $obj->external_name = $r['external_name'] ?? '';
-            $obj->payload = $r['payload'] ?? [];
-            $collection->put($obj->external_url, $obj);
+            if (!is_array($r)) {
+                continue;
+            }
+            $externalUrl = (string) ($r['external_url'] ?? '');
+            if ($externalUrl === '') {
+                continue;
+            }
+            $index[$externalUrl] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'external_url' => $externalUrl,
+                'is_linked' => (bool) ($r['is_linked'] ?? false),
+                'external_name' => (string) ($r['external_name'] ?? ''),
+                'payload' => is_array($r['payload'] ?? null) ? $r['payload'] : [],
+            ];
         }
-        return $collection;
+
+        return $index;
     }
 
     private function removeSupplierProductIndexCache(string $jobId): void
