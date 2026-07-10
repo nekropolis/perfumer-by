@@ -10,6 +10,7 @@ use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Services\CheckoutQuoteService;
+use Modules\Users\Models\Client;
 
 class CheckoutQuoteController extends Controller
 {
@@ -59,10 +60,11 @@ class CheckoutQuoteController extends Controller
             }
         }
 
-        $user = $request->user() ?? Auth::guard('sanctum')->user();
+        $client = $request->user() ?? Auth::guard('sanctum')->user();
+        $client = $client instanceof Client ? $client : null;
         $quote = $quoteService->quote(
             $cart,
-            $user,
+            $client,
             $validated['payment_method'],
             $validated['delivery_method'],
             $cartItemIds,

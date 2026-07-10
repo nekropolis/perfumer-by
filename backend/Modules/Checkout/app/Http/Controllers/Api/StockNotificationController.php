@@ -57,11 +57,12 @@ class StockNotificationController extends Controller
             ], 200);
         }
 
-        $user = $request->user();
+        $client = $request->user();
+        $client = $client instanceof \Modules\Users\Models\Client ? $client : null;
 
         $record = StockNotificationRequest::query()->create([
             'kind' => StockNotificationRequest::KIND_BACK_IN_STOCK,
-            'user_id' => $user?->id,
+            'client_id' => $client?->id,
             'product_id' => $validated['product_id'],
             'variant_id' => $validated['variant_id'] ?? null,
             'product_name' => $product

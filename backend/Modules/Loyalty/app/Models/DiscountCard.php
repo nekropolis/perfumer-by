@@ -2,7 +2,7 @@
 
 namespace Modules\Loyalty\Models;
 
-use Modules\Users\Models\User;
+use Modules\Users\Models\Client;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -52,10 +52,10 @@ class DiscountCard extends Model
         return $this->status === self::STATUS_ACTIVE;
     }
 
-    public function users(): BelongsToMany
+    public function clients(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'user_discount_cards', 'discount_card_id', 'user_id')
-            ->using(UserDiscountCard::class)
+        return $this->belongsToMany(Client::class, 'client_discount_cards', 'discount_card_id', 'client_id')
+            ->using(ClientDiscountCard::class)
             ->withPivot(['linked_at', 'verified_at', 'is_primary', 'source', 'link_status'])
             ->withTimestamps();
     }

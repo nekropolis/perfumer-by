@@ -6,7 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Modules\Users\Models\User;
+use Modules\Users\Models\Client;
 
 class ImportLegacyCustomersCommand extends Command
 {
@@ -15,7 +15,7 @@ class ImportLegacyCustomersCommand extends Command
         {--dry-run : Do not write into DB}
         {--truncate-map : Truncate legacy_map_customers before import}';
 
-    protected $description = 'Import legacy customers from oc_customer into users and map legacy ids';
+    protected $description = 'Import legacy customers from oc_customer into clients and map legacy ids';
 
     public function handle(): int
     {
@@ -38,19 +38,19 @@ class ImportLegacyCustomersCommand extends Command
             DB::table('legacy_map_customers')->truncate();
         }
 
-        $users = User::query()
+        $clients = Client::query()
             ->get(['id', 'email', 'phone'])
             ->all();
-        $usersByEmail = [];
-        $usersByPhone = [];
-        foreach ($users as $user) {
-            $email = $this->normalizeEmail((string) ($user->email ?? ''));
+        $clientsByEmail = [];
+        $clientsByPhone = [];
+        foreach ($clients as $client) {
+            $email = $this->normalizeEmail((string) ($client->email ?? ''));
             if ($email !== '') {
-                $usersByEmail[$email] = (int) $user->id;
+                $clientsByEmail[$email] = (int) $client->id;
             }
-            $phone = $this->normalizePhone((string) ($user->phone ?? ''));
+            $phone = $this->normalizePhone((string) ($client->phone ?? ''));
             if ($phone !== '') {
-                $usersByPhone[$phone] = (int) $user->id;
+                $clientsByPhone[$phone] = (int) $client->id;
             }
         }
 
@@ -78,21 +78,21 @@ class ImportLegacyCustomersCommand extends Command
             $phone = $this->normalizePhone((string) ($row['telephone'] ?? ''));
 
             $matchMethod = null;
-            $matchedUserId = null;
-            if ($email !== '' && isset($usersByEmail[$email])) {
-                $matchedUserId = (int) $usersByEmail[$email];
+            $matchedClientId = null;
+            if ($email !== '' && isset($clientsByEmail[$email])) {
+                $matchedClientId = (int) $clientsByEmail[$email];
                 $matchMethod = 'email_exact';
-            } elseif ($phone !== '' && isset($usersByPhone[$phone])) {
-                $matchedUserId = (int) $usersByPhone[$phone];
+            } elseif ($phone !== '' && isset($clientsByPhone[$phone])) {
+                $matchedClientId = (int) $clientsByPhone[$phone];
                 $matchMethod = 'phone_exact';
             }
 
-            if ($matchedUserId !== null) {
+            if ($matchedClientId !== null) {
                 if (! $dryRun) {
                     DB::table('legacy_map_customers')->upsert(
                         [[
                             'legacy_customer_id' => $legacyCustomerId,
-                            'user_id' => $matchedUserId,
+                            'client_id' => $matchedClientId,
                             'status' => 'matched',
                             'match_method' => $matchMethod,
                             'note' => null,
@@ -100,7 +100,7 @@ class ImportLegacyCustomersCommand extends Command
                             'updated_at' => now(),
                         ]],
                         ['legacy_customer_id'],
-                        ['user_id', 'status', 'match_method', 'note', 'updated_at']
+                        ['client_id', 'status', 'match_method', 'note', 'updated_at']
                     );
                 }
                 $matched++;
@@ -116,28 +116,27 @@ class ImportLegacyCustomersCommand extends Command
                 $finalEmail = $this->resolveUniqueEmail($email !== '' ? $email : "legacy-customer-{$legacyCustomerId}@legacy.local");
                 $finalPhone = $this->resolveUniquePhone($phone);
 
-                $userId = (int) User::query()->insertGetId([
+                $clientId = (int) Client::query()->insertGetId([
                     'name' => $name,
                     'email' => $finalEmail,
                     'password' => Hash::make(Str::random(40)),
                     'phone' => $finalPhone !== '' ? $finalPhone : null,
                     'phone_verified_at' => null,
-                    'role' => 'customer',
                     'created_at' => $this->normalizeDateTime((string) ($row['date_added'] ?? '')) ?? now(),
                     'updated_at' => now(),
                 ]);
 
                 if ($finalEmail !== '') {
-                    $usersByEmail[$finalEmail] = $userId;
+                    $clientsByEmail[$finalEmail] = $clientId;
                 }
                 if ($finalPhone !== '') {
-                    $usersByPhone[$finalPhone] = $userId;
+                    $clientsByPhone[$finalPhone] = $clientId;
                 }
 
                 DB::table('legacy_map_customers')->upsert(
                     [[
                         'legacy_customer_id' => $legacyCustomerId,
-                        'user_id' => $userId,
+                        'client_id' => $clientId,
                         'status' => 'created',
                         'match_method' => 'created_new',
                         'note' => null,
@@ -145,7 +144,7 @@ class ImportLegacyCustomersCommand extends Command
                         'updated_at' => now(),
                     ]],
                     ['legacy_customer_id'],
-                    ['user_id', 'status', 'match_method', 'note', 'updated_at']
+                    ['client_id', 'status', 'match_method', 'note', 'updated_at']
                 );
 
                 $created++;
@@ -153,7 +152,7 @@ class ImportLegacyCustomersCommand extends Command
                 DB::table('legacy_map_customers')->upsert(
                     [[
                         'legacy_customer_id' => $legacyCustomerId,
-                        'user_id' => null,
+                        'client_id' => null,
                         'status' => 'failed',
                         'match_method' => null,
                         'note' => mb_substr($e->getMessage(), 0, 1800),
@@ -161,7 +160,7 @@ class ImportLegacyCustomersCommand extends Command
                         'updated_at' => now(),
                     ]],
                     ['legacy_customer_id'],
-                    ['user_id', 'status', 'match_method', 'note', 'updated_at']
+                    ['client_id', 'status', 'match_method', 'note', 'updated_at']
                 );
                 $failed++;
             }
@@ -170,8 +169,8 @@ class ImportLegacyCustomersCommand extends Command
         $this->info('Legacy customers import finished.');
         $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
         $this->line("Processed: {$processed}");
-        $this->line("Matched existing users: {$matched}");
-        $this->line("Created users: {$created}");
+        $this->line("Matched existing clients: {$matched}");
+        $this->line("Created clients: {$created}");
         $this->line("Would create (dry-run): {$wouldCreate}");
         $this->line("Failed: {$failed}");
 
@@ -434,7 +433,7 @@ class ImportLegacyCustomersCommand extends Command
             $baseEmail = 'legacy-user@legacy.local';
         }
 
-        if (! User::query()->where('email', $baseEmail)->exists()) {
+        if (! Client::query()->where('email', $baseEmail)->exists()) {
             return $baseEmail;
         }
 
@@ -442,7 +441,7 @@ class ImportLegacyCustomersCommand extends Command
         $counter = 2;
         while (true) {
             $candidate = $local.'+'.$counter.'@'.$domain;
-            if (! User::query()->where('email', $candidate)->exists()) {
+            if (! Client::query()->where('email', $candidate)->exists()) {
                 return $candidate;
             }
             $counter++;
@@ -455,7 +454,7 @@ class ImportLegacyCustomersCommand extends Command
         if ($phone === '') {
             return '';
         }
-        if (! User::query()->where('phone', $phone)->exists()) {
+        if (! Client::query()->where('phone', $phone)->exists()) {
             return $phone;
         }
         return '';

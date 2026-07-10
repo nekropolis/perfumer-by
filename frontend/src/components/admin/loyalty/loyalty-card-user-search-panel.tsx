@@ -1,10 +1,10 @@
 "use client";
 
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import type { AdminUser } from "@/lib/admin-users-api";
+import { formatAdminClientPrimary, type AdminClient } from "@/lib/admin-clients-api";
 
-export function formatAdminUserPrimary(u: AdminUser) {
-    return u.phone || u.name || u.email || "Пользователь";
+export function formatAdminUserPrimary(u: AdminClient) {
+    return formatAdminClientPrimary(u);
 }
 
 type LoyaltyCardUserSearchPanelProps = {
@@ -12,14 +12,14 @@ type LoyaltyCardUserSearchPanelProps = {
     userSearch: string;
     onUserSearchChangeAction: (value: string) => void;
     onSearchAction: () => void;
-    foundUsers: AdminUser[];
+    foundUsers: AdminClient[];
     selectedUserIds: number[];
-    onToggleUserAction: (user: AdminUser, nextChecked: boolean) => void;
+    onToggleUserAction: (user: AdminClient, nextChecked: boolean) => void;
     alreadyLinkedIds: number[];
 };
 
 export default function LoyaltyCardUserSearchPanel({
-    title = "Добавить пользователей",
+    title = "Добавить клиентов",
     userSearch,
     onUserSearchChangeAction,
     onSearchAction,
@@ -78,7 +78,7 @@ export function LoyaltyUserSelectionChips({
     users,
     onRemoveAction,
 }: {
-    users: AdminUser[];
+    users: AdminClient[];
     onRemoveAction: (userId: number) => void;
 }) {
     if (users.length === 0) return null;

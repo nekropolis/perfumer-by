@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureClient;
 use App\Http\Middleware\IsAdmin;
 use App\Http\Middleware\IsAdminOrManager;
 use Illuminate\Auth\AuthenticationException;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'ensure_client' => EnsureClient::class,
             'is_admin' => IsAdmin::class,
             'is_admin_or_manager' => IsAdminOrManager::class,
         ]);

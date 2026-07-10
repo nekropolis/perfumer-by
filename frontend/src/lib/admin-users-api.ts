@@ -21,14 +21,6 @@ export type AdminUser = {
     email: string | null;
     phone: string | null;
     role: string;
-    phone_verified_at?: string | null;
-    orders_count?: number;
-    discount_cards?: {
-        id: number;
-        number: string;
-        discount_percent: number;
-        status: string;
-    }[];
 };
 
 export type AdminUsersResponse = {
@@ -43,14 +35,6 @@ export type AdminUsersResponse = {
 
 export type AdminUserResponse = {
     data: AdminUser;
-};
-
-export type AdminUserOrderHistoryItem = {
-    id: number;
-    created_at: string;
-    items_qty: number;
-    total: string;
-    status: string;
 };
 
 export async function fetchAdminUsers(
@@ -128,19 +112,6 @@ export async function fetchAdminUser(id: number): Promise<AdminUserResponse> {
 
     if (!res.ok) {
         throw new Error(`User API error: ${res.status}`);
-    }
-
-    return res.json();
-}
-
-export async function fetchAdminUserOrdersHistory(id: number): Promise<{ data: AdminUserOrderHistoryItem[] }> {
-    const res = await fetch(`${API_BASE}/admin/users/${id}/orders-history`, {
-        headers: getAdminHeaders(),
-        cache: "no-store",
-    });
-
-    if (!res.ok) {
-        throw new Error(`User orders history API error: ${res.status}`);
     }
 
     return res.json();

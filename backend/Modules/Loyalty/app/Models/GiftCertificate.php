@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Checkout\Models\Order;
-use Modules\Users\Models\User;
+use Modules\Users\Models\Client;
 
 class GiftCertificate extends Model
 {
@@ -41,12 +41,12 @@ class GiftCertificate extends Model
         'source',
         'expires_at',
         'sold_order_id',
-        'issued_to_user_id',
+        'issued_to_client_id',
         'issued_phone',
         'comment',
         'issued_at',
         'activated_at',
-        'purchaser_user_id',
+        'purchaser_client_id',
         'created_at',
     ];
 
@@ -86,12 +86,12 @@ class GiftCertificate extends Model
 
     public function purchaser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'purchaser_user_id');
+        return $this->belongsTo(Client::class, 'purchaser_client_id');
     }
 
-    public function issuedToUser(): BelongsTo
+    public function issuedToClient(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'issued_to_user_id');
+        return $this->belongsTo(Client::class, 'issued_to_client_id');
     }
 
     /**

@@ -13,7 +13,7 @@ import {
     fetchAdminOrderCustomerContext,
     type AdminOrderCustomerContext,
 } from "@/lib/admin-orders-api";
-import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
+import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { adminBtnSecondary } from "@/lib/admin-ui-classes";
 
@@ -39,7 +39,7 @@ function isExactQuickPhoneMatch(userPhone: string, fullPhone: string, national: 
     return national.length === 9 && digits.endsWith(national);
 }
 
-function QuickPhoneUserHitSummary({ user }: { user: AdminUser }) {
+function QuickPhoneUserHitSummary({ user }: { user: AdminClient }) {
     const count = Number(user.orders_count ?? 0);
     const card = user.discount_cards?.[0];
     if (count <= 0 && !card) {
@@ -110,7 +110,7 @@ type QuickPhoneCustomerOptionProps = {
     badge?: "В базе" | "Гость" | null;
     context: AdminOrderCustomerContext | null;
     showFullOrders: boolean;
-    userHit?: AdminUser;
+    userHit?: AdminClient;
     onClick: () => void;
 };
 
@@ -163,7 +163,7 @@ export default function AdminHeader({
     const [quickPhone, setQuickPhone] = useState("");
     const [quickPhoneFocused, setQuickPhoneFocused] = useState(false);
     const [quickPhoneHitsLoading, setQuickPhoneHitsLoading] = useState(false);
-    const [quickPhoneHits, setQuickPhoneHits] = useState<AdminUser[]>([]);
+    const [quickPhoneHits, setQuickPhoneHits] = useState<AdminClient[]>([]);
     const [quickPhoneContext, setQuickPhoneContext] = useState<AdminOrderCustomerContext | null>(null);
     const [quickPhoneContextLoading, setQuickPhoneContextLoading] = useState(false);
     const accountRef = useRef<HTMLDivElement | null>(null);
@@ -254,7 +254,7 @@ export default function AdminHeader({
         }
         let cancelled = false;
         setQuickPhoneHitsLoading(true);
-        void fetchAdminUsers({ search: `375${national}` })
+        void fetchAdminClients({ search: `375${national}` })
             .then((response) => {
                 if (cancelled) return;
                 const want = `375${national}`;

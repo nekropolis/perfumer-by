@@ -13,14 +13,18 @@ export type RequestCodeResponse = {
     fallback_used?: boolean;
 };
 
+export type ActorType = "client" | "staff";
+
 export type AuthSuccessResponse = {
     message: string;
     token: string;
     user: {
         id: number;
         name: string | null;
-        phone: string;
+        phone?: string | null;
+        email?: string | null;
         role?: string;
+        actor_type: ActorType;
     };
 };
 
@@ -41,8 +45,9 @@ export type AuthUserProfile = {
     patronymic?: string | null;
     email?: string | null;
     birth_date?: string | null;
-    phone: string;
+    phone?: string | null;
     phone_verified_at?: string | null;
+    actor_type: ActorType;
     role?: string;
     discount_cards?: {
         id: number;

@@ -14,8 +14,8 @@ use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\DiscountCardTransaction;
-use Modules\Loyalty\Models\UserDiscountCard;
-use Modules\Users\Models\User;
+use Modules\Loyalty\Models\ClientDiscountCard;
+use Modules\Users\Models\Client;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Checkout\Services\AdminOrderPricingService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
@@ -135,16 +135,16 @@ class OrderController extends Controller
             $orderRows->where('status', 'cancelled')
         );
 
-        $user = User::query()
+        $client = Client::query()
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderBy('id')
             ->limit(50)
             ->get()
-            ->first(fn (User $u) => Phone::normalize((string) $u->phone) === $digits);
+            ->first(fn (Client $candidate) => Phone::normalize((string) $candidate->phone) === $digits);
 
         $suggestedCustomerName = null;
-        if ($user && filled(trim((string) ($user->name ?? '')))) {
-            $suggestedCustomerName = trim((string) $user->name);
+        if ($client && filled(trim((string) ($client->name ?? '')))) {
+            $suggestedCustomerName = trim((string) $client->name);
         } else {
             $latestNamedOrder = $orderRows->first(
                 fn (Order $order) => filled(trim((string) ($order->customer_name ?? '')))
@@ -155,10 +155,10 @@ class OrderController extends Controller
         }
 
         $cards = [];
-        if ($user) {
-            $cards = $user->discountCards()
+        if ($client) {
+            $cards = $client->discountCards()
                 ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
-                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->orderByDesc('discount_cards.discount_percent')
                 ->get(['discount_cards.id', 'discount_cards.card_number', 'discount_cards.discount_percent'])
                 ->map(static function ($c) {
@@ -173,9 +173,9 @@ class OrderController extends Controller
 
         return response()->json([
             'data' => [
-                'matched_user' => $user ? [
-                    'id' => $user->id,
-                    'name' => $user->name,
+                'matched_user' => $client ? [
+                    'id' => $client->id,
+                    'name' => $client->name,
                 ] : null,
                 'customer_name' => $suggestedCustomerName,
                 'orders' => [
@@ -393,7 +393,7 @@ class OrderController extends Controller
         $order = DB::transaction(function () use ($validated, $discountCardNumber) {
             $phone = Phone::normalize((string) $validated['phone']);
             $order = Order::query()->create([
-                'user_id' => OrderAccountScope::resolveUserIdForPhone($phone),
+                'client_id' => OrderAccountScope::resolveClientIdForPhone($phone),
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,
@@ -452,7 +452,7 @@ class OrderController extends Controller
         DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber) {
             $phone = Phone::normalize((string) $validated['phone']);
             $order->update([
-                'user_id' => OrderAccountScope::resolveUserIdForPhone($phone) ?? $order->user_id,
+                'client_id' => OrderAccountScope::resolveClientIdForPhone($phone) ?? $order->client_id,
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,

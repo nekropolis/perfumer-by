@@ -37,10 +37,10 @@ class WishlistController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $clientId = (int) $request->user()->id;
 
         $productIds = WishlistItem::query()
-            ->where('user_id', $userId)
+            ->where('client_id', $clientId)
             ->orderByDesc('id')
             ->pluck('product_id')
             ->map(fn ($id) => (int) $id)
@@ -64,7 +64,7 @@ class WishlistController extends Controller
         ]);
 
         WishlistItem::query()->firstOrCreate([
-            'user_id' => (int) $request->user()->id,
+            'client_id' => (int) $request->user()->id,
             'product_id' => (int) $validated['product_id'],
         ]);
 
@@ -74,7 +74,7 @@ class WishlistController extends Controller
     public function destroy(Request $request, int $productId): JsonResponse
     {
         WishlistItem::query()
-            ->where('user_id', (int) $request->user()->id)
+            ->where('client_id', (int) $request->user()->id)
             ->where('product_id', $productId)
             ->delete();
 
@@ -88,21 +88,21 @@ class WishlistController extends Controller
             'product_ids.*' => ['integer', 'exists:products,id'],
         ]);
 
-        $userId = (int) $request->user()->id;
+        $clientId = (int) $request->user()->id;
         $targetIds = collect($validated['product_ids'])
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->values()
             ->all();
 
-        $removeQuery = WishlistItem::query()->where('user_id', $userId);
+        $removeQuery = WishlistItem::query()->where('client_id', $clientId);
         if (!empty($targetIds)) {
             $removeQuery->whereNotIn('product_id', $targetIds);
         }
         $removeQuery->delete();
 
         $existing = WishlistItem::query()
-            ->where('user_id', $userId)
+            ->where('client_id', $clientId)
             ->pluck('product_id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -112,7 +112,7 @@ class WishlistController extends Controller
             WishlistItem::query()->insert(
                 array_map(
                     fn (int $productId) => [
-                        'user_id' => $userId,
+                        'client_id' => $clientId,
                         'product_id' => $productId,
                         'created_at' => now(),
                         'updated_at' => now(),

@@ -6,22 +6,38 @@ import { useAuth } from "@/components/auth/auth-provider";
 import AttachLoyaltyCardModal from "@/components/account/attach-loyalty-card-modal";
 import { resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import { formatBelarusPhoneSpaced } from "@/lib/site-contact";
+import type { AuthUserProfile } from "@/lib/auth-api";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 type UserAccountProps = {
-    user: {
-        name?: string | null;
-        phone?: string | null;
-        discount_cards?: {
-            id: number;
-            number: string;
-            discount_percent: string;
-            is_active: boolean;
-        }[];
-    } | null;
+    user: AuthUserProfile | null;
     logoutAction: () => void;
     onEditAction?: () => void;
 };
+
+function formatBirthDate(value?: string | null): string | null {
+    if (!value) {
+        return null;
+    }
+    const [year, month, day] = value.split("-");
+    if (!year || !month || !day) {
+        return value;
+    }
+    return `${day}.${month}.${year}`;
+}
+
+function formatProfileName(user: AuthUserProfile | null): string {
+    const fromParts = [user?.first_name, user?.patronymic, user?.last_name]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(" ");
+
+    if (fromParts) {
+        return fromParts;
+    }
+
+    return user?.name?.trim() || "Гость";
+}
 
 function formatDiscountPercent(value: string) {
     const n = Number(value);
@@ -36,7 +52,9 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
     const [attachModalOpen, setAttachModalOpen] = useState(false);
 
     const activeCard = resolveActiveLoyaltyCard(user?.discount_cards);
-    const userInitial = user?.name?.trim()?.[0]?.toUpperCase() || "U";
+    const displayName = formatProfileName(user);
+    const userInitial = displayName.trim()?.[0]?.toUpperCase() || "U";
+    const birthDateLabel = formatBirthDate(user?.birth_date);
 
     return (
         <aside className="space-y-4">
@@ -48,12 +66,22 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
 
                     <div className="min-w-0">
                         <div className="truncate text-lg font-semibold text-admin-text">
-                            {user?.name || "Гость"}
+                            {displayName}
                         </div>
 
                         <div className="mt-1 text-sm text-admin-text-secondary">
                             {user?.phone ? formatBelarusPhoneSpaced(user.phone) : "Телефон не указан"}
                         </div>
+
+                        {user?.email ? (
+                            <div className="mt-1 truncate text-sm text-admin-text-secondary">{user.email}</div>
+                        ) : null}
+
+                        {birthDateLabel ? (
+                            <div className="mt-1 text-sm text-admin-text-secondary">
+                                Дата рождения: {birthDateLabel}
+                            </div>
+                        ) : null}
 
                         {onEditAction ? (
                             <button

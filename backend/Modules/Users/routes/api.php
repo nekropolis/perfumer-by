@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Users\Http\Controllers\Api\AuthController;
+use Modules\Users\Http\Controllers\Api\AdminClientController;
 use Modules\Users\Http\Controllers\Api\AdminUserController;
 use Modules\Users\Http\Controllers\Api\AuditLogController;
 
@@ -24,10 +25,18 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/users')->group(fu
     Route::get('/', [AdminUserController::class, 'index']);
     Route::post('/', [AdminUserController::class, 'store']);
     Route::get('/{id}', [AdminUserController::class, 'show']);
-    Route::get('/{id}/orders-history', [AdminUserController::class, 'ordersHistory']);
     Route::patch('/{id}', [AdminUserController::class, 'update']);
     Route::delete('/{id}', [AdminUserController::class, 'destroy']);
     Route::patch('/{id}/role', [AdminUserController::class, 'updateRole']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/clients')->group(function () {
+    Route::get('/', [AdminClientController::class, 'index']);
+    Route::post('/', [AdminClientController::class, 'store']);
+    Route::get('/{id}', [AdminClientController::class, 'show']);
+    Route::get('/{id}/orders-history', [AdminClientController::class, 'ordersHistory']);
+    Route::patch('/{id}', [AdminClientController::class, 'update']);
+    Route::delete('/{id}', [AdminClientController::class, 'destroy']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/system/audit-log')->group(function () {

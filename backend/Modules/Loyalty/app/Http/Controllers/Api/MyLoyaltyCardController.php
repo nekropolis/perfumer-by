@@ -6,16 +6,16 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Loyalty\Models\DiscountCard;
-use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Loyalty\Models\ClientDiscountCard;
 
 class MyLoyaltyCardController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-        abort_if(!$user, 401);
+        $client = $request->user();
+        abort_if(! $client, 401);
 
-        $items = $user->discountCards()
+        $items = $client->discountCards()
             ->withPivot(['link_status', 'linked_at', 'verified_at', 'source', 'is_primary'])
             ->orderByDesc('discount_percent')
             ->get();
@@ -27,8 +27,8 @@ class MyLoyaltyCardController extends Controller
 
     public function attachByNumber(Request $request): JsonResponse
     {
-        $user = $request->user();
-        abort_if(!$user, 401);
+        $client = $request->user();
+        abort_if(! $client, 401);
 
         $validated = $request->validate([
             'number' => ['required', 'string', 'max:64'],
@@ -54,12 +54,12 @@ class MyLoyaltyCardController extends Controller
             ], 422);
         }
 
-        $already = $user->discountCards()->where('discount_cards.id', $card->id)->first();
+        $already = $client->discountCards()->where('discount_cards.id', $card->id)->first();
         if ($already) {
             $status = (string) $already->pivot->link_status;
             $message = match ($status) {
-                UserDiscountCard::LINK_VERIFIED => 'Карта уже привязана к вашему аккаунту',
-                UserDiscountCard::LINK_PENDING_CONFLICT => 'Заявка уже отправлена. Обратитесь в поддержку для разрешения конфликта.',
+                ClientDiscountCard::LINK_VERIFIED => 'Карта уже привязана к вашему аккаунту',
+                ClientDiscountCard::LINK_PENDING_CONFLICT => 'Заявка уже отправлена. Обратитесь в поддержку для разрешения конфликта.',
                 default => 'Связь с этой картой уже существует',
             };
 
@@ -70,30 +70,30 @@ class MyLoyaltyCardController extends Controller
             ]);
         }
 
-        $hasOtherVerifiedCard = $user->discountCards()
+        $hasOtherVerifiedCard = $client->discountCards()
             ->where('discount_cards.id', '<>', $card->id)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+            ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
             ->exists();
 
         if ($hasOtherVerifiedCard) {
             return response()->json([
                 'message' => 'К вашему аккаунту уже привязана другая карта. У клиента может быть только одна карта.',
-                'link_status' => UserDiscountCard::LINK_REJECTED,
+                'link_status' => ClientDiscountCard::LINK_REJECTED,
                 'code' => 'USER_ALREADY_HAS_DISCOUNT_CARD',
             ], 422);
         }
 
-        $user->discountCards()->attach($card->id, [
+        $client->discountCards()->attach($card->id, [
             'linked_at' => now(),
             'verified_at' => now(),
             'is_primary' => false,
-            'source' => UserDiscountCard::SOURCE_REGISTRATION,
-            'link_status' => UserDiscountCard::LINK_VERIFIED,
+            'source' => ClientDiscountCard::SOURCE_REGISTRATION,
+            'link_status' => ClientDiscountCard::LINK_VERIFIED,
         ]);
 
         return response()->json([
             'data' => $card->fresh(),
-            'link_status' => UserDiscountCard::LINK_VERIFIED,
+            'link_status' => ClientDiscountCard::LINK_VERIFIED,
             'message' => 'Карта привязана',
         ]);
     }

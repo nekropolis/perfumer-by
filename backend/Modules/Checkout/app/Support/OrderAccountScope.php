@@ -5,32 +5,32 @@ namespace Modules\Checkout\Support;
 use App\Support\Phone;
 use Illuminate\Database\Eloquent\Builder;
 use Modules\Checkout\Models\Order;
-use Modules\Users\Models\User;
+use Modules\Users\Models\Client;
 
 /**
- * Заказы, доступные клиенту в ЛК: по user_id и по совпадению телефона (гостевые и админские).
+ * Заказы, доступные клиенту в ЛК: по client_id и по совпадению телефона (гостевые и админские).
  */
 final class OrderAccountScope
 {
-    public static function queryForUser(User $user): Builder
+    public static function queryForClient(Client $client): Builder
     {
-        $normalizedPhone = Phone::normalize((string) ($user->phone ?? ''));
+        $normalizedPhone = Phone::normalize((string) ($client->phone ?? ''));
 
-        return Order::query()->where(function (Builder $query) use ($user, $normalizedPhone) {
-            $query->where('user_id', $user->id);
+        return Order::query()->where(function (Builder $query) use ($client, $normalizedPhone) {
+            $query->where('client_id', $client->id);
             if ($normalizedPhone !== '') {
                 $query->orWhere('phone', $normalizedPhone);
             }
         });
     }
 
-    public static function userCanAccess(Order $order, User $user): bool
+    public static function clientCanAccess(Order $order, Client $client): bool
     {
-        if ((int) $order->user_id === (int) $user->id) {
+        if ((int) $order->client_id === (int) $client->id) {
             return true;
         }
 
-        $normalizedPhone = Phone::normalize((string) ($user->phone ?? ''));
+        $normalizedPhone = Phone::normalize((string) ($client->phone ?? ''));
         if ($normalizedPhone === '') {
             return false;
         }
@@ -38,14 +38,14 @@ final class OrderAccountScope
         return Phone::normalize((string) $order->phone) === $normalizedPhone;
     }
 
-    public static function resolveUserIdForPhone(string $phone): ?int
+    public static function resolveClientIdForPhone(string $phone): ?int
     {
         $normalizedPhone = Phone::normalize($phone);
         if ($normalizedPhone === '') {
             return null;
         }
 
-        $exact = User::query()
+        $exact = Client::query()
             ->where('phone', $normalizedPhone)
             ->orderBy('id')
             ->first();
@@ -58,29 +58,29 @@ final class OrderAccountScope
             return null;
         }
 
-        $matched = User::query()
+        $matched = Client::query()
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderBy('id')
             ->limit(50)
             ->get()
-            ->first(fn (User $candidate) => Phone::normalize((string) $candidate->phone) === $normalizedPhone);
+            ->first(fn (Client $candidate) => Phone::normalize((string) $candidate->phone) === $normalizedPhone);
 
         return $matched ? (int) $matched->id : null;
     }
 
     /** Привязать гостевые заказы с тем же телефоном к аккаунту (вход, регистрация, /me). */
-    public static function linkOrdersForUser(User $user): int
+    public static function linkOrdersForClient(Client $client): int
     {
-        $phone = Phone::normalize((string) ($user->phone ?? ''));
+        $phone = Phone::normalize((string) ($client->phone ?? ''));
         if ($phone === '') {
             return 0;
         }
 
         $linked = Order::query()
-            ->whereNull('user_id')
+            ->whereNull('client_id')
             ->where('phone', $phone)
             ->update([
-                'user_id' => $user->id,
+                'client_id' => $client->id,
             ]);
 
         $suffix = strlen($phone) >= 9 ? substr($phone, -9) : $phone;
@@ -89,7 +89,7 @@ final class OrderAccountScope
         }
 
         $candidateIds = Order::query()
-            ->whereNull('user_id')
+            ->whereNull('client_id')
             ->where('phone', 'like', '%'.$suffix.'%')
             ->latest('id')
             ->limit(1000)
@@ -111,10 +111,10 @@ final class OrderAccountScope
         }
 
         $legacyLinked = Order::query()
-            ->whereNull('user_id')
+            ->whereNull('client_id')
             ->whereIn('id', $legacyIds)
             ->update([
-                'user_id' => $user->id,
+                'client_id' => $client->id,
             ]);
 
         return (int) $linked + (int) $legacyLinked;

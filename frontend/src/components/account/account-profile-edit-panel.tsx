@@ -28,6 +28,8 @@ export default function AccountProfileEditPanel({
     const [errorMessage, setErrorMessage] = useState("");
     const [isPending, startTransition] = useTransition();
 
+    const hasBirthDate = Boolean(user.birth_date);
+
     useEffect(() => {
         setFirstName(user.first_name ?? "");
         setLastName(user.last_name ?? "");
@@ -52,7 +54,7 @@ export default function AccountProfileEditPanel({
                     last_name: lastName.trim() || null,
                     patronymic: patronymic.trim() || null,
                     email: email.trim() || null,
-                    birth_date: birthDate || null,
+                    ...(!hasBirthDate && birthDate ? { birth_date: birthDate } : {}),
                 });
 
                 onSavedAction();
@@ -75,7 +77,10 @@ export default function AccountProfileEditPanel({
             <h2 className="mt-2 text-xl font-semibold tracking-tight">Профиль</h2>
 
             <p className="mt-2 text-sm text-admin-text-secondary">
-                Все поля необязательны. Телефон изменить здесь нельзя.
+                Имя, фамилия и отчество можно менять в любое время. Телефон изменить здесь нельзя.
+                {!hasBirthDate
+                    ? " Дату рождения можно указать один раз."
+                    : " Дату рождения изменить самостоятельно нельзя."}
             </p>
 
             <div className="mt-6 space-y-4">
@@ -145,8 +150,14 @@ export default function AccountProfileEditPanel({
                         <SiteDatePicker
                             value={birthDate}
                             onChangeAction={setBirthDate}
-                            placeholder="Выберите дату"
+                            placeholder={hasBirthDate ? "" : "Выберите дату"}
+                            disabled={hasBirthDate}
                         />
+                        {hasBirthDate ? (
+                            <p className="mt-1.5 text-xs text-admin-text-secondary">
+                                Для изменения даты рождения обратитесь в магазин.
+                            </p>
+                        ) : null}
                     </div>
                 </div>
 

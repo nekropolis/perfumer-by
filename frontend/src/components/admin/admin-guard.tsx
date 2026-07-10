@@ -36,7 +36,7 @@ export default function AdminGuard({ children }: Props) {
         );
     }
 
-    if (!isAdminRole(user?.role)) {
+    if (!isAdminRole(user)) {
         return (
             <div className="mx-auto max-w-lg rounded-xl border border-admin-border bg-admin-surface p-6 shadow-admin-card">
                 <h1 className="mb-4 text-xl font-semibold text-admin-text">Недостаточно прав</h1>

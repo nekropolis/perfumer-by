@@ -10,7 +10,6 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import LoyaltyCardForm, { type LoyaltyCardFormState } from "@/components/admin/loyalty/loyalty-card-form";
 import LoyaltyCardUserSearchPanel, {
     LoyaltyUserSelectionChips,
-    formatAdminUserPrimary,
 } from "@/components/admin/loyalty/loyalty-card-user-search-panel";
 import {
     attachUserToLoyaltyCard,
@@ -19,7 +18,7 @@ import {
     loyaltyCardDisplayNumber,
     updateLoyaltyCard,
 } from "@/lib/admin-loyalty-api";
-import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
+import { fetchAdminClients, formatAdminClientPrimary, type AdminClient } from "@/lib/admin-clients-api";
 
 export default function AdminLoyaltyCardEditPage() {
     const router = useRouter();
@@ -29,10 +28,10 @@ export default function AdminLoyaltyCardEditPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-    const [attachedUsers, setAttachedUsers] = useState<AdminUser[]>([]);
+    const [attachedUsers, setAttachedUsers] = useState<AdminClient[]>([]);
     const [userSearch, setUserSearch] = useState("");
-    const [foundUsers, setFoundUsers] = useState<AdminUser[]>([]);
-    const [usersToAttach, setUsersToAttach] = useState<AdminUser[]>([]);
+    const [foundUsers, setFoundUsers] = useState<AdminClient[]>([]);
+    const [usersToAttach, setUsersToAttach] = useState<AdminClient[]>([]);
     const [detachingUserId, setDetachingUserId] = useState<number | null>(null);
 
     useEffect(() => {
@@ -48,7 +47,7 @@ export default function AdminLoyaltyCardEditPage() {
                     discount_percent: String(item.discount_percent),
                     status: (item.status ?? (item.is_active ? "active" : "blocked")) as LoyaltyCardFormState["status"],
                 });
-                setAttachedUsers((item.users || []) as AdminUser[]);
+                setAttachedUsers((item.users || []) as AdminClient[]);
             } catch (e: unknown) {
                 setError(e instanceof Error ? e.message : "Ошибка загрузки карты");
             } finally {
@@ -82,10 +81,10 @@ export default function AdminLoyaltyCardEditPage() {
                 setError("Введите минимум 2 символа для поиска пользователя");
                 return;
             }
-            const response = await fetchAdminUsers({ search: query });
+            const response = await fetchAdminClients({ search: query });
             setFoundUsers(response.data || []);
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка поиска пользователей");
+            setError(e instanceof Error ? e.message : "Ошибка поиска клиентов");
         }
     };
 
@@ -98,7 +97,7 @@ export default function AdminLoyaltyCardEditPage() {
         try {
             await Promise.all(usersToAttach.map((u) => attachUserToLoyaltyCard(form.id!, u.id)));
             const refreshed = await fetchAdminLoyaltyCard(form.id);
-            setAttachedUsers((refreshed.data.users || []) as AdminUser[]);
+            setAttachedUsers((refreshed.data.users || []) as AdminClient[]);
             setUsersToAttach([]);
             setFoundUsers([]);
             setUserSearch("");
@@ -107,7 +106,7 @@ export default function AdminLoyaltyCardEditPage() {
         }
     };
 
-    const toggleUserSelection = (user: AdminUser, nextChecked: boolean) => {
+    const toggleUserSelection = (user: AdminClient, nextChecked: boolean) => {
         setUsersToAttach((prev) => {
             if (nextChecked) {
                 return prev.some((u) => u.id === user.id) ? prev : [...prev, user];
@@ -123,7 +122,7 @@ export default function AdminLoyaltyCardEditPage() {
         try {
             await detachUserFromLoyaltyCard(form.id, userId);
             const refreshed = await fetchAdminLoyaltyCard(form.id);
-            setAttachedUsers((refreshed.data.users || []) as AdminUser[]);
+            setAttachedUsers((refreshed.data.users || []) as AdminClient[]);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка отвязки пользователя");
         } finally {
@@ -164,15 +163,15 @@ export default function AdminLoyaltyCardEditPage() {
                     <LoyaltyCardForm form={form} submitting={submitting} onChangeAction={setForm} onSubmitAction={handleSubmit} />
 
                     <div className="mt-6 rounded-2xl border border-admin-border bg-white p-5">
-                        <div className="mb-3 text-base font-semibold">Привязанные пользователи</div>
+                        <div className="mb-3 text-base font-semibold">Привязанные клиенты</div>
                         {attachedUsers.length === 0 ? (
-                            <p className="mb-6 text-sm text-admin-text-secondary">Пользователи пока не привязаны.</p>
+                            <p className="mb-6 text-sm text-admin-text-secondary">Клиенты пока не привязаны.</p>
                         ) : (
                             <ul className="mb-6 divide-y divide-gray-200 overflow-hidden rounded-xl border border-admin-border bg-white">
                                 {attachedUsers.map((u) => (
                                     <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                                         <div className="min-w-0">
-                                            <div className="font-medium text-admin-text">{formatAdminUserPrimary(u)}</div>
+                                            <div className="font-medium text-admin-text">{formatAdminClientPrimary(u)}</div>
                                             <div className="mt-0.5 text-xs text-admin-text-secondary">ID {u.id}</div>
                                         </div>
                                         <button

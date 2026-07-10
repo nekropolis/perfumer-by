@@ -13,7 +13,7 @@ const emptyForm: UserFormState = {
     name: "",
     phone: "",
     email: "",
-    role: "customer",
+    role: "manager",
     password: "",
     passwordConfirmation: "",
 };
@@ -27,8 +27,15 @@ export default function AdminUsersCreatePage() {
     const handleSubmit = async () => {
         setSubmitting(true);
         setError("");
+
         if (!form.name.trim()) {
             setError("Имя обязательно");
+            setSubmitting(false);
+            return;
+        }
+
+        if (!form.email.trim()) {
+            setError("Email обязателен");
             setSubmitting(false);
             return;
         }
@@ -37,13 +44,13 @@ export default function AdminUsersCreatePage() {
             await createAdminUser({
                 name: form.name.trim(),
                 phone: form.phone.trim() || null,
-                email: form.email.trim() || null,
-                role: "customer",
+                email: form.email.trim(),
+                role: form.role,
                 password: form.password.trim() || null,
             });
             router.push("/admin/users");
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка создания пользователя");
+            setError(e instanceof Error ? e.message : "Ошибка создания сотрудника");
         } finally {
             setSubmitting(false);
         }
@@ -55,14 +62,14 @@ export default function AdminUsersCreatePage() {
                 className="mb-4"
                 items={[
                     { label: "Админка", href: "/admin" },
-                    { label: "Пользователи", href: "/admin/users" },
+                    { label: "Персонал", href: "/admin/users" },
                     { label: "Создание" },
                 ]}
             />
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Создать пользователя</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Новый пользователь в админской CRUD форме</p>
+                    <h1 className="text-2xl font-semibold">Создать сотрудника</h1>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Новый сотрудник с доступом в админку</p>
                 </div>
                 <Link href="/admin/users" className="rounded-xl border px-4 py-2 text-sm">
                     Назад
@@ -78,11 +85,9 @@ export default function AdminUsersCreatePage() {
                 form={form}
                 submitting={submitting}
                 submitLabel="Создать"
-                showRole={false}
                 onChangeAction={setForm}
                 onSubmitAction={handleSubmit}
             />
         </AdminPageCard>
     );
 }
-

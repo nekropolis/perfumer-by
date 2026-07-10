@@ -24,6 +24,7 @@ import {
     Settings,
     ShieldUser,
     ShoppingCart,
+    Users,
     Tags,
     Ticket,
 } from "lucide-react";
@@ -120,7 +121,8 @@ const sections: SidebarSection[] = [
         key: "system",
         label: "Система",
         items: [
-            { type: "link", href: "/admin/users", label: "Пользователи", icon: ShieldUser },
+            { type: "link", href: "/admin/clients", label: "Клиенты", icon: Users },
+            { type: "link", href: "/admin/users", label: "Персонал", icon: ShieldUser },
             { type: "link", href: "/admin/system/incoming-call-devices", label: "Телефоны CRM", icon: Phone },
             { type: "link", href: "/admin/system/audit-log", label: "Аудит", icon: ScrollText },
             { type: "link", href: "/admin/system/stock-receipts-import", label: "Импорт приходов XLS", icon: FolderSync },

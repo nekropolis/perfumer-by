@@ -9,7 +9,7 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import LoyaltyCardForm, { type LoyaltyCardFormState } from "@/components/admin/loyalty/loyalty-card-form";
 import LoyaltyCardUserSearchPanel, { LoyaltyUserSelectionChips } from "@/components/admin/loyalty/loyalty-card-user-search-panel";
 import { attachUserToLoyaltyCard, createLoyaltyCard } from "@/lib/admin-loyalty-api";
-import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
+import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
 
 const emptyForm: LoyaltyCardFormState = {
     number: "",
@@ -23,8 +23,8 @@ export default function AdminLoyaltyCardCreatePage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
     const [userSearch, setUserSearch] = useState("");
-    const [foundUsers, setFoundUsers] = useState<AdminUser[]>([]);
-    const [usersToAttach, setUsersToAttach] = useState<AdminUser[]>([]);
+    const [foundUsers, setFoundUsers] = useState<AdminClient[]>([]);
+    const [usersToAttach, setUsersToAttach] = useState<AdminClient[]>([]);
 
     const handleSubmit = async () => {
         setSubmitting(true);
@@ -62,14 +62,14 @@ export default function AdminLoyaltyCardCreatePage() {
                 setError("Введите минимум 2 символа для поиска пользователя");
                 return;
             }
-            const response = await fetchAdminUsers({ search: query });
+            const response = await fetchAdminClients({ search: query });
             setFoundUsers(response.data || []);
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка поиска пользователей");
+            setError(e instanceof Error ? e.message : "Ошибка поиска клиентов");
         }
     };
 
-    const toggleUserSelection = (user: AdminUser, nextChecked: boolean) => {
+    const toggleUserSelection = (user: AdminClient, nextChecked: boolean) => {
         setUsersToAttach((prev) => {
             if (nextChecked) {
                 return prev.some((u) => u.id === user.id) ? prev : [...prev, user];

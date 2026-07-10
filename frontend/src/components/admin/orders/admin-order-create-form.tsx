@@ -28,7 +28,7 @@ import {
   type ProductSmartSearchItem,
   type ProductSmartSearchVariantPreview,
 } from "@/lib/admin-products-api";
-import { fetchAdminUsers, type AdminUser } from "@/lib/admin-users-api";
+import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
@@ -362,7 +362,7 @@ export default function AdminOrderCreateForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [phoneHits, setPhoneHits] = useState<AdminUser[]>([]);
+  const [phoneHits, setPhoneHits] = useState<AdminClient[]>([]);
   const [phoneHitsOpen, setPhoneHitsOpen] = useState(false);
   const [phoneHitsLoading, setPhoneHitsLoading] = useState(false);
 
@@ -484,14 +484,14 @@ export default function AdminOrderCreateForm({
     const full = fullPhoneFromNational(nat);
     let cancelled = false;
     setPhoneHitsLoading(true);
-    void fetchAdminUsers({ search: full })
+    void fetchAdminClients({ search: full })
       .then((response) => {
         if (!cancelled) {
           const want = digitsOnly(full);
-          const rows = (response.data ?? []).filter((user) => {
-            if (!user.phone) return false;
-            const userPhoneDigits = digitsOnly(user.phone);
-            return userPhoneDigits === want || userPhoneDigits.endsWith(nat);
+          const rows = (response.data ?? []).filter((client) => {
+            if (!client.phone) return false;
+            const clientPhoneDigits = digitsOnly(client.phone);
+            return clientPhoneDigits === want || clientPhoneDigits.endsWith(nat);
           });
           setPhoneHits(rows.slice(0, 8));
         }
@@ -802,7 +802,7 @@ export default function AdminOrderCreateForm({
     }
   }, [applyDiscountCardToOrder, context, filledLinesForQuote.length, itemsLocked, discountCardManuallyCleared, appliedDiscountCardNumber]);
 
-  const selectPhoneHit = (u: AdminUser) => {
+  const selectPhoneHit = (u: AdminClient) => {
     const d = digitsOnly(u.phone ?? "");
     setNationalNumber(d.startsWith(PHONE_PREFIX) ? d.slice(PHONE_PREFIX.length) : d.slice(-9));
     const parts = parseCustomerNameParts(u.name ?? "");

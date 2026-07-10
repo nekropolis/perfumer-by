@@ -49,8 +49,8 @@ class ImportLegacyOrdersCommand extends Command
             ->get()
             ->keyBy('id');
         $customerMap = DB::table('legacy_map_customers')
-            ->whereNotNull('user_id')
-            ->pluck('user_id', 'legacy_customer_id')
+            ->whereNotNull('client_id')
+            ->pluck('client_id', 'legacy_customer_id')
             ->all();
 
         $productsByOrder = [];
@@ -94,7 +94,7 @@ class ImportLegacyOrdersCommand extends Command
             }
 
             $legacyCustomerId = (int) ($legacyOrder['customer_id'] ?? 0);
-            $userId = isset($customerMap[$legacyCustomerId]) ? (int) $customerMap[$legacyCustomerId] : null;
+            $clientId = isset($customerMap[$legacyCustomerId]) ? (int) $customerMap[$legacyCustomerId] : null;
 
             $customerName = trim(((string) ($legacyOrder['firstname'] ?? '')).' '.((string) ($legacyOrder['lastname'] ?? '')));
             if ($customerName === '') {
@@ -123,7 +123,7 @@ class ImportLegacyOrdersCommand extends Command
                     DB::beginTransaction();
 
                     $orderId = (int) DB::table('orders')->insertGetId([
-                        'user_id' => $userId,
+                        'client_id' => $clientId,
                         'cart_token' => null,
                         'customer_name' => $customerName,
                         'phone' => mb_substr($phone, 0, 32),

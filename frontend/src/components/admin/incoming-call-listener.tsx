@@ -45,7 +45,7 @@ export default function IncomingCallListener() {
     const lastHandledRef = useRef<{ phone: string; at: number } | null>(null);
 
     useEffect(() => {
-        if (!user || !isAdminRole(user.role)) {
+        if (!user || !isAdminRole(user)) {
             disconnectAdminEcho();
             return;
         }

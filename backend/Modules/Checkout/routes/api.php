@@ -54,7 +54,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock-notificatio
     Route::patch('/{id}/status', [StockNotificationAdminController::class, 'updateStatus']);
 });
 
-Route::middleware('auth:sanctum')->prefix('orders')->group(function () {
+Route::middleware(['auth:sanctum', 'ensure_client'])->prefix('orders')->group(function () {
     Route::get('/my', [MyOrdersController::class, 'index']);
     Route::get('/my/{id}', [MyOrdersController::class, 'show']);
 });

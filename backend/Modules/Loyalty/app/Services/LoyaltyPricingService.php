@@ -6,8 +6,8 @@ use Modules\Cart\Models\Cart;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
-use Modules\Loyalty\Models\UserDiscountCard;
-use Modules\Users\Models\User as CustomerUser;
+use Modules\Loyalty\Models\ClientDiscountCard;
+use Modules\Users\Models\Client;
 
 class LoyaltyPricingService
 {
@@ -18,7 +18,7 @@ class LoyaltyPricingService
     /**
      * @param  array{payment_method?: string, checkout_cart_item_ids?: int[]|null}  $options
      */
-    public function syncGiftCertificateReserveForCart(Cart $cart, ?CustomerUser $user = null, array $options = []): void
+    public function syncGiftCertificateReserveForCart(Cart $cart, ?Client $client = null, array $options = []): void
     {
         $paymentMethod = (string) ($options['payment_method'] ?? 'cash');
         $applyCardDiscount = $paymentMethod !== 'card';
@@ -26,7 +26,7 @@ class LoyaltyPricingService
         $subtotal = $this->cartSubtotal($cart, $options['checkout_cart_item_ids'] ?? null);
         $loyaltyDiscount = $this->loyaltyDiscountAmount(
             $cart,
-            $user,
+            $client,
             $applyCardDiscount,
             $options['checkout_cart_item_ids'] ?? null,
         );
@@ -62,22 +62,22 @@ class LoyaltyPricingService
      *                         checkout_cart_item_ids: при непустом массиве — только эти строки корзины (id cart_items) в сумме и в резерве сертификата;
      *                         при null — все строки (поведение по умолчанию).
      */
-    public function calculateForCart(Cart $cart, ?CustomerUser $user = null, array $options = []): array
+    public function calculateForCart(Cart $cart, ?Client $client = null, array $options = []): array
     {
         $paymentMethod = (string) ($options['payment_method'] ?? 'cash');
         $applyCardDiscount = $paymentMethod !== 'card';
 
-        $this->syncGiftCertificateReserveForCart($cart, $user, $options);
+        $this->syncGiftCertificateReserveForCart($cart, $client, $options);
         $cart->refresh();
 
         $subtotal = $this->cartSubtotal($cart, $options['checkout_cart_item_ids'] ?? null);
-        $resolvedCard = $this->resolveDiscountCard($cart, $user);
+        $resolvedCard = $this->resolveDiscountCard($cart, $client);
         $cardForDiscount = $applyCardDiscount ? $resolvedCard : null;
         $cardPercent = $cardForDiscount
             ? DiscountCard::effectiveDiscountPercent((float) $cardForDiscount->discount_percent)
             : 0.0;
         $loyaltyDiscount = $cardForDiscount
-            ? $this->loyaltyDiscountAmount($cart, $user, true, $options['checkout_cart_item_ids'] ?? null)
+            ? $this->loyaltyDiscountAmount($cart, $client, true, $options['checkout_cart_item_ids'] ?? null)
             : 0.0;
 
         $certificate = $this->resolveGiftCertificate($cart);
@@ -112,7 +112,7 @@ class LoyaltyPricingService
         return $cert;
     }
 
-    public function resolveDiscountCard(Cart $cart, ?CustomerUser $user = null): ?DiscountCard
+    public function resolveDiscountCard(Cart $cart, ?Client $client = null): ?DiscountCard
     {
         $number = trim((string) $cart->discount_card_number);
         if ($number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER) {
@@ -124,36 +124,36 @@ class LoyaltyPricingService
                 ->where('status', DiscountCard::STATUS_ACTIVE)
                 ->first();
             if (!$card) {
-                return $this->resolveUserVerifiedCard($user);
+                return $this->resolveClientVerifiedCard($client);
             }
 
-            if (!$user || $cart->discount_card_session_only) {
+            if (! $client || $cart->discount_card_session_only) {
                 return $card;
             }
 
-            if ($this->userHasVerifiedLink($user, $card)) {
+            if ($this->clientHasVerifiedLink($client, $card)) {
                 return $card;
             }
 
             return $card;
         }
 
-        if (!$user) {
+        if (! $client) {
             return null;
         }
 
-        return $this->resolveUserVerifiedCard($user);
+        return $this->resolveClientVerifiedCard($client);
     }
 
-    private function resolveUserVerifiedCard(?CustomerUser $user): ?DiscountCard
+    private function resolveClientVerifiedCard(?Client $client): ?DiscountCard
     {
-        if (!$user) {
+        if (! $client) {
             return null;
         }
 
-        return $user->discountCards()
+        return $client->discountCards()
             ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+            ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
             ->orderByDesc('discount_percent')
             ->first();
     }
@@ -191,7 +191,7 @@ class LoyaltyPricingService
      */
     private function loyaltyDiscountAmount(
         Cart $cart,
-        ?CustomerUser $user,
+        ?Client $client,
         bool $applyCardDiscount,
         ?array $onlyCartItemIds = null,
     ): float {
@@ -204,7 +204,7 @@ class LoyaltyPricingService
             return 0.0;
         }
 
-        $card = $this->resolveDiscountCard($cart, $user);
+        $card = $this->resolveDiscountCard($cart, $client);
         $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
 
         return round($eligibleSubtotal * ($cardPercent / 100), 2);
@@ -235,11 +235,11 @@ class LoyaltyPricingService
         });
     }
 
-    private function userHasVerifiedLink(CustomerUser $user, DiscountCard $card): bool
+    private function clientHasVerifiedLink(Client $client, DiscountCard $card): bool
     {
-        return $user->discountCards()
+        return $client->discountCards()
             ->where('discount_cards.id', $card->id)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+            ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
             ->exists();
     }
 

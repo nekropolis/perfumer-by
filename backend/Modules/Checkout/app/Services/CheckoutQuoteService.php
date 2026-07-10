@@ -5,7 +5,7 @@ namespace Modules\Checkout\Services;
 use Modules\Cart\Models\Cart;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\LoyaltyPricingService;
-use Modules\Users\Models\User as CustomerUser;
+use Modules\Users\Models\Client;
 
 final class CheckoutQuoteService
 {
@@ -31,7 +31,7 @@ final class CheckoutQuoteService
      */
     public function quote(
         Cart $cart,
-        ?CustomerUser $user,
+        ?Client $client,
         string $paymentMethod,
         string $deliveryMethod,
         ?array $checkoutCartItemIds = null,
@@ -44,7 +44,7 @@ final class CheckoutQuoteService
             $loyaltyOptions['checkout_cart_item_ids'] = $checkoutCartItemIds;
         }
 
-        $pricing = $this->loyaltyPricing->calculateForCart($cart, $user, $loyaltyOptions);
+        $pricing = $this->loyaltyPricing->calculateForCart($cart, $client, $loyaltyOptions);
 
         $subtotal = (float) $pricing['subtotal'];
         $loyaltyAmount = (float) $pricing['loyalty_discount_amount'];

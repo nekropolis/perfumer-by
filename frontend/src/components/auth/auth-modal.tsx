@@ -10,6 +10,8 @@ import {
     loginWithPassword,
     registerAccount,
     verifyRegistration,
+    type AuthSuccessResponse,
+    type AuthUserProfile,
 } from "@/lib/auth-api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { siteBtnGhost, siteBtnPrimary, siteBtnSecondary, siteInput } from "@/lib/site-ui-classes";
@@ -221,10 +223,19 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
         return error instanceof Error ? error.message || fallback : fallback;
     };
 
-    const completeAuth = async (token: string, authUser: { id: number; name: string | null; phone: string; role?: string }) => {
+    const toAuthProfile = (user: AuthSuccessResponse["user"]): AuthUserProfile => ({
+        id: user.id,
+        name: user.name,
+        phone: user.phone ?? null,
+        email: user.email ?? null,
+        role: user.role,
+        actor_type: user.actor_type ?? "client",
+    });
+
+    const completeAuth = async (token: string, authUser: AuthUserProfile) => {
         await login(token, authUser);
         onCloseAction();
-        if (isPrivilegedRole(authUser.role)) {
+        if (isPrivilegedRole(authUser)) {
             router.push("/admin");
         } else {
             router.push("/account");
@@ -246,7 +257,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
             try {
                 const captchaToken = await getRecaptchaToken("login");
                 const response = await loginWithPassword(phone, password, captchaToken);
-                await completeAuth(response.token, response.user);
+                await completeAuth(response.token, toAuthProfile(response.user));
             } catch (error) {
                 showMessage(getFriendlyAuthError(error, "Не удалось войти"), "error");
             }
@@ -301,7 +312,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
         startTransition(async () => {
             try {
                 const response = await verifyRegistration(phone, code);
-                await completeAuth(response.token, response.user);
+                await completeAuth(response.token, toAuthProfile(response.user));
             } catch (error) {
                 showMessage(getFriendlyAuthError(error, "Неверный код"), "error");
             }

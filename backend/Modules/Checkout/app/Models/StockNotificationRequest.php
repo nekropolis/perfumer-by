@@ -21,7 +21,7 @@ class StockNotificationRequest extends Model
 
     protected $fillable = [
         'kind',
-        'user_id',
+        'client_id',
         'product_id',
         'variant_id',
         'product_name',

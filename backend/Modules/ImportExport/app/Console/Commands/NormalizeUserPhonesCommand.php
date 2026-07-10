@@ -8,15 +8,27 @@ use Illuminate\Support\Facades\DB;
 class NormalizeUserPhonesCommand extends Command
 {
     protected $signature = 'legacy:normalize-user-phones
-        {--dry-run : Only show what would be updated}';
+        {--dry-run : Only show what would be updated}
+        {--staff : Also normalize users.phone for staff}';
 
-    protected $description = 'Normalize users.phone to digits only (remove + and non-digit chars)';
+    protected $description = 'Normalize clients.phone to digits only';
 
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+        $includeStaff = (bool) $this->option('staff');
 
-        $rows = DB::table('users')
+        $this->normalizeTablePhones('clients', $dryRun);
+        if ($includeStaff) {
+            $this->normalizeTablePhones('users', $dryRun);
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function normalizeTablePhones(string $table, bool $dryRun): void
+    {
+        $rows = DB::table($table)
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
             ->orderBy('id')
@@ -44,18 +56,18 @@ class NormalizeUserPhonesCommand extends Command
                 continue;
             }
 
-            $exists = DB::table('users')
+            $exists = DB::table($table)
                 ->where('id', '!=', $id)
                 ->where('phone', $normalized)
                 ->exists();
             if ($exists) {
                 $conflicts++;
-                $this->warn("Conflict: user_id={$id}, {$rawPhone} -> {$normalized} already exists");
+                $this->warn("Conflict: {$table} id={$id}, {$rawPhone} -> {$normalized} already exists");
                 continue;
             }
 
             if (! $dryRun) {
-                DB::table('users')->where('id', $id)->update([
+                DB::table($table)->where('id', $id)->update([
                     'phone' => $normalized,
                     'updated_at' => now(),
                 ]);
@@ -63,15 +75,12 @@ class NormalizeUserPhonesCommand extends Command
             $updated++;
         }
 
-        $this->info('Users phone normalization finished.');
+        $this->info("{$table} phone normalization finished.");
         $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
         $this->line("Processed: {$processed}");
         $this->line("Updated: {$updated}");
         $this->line("Unchanged: {$unchanged}");
         $this->line("Conflicts: {$conflicts}");
         $this->line("Empty after normalize: {$emptyAfterNormalize}");
-
-        return self::SUCCESS;
     }
 }
-

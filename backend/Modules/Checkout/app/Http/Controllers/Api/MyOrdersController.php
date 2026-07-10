@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Support\OrderAccountScope;
+use Modules\Users\Models\Client;
 
 class MyOrdersController extends Controller
 {
@@ -21,11 +22,12 @@ class MyOrdersController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
+        /** @var Client $client */
+        $client = $request->user();
 
-        OrderAccountScope::linkOrdersForUser($user);
+        OrderAccountScope::linkOrdersForClient($client);
 
-        $orders = OrderAccountScope::queryForUser($user)
+        $orders = OrderAccountScope::queryForClient($client)
             ->with(self::ORDER_RELATIONS)
             ->latest('id')
             ->paginate(20);
@@ -43,15 +45,16 @@ class MyOrdersController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $user = $request->user();
+        /** @var Client $client */
+        $client = $request->user();
 
-        OrderAccountScope::linkOrdersForUser($user);
+        OrderAccountScope::linkOrdersForClient($client);
 
         $order = Order::query()
             ->with(self::ORDER_RELATIONS)
             ->findOrFail($id);
 
-        if (! OrderAccountScope::userCanAccess($order, $user)) {
+        if (! OrderAccountScope::clientCanAccess($order, $client)) {
             abort(404);
         }
 

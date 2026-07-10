@@ -17,7 +17,7 @@ class Cart extends Model
 
     protected $fillable = [
         'token',
-        'user_id',
+        'client_id',
         'gift_certificate_code',
         'discount_card_number',
         'discount_card_session_only',

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
+import { isClientUser } from "@/constants/admin-roles";
 import { scheduleIdleTask, shouldEagerLoadUserData } from "@/lib/schedule-idle-task";
 import {
     addWishlistItem,
@@ -78,7 +79,8 @@ type Props = {
 
 export function WishlistProvider({ children }: Props) {
     const pathname = usePathname();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user, loading: authLoading } = useAuth();
+    const canSyncWishlist = isAuthenticated && isClientUser(user);
     const [productIds, setProductIds] = useState<number[]>([]);
     const [products, setProducts] = useState<ProductListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -92,7 +94,7 @@ export function WishlistProvider({ children }: Props) {
     }, []);
 
     const refreshWishlist = useCallback(async () => {
-        if (isAuthenticated) {
+        if (canSyncWishlist) {
             const response = await fetchWishlist();
             applyResponse(response);
             return;
@@ -108,16 +110,20 @@ export function WishlistProvider({ children }: Props) {
 
         const response = await previewWishlist(localIds);
         applyResponse(response);
-    }, [applyResponse, isAuthenticated]);
+    }, [applyResponse, canSyncWishlist]);
 
     useEffect(() => {
+        if (authLoading) {
+            return;
+        }
+
         let cancelled = false;
 
         const init = async () => {
             setLoading(true);
 
             try {
-                if (!isAuthenticated) {
+                if (!canSyncWishlist) {
                     const localIds = readLocalWishlistIds();
                     if (localIds.length === 0) {
                         if (!cancelled) {
@@ -192,7 +198,7 @@ export function WishlistProvider({ children }: Props) {
             cancelled = true;
             cancelIdle();
         };
-    }, [applyResponse, isAuthenticated, pathname]);
+    }, [applyResponse, authLoading, canSyncWishlist, pathname]);
 
     const addToWishlist = useCallback(
         async (productId: number) => {
@@ -208,7 +214,7 @@ export function WishlistProvider({ children }: Props) {
             writeLocalWishlistIds(optimisticIds);
 
             try {
-                if (isAuthenticated) {
+                if (canSyncWishlist) {
                     const response = await addWishlistItem(productId);
                     applyResponse(response);
                 } else {
@@ -220,7 +226,7 @@ export function WishlistProvider({ children }: Props) {
                 await refreshWishlist();
             }
         },
-        [applyResponse, isAuthenticated, productIds, refreshWishlist]
+        [applyResponse, canSyncWishlist, productIds, refreshWishlist]
     );
 
     const removeFromWishlist = useCallback(
@@ -237,7 +243,7 @@ export function WishlistProvider({ children }: Props) {
             writeLocalWishlistIds(optimisticIds);
 
             try {
-                if (isAuthenticated) {
+                if (canSyncWishlist) {
                     const response = await removeWishlistItem(productId);
                     applyResponse(response);
                 } else if (optimisticIds.length > 0) {
@@ -251,7 +257,7 @@ export function WishlistProvider({ children }: Props) {
                 await refreshWishlist();
             }
         },
-        [applyResponse, isAuthenticated, productIds, refreshWishlist]
+        [applyResponse, canSyncWishlist, productIds, refreshWishlist]
     );
 
     const toggleWishlist = useCallback(

@@ -59,11 +59,12 @@ class CallbackRequestController extends Controller
             ], 200);
         }
 
-        $user = $request->user();
+        $client = $request->user();
+        $client = $client instanceof \Modules\Users\Models\Client ? $client : null;
 
         $record = StockNotificationRequest::query()->create([
             'kind' => StockNotificationRequest::KIND_CALLBACK,
-            'user_id' => $user?->id,
+            'client_id' => $client?->id,
             'product_id' => $product?->id,
             'variant_id' => $variant?->id,
             'product_name' => $product

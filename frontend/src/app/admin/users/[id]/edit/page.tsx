@@ -34,7 +34,7 @@ export default function AdminUsersEditPage() {
                     passwordConfirmation: "",
                 });
             } catch (e: unknown) {
-                setError(e instanceof Error ? e.message : "Ошибка загрузки пользователя");
+                setError(e instanceof Error ? e.message : "Ошибка загрузки сотрудника");
             } finally {
                 setLoading(false);
             }
@@ -46,6 +46,12 @@ export default function AdminUsersEditPage() {
         if (!form) return;
         setSubmitting(true);
         setError("");
+
+        if (!form.email.trim()) {
+            setError("Email обязателен");
+            setSubmitting(false);
+            return;
+        }
 
         const password = form.password.trim();
         const passwordConfirmation = form.passwordConfirmation.trim();
@@ -67,7 +73,7 @@ export default function AdminUsersEditPage() {
             await updateAdminUser(Number(params.id), {
                 name: form.name.trim(),
                 phone: form.phone.trim() || null,
-                email: form.email.trim() || null,
+                email: form.email.trim(),
                 role: form.role,
                 ...(password !== ""
                     ? { password, password_confirmation: passwordConfirmation }
@@ -75,7 +81,7 @@ export default function AdminUsersEditPage() {
             });
             router.push("/admin/users");
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка обновления пользователя");
+            setError(e instanceof Error ? e.message : "Ошибка обновления сотрудника");
         } finally {
             setSubmitting(false);
         }
@@ -87,14 +93,14 @@ export default function AdminUsersEditPage() {
                 className="mb-4"
                 items={[
                     { label: "Админка", href: "/admin" },
-                    { label: "Пользователи", href: "/admin/users" },
+                    { label: "Персонал", href: "/admin/users" },
                     { label: "Редактирование" },
                 ]}
             />
             <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Редактировать пользователя</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Изменение полей профиля</p>
+                    <h1 className="text-2xl font-semibold">Редактировать сотрудника</h1>
+                    <p className="mt-1 text-sm text-admin-text-secondary">Изменение полей профиля и роли</p>
                 </div>
                 <Link href="/admin/users" className="rounded-xl border px-4 py-2 text-sm">
                     Назад
@@ -107,7 +113,7 @@ export default function AdminUsersEditPage() {
             ) : null}
 
             {loading ? (
-                <AdminLoadingState text="Загрузка пользователя..." />
+                <AdminLoadingState text="Загрузка сотрудника..." />
             ) : form ? (
                 <UserForm
                     form={form}
@@ -121,4 +127,3 @@ export default function AdminUsersEditPage() {
         </AdminPageCard>
     );
 }
-

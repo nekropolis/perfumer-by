@@ -2,7 +2,6 @@
 
 namespace Modules\Cart\Http\Controllers\Api;
 
-use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -11,7 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\GiftCertificateTemplate;
-use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Loyalty\Models\ClientDiscountCard;
+use Modules\Users\Models\Client;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Cart\Http\Resources\CartResource;
 use Modules\Cart\Models\Cart;
@@ -23,9 +23,11 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class CartController extends Controller
 {
-    private function resolveAuthenticatedUser(Request $request): ?Authenticatable
+    private function resolveAuthenticatedClient(Request $request): ?Client
     {
-        return $request->user() ?? Auth::guard('sanctum')->user();
+        $actor = $request->user() ?? Auth::guard('sanctum')->user();
+
+        return $actor instanceof Client ? $actor : null;
     }
 
     protected function resolveCart(Request $request): Cart
@@ -38,12 +40,12 @@ class CartController extends Controller
 
         $cart = Cart::query()->firstOrCreate(
             ['token' => $token],
-            ['user_id' => null]
+            ['client_id' => null]
         );
 
-        $user = $this->resolveAuthenticatedUser($request);
-        if ($user && !$cart->user_id) {
-            $cart->update(['user_id' => $user->id]);
+        $client = $this->resolveAuthenticatedClient($request);
+        if ($client && ! $cart->client_id) {
+            $cart->update(['client_id' => $client->id]);
         }
 
         return $cart;
@@ -254,7 +256,7 @@ class CartController extends Controller
                 'code' => 'DISCOUNT_CARD_INVALID',
             ], 422);
         }
-        $user = $this->resolveAuthenticatedUser($request);
+        $client = $this->resolveAuthenticatedClient($request);
         $sessionOnly = (bool) ($validated['session_only'] ?? false);
 
         $card = DiscountCard::query()
@@ -275,15 +277,15 @@ class CartController extends Controller
             ], 422);
         }
 
-        if ($user && !$sessionOnly) {
-            $linkedToSelf = $user->discountCards()
+        if ($client && ! $sessionOnly) {
+            $linkedToSelf = $client->discountCards()
                 ->where('discount_cards.id', $card->id)
-                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->exists();
 
-            $linkedToOtherCard = $user->discountCards()
+            $linkedToOtherCard = $client->discountCards()
                 ->where('discount_cards.id', '<>', $card->id)
-                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->exists();
 
             if ($linkedToOtherCard && !$linkedToSelf) {
@@ -297,7 +299,7 @@ class CartController extends Controller
             // Привязка разрешена только в ЛК или через админку.
         }
 
-        $guestSessionOnly = !$user;
+        $guestSessionOnly = ! $client;
         $cart->update([
             'discount_card_number' => $number,
             'discount_card_session_only' => $guestSessionOnly || $sessionOnly,
@@ -311,19 +313,19 @@ class CartController extends Controller
     public function clearDiscountCard(Request $request): JsonResponse
     {
         $cart = $this->resolveCart($request);
-        $user = $this->resolveAuthenticatedUser($request);
+        $client = $this->resolveAuthenticatedClient($request);
 
         $number = trim((string) $cart->discount_card_number);
         $isMarker = $number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER;
         $hasStoredRealNumber = $number !== '' && !$isMarker;
 
-        if ($user && $cart->discount_card_session_only && $hasStoredRealNumber) {
+        if ($client && $cart->discount_card_session_only && $hasStoredRealNumber) {
             // Временная «другая карта» для заказа — возвращаем профильную.
             $cart->update([
                 'discount_card_number' => null,
                 'discount_card_session_only' => false,
             ]);
-        } elseif ($user) {
+        } elseif ($client) {
             // Убираем профильную из черновика заказа или готовим ввод другой карты (до перезагрузки страницы).
             $cart->update([
                 'discount_card_number' => Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER,

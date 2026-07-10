@@ -24,7 +24,8 @@ use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Loyalty\Services\LoyaltyPricingService;
-use Modules\Users\Models\User as CustomerUser;
+use Modules\Checkout\Support\OrderAccountScope;
+use Modules\Users\Models\Client;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockInventoryService;
@@ -63,8 +64,9 @@ class CheckoutController extends Controller
             : null;
 
         $phone = $this->normalizePhone($validated['phone']);
-        $user = $request->user() ?? Auth::guard('sanctum')->user();
-        $orderUserId = $this->resolveOrderUserId($user, $phone);
+        $client = $request->user() ?? Auth::guard('sanctum')->user();
+        $client = $client instanceof Client ? $client : null;
+        $orderClientId = $this->resolveOrderClientId($client, $phone);
 
         $cartItemAvailabilitySource = function (CartItem $cartItem): string {
             if ($cartItem->availability_source) {
@@ -151,7 +153,7 @@ class CheckoutController extends Controller
 
         $quote = $quoteService->quote(
             $cart,
-            $user,
+            $client,
             $validated['payment_method'],
             $validated['delivery_method'],
             $partialCheckout ? $checkoutProductLineIds : null,
@@ -161,21 +163,21 @@ class CheckoutController extends Controller
         $order = DB::transaction(function () use (
             $cart,
             $cartToken,
-            $orderUserId,
+            $orderClientId,
             $validated,
             $phone,
             $quote,
             $partialCheckout,
             $checkoutProductLineIds,
             $checkoutGiftLineIds,
-            $user,
+            $client,
             $cartItemAvailabilitySource,
         ) {
             $subtotal = 0;
             $itemsQty = 0;
 
             $order = Order::query()->create([
-                'user_id' => $orderUserId,
+                'client_id' => $orderClientId,
                 'cart_token' => $cartToken,
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
@@ -288,7 +290,7 @@ class CheckoutController extends Controller
                         'discount_card_session_only' => false,
                     ]);
                 } else {
-                    app(LoyaltyPricingService::class)->syncGiftCertificateReserveForCart($cart, $user, [
+                    app(LoyaltyPricingService::class)->syncGiftCertificateReserveForCart($cart, $client, [
                         'payment_method' => $validated['payment_method'],
                     ]);
                 }
@@ -366,37 +368,17 @@ class CheckoutController extends Controller
         return !empty($parts) ? implode(' / ', $parts) : ($variant->title ?? '');
     }
 
-    private function resolveOrderUserId(?CustomerUser $authenticatedUser, string $normalizedPhone): ?int
+    private function resolveOrderClientId(?Client $authenticatedClient, string $normalizedPhone): ?int
     {
         if ($normalizedPhone === '') {
             return null;
         }
 
-        $authPhone = $authenticatedUser ? $this->normalizePhone((string) $authenticatedUser->phone) : '';
-        if ($authenticatedUser && $authPhone !== '' && $authPhone === $normalizedPhone) {
-            return (int) $authenticatedUser->id;
+        $authPhone = $authenticatedClient ? $this->normalizePhone((string) $authenticatedClient->phone) : '';
+        if ($authenticatedClient && $authPhone !== '' && $authPhone === $normalizedPhone) {
+            return (int) $authenticatedClient->id;
         }
 
-        $exact = CustomerUser::query()
-            ->where('phone', $normalizedPhone)
-            ->orderBy('id')
-            ->first();
-        if ($exact) {
-            return (int) $exact->id;
-        }
-
-        $suffix = strlen($normalizedPhone) >= 9 ? substr($normalizedPhone, -9) : $normalizedPhone;
-        if ($suffix === '') {
-            return null;
-        }
-
-        $matched = CustomerUser::query()
-            ->where('phone', 'like', '%'.$suffix.'%')
-            ->orderBy('id')
-            ->limit(50)
-            ->get()
-            ->first(fn (CustomerUser $candidate) => $this->normalizePhone((string) $candidate->phone) === $normalizedPhone);
-
-        return $matched ? (int) $matched->id : null;
+        return OrderAccountScope::resolveClientIdForPhone($normalizedPhone);
     }
 }

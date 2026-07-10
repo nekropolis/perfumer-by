@@ -4,7 +4,7 @@ namespace Modules\Checkout\Services;
 
 use App\Support\Phone;
 use Modules\Checkout\Models\Order;
-use Modules\Users\Models\User;
+use Modules\Users\Models\Client;
 
 final class CustomerContextByPhoneService
 {
@@ -39,16 +39,16 @@ final class CustomerContextByPhoneService
         $cancelled = $orderRows->where('status', 'cancelled')->count();
         $active = $orderRows->whereNotIn('status', ['done', 'completed', 'cancelled'])->count();
 
-        $user = User::query()
+        $client = Client::query()
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderBy('id')
             ->limit(50)
             ->get()
-            ->first(fn (User $candidate) => Phone::normalize((string) $candidate->phone) === $digits);
+            ->first(fn (Client $candidate) => Phone::normalize((string) $candidate->phone) === $digits);
 
         $customerName = null;
-        if ($user && filled(trim((string) ($user->name ?? '')))) {
-            $customerName = trim((string) $user->name);
+        if ($client && filled(trim((string) ($client->name ?? '')))) {
+            $customerName = trim((string) $client->name);
         } else {
             $latestNamedOrder = $orderRows->first(
                 fn (Order $order) => filled(trim((string) ($order->customer_name ?? '')))
@@ -59,9 +59,9 @@ final class CustomerContextByPhoneService
         }
 
         return [
-            'matched_user' => $user ? [
-                'id' => (int) $user->id,
-                'name' => $user->name,
+            'matched_user' => $client ? [
+                'id' => (int) $client->id,
+                'name' => $client->name,
             ] : null,
             'customer_name' => $customerName,
             'orders' => [

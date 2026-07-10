@@ -13,13 +13,19 @@ type Props = {
     form: UserFormState;
     submitting: boolean;
     submitLabel: string;
-    showRole?: boolean;
     isEdit?: boolean;
     onChangeAction: (next: UserFormState) => void;
     onSubmitAction: () => void;
 };
 
-const ROLES = ["customer", "admin", "manager", "ceo"] as const;
+const ROLES = ["admin", "manager", "ceo"] as const;
+
+const ROLE_LABELS: Record<(typeof ROLES)[number], string> = {
+    admin: "Админ",
+    manager: "Менеджер",
+    ceo: "CEO",
+};
+
 const PHONE_PREFIX = "375";
 
 function digitsOnly(value: string): string {
@@ -49,7 +55,6 @@ export default function UserForm({
     form,
     submitting,
     submitLabel,
-    showRole = true,
     isEdit = false,
     onChangeAction,
     onSubmitAction,
@@ -65,6 +70,18 @@ export default function UserForm({
                         value={form.name}
                         onChange={(e) => onChangeAction({ ...form, name: e.target.value })}
                         className="w-full rounded-xl border px-3 py-2 text-sm"
+                    />
+                </div>
+                <div>
+                    <label className="mb-1 block text-sm text-admin-text-secondary">
+                        Email <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                        value={form.email}
+                        onChange={(e) => onChangeAction({ ...form, email: e.target.value })}
+                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        type="email"
+                        required
                     />
                 </div>
                 <div>
@@ -90,29 +107,19 @@ export default function UserForm({
                     </div>
                 </div>
                 <div>
-                    <label className="mb-1 block text-sm text-admin-text-secondary">Email</label>
-                    <input
-                        value={form.email}
-                        onChange={(e) => onChangeAction({ ...form, email: e.target.value })}
+                    <label className="mb-1 block text-sm text-admin-text-secondary">Роль</label>
+                    <select
+                        value={ROLES.includes(form.role as (typeof ROLES)[number]) ? form.role : "manager"}
+                        onChange={(e) => onChangeAction({ ...form, role: e.target.value })}
                         className="w-full rounded-xl border px-3 py-2 text-sm"
-                    />
+                    >
+                        {ROLES.map((role) => (
+                            <option key={role} value={role}>
+                                {ROLE_LABELS[role]}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-                {showRole ? (
-                    <div>
-                        <label className="mb-1 block text-sm text-admin-text-secondary">Роль</label>
-                        <select
-                            value={form.role}
-                            onChange={(e) => onChangeAction({ ...form, role: e.target.value })}
-                            className="w-full rounded-xl border px-3 py-2 text-sm"
-                        >
-                            {ROLES.map((role) => (
-                                <option key={role} value={role}>
-                                    {role}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                ) : null}
                 <div className={isEdit ? "md:col-span-2 grid gap-4 sm:grid-cols-2" : "md:col-span-2"}>
                     <div>
                         <label className="mb-1 block text-sm text-admin-text-secondary">
@@ -165,4 +172,3 @@ export default function UserForm({
 }
 
 export type { UserFormState };
-

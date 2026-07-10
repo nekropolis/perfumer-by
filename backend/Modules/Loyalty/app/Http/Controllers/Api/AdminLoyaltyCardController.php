@@ -2,15 +2,15 @@
 
 namespace Modules\Loyalty\Http\Controllers\Api;
 
-use App\Models\User;
 use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
+use Modules\Loyalty\Models\ClientDiscountCard;
 use Modules\Loyalty\Models\DiscountCard;
-use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Users\Models\Client;
 
 class AdminLoyaltyCardController extends Controller
 {
@@ -19,16 +19,17 @@ class AdminLoyaltyCardController extends Controller
         $search = trim((string) $request->input('search', ''));
 
         $items = DiscountCard::query()
-            ->with('users:id,name,phone')
+            ->with('clients:id,name,phone')
             ->when($search !== '', fn ($q) => $q->where('card_number', 'like', "%{$search}%"))
             ->latest('id')
             ->paginate(20);
 
-        $items->getCollection()->transform(static function (DiscountCard $card): DiscountCard {
+        $items->getCollection()->transform(function (DiscountCard $card): DiscountCard {
             $card->setAttribute(
                 'discount_percent',
                 DiscountCard::effectiveDiscountPercent((float) $card->discount_percent)
             );
+            $card->setRelation('users', $card->clients);
 
             return $card;
         });
@@ -74,12 +75,13 @@ class AdminLoyaltyCardController extends Controller
     public function show(int $id): JsonResponse
     {
         $item = DiscountCard::query()
-            ->with('users:id,name,phone')
+            ->with('clients:id,name,phone')
             ->findOrFail($id);
         $item->setAttribute(
             'discount_percent',
             DiscountCard::effectiveDiscountPercent((float) $item->discount_percent)
         );
+        $item->setRelation('users', $item->clients);
 
         return response()->json([
             'data' => $item,
@@ -105,12 +107,13 @@ class AdminLoyaltyCardController extends Controller
         $item->update($validated);
         app(AuditLogService::class)->record('discount_card', (int) $item->id, AuditLogService::ACTION_UPDATED, 'Обновлена скидочная карта');
 
-        $item->load('users:id,name,phone');
+        $item->load('clients:id,name,phone');
         $item->refresh();
         $item->setAttribute(
             'discount_percent',
             DiscountCard::effectiveDiscountPercent((float) $item->discount_percent)
         );
+        $item->setRelation('users', $item->clients);
 
         return response()->json(['data' => $item]);
     }
@@ -119,48 +122,53 @@ class AdminLoyaltyCardController extends Controller
     {
         $card = DiscountCard::query()->findOrFail($id);
         $validated = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'user_id' => ['required', 'integer', 'exists:clients,id'],
         ]);
 
-        $user = User::query()->findOrFail((int) $validated['user_id']);
-        DB::transaction(function () use ($card, $user) {
-            // One card per user: remove other verified links before attaching target card.
-            $user->discountCards()
+        $client = Client::query()->findOrFail((int) $validated['user_id']);
+        DB::transaction(function () use ($card, $client) {
+            $client->discountCards()
                 ->where('discount_cards.id', '<>', $card->id)
-                ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+                ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->detach();
 
-            $card->users()->syncWithoutDetaching([
-                $user->id => [
+            $card->clients()->syncWithoutDetaching([
+                $client->id => [
                     'linked_at' => now(),
                     'verified_at' => now(),
                     'is_primary' => false,
-                    'source' => UserDiscountCard::SOURCE_MANAGER,
-                    'link_status' => UserDiscountCard::LINK_VERIFIED,
+                    'source' => ClientDiscountCard::SOURCE_MANAGER,
+                    'link_status' => ClientDiscountCard::LINK_VERIFIED,
                 ],
             ]);
         });
 
         app(AuditLogService::class)->record('discount_card', (int) $card->id, AuditLogService::ACTION_UPDATED, 'Карта привязана к пользователю');
 
-        return response()->json(['data' => $card->fresh('users:id,name,phone')]);
+        $card = $card->fresh('clients:id,name,phone');
+        $card->setRelation('users', $card->clients);
+
+        return response()->json(['data' => $card]);
     }
 
     public function detachUser(int $id, int $userId): JsonResponse
     {
         $card = DiscountCard::query()->findOrFail($id);
-        User::query()->findOrFail($userId);
+        Client::query()->findOrFail($userId);
 
-        $card->users()->detach($userId);
+        $card->clients()->detach($userId);
 
         app(AuditLogService::class)->record(
             'discount_card',
             (int) $card->id,
             AuditLogService::ACTION_UPDATED,
             'Пользователь отвязан от скидочной карты',
-            ['user_id' => $userId],
+            ['client_id' => $userId],
         );
 
-        return response()->json(['data' => $card->fresh('users:id,name,phone')]);
+        $card = $card->fresh('clients:id,name,phone');
+        $card->setRelation('users', $card->clients);
+
+        return response()->json(['data' => $card]);
     }
 }

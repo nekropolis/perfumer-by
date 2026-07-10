@@ -23,7 +23,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/loyalty')->group(
     Route::get('/reports/cards', [AdminLoyaltyReportController::class, 'cards']);
 });
 
-Route::middleware('auth:sanctum')->prefix('loyalty')->group(function () {
+Route::middleware(['auth:sanctum', 'ensure_client'])->prefix('loyalty')->group(function () {
     Route::get('/cards/my', [MyLoyaltyCardController::class, 'index']);
     Route::post('/cards/attach', [MyLoyaltyCardController::class, 'attachByNumber']);
 });

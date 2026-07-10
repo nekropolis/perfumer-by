@@ -28,7 +28,7 @@ class SoldGiftCertificateFromOrderService
                     'initial_amount' => (float) $purchase->amount,
                     'source' => GiftCertificate::SOURCE_SOLD,
                     'sold_order_id' => $order->id,
-                    'issued_to_user_id' => $order->user_id,
+                    'issued_to_client_id' => $order->client_id,
                     'issued_phone' => $order->phone,
                     'comment' => 'Создан при оформлении заказа #'.$order->id,
                     'issued_at' => now()->toDateTimeString(),

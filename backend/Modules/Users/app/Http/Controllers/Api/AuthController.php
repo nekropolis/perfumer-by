@@ -12,10 +12,13 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\Rule;
 use Modules\Loyalty\Models\DiscountCard;
-use Modules\Loyalty\Models\UserDiscountCard;
+use Modules\Loyalty\Models\ClientDiscountCard;
 use Modules\Users\Models\PhoneVerification;
 use Modules\Checkout\Support\OrderAccountScope;
+use Modules\Users\Enums\Role;
+use Modules\Users\Models\Client;
 use Modules\Users\Models\User;
+use Modules\Users\Support\PhoneAccountLookup;
 
 class AuthController extends Controller
 {
@@ -94,81 +97,83 @@ class AuthController extends Controller
             'verified_at' => now(),
         ]);
 
-        $user = User::query()->firstOrCreate(
-            ['phone' => $phone],
-            [
-                'name' => $validated['name'] ?? 'Пользователь',
-                'email' => $phone . '@phone.local',
+        $client = PhoneAccountLookup::findClient($phone);
+        if (! $client instanceof Client) {
+            $client = Client::query()->create([
+                'name' => $validated['name'] ?? 'Клиент',
+                'email' => $phone.'@phone.local',
                 'password' => bcrypt(bin2hex(random_bytes(16))),
-                'phone_verified_at' => now(),
-            ]
-        );
-
-        if (!$user->phone_verified_at) {
-            $user->update([
+                'phone' => $phone,
                 'phone_verified_at' => now(),
             ]);
         }
 
-        if (($validated['name'] ?? null) && !$user->name) {
-            $user->update([
+        if (!$client->phone_verified_at) {
+            $client->update([
+                'phone_verified_at' => now(),
+            ]);
+        }
+
+        if (($validated['name'] ?? null) && !$client->name) {
+            $client->update([
                 'name' => $validated['name'],
             ]);
         }
 
-        $this->attachOrdersToUser($user, $phone);
-        $token = $user->createToken('frontend')->plainTextToken;
+        $this->attachOrdersToClient($client, $phone);
+        $token = $client->createToken('frontend')->plainTextToken;
         $this->clearVerifyFailures($phone);
 
         return response()->json([
             'message' => 'Authenticated',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'phone' => $user->phone,
-                'role' => $user->role,
-            ],
+            'user' => $this->toAuthUserPayload($client),
         ]);
     }
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $actor = $request->user();
 
-        if (!$user instanceof User) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+        if ($actor instanceof Client) {
+            OrderAccountScope::linkOrdersForClient($actor);
+
+            $verifiedCards = $actor->discountCards()
+                ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
+                ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
+                ->orderByDesc('discount_percent')
+                ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
+
+            $cardsPayload = $verifiedCards->map(static function ($card) {
+                $pct = DiscountCard::effectiveDiscountPercent((float) $card->discount_percent);
+
+                return [
+                    'id' => (int) $card->id,
+                    'number' => (string) $card->card_number,
+                    'discount_percent' => (string) $pct,
+                    'is_active' => $card->status === DiscountCard::STATUS_ACTIVE,
+                ];
+            })->values()->all();
+
+            return response()->json([
+                'data' => $this->toClientProfilePayload($actor, $cardsPayload),
+            ]);
         }
 
-        OrderAccountScope::linkOrdersForUser($user);
+        if ($actor instanceof User) {
+            return response()->json([
+                'data' => $this->toStaffProfilePayload($actor),
+            ]);
+        }
 
-        $verifiedCards = $user->discountCards()
-            ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
-            ->orderByDesc('discount_percent')
-            ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
-
-        $cardsPayload = $verifiedCards->map(static function ($card) {
-            $pct = DiscountCard::effectiveDiscountPercent((float) $card->discount_percent);
-
-            return [
-                'id' => (int) $card->id,
-                'number' => (string) $card->card_number,
-                'discount_percent' => (string) $pct,
-                'is_active' => $card->status === DiscountCard::STATUS_ACTIVE,
-            ];
-        })->values()->all();
-
-        return response()->json([
-            'data' => $this->toProfilePayload($user, $cardsPayload),
-        ]);
+        return response()->json(['message' => 'Unauthenticated.'], 401);
     }
 
     public function updateProfile(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $client = $request->user();
 
-        if (!$user instanceof User) {
+        if (!$client instanceof Client) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
@@ -180,20 +185,20 @@ class AuthController extends Controller
                 'nullable',
                 'email',
                 'max:255',
-                Rule::unique('users', 'email')->ignore($user->id),
+                Rule::unique('clients', 'email')->ignore($client->id),
             ],
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
         ]);
 
         $firstName = array_key_exists('first_name', $validated)
             ? trim((string) ($validated['first_name'] ?? ''))
-            : trim((string) ($user->first_name ?? ''));
+            : trim((string) ($client->first_name ?? ''));
         $lastName = array_key_exists('last_name', $validated)
             ? trim((string) ($validated['last_name'] ?? ''))
-            : trim((string) ($user->last_name ?? ''));
+            : trim((string) ($client->last_name ?? ''));
         $patronymic = array_key_exists('patronymic', $validated)
             ? trim((string) ($validated['patronymic'] ?? ''))
-            : trim((string) ($user->patronymic ?? ''));
+            : trim((string) ($client->patronymic ?? ''));
 
         $updates = [
             'first_name' => $firstName !== '' ? $firstName : null,
@@ -202,7 +207,23 @@ class AuthController extends Controller
         ];
 
         if (array_key_exists('birth_date', $validated)) {
-            $updates['birth_date'] = $validated['birth_date'] ?: null;
+            $incomingBirthDate = $validated['birth_date'] ?: null;
+            $existingBirthDate = $client->birth_date?->format('Y-m-d');
+
+            if ($existingBirthDate !== null) {
+                if (
+                    $incomingBirthDate !== null
+                    && $incomingBirthDate !== $existingBirthDate
+                ) {
+                    $this->apiError(
+                        422,
+                        'Дату рождения можно указать только один раз. Для изменения обратитесь в магазин.',
+                        'auth.profile.birth_date_locked'
+                    );
+                }
+            } elseif ($incomingBirthDate !== null) {
+                $updates['birth_date'] = $incomingBirthDate;
+            }
         }
 
         $displayName = trim(implode(' ', array_filter([$firstName, $patronymic, $lastName])));
@@ -213,22 +234,22 @@ class AuthController extends Controller
         if (array_key_exists('email', $validated)) {
             $email = trim((string) ($validated['email'] ?? ''));
             if ($email === '') {
-                if ($user->isPlaceholderEmail() || !$user->phone) {
-                    $updates['email'] = $user->email;
+                if ($client->isPlaceholderEmail() || !$client->phone) {
+                    $updates['email'] = $client->email;
                 } else {
-                    $updates['email'] = $this->normalizePhone((string) $user->phone).'@phone.local';
+                    $updates['email'] = $this->normalizePhone((string) $client->phone).'@phone.local';
                 }
             } else {
                 $updates['email'] = mb_strtolower($email, 'UTF-8');
             }
         }
 
-        $user->update($updates);
-        $user->refresh();
+        $client->update($updates);
+        $client->refresh();
 
-        $verifiedCards = $user->discountCards()
+        $verifiedCards = $client->discountCards()
             ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
-            ->wherePivot('link_status', UserDiscountCard::LINK_VERIFIED)
+            ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
             ->orderByDesc('discount_percent')
             ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
 
@@ -244,7 +265,7 @@ class AuthController extends Controller
         })->values()->all();
 
         return response()->json([
-            'data' => $this->toProfilePayload($user, $cardsPayload),
+            'data' => $this->toClientProfilePayload($client, $cardsPayload),
             'message' => 'Профиль обновлён',
         ]);
     }
@@ -253,20 +274,56 @@ class AuthController extends Controller
      * @param  array<int, array<string, mixed>>  $cardsPayload
      * @return array<string, mixed>
      */
-    protected function toProfilePayload(User $user, array $cardsPayload): array
+    protected function toClientProfilePayload(Client $client, array $cardsPayload): array
+    {
+        return [
+            'id' => $client->id,
+            'name' => $client->displayName(),
+            'first_name' => $client->first_name,
+            'last_name' => $client->last_name,
+            'patronymic' => $client->patronymic,
+            'email' => $client->profileEmail(),
+            'birth_date' => $client->birth_date?->format('Y-m-d'),
+            'phone' => $client->phone,
+            'phone_verified_at' => $client->phone_verified_at?->toIso8601String(),
+            'actor_type' => 'client',
+            'discount_cards' => $cardsPayload,
+        ];
+    }
+
+    protected function toStaffProfilePayload(User $user): array
     {
         return [
             'id' => $user->id,
-            'name' => $user->displayName(),
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'patronymic' => $user->patronymic,
-            'email' => $user->profileEmail(),
-            'birth_date' => $user->birth_date?->format('Y-m-d'),
+            'name' => $user->name,
+            'email' => $user->email,
             'phone' => $user->phone,
-            'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),
             'role' => $user->role,
-            'discount_cards' => $cardsPayload,
+            'actor_type' => 'staff',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function toAuthUserPayload(Client|User $actor): array
+    {
+        if ($actor instanceof Client) {
+            return [
+                'id' => $actor->id,
+                'name' => $actor->displayName(),
+                'phone' => $actor->phone,
+                'actor_type' => 'client',
+            ];
+        }
+
+        return [
+            'id' => $actor->id,
+            'name' => $actor->name,
+            'email' => $actor->email,
+            'phone' => $actor->phone,
+            'role' => $actor->role,
+            'actor_type' => 'staff',
         ];
     }
 
@@ -282,7 +339,7 @@ class AuthController extends Controller
         $phone = $this->normalizePhone($validated['phone']);
         $name = trim((string) $validated['name']);
 
-        if (User::query()->where('phone', $phone)->exists()) {
+        if (PhoneAccountLookup::clientExists($phone)) {
             $this->apiError(409, 'Пользователь с этим номером уже зарегистрирован. Войдите в аккаунт.', 'auth.register.user_exists');
         }
 
@@ -372,7 +429,7 @@ class AuthController extends Controller
             $this->apiError(422, 'Срок действия кода истек.', 'auth.otp.verify.expired');
         }
 
-        if (User::query()->where('phone', $phone)->exists()) {
+        if (PhoneAccountLookup::clientExists($phone)) {
             $this->apiError(409, 'Пользователь с этим номером уже зарегистрирован. Войдите в аккаунт.', 'auth.register.user_exists');
         }
 
@@ -386,20 +443,19 @@ class AuthController extends Controller
 
         $verification->update(['verified_at' => now()]);
 
-        $user = User::query()->create([
+        $client = Client::query()->create([
             'first_name' => $name,
             'name' => $name,
             'phone' => $phone,
             'email' => $phone.'@phone.local',
             'password' => $password,
             'phone_verified_at' => now(),
-            'role' => 'customer',
         ]);
 
-        $this->attachOrdersToUser($user, $phone);
+        $this->attachOrdersToClient($client, $phone);
         $this->clearVerifyFailures($phone);
 
-        return response()->json($this->authSuccessPayload($user));
+        return response()->json($this->authSuccessPayload($client));
     }
 
     public function login(Request $request): JsonResponse
@@ -415,16 +471,26 @@ class AuthController extends Controller
 
         $this->ensureLoginCaptchaIfNeeded($request, $ip, $phone);
 
-        $user = User::query()->where('phone', $phone)->first();
+        $client = PhoneAccountLookup::findClient($phone);
+        if ($client instanceof Client && $this->credentialsMatch($client, (string) $validated['password'])) {
+            $this->clearLoginFailures($ip, $phone);
 
-        if (! $user instanceof User || ! Hash::check((string) $validated['password'], (string) $user->password)) {
-            $this->markLoginFailed($ip, $phone);
-            $this->apiError(422, 'Неверный телефон или пароль.', 'auth.login.invalid_credentials');
+            return response()->json($this->authSuccessPayload($client));
         }
 
-        $this->clearLoginFailures($ip, $phone);
+        $staff = PhoneAccountLookup::findStaffUser($phone);
+        if (
+            $staff instanceof User
+            && $this->credentialsMatch($staff, (string) $validated['password'])
+            && $staff->hasAnyRole([Role::ADMIN, Role::MANAGER, Role::CEO])
+        ) {
+            $this->clearLoginFailures($ip, $phone);
 
-        return response()->json($this->authSuccessPayload($user));
+            return response()->json($this->authSuccessPayload($staff));
+        }
+
+        $this->markLoginFailed($ip, $phone);
+        $this->apiError(422, 'Неверный телефон или пароль.', 'auth.login.invalid_credentials');
     }
 
     public function forgotPassword(Request $request): JsonResponse
@@ -435,15 +501,15 @@ class AuthController extends Controller
         ]);
 
         $phone = $this->normalizePhone($validated['phone']);
-        $user = User::query()->where('phone', $phone)->first();
+        $client = PhoneAccountLookup::findClient($phone);
 
-        if (! $user instanceof User) {
+        if (! $client instanceof Client) {
             $this->apiError(404, 'Пользователь с этим номером не найден.', 'auth.forgot.user_not_found');
         }
 
         $this->ensureRequestCodeAllowed($request, $phone);
         $newPassword = $this->generateTemporaryPassword();
-        $user->update(['password' => Hash::make($newPassword)]);
+        $client->update(['password' => Hash::make($newPassword)]);
 
         $text = "Ваш новый пароль: {$newPassword}. Смените его в личном кабинете.";
         $delivery = $this->deliverText($phone, $text);
@@ -463,9 +529,9 @@ class AuthController extends Controller
 
     public function passwordChangeRequest(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $client = $request->user();
 
-        if (! $user instanceof User) {
+        if (! $client instanceof Client) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
@@ -473,7 +539,7 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
-        $phone = $this->normalizePhone((string) ($user->phone ?? ''));
+        $phone = $this->normalizePhone((string) ($client->phone ?? ''));
         if ($phone === '') {
             $this->apiError(422, 'У аккаунта не указан телефон.', 'auth.password_change.no_phone');
         }
@@ -485,7 +551,7 @@ class AuthController extends Controller
             'phone' => $phone,
             'purpose' => PhoneVerification::PURPOSE_PASSWORD_RESET,
             'meta' => json_encode([
-                'user_id' => (int) $user->id,
+                'client_id' => (int) $client->id,
                 'password' => (string) $validated['password'],
             ], JSON_UNESCAPED_UNICODE),
             'code' => $code,
@@ -518,9 +584,9 @@ class AuthController extends Controller
 
     public function passwordChangeVerify(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $client = $request->user();
 
-        if (! $user instanceof User) {
+        if (! $client instanceof Client) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
@@ -528,7 +594,7 @@ class AuthController extends Controller
             'code' => ['required', 'string', 'max:10'],
         ]);
 
-        $phone = $this->normalizePhone((string) ($user->phone ?? ''));
+        $phone = $this->normalizePhone((string) ($client->phone ?? ''));
         if ($phone === '') {
             $this->apiError(422, 'У аккаунта не указан телефон.', 'auth.password_change.no_phone');
         }
@@ -546,7 +612,7 @@ class AuthController extends Controller
         }
 
         $meta = $this->decodeVerificationMeta($verification);
-        if ((int) ($meta['user_id'] ?? 0) !== (int) $user->id) {
+        if ((int) ($meta['client_id'] ?? $meta['user_id'] ?? 0) !== (int) $client->id) {
             $this->apiError(422, 'Неверный код подтверждения.', 'auth.otp.verify.invalid_code');
         }
 
@@ -556,7 +622,7 @@ class AuthController extends Controller
         }
 
         $verification->update(['verified_at' => now()]);
-        $user->update(['password' => $password]);
+        $client->update(['password' => $password]);
         $this->clearVerifyFailures($phone);
 
         return response()->json([
@@ -567,21 +633,18 @@ class AuthController extends Controller
     /**
      * @return array{message: string, token: string, user: array<string, mixed>}
      */
-    protected function authSuccessPayload(User $user): array
+    protected function authSuccessPayload(Client|User $actor): array
     {
-        OrderAccountScope::linkOrdersForUser($user);
+        if ($actor instanceof Client) {
+            OrderAccountScope::linkOrdersForClient($actor);
+        }
 
-        $token = $user->createToken('frontend')->plainTextToken;
+        $token = $actor->createToken('frontend')->plainTextToken;
 
         return [
             'message' => 'Authenticated',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->displayName(),
-                'phone' => $user->phone,
-                'role' => $user->role,
-            ],
+            'user' => $this->toAuthUserPayload($actor),
         ];
     }
 
@@ -829,13 +892,27 @@ class AuthController extends Controller
         ], $status));
     }
 
-    protected function attachOrdersToUser(User $user, string $phone): void
+    protected function credentialsMatch(Client|User $actor, string $plainPassword): bool
+    {
+        if ($plainPassword === '') {
+            return false;
+        }
+
+        $hash = $actor->getRawOriginal('password');
+        if (! is_string($hash) || $hash === '') {
+            return false;
+        }
+
+        return Hash::check($plainPassword, $hash);
+    }
+
+    protected function attachOrdersToClient(Client $client, string $phone): void
     {
         if ($phone === '') {
             return;
         }
 
-        OrderAccountScope::linkOrdersForUser($user);
+        OrderAccountScope::linkOrdersForClient($client);
     }
 
     /**

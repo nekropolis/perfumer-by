@@ -7,16 +7,16 @@ use Illuminate\Support\Facades\DB;
 
 class MigrateUserNameToFirstNameCommand extends Command
 {
-    protected $signature = 'users:migrate-name-to-first-name
+    protected $signature = 'clients:migrate-name-to-first-name
         {--dry-run : Only show what would be updated}';
 
-    protected $description = 'Copy users.name into users.first_name when first_name is empty';
+    protected $description = 'Copy clients.name into clients.first_name when first_name is empty';
 
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $rows = DB::table('users')
+        $rows = DB::table('clients')
             ->where(function ($query) {
                 $query
                     ->whereNull('first_name')
@@ -24,7 +24,8 @@ class MigrateUserNameToFirstNameCommand extends Command
             })
             ->whereNotNull('name')
             ->where('name', '!=', '')
-            ->where('name', '!=', 'Пользователь')
+            ->whereNotIn('name', ['Пользователь', 'Клиент'])
+            ->where('name', 'not like', 'Покупатель #%')
             ->orderBy('id')
             ->get(['id', 'name', 'first_name']);
 
@@ -37,25 +38,30 @@ class MigrateUserNameToFirstNameCommand extends Command
             $id = (int) $row->id;
             $name = trim((string) $row->name);
 
-            if ($name === '' || $name === 'Пользователь') {
+            if (
+                $name === ''
+                || $name === 'Пользователь'
+                || $name === 'Клиент'
+                || str_starts_with($name, 'Покупатель #')
+            ) {
                 $skipped++;
                 continue;
             }
 
             if ($dryRun) {
-                $this->line("Would update user_id={$id}: first_name=\"{$name}\" (from name)");
+                $this->line("Would update client_id={$id}: first_name=\"{$name}\" (from name)");
                 $updated++;
                 continue;
             }
 
-            DB::table('users')->where('id', $id)->update([
+            DB::table('clients')->where('id', $id)->update([
                 'first_name' => $name,
                 'updated_at' => now(),
             ]);
             $updated++;
         }
 
-        $this->info('Migrate name → first_name finished.');
+        $this->info('Migrate clients.name → first_name finished.');
         $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
         $this->line("Candidates: {$processed}");
         $this->line("Updated: {$updated}");
