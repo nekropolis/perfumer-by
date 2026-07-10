@@ -297,7 +297,7 @@ class SellerOneVariantMatcher
                 if ($this->isGenderCascadeProductResolved($match)) {
                     $productName = $baseProductName;
                 }
-            } elseif (! $this->isGenderCascadeProductResolved($match)) {
+            } elseif (! $this->isGenderCascadeProductResolved($match) && $genderMarker === null) {
                 $match = $this->findBestMatch(
                     $brandId,
                     $brandName,
@@ -990,6 +990,21 @@ class SellerOneVariantMatcher
             }
 
             if ($this->supplierGenderConflictsCatalog($supplierGenderMarker, $product, $requireGenderAttribute)) {
+                continue;
+            }
+
+            if (
+                in_array($supplierGenderMarker, ['m', 'l'], true)
+                && $this->catalogProductGenderBucket($product) === null
+                && $this->brandHasGenderedSiblingForMarker(
+                    $brandId,
+                    $supplierBaseProductName ?? $productName,
+                    $brandName,
+                    $supplierGenderMarker,
+                    $productsIndex,
+                    (int) $product->id,
+                )
+            ) {
                 continue;
             }
 
@@ -2060,6 +2075,76 @@ class SellerOneVariantMatcher
         }
 
         return null;
+    }
+
+    /**
+     * (M)/(L) не должны садиться на безполую базовую линию, если у бренда есть
+     * отдельный продукт с тем же базовым именем и маркером пола в названии.
+     *
+     * @param  array<int, list<Product>>  $productsIndex
+     */
+    private function brandHasGenderedSiblingForMarker(
+        ?int $brandId,
+        string $baseProductName,
+        ?string $brandName,
+        string $supplierGenderMarker,
+        array $productsIndex,
+        int $currentProductId,
+    ): bool {
+        if ($brandId === null || $baseProductName === '' || ! isset($productsIndex[$brandId])) {
+            return false;
+        }
+
+        $baseTokens = $this->productNameTokens($baseProductName, $brandName, $supplierGenderMarker);
+        if ($baseTokens === []) {
+            return false;
+        }
+
+        $expectedGenderToken = match ($supplierGenderMarker) {
+            'm' => CatalogProductLinkNameTokenizer::TOKEN_GM,
+            'l' => CatalogProductLinkNameTokenizer::TOKEN_GF,
+            default => null,
+        };
+        if ($expectedGenderToken === null) {
+            return false;
+        }
+
+        foreach ($productsIndex[$brandId] as $candidateProduct) {
+            if ((int) $candidateProduct->id === $currentProductId) {
+                continue;
+            }
+
+            $candidateTokens = $this->productNameTokens(
+                (string) $candidateProduct->name,
+                $brandName,
+                $supplierGenderMarker,
+            );
+            if ($candidateTokens === [] || ! CatalogProductLinkNameTokenizer::tokensContainGenderCanon($candidateTokens)) {
+                continue;
+            }
+
+            if (! in_array($expectedGenderToken, $candidateTokens, true)) {
+                continue;
+            }
+
+            if (count($candidateTokens) < count($baseTokens)) {
+                continue;
+            }
+
+            $prefixMatches = true;
+            foreach ($baseTokens as $index => $token) {
+                if (($candidateTokens[$index] ?? null) !== $token) {
+                    $prefixMatches = false;
+                    break;
+                }
+            }
+
+            if ($prefixMatches) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

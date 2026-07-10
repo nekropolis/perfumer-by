@@ -154,6 +154,11 @@ class RunSellerOneParseJob implements ShouldQueue
                 'status' => 'completed',
                 'processed' => $processed,
                 'total_rows' => $totalRows,
+                'matched' => (int) ($result['matched'] ?? 0),
+                'inserted' => (int) ($result['inserted'] ?? 0),
+                'updated' => (int) ($result['updated'] ?? 0),
+                'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
+                'message' => (string) ($result['message'] ?? ''),
             ]);
 
         } catch (Throwable $e) {
@@ -244,6 +249,16 @@ class RunSellerOneParseJob implements ShouldQueue
 
     public static function notifyParseCompletedIfNeeded(string $jobId, array $status): void
     {
+        $processed = (int) ($status['processed'] ?? 0);
+        $totalRows = (int) ($status['total_rows'] ?? 0);
+        if (
+            ($status['status'] ?? '') === 'completed'
+            && $totalRows > 0
+            && $processed < $totalRows
+        ) {
+            return;
+        }
+
         try {
             app(ImportTelegramNotificationService::class)
                 ->notifySellerOneParseFinished($jobId, $status);
