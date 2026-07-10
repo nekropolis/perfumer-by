@@ -855,6 +855,25 @@ class SellerOneVariantMatcher
                     continue;
                 }
 
+                if ($this->supplierGenderConflictsCatalog($genderMarker, $product)) {
+                    continue;
+                }
+
+                if (
+                    in_array($genderMarker, ['m', 'l'], true)
+                    && $this->catalogProductGenderBucket($product) === null
+                    && $this->brandHasGenderedSiblingForMarker(
+                        $brandId,
+                        $baseProductName,
+                        $brandName,
+                        $genderMarker,
+                        $productsIndex,
+                        (int) $product->id,
+                    )
+                ) {
+                    continue;
+                }
+
                 $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, 'edp');
                 $candidate = [
                     'product' => $product,

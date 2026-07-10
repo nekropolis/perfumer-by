@@ -153,6 +153,33 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
         $this->assertNotSame(3289, $maleRow['suggested_product']['id'] ?? null);
     }
 
+    public function test_female_edp_marker_does_not_match_male_catalog_product(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 101, 'name' => 'Versace']]);
+        $rules = collect();
+        $maleProduct = $this->makeProductWithGenderOption(
+            5001,
+            101,
+            'Eros',
+            35,
+            50011,
+            100,
+            'edp',
+        );
+        $maleProduct->brand->name = 'Versace';
+
+        $row = $matcher->parseSupplierRow(
+            ['code' => 'versace-eros-l', 'title' => 'Versace Eros (L) 100ml edp'],
+            $brands,
+            $rules,
+            [101 => [$maleProduct]],
+        );
+
+        $this->assertNull($row['suggested_variant']);
+        $this->assertNull($row['suggested_product']);
+    }
+
     private function makeProductWithGenderOption(
         int $productId,
         int $brandId,
