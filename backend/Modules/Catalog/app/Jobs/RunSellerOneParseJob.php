@@ -249,16 +249,6 @@ class RunSellerOneParseJob implements ShouldQueue
 
     public static function notifyParseCompletedIfNeeded(string $jobId, array $status): void
     {
-        $processed = (int) ($status['processed'] ?? 0);
-        $totalRows = (int) ($status['total_rows'] ?? 0);
-        if (
-            ($status['status'] ?? '') === 'completed'
-            && $totalRows > 0
-            && $processed < $totalRows
-        ) {
-            return;
-        }
-
         try {
             app(ImportTelegramNotificationService::class)
                 ->notifySellerOneParseFinished($jobId, $status);

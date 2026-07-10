@@ -53,15 +53,11 @@ class ImportTelegramMessageFormatter
 
         $processed = (int) ($status['processed'] ?? 0);
         $totalRows = (int) ($status['total_rows'] ?? 0);
-        $isFullyComplete = $state !== 'completed'
-            || $totalRows <= 0
-            || $processed >= $totalRows;
-        $statusLabel = $state === 'completed'
-            ? ($isFullyComplete ? 'выполнено' : 'частично')
-            : 'ошибка';
+        $isCompleted = $state === 'completed';
+        $statusLabel = $isCompleted ? 'выполнено' : 'ошибка';
 
         $lines = [
-            ($state === 'completed' && $isFullyComplete ? '✅ ' : '❌ ') . 'Seller One: Новый парсинг',
+            ($isCompleted ? '✅ ' : '❌ ') . 'Seller One: Новый парсинг',
             'Job #' . $jobId,
             'Статус: ' . $statusLabel,
             'Обработано: ' . $processed . ' / ' . $totalRows,
