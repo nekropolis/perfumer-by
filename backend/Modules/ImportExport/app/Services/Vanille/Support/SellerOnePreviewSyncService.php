@@ -22,12 +22,14 @@ class SellerOnePreviewSyncService
      *         (whereIn по external_url) — экономит SELECT на каждую строку прайса.
      *         null допустим и для новых строк: тогда выполняется одиночный запрос
      *         (защита от дубля кода внутри одного батча).
+     * @param  SupplierProduct|null  $resolvedSupplierProduct  сохранённая строка после автосвязки
      */
     public function upsertPreviewRow(
         Supplier $supplier,
         array $parsed,
         callable $autoConfirmCallback,
         ?SupplierProduct $preloadedExisting = null,
+        ?SupplierProduct &$resolvedSupplierProduct = null,
     ): string {
         $externalCode = (string) ($parsed['code'] ?? '');
         $externalName = (string) ($parsed['title'] ?? '');
@@ -80,6 +82,8 @@ class SellerOnePreviewSyncService
             ]);
 
             $autoConfirmCallback($existing, $parsed);
+            $resolvedSupplierProduct = $existing;
+
             return 'updated';
         }
 
@@ -97,6 +101,8 @@ class SellerOnePreviewSyncService
         ]);
 
         $autoConfirmCallback($created, $parsed);
+        $resolvedSupplierProduct = $created;
+
         return 'inserted';
     }
 
@@ -121,8 +127,7 @@ class SellerOnePreviewSyncService
     }
 
     /**
-     * Batch-version для стриммингового парсинга: работает с array-записями (не Laravel-модели),
-     * применяет INSERT ... ON DUPLICATE KEY UPDATE по порциям 500 строк.
+     * Batch-version для стриммингового парсинга: обновляет только уже существующие связанные строки.
      *
      * @param  list<array{id:int, external_url:string, is_linked:bool, external_name:string, payload:array}>  $linkedRecords
      * @param  list<array{code?:string, title?:string, supplier_price?:float|null}>  $rows
@@ -133,42 +138,53 @@ class SellerOnePreviewSyncService
             return 0;
         }
 
-        $now = now();
-        $nowStr = $now->toDateTimeString();
+        $nowStr = now()->toDateTimeString();
         $table = (new SupplierProduct)->getTable();
-
-        $sql = "INSERT INTO {$table} (id, supplier_id, external_name, external_slug, last_seen_at, payload) VALUES ";
-        $placeHolders = [];
-        $bindings = [];
+        $updates = [];
         foreach ($linkedRecords as $idx => $rec) {
             $row = $rows[$idx] ?? [];
             $payload = $rec['payload'] ?? [];
             $title = (string) ($row['title'] ?? ($rec['external_name'] ?? ''));
-            $slug = Str::slug($title);
-
-            $payloadJson = json_encode([
-                ...$payload,
-                'source' => 'seller-one-xls',
-                'external_code' => (string) ($row['code'] ?? ''),
-                'supplier_price' => $row['supplier_price'] ?? null,
-                'min_price' => $row['supplier_price'] ?? null,
-                'price_file_in_stock' => true,
-                'last_parsed_at' => $nowStr,
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-            $placeHolders[] = '(?, ?, ?, ?, ?, ?)';
-            $bindings[] = (int) $rec['id'];
-            $bindings[] = $supplierId;
-            $bindings[] = $title;
-            $bindings[] = $slug;
-            $bindings[] = $now->toDateTimeString();
-            $bindings[] = $payloadJson;
+            $updates[] = [
+                'id' => (int) $rec['id'],
+                'external_name' => $title,
+                'external_slug' => Str::slug($title),
+                'payload' => json_encode([
+                    ...$payload,
+                    'source' => 'seller-one-xls',
+                    'external_code' => (string) ($row['code'] ?? ''),
+                    'supplier_price' => $row['supplier_price'] ?? null,
+                    'min_price' => $row['supplier_price'] ?? null,
+                    'price_file_in_stock' => true,
+                    'last_parsed_at' => $nowStr,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ];
         }
 
-        $sql .= implode(', ', $placeHolders)
-            .' ON DUPLICATE KEY UPDATE external_name=VALUES(external_name), external_slug=VALUES(external_slug), last_seen_at=VALUES(last_seen_at), payload=VALUES(payload)';
+        $bindings = [];
+        $caseUpdate = static function (string $column) use ($updates, &$bindings): string {
+            $cases = [];
+            foreach ($updates as $update) {
+                $cases[] = 'WHEN ? THEN ?';
+                $bindings[] = $update['id'];
+                $bindings[] = $update[$column];
+            }
 
-        DB::statement($sql, $bindings);
+            return "{$column} = CASE id ".implode(' ', $cases)." ELSE {$column} END";
+        };
+        $ids = array_column($updates, 'id');
+        $sql = "UPDATE {$table} SET "
+            .$caseUpdate('external_name').', '
+            .$caseUpdate('external_slug').', '
+            .$caseUpdate('payload').', '
+            .'last_seen_at = ?, updated_at = ? '
+            .'WHERE supplier_id = ? AND id IN ('.implode(', ', array_fill(0, count($ids), '?')).')';
+        $bindings[] = $nowStr;
+        $bindings[] = $nowStr;
+        $bindings[] = $supplierId;
+        array_push($bindings, ...$ids);
+
+        DB::update($sql, $bindings);
         return count($linkedRecords);
     }
 

@@ -204,14 +204,32 @@ class RunSellerOneParseJob implements ShouldQueue
 
     public static function publishParseProgress(string $cacheKey, string $jobId, array $progress): void
     {
-        Cache::put($cacheKey, [
+        $current = Cache::get($cacheKey);
+        $current = is_array($current) ? $current : [];
+        $counters = [
+            'processed',
+            'total_rows',
+            'matched',
+            'inserted',
+            'updated',
+            'skipped_linked',
+            'skipped_parsing_inactive',
+            'skipped_skip_marker',
+        ];
+        $snapshot = [
+            ...$current,
             'job_id' => $jobId,
-            'status' => $progress['status'] ?? 'running',
-            'processed' => (int) ($progress['processed'] ?? 0),
-            'total_rows' => (int) ($progress['total_rows'] ?? 0),
-            'message' => $progress['message'] ?? '',
+            'status' => $progress['status'] ?? ($current['status'] ?? 'running'),
+            'message' => $progress['message'] ?? ($current['message'] ?? ''),
             'updated_at' => now()->toDateTimeString(),
-        ], now()->addHours(24));
+        ];
+        foreach ($counters as $counter) {
+            $snapshot[$counter] = array_key_exists($counter, $progress)
+                ? (int) $progress[$counter]
+                : (int) ($current[$counter] ?? 0);
+        }
+
+        Cache::put($cacheKey, $snapshot, now()->addHours(24));
     }
 
     public static function markFailed(string $cacheKey, string $jobId, string $message): void

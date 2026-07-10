@@ -431,6 +431,7 @@ class SupplierPriceImportService
                     $totalMatched++;
                 }
 
+                $resolvedSupplierProduct = null;
                 $upsert = $this->previewSyncService->upsertPreviewRow(
                     $supplier,
                     $parsed,
@@ -438,14 +439,29 @@ class SupplierPriceImportService
                         $this->tryAutoConfirmLink($supplier, $supplierProduct, $parsedRow);
                     },
                     $existingModel,
+                    $resolvedSupplierProduct,
                 );
                 if ($upsert === 'inserted') {
                     $totalInserted++;
                 } else {
                     $totalUpdated++;
                 }
+                if ($resolvedSupplierProduct !== null) {
+                    $supplierProductIndex[$externalUrl] = [
+                        'id' => (int) $resolvedSupplierProduct->id,
+                        'external_url' => (string) $resolvedSupplierProduct->external_url,
+                        'is_linked' => (bool) $resolvedSupplierProduct->is_linked,
+                        'external_name' => (string) $resolvedSupplierProduct->external_name,
+                        'payload' => is_array($resolvedSupplierProduct->payload)
+                            ? $resolvedSupplierProduct->payload
+                            : [],
+                    ];
+                    if (!$resolvedSupplierProduct->is_linked) {
+                        $nonLinkedExistingModels->put($resolvedSupplierProduct->id, $resolvedSupplierProduct);
+                    }
+                }
                 $totalProcessed++;
-                unset($parsed);
+                unset($parsed, $resolvedSupplierProduct);
             }
 
             // ── Batch-update связанных строк через массивы ──
