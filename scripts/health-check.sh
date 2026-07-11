@@ -126,10 +126,11 @@ if [[ "$RAM_AVAILABLE_MB" -lt "$RAM_MIN_AVAILABLE_MB" ]]; then
     ALERTS+=("🧠 Available RAM is ${RAM_AVAILABLE_MB} MB (threshold ${RAM_MIN_AVAILABLE_MB} MB)")
 fi
 
-# 3. Swap usage.
+# 3. Swap usage (only when RAM is also under pressure).
+# Linux keeps swapped pages until touched; ~500 MB swap with plenty of available RAM is normal after deploy/build.
 SWAP_USED_MB=$(free -m | awk '/^Swap:/ {print $3}')
-if [[ "$SWAP_USED_MB" -gt "$SWAP_WARN_MB" ]]; then
-    ALERTS+=("🐌 Swap usage is ${SWAP_USED_MB} MB")
+if [[ "$SWAP_USED_MB" -gt "$SWAP_WARN_MB" ]] && [[ "$RAM_AVAILABLE_MB" -lt "$RAM_MIN_AVAILABLE_MB" ]]; then
+    ALERTS+=("🐌 Swap usage is ${SWAP_USED_MB} MB (available RAM ${RAM_AVAILABLE_MB} MB)")
 fi
 
 # 4. Queue worker status (3 retries with pause — covers supervisor restart window).
