@@ -19,3 +19,9 @@ Schedule::command('server:health-report --weekly')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('shop:advance-waiting-discount-delivery-date')
+    ->dailyAt('00:01')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->runInBackground();

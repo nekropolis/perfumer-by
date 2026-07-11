@@ -2,6 +2,7 @@
 
 namespace Modules\Settings\Providers;
 
+use Modules\Settings\Console\Commands\AdvanceWaitingDiscountDeliveryDateCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class SettingsServiceProvider extends ModuleServiceProvider
@@ -13,5 +14,9 @@ class SettingsServiceProvider extends ModuleServiceProvider
     protected array $providers = [
         EventServiceProvider::class,
         RouteServiceProvider::class,
+    ];
+
+    protected array $commands = [
+        AdvanceWaitingDiscountDeliveryDateCommand::class,
     ];
 }

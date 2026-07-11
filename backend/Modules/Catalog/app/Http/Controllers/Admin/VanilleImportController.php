@@ -412,6 +412,18 @@ class VanilleImportController extends Controller
             ], 409);
         }
 
+        $parseActiveId = Cache::get(RunSellerOneParseJob::activeKey());
+        if (is_string($parseActiveId) && $parseActiveId !== '') {
+            $activeStatus = Cache::get(RunSellerOneParseJob::cacheKey($parseActiveId));
+            $activeStatusName = is_array($activeStatus) ? ($activeStatus['status'] ?? null) : null;
+            if (in_array($activeStatusName, ['queued', 'running'], true)) {
+                return response()->json([
+                    'message' => 'Парсинг Seller One уже выполняется',
+                    'job_id' => $parseActiveId,
+                ], 409);
+            }
+        }
+
         $jobId = (string) Str::uuid();
         // Явно кладём на `local` диск: RunSellerOneParseJob читает именно его.
         // Без второго аргумента Storage берёт FILESYSTEM_DISK, который на проде

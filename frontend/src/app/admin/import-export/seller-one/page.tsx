@@ -15,6 +15,7 @@ import {
     deleteSellerOneRule,
     fetchSellerOneDuplicateVariantLinks,
     fetchSellerOneParseStatus,
+    fetchSellerOneActiveStatus,
     fetchSellerOneSupplierProducts,
     fetchSellerOneRules,
     forceLinkSellerOneProduct,
@@ -288,6 +289,26 @@ export default function SellerOneImportPage() {
     const debouncedSearch = useDebouncedValue(searchInput, 350);
 
     useEffect(() => {
+        const syncActiveJob = async () => {
+            try {
+                const active = await fetchSellerOneActiveStatus();
+                const data = active.data;
+                if (
+                    data?.job_id
+                    && (data.status === "queued" || data.status === "running")
+                ) {
+                    setActiveJobId(data.job_id);
+                    window.localStorage.setItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY, data.job_id);
+                    setBatchProgress("Восстановление статуса фонового парсинга...");
+                    setSupplierPreviewLoading(true);
+                }
+            } catch {
+                // ignore discovery errors; localStorage fallback below
+            }
+        };
+
+        void syncActiveJob();
+
         const storedJobId = window.localStorage.getItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
         if (storedJobId) {
             setActiveJobId(storedJobId);
@@ -383,8 +404,18 @@ export default function SellerOneImportPage() {
                         typeof data.message === "string" && data.message.trim() !== ""
                             ? data.message
                             : "Прайс успешно обработан";
-                    setSupplierSuccess(parseMsg);
-                    setParseDiagnostics(data.parse_diagnostics ?? null);
+                    const incomplete = totalRows > 0 && processed < totalRows;
+                    if (incomplete) {
+                        setSupplierSuccess("");
+                        setParseDiagnostics(data.parse_diagnostics ?? null);
+                        setSupplierError(
+                            `Парсинг закрыт преждевременно: обработано ${processed} / ${totalRows}. Перезапустите парсинг.`,
+                        );
+                    } else {
+                        setSupplierError("");
+                        setSupplierSuccess(parseMsg);
+                        setParseDiagnostics(data.parse_diagnostics ?? null);
+                    }
                     window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
                     setActiveJobId(null);
                     try {
@@ -418,8 +449,6 @@ export default function SellerOneImportPage() {
                     }
                     setSupplierError(e instanceof Error ? e.message : "Ошибка получения статуса парсинга");
                     setSupplierPreviewLoading(false);
-                    window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
-                    setActiveJobId(null);
                 }
                 return;
             }

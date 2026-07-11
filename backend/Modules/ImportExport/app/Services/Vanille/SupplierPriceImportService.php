@@ -7,6 +7,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Jobs\RunSellerOneParseJob;
 use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Illuminate\Support\Str;
@@ -254,11 +255,43 @@ class SupplierPriceImportService
 
         $supplier = $this->getOrCreateSellerOneSupplier();
 
-        $this->reportParseProgress($onBatch, [
-            'message' => $isContinuation ? 'Подготовка: продолжение парсинга…' : 'Подготовка: чтение файла…',
-            'processed' => 0,
-            'total_rows' => 0,
-        ]);
+        $totalMatched = 0;
+        $totalInserted = 0;
+        $totalUpdated = 0;
+        $totalSkippedLinked = 0;
+        $totalSkippedParsingInactive = 0;
+        $totalSkippedSkipMarker = 0;
+        $totalProcessed = 0;
+
+        if ($isContinuation && $jobId !== null) {
+            $snap = Cache::get(RunSellerOneParseJob::cacheKey($jobId));
+            $snap = is_array($snap) ? $snap : null;
+            if ($snap !== null) {
+                $totalMatched = (int) ($snap['matched'] ?? 0);
+                $totalInserted = (int) ($snap['inserted'] ?? 0);
+                $totalUpdated = (int) ($snap['updated'] ?? 0);
+                $totalSkippedLinked = (int) ($snap['skipped_linked'] ?? 0);
+                $totalSkippedParsingInactive = (int) ($snap['skipped_parsing_inactive'] ?? 0);
+                $totalSkippedSkipMarker = (int) ($snap['skipped_skip_marker'] ?? 0);
+                $totalProcessed = (int) ($snap['processed'] ?? 0);
+            }
+
+            $this->reportParseProgress($onBatch, [
+                'message' => 'Подготовка: продолжение парсинга…',
+                'processed' => $totalProcessed,
+                'total_rows' => $snap !== null ? (int) ($snap['total_rows'] ?? 0) : 0,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+            ]);
+        } else {
+            $this->reportParseProgress($onBatch, [
+                'message' => 'Подготовка: чтение файла…',
+                'processed' => 0,
+                'total_rows' => 0,
+            ]);
+        }
 
         // XLSX парсим один раз за весь прогон: continuation-chunk'и читают строки
         // из сериализованного кэша (PhpSpreadsheet на слабом сервере — минуты на файл).
@@ -273,29 +306,6 @@ class SupplierPriceImportService
             }
         }
         $totalRows = count($allRows);
-
-        $totalMatched = 0;
-        $totalInserted = 0;
-        $totalUpdated = 0;
-        $totalSkippedLinked = 0;
-        $totalSkippedParsingInactive = 0;
-        $totalSkippedSkipMarker = 0;
-        $totalProcessed = 0;
-
-        if ($isContinuation && $jobId !== null) {
-            $snap = \Illuminate\Support\Facades\Cache::get(
-                \Modules\Catalog\Jobs\RunSellerOneParseJob::cacheKey($jobId)
-            );
-            if (is_array($snap)) {
-                $totalMatched = (int) ($snap['matched'] ?? 0);
-                $totalInserted = (int) ($snap['inserted'] ?? 0);
-                $totalUpdated = (int) ($snap['updated'] ?? 0);
-                $totalSkippedLinked = (int) ($snap['skipped_linked'] ?? 0);
-                $totalSkippedParsingInactive = (int) ($snap['skipped_parsing_inactive'] ?? 0);
-                $totalSkippedSkipMarker = (int) ($snap['skipped_skip_marker'] ?? 0);
-                $totalProcessed = (int) ($snap['processed'] ?? 0);
-            }
-        }
 
         $this->reportParseProgress($onBatch, [
             'message' => $isContinuation ? 'Подготовка: загрузка каталога…' : 'Загрузка каталога…',
@@ -537,6 +547,41 @@ class SupplierPriceImportService
                 'marked_absent_unlinked' => 0,
                 'has_more' => true,
                 'next_offset' => $nextOffset,
+            ];
+        }
+
+        if ($totalRows > 0 && $totalProcessed < $totalRows) {
+            Log::warning('SellerOne parse incomplete before finalize', [
+                'jobId' => $jobId,
+                'startOffset' => $startOffset,
+                'totalRows' => $totalRows,
+                'totalProcessed' => $totalProcessed,
+            ]);
+
+            if ($jobId !== null) {
+                $this->persistSupplierProductIndex($jobId, $supplierProductIndex);
+            }
+
+            $resumeOffset = $startOffset >= $totalRows
+                ? max(0, min($totalProcessed, $totalRows - 1))
+                : $startOffset;
+
+            unset($allRows, $brands, $productsIndex, $rules);
+
+            return [
+                'message' => 'Продолжение парсинга',
+                'total_rows' => $totalRows,
+                'processed' => $totalProcessed,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+                'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+                'skipped_skip_marker' => $totalSkippedSkipMarker,
+                'marked_preorder' => 0,
+                'marked_absent_unlinked' => 0,
+                'has_more' => true,
+                'next_offset' => $resumeOffset,
             ];
         }
 

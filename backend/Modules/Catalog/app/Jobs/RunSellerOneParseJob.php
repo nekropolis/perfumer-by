@@ -127,10 +127,52 @@ class RunSellerOneParseJob implements ShouldQueue
                 return;
             }
 
-            // ✅ Завершение
-            Cache::put($cacheKey, [
-                'job_id' => $this->jobId,
+            if ($totalRows > 0 && $processed < $totalRows) {
+                Log::warning('SellerOne parse incomplete completion prevented', [
+                    'jobId' => $this->jobId,
+                    'rowOffset' => $this->rowOffset,
+                    'processed' => $processed,
+                    'totalRows' => $totalRows,
+                ]);
+
+                $resumeOffset = $this->rowOffset >= $totalRows
+                    ? max(0, min($processed, $totalRows - 1))
+                    : max($this->rowOffset, min($processed, $totalRows - 1));
+
+                if ($this->rowOffset < $totalRows && $resumeOffset <= $this->rowOffset) {
+                    $resumeOffset = min($this->rowOffset + 200, max(0, $totalRows - 1));
+                }
+
+                $publishProgress([
+                    'status' => 'running',
+                    'message' => "Продолжение: {$processed} / {$totalRows}",
+                    'processed' => $processed,
+                    'total_rows' => $totalRows,
+                    'matched' => (int) ($result['matched'] ?? 0),
+                    'inserted' => (int) ($result['inserted'] ?? 0),
+                    'updated' => (int) ($result['updated'] ?? 0),
+                    'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
+                ]);
+
+                if (! Cache::get($cacheKey . ':finished') && $resumeOffset !== $this->rowOffset) {
+                    self::dispatch($this->jobId, $this->storedFilePath, $resumeOffset);
+
+                    return;
+                }
+
+                self::markFailed(
+                    $cacheKey,
+                    $this->jobId,
+                    "Парсинг остановлен: обработано {$processed} / {$totalRows}",
+                );
+                $shouldCleanup = true;
+
+                return;
+            }
+
+            $publishProgress([
                 'status' => 'completed',
+                'message' => (string) ($result['message'] ?? "Готово: обработано {$processed}"),
                 'processed' => $processed,
                 'total_rows' => $totalRows,
                 'matched' => (int) ($result['matched'] ?? 0),
@@ -138,8 +180,27 @@ class RunSellerOneParseJob implements ShouldQueue
                 'updated' => (int) ($result['updated'] ?? 0),
                 'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
                 'marked_preorder' => (int) ($result['marked_preorder'] ?? 0),
-                'message' => (string) ($result['message'] ?? "Готово: обработано {$processed}"),
                 'parse_diagnostics' => $result['parse_diagnostics'] ?? null,
+            ]);
+
+            $finalSnap = Cache::get($cacheKey);
+            $finalSnap = is_array($finalSnap) ? $finalSnap : [];
+
+            $processed = max($processed, (int) ($finalSnap['processed'] ?? 0));
+            $totalRows = max($totalRows, (int) ($finalSnap['total_rows'] ?? 0));
+
+            Cache::put($cacheKey, [
+                'job_id' => $this->jobId,
+                'status' => 'completed',
+                'processed' => $processed,
+                'total_rows' => $totalRows,
+                'matched' => (int) ($finalSnap['matched'] ?? $result['matched'] ?? 0),
+                'inserted' => (int) ($finalSnap['inserted'] ?? $result['inserted'] ?? 0),
+                'updated' => (int) ($finalSnap['updated'] ?? $result['updated'] ?? 0),
+                'skipped_linked' => (int) ($finalSnap['skipped_linked'] ?? $result['skipped_linked'] ?? 0),
+                'marked_preorder' => (int) ($result['marked_preorder'] ?? 0),
+                'message' => (string) ($finalSnap['message'] ?? $result['message'] ?? "Готово: обработано {$processed}"),
+                'parse_diagnostics' => $finalSnap['parse_diagnostics'] ?? $result['parse_diagnostics'] ?? null,
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
 
@@ -154,11 +215,11 @@ class RunSellerOneParseJob implements ShouldQueue
                 'status' => 'completed',
                 'processed' => $processed,
                 'total_rows' => $totalRows,
-                'matched' => (int) ($result['matched'] ?? 0),
-                'inserted' => (int) ($result['inserted'] ?? 0),
-                'updated' => (int) ($result['updated'] ?? 0),
-                'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
-                'message' => (string) ($result['message'] ?? ''),
+                'matched' => (int) ($finalSnap['matched'] ?? $result['matched'] ?? 0),
+                'inserted' => (int) ($finalSnap['inserted'] ?? $result['inserted'] ?? 0),
+                'updated' => (int) ($finalSnap['updated'] ?? $result['updated'] ?? 0),
+                'skipped_linked' => (int) ($finalSnap['skipped_linked'] ?? $result['skipped_linked'] ?? 0),
+                'message' => (string) ($finalSnap['message'] ?? $result['message'] ?? ''),
             ]);
 
         } catch (Throwable $e) {
@@ -183,7 +244,7 @@ class RunSellerOneParseJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            (new WithoutOverlapping('seller_one_heavy_global:' . $this->jobId))
+            (new WithoutOverlapping('seller_one_heavy_global'))
                 ->shared()
                 ->expireAfter(7500)
                 ->releaseAfter(30),
@@ -229,9 +290,14 @@ class RunSellerOneParseJob implements ShouldQueue
             'updated_at' => now()->toDateTimeString(),
         ];
         foreach ($counters as $counter) {
-            $snapshot[$counter] = array_key_exists($counter, $progress)
-                ? (int) $progress[$counter]
-                : (int) ($current[$counter] ?? 0);
+            if (array_key_exists($counter, $progress)) {
+                $snapshot[$counter] = max(
+                    (int) ($current[$counter] ?? 0),
+                    (int) $progress[$counter],
+                );
+            } else {
+                $snapshot[$counter] = (int) ($current[$counter] ?? 0);
+            }
         }
 
         Cache::put($cacheKey, $snapshot, now()->addHours(24));
@@ -249,6 +315,18 @@ class RunSellerOneParseJob implements ShouldQueue
 
     public static function notifyParseCompletedIfNeeded(string $jobId, array $status): void
     {
+        $processed = (int) ($status['processed'] ?? 0);
+        $totalRows = (int) ($status['total_rows'] ?? 0);
+
+        if ($totalRows > 0 && $processed < $totalRows) {
+            return;
+        }
+
+        $dedupKey = 'seller_one_parse_telegram_sent:'.$jobId;
+        if (! Cache::add($dedupKey, 1, now()->addDays(7))) {
+            return;
+        }
+
         try {
             app(ImportTelegramNotificationService::class)
                 ->notifySellerOneParseFinished($jobId, $status);

@@ -150,4 +150,89 @@ class SellerOneParseRegressionTest extends TestCase
             Cache::forget($cacheKey);
         }
     }
+
+    public function test_publish_parse_progress_never_decreases_cumulative_counters(): void
+    {
+        $jobId = 'seller-one-progress-reset-'.uniqid();
+        $cacheKey = RunSellerOneParseJob::cacheKey($jobId);
+        Cache::put($cacheKey, [
+            'job_id' => $jobId,
+            'status' => 'running',
+            'processed' => 11903,
+            'total_rows' => 31503,
+            'matched' => 5000,
+            'inserted' => 11000,
+            'updated' => 900,
+            'skipped_linked' => 100,
+            'skipped_parsing_inactive' => 0,
+            'skipped_skip_marker' => 0,
+        ], now()->addHour());
+
+        try {
+            RunSellerOneParseJob::publishParseProgress($cacheKey, $jobId, [
+                'message' => 'Подготовка: продолжение парсинга…',
+                'processed' => 0,
+                'total_rows' => 0,
+            ]);
+
+            self::assertSame(11903, (int) Cache::get($cacheKey)['processed']);
+            self::assertSame(31503, (int) Cache::get($cacheKey)['total_rows']);
+            self::assertSame(11000, (int) Cache::get($cacheKey)['inserted']);
+        } finally {
+            Cache::forget($cacheKey);
+        }
+    }
+
+    public function test_notify_parse_completed_skips_when_processed_is_incomplete(): void
+    {
+        $jobId = 'seller-one-telegram-'.uniqid();
+        $dedupKey = 'seller_one_parse_telegram_sent:'.$jobId;
+        Cache::forget($dedupKey);
+
+        $notification = Mockery::mock(\Modules\Communications\Services\Notifications\ImportTelegramNotificationService::class);
+        $notification->shouldNotReceive('notifySellerOneParseFinished');
+        $this->app->instance(\Modules\Communications\Services\Notifications\ImportTelegramNotificationService::class, $notification);
+
+        RunSellerOneParseJob::notifyParseCompletedIfNeeded($jobId, [
+            'status' => 'completed',
+            'processed' => 11903,
+            'total_rows' => 31503,
+            'inserted' => 30938,
+            'updated' => 0,
+            'matched' => 0,
+            'skipped_linked' => 0,
+            'message' => 'Прайс обработан',
+        ]);
+
+        self::assertNull(Cache::get($dedupKey));
+    }
+
+    public function test_notify_parse_completed_sends_once_when_complete(): void
+    {
+        $jobId = 'seller-one-telegram-complete-'.uniqid();
+        $dedupKey = 'seller_one_parse_telegram_sent:'.$jobId;
+        Cache::forget($dedupKey);
+
+        $notification = Mockery::mock(\Modules\Communications\Services\Notifications\ImportTelegramNotificationService::class);
+        $notification->shouldReceive('notifySellerOneParseFinished')
+            ->once()
+            ->with($jobId, Mockery::on(static fn (array $status): bool => ($status['processed'] ?? 0) === 31503));
+        $this->app->instance(\Modules\Communications\Services\Notifications\ImportTelegramNotificationService::class, $notification);
+
+        $payload = [
+            'status' => 'completed',
+            'processed' => 31503,
+            'total_rows' => 31503,
+            'inserted' => 30938,
+            'updated' => 0,
+            'matched' => 0,
+            'skipped_linked' => 0,
+            'message' => 'Прайс обработан',
+        ];
+
+        RunSellerOneParseJob::notifyParseCompletedIfNeeded($jobId, $payload);
+        RunSellerOneParseJob::notifyParseCompletedIfNeeded($jobId, $payload);
+
+        self::assertNotNull(Cache::get($dedupKey));
+    }
 }

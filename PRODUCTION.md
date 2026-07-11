@@ -463,6 +463,42 @@ sudo certbot --nginx -d perfumer.by -d www.perfumer.by \
 
 Certbot допишет `ssl_certificate` прямо в ваш конфиг.
 
+### 6.1.1. Защита паролем (basic auth)
+
+Для staging / pre-launch (например `prod.mobiz.by`) — закрыть сайт паролем в nginx.
+
+```bash
+cd /var/www/perfumer-by
+sudo ./scripts/nginx/setup-basic-auth.sh
+# введите username и password
+```
+
+Скрипт создаст `/etc/nginx/.htpasswd` и выведет фрагмент для конфига. Полный пример: `scripts/nginx/basic-auth.conf.example`.
+
+В `server { listen 443 … }` после `server_name` добавьте:
+
+```nginx
+set $auth_basic_realm "Restricted";
+if ($remote_addr = 127.0.0.1) { set $auth_basic_realm off; }
+if ($remote_addr = "::1") { set $auth_basic_realm off; }
+auth_basic $auth_basic_realm;
+auth_basic_user_file /etc/nginx/.htpasswd;
+```
+
+**Важно:** loopback без пароля — иначе Next.js SSR не достучится до `/api` на `127.0.0.1`.
+
+В существующие `location` добавьте `auth_basic off;` для:
+
+- `/.well-known/acme-challenge/` — Let's Encrypt;
+- `/up` — health-check мониторинга.
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Добавить пользователя: `sudo htpasswd /etc/nginx/.htpasswd NEW_USER`.  
+Снять защиту: удалить строки `auth_basic*` / `set $auth_basic_realm` из конфига и reload.
+
 ### 6.2. PHP-FPM под нагрузку (4 GB RAM)
 
 `/etc/php/8.3/fpm/pool.d/www.conf`:

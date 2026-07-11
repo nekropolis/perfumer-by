@@ -2,8 +2,10 @@
 
 namespace Modules\Settings\Services;
 
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Modules\Settings\Models\ShopSetting;
+use Modules\Settings\Support\WaitingDiscountDeliveryDate;
 
 class ShopSettingService
 {
@@ -76,8 +78,35 @@ class ShopSettingService
             'contact_phone_life' => (string) $this->get('contact_phone_life', '+375256408833'),
             'contact_telegram_url' => (string) $this->get('contact_telegram_url', 'https://t.me/perfumer_support'),
             'contact_viber_url' => (string) $this->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
-            'waiting_discount_delivery_date' => (string) $this->get('waiting_discount_delivery_date', '10.07.2026'),
+            'waiting_discount_delivery_date' => (string) $this->get(
+                WaitingDiscountDeliveryDate::SETTING_KEY,
+                WaitingDiscountDeliveryDate::DEFAULT
+            ),
         ]);
+    }
+
+    /**
+     * Если дата отправки под заказ (скидка 3%) уже в прошлом — сдвигает на сегодня + 7 дней.
+     *
+     * @return array{from: string, to: string}|null null — дата актуальна, изменений нет
+     */
+    public function advanceWaitingDiscountDeliveryDateIfPast(?CarbonInterface $now = null): ?array
+    {
+        $current = (string) $this->get(
+            WaitingDiscountDeliveryDate::SETTING_KEY,
+            WaitingDiscountDeliveryDate::DEFAULT
+        );
+
+        $change = WaitingDiscountDeliveryDate::nextIfPast($current, $now);
+        if ($change === null) {
+            return null;
+        }
+
+        $this->setMany([
+            WaitingDiscountDeliveryDate::SETTING_KEY => $change['to'],
+        ]);
+
+        return $change;
     }
 
     /**
