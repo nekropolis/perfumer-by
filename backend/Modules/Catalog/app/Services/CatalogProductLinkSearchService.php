@@ -448,14 +448,14 @@ class CatalogProductLinkSearchService
         $stripBrandName = $split['brand_name'];
 
         $rest = $search;
-        if ($stripBrandName !== null && $stripBrandName !== '') {
+        if ($split['rest'] !== '' && $split['rest'] !== $search) {
+            $rest = $split['rest'];
+        } elseif ($stripBrandName !== null && $stripBrandName !== '') {
             $pattern = '/^'.preg_quote($stripBrandName, '/').'\s+/iu';
             $stripped = trim((string) preg_replace($pattern, '', $search, 1));
-            if ($stripped !== '') {
+            if ($stripped !== '' && $stripped !== $search) {
                 $rest = $stripped;
             }
-        } elseif ($split['rest'] !== '') {
-            $rest = $split['rest'];
         }
 
         $tokens = CatalogProductLinkNameTokenizer::linkSearchTokensFromRest($rest, null);

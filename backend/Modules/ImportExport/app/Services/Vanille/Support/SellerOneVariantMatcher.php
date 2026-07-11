@@ -732,7 +732,7 @@ class SellerOneVariantMatcher
             return [];
         }
 
-        return [' for Woman', ' woman', ' for Her', ' Her'];
+        return [' for Woman', ' woman', ' for Her', ' Her', ' Pour Femme', ' pour femme'];
     }
 
     /**
@@ -748,7 +748,7 @@ class SellerOneVariantMatcher
             return [];
         }
 
-        return [' for Man', ' man', ' for Him', ' Him'];
+        return [' for Man', ' man', ' for Him', ' Him', ' Pour Homme', ' pour homme'];
     }
 
     /**
@@ -1036,6 +1036,7 @@ class SellerOneVariantMatcher
                 && $supplierBaseProductName !== ''
                 && $this->catalogNameContainsPourLineSuffix((string) $product->name)
                 && ! $this->supplierBaseContainsPourLineWords($supplierBaseProductName)
+                && ! $this->supplierBaseContainsPourLineWords($productName)
             ) {
                 continue;
             }
@@ -1201,6 +1202,20 @@ class SellerOneVariantMatcher
                     $this->genderMarkerAllowsGenderSuffixMatch($supplierGenderMarker)
                     && $this->supplierExtraIsGenderOnlySuffix($targetTokens, $candidateTokens)
                 ) {
+                    $expectedGender = match ($supplierGenderMarker) {
+                        'm' => 'male',
+                        'l' => 'female',
+                        'u' => 'unisex',
+                        default => null,
+                    };
+                    // (M)/(L) + gender-only suffix may not land on a product without matching «Для кого».
+                    if (
+                        $expectedGender === null
+                        || ! $this->productMatchesGenderAttribute($product, $expectedGender)
+                    ) {
+                        continue;
+                    }
+
                     $variantMatch = $this->resolveExactNameVariantMatch($product, $variantTail, $concentration);
                     $candidate = [
                         'product' => $product,

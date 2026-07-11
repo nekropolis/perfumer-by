@@ -681,13 +681,16 @@ sudo visudo
 
 ```sudoers
 deploy ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl
+www-data ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl
 www-data ALL=(deploy) NOPASSWD: /usr/local/bin/pm2, /usr/bin/pm2, /usr/bin/env pm2
 ```
 
-Проверь:
+Проверь (мониторинг `server:health-report` работает от `www-data`):
 
 ```bash
-sudo -u deploy sudo supervisorctl status perfumer-queue:*
+sudo -u www-data sudo supervisorctl status perfumer-queue:*
+sudo -u www-data sudo -u deploy pm2 jlist
+sudo -u www-data php artisan server:health-report --dry-run
 ```
 
 Должно выполняться без запроса пароля.

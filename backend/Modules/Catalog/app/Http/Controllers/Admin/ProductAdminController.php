@@ -48,6 +48,8 @@ class ProductAdminController extends Controller
         if ($request->filled('search')) {
             $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
             $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
+            $searchAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $search));
+            $stemAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $stem));
 
             $linkSearch->applyAdminProductListSearch($query, $search);
 
@@ -55,35 +57,37 @@ class ProductAdminController extends Controller
             // brands.name берётся через correlated subquery, т.к. JOIN отсутствует (with('brand') — eager load).
             $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
 
-            $hasStem = mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8');
-
             $bindings = [
                 $search,          // 0 — display exact match
-                $stem,            // 1 — display stem exact
-                $search,          // 2 — name exact
-                $stem,            // 3 — name stem exact
-                $search,          // 4 — slug exact
-                $stem,            // 5 — slug stem exact
-                $search . '%',    // 6 — display starts with
-                $stem . '%',      // 7 — display stem starts with
-                $search . '%',    // 8 — name starts with
-                $stem . '%',      // 9 — name stem starts with
-                '%' . $search . '%', // 10 — name LIKE partial
-                '%' . $stem . '%', // 11 — name stem LIKE partial
-                '%' . $search . '%', // 12 — slug LIKE partial
-                '%' . $stem . '%', // 13 — slug stem LIKE partial
+                $searchAmp,       // 1 — display exact with normalized &
+                $stem,            // 2 — display stem exact
+                $stemAmp,         // 3 — display stem exact with normalized &
+                $search,          // 4 — name exact
+                $stem,            // 5 — name stem exact
+                $search,          // 6 — slug exact
+                $stem,            // 7 — slug stem exact
+                $search . '%',    // 8 — display starts with
+                $searchAmp . '%', // 9 — display starts with normalized &
+                $stem . '%',      // 10 — display stem starts with
+                $stemAmp . '%',   // 11 — display stem starts with normalized &
+                $search . '%',    // 12 — name starts with
+                $stem . '%',      // 13 — name stem starts with
+                '%' . $search . '%', // 14 — name LIKE partial
+                '%' . $stem . '%', // 15 — name stem LIKE partial
+                '%' . $search . '%', // 16 — slug LIKE partial
+                '%' . $stem . '%', // 17 — slug stem LIKE partial
             ];
 
             // display name expression для точного и префиксного совпадения (brand.name + ' ' + product.name).
             $displayNameExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
 
             $relevanceCase = '(CASE
-                WHEN ' . $displayNameExpr . " = LOWER(?) THEN 0
-                WHEN " . $displayNameExpr . " = LOWER(?) THEN 1
+                WHEN ' . $displayNameExpr . " = LOWER(?) OR " . $displayNameExpr . " = LOWER(?) THEN 0
+                WHEN " . $displayNameExpr . " = LOWER(?) OR " . $displayNameExpr . " = LOWER(?) THEN 1
                 WHEN LOWER(TRIM(`products`.`name`)) = LOWER(?) OR LOWER(TRIM(`products`.`name`)) = LOWER(?) THEN 2
                 WHEN LOWER(TRIM(`products`.`slug`)) = LOWER(?) OR LOWER(TRIM(`products`.`slug`)) = LOWER(?) THEN 3
-                WHEN " . $displayNameExpr . ' LIKE LOWER(?) THEN 4
-                WHEN ' . $displayNameExpr . ' LIKE LOWER(?) THEN 5
+                WHEN " . $displayNameExpr . ' LIKE LOWER(?) OR ' . $displayNameExpr . ' LIKE LOWER(?) THEN 4
+                WHEN ' . $displayNameExpr . ' LIKE LOWER(?) OR ' . $displayNameExpr . ' LIKE LOWER(?) THEN 5
                 WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 6
                 WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 7
                 WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 8

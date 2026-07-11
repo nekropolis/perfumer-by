@@ -28,16 +28,32 @@ export function collectAdminSearchHighlightTerms(query: string, brandName?: stri
 
     for (const part of q.split(/\s+/u)) {
         add(part);
+        if (part.includes("&")) {
+            add(part.replace(/\s*&\s*/gu, " & ").replace(/\s+/gu, " ").trim());
+            add(part.replace(/\s*&\s*/gu, "&").trim());
+        }
     }
 
     const brand = brandName?.trim() ?? "";
     if (brand !== "") {
         const brandPrefix = new RegExp(`^${escapeRegExp(brand)}(?:\\s+|$)`, "iu");
-        if (brandPrefix.test(q)) {
+        const brandCompact = brand.replace(/\s*&\s*/gu, "&");
+        const brandSpaced = brand.replace(/\s*&\s*/gu, " & ").replace(/\s+/gu, " ").trim();
+        const queryMatchesBrand =
+            brandPrefix.test(q) ||
+            new RegExp(`^${escapeRegExp(brandCompact)}(?:\\s+|$)`, "iu").test(q) ||
+            new RegExp(`^${escapeRegExp(brandSpaced)}(?:\\s+|$)`, "iu").test(q);
+        if (queryMatchesBrand) {
             add(brand);
+            add(brandCompact);
+            add(brandSpaced);
         }
 
-        const stripped = q.replace(new RegExp(`^${escapeRegExp(brand)}\\s+`, "iu"), "").trim();
+        const stripped = q
+            .replace(new RegExp(`^${escapeRegExp(brand)}\\s+`, "iu"), "")
+            .replace(new RegExp(`^${escapeRegExp(brandCompact)}\\s+`, "iu"), "")
+            .replace(new RegExp(`^${escapeRegExp(brandSpaced)}\\s+`, "iu"), "")
+            .trim();
         if (stripped !== "" && stripped !== q) {
             add(stripped);
             const strippedStem = stripped.replace(/\s+-\s*.*$/u, "").trim();
@@ -50,7 +66,9 @@ export function collectAdminSearchHighlightTerms(query: string, brandName?: stri
         }
     }
 
-    return [...terms].sort((a, b) => b.length - a.length);
+    const sortedTerms = [...terms].sort((a, b) => b.length - a.length);
+
+    return sortedTerms;
 }
 
 type HighlightRange = { start: number; end: number };

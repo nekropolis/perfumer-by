@@ -329,11 +329,22 @@ class ServerHealthMonitorService
     /**
      * @return list<array{name: string, status: string, message: string}>
      */
+    private function supervisorctlStatusOutput(): string
+    {
+        $result = Process::run([
+            'bash',
+            '-lc',
+            'command -v supervisorctl >/dev/null && (sudo supervisorctl status 2>/dev/null || supervisorctl status 2>/dev/null) || true',
+        ]);
+
+        return trim($result->output());
+    }
+
     private function checkSupervisor(): array
     {
         $program = (string) config('communications.server_monitor.supervisor_program', 'perfumer-queue');
-        $result = Process::run(['bash', '-lc', 'command -v supervisorctl >/dev/null && supervisorctl status || true']);
-        if (trim($result->output()) === '') {
+        $output = $this->supervisorctlStatusOutput();
+        if ($output === '') {
             return [[
                 'name' => 'Supervisor',
                 'status' => 'warn',
@@ -341,15 +352,15 @@ class ServerHealthMonitorService
             ]];
         }
 
-        $lines = preg_split('/\r\n|\r|\n/', trim($result->output())) ?: [];
+        $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
         $matched = array_values(array_filter($lines, static fn (string $line): bool => str_contains($line, $program)));
 
         if ($matched === []) {
             // Retry 3x — worker может быть в процессе перезапуска supervisor.
             for ($attempt = 2; $attempt <= 3; $attempt++) {
                 sleep(10);
-                $result = Process::run(['bash', '-lc', 'command -v supervisorctl >/dev/null && supervisorctl status || true']);
-                $lines = preg_split('/\r\n|\r|\n/', trim($result->output())) ?: [];
+                $output = $this->supervisorctlStatusOutput();
+                $lines = preg_split('/\r\n|\r|\n/', $output) ?: [];
                 $matched = array_values(array_filter($lines, static fn (string $line): bool => str_contains($line, $program)));
                 if ($matched !== []) {
                     break;
@@ -376,8 +387,8 @@ class ServerHealthMonitorService
                 $recovered = false;
                 for ($attempt = 2; $attempt <= 3; $attempt++) {
                     sleep(10);
-                    $result = Process::run(['bash', '-lc', 'command -v supervisorctl >/dev/null && supervisorctl status || true']);
-                    $retryLines = preg_split('/\r\n|\r|\n/', trim($result->output())) ?: [];
+                    $retryOutput = $this->supervisorctlStatusOutput();
+                    $retryLines = preg_split('/\r\n|\r|\n/', $retryOutput) ?: [];
                     $retryMatched = array_values(array_filter($retryLines, static fn (string $l): bool => str_contains($l, $program)));
                     foreach ($retryMatched as $retryLine) {
                         $retryStatus = $this->parseSupervisorStatusLine($retryLine);

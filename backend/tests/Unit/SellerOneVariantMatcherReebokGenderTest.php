@@ -180,6 +180,91 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
         $this->assertNull($row['suggested_product']);
     }
 
+    public function test_devotion_m_matches_pour_homme_not_female_line(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 10, 'name' => 'Dolce&Gabbana']]);
+        $rules = collect();
+
+        $femaleProduct = $this->makeProductWithGenderOption(
+            13663,
+            10,
+            'Devotion',
+            3,
+            136631,
+            100,
+            'edp',
+            true,
+        );
+        $femaleProduct->brand->name = 'Dolce & Gabbana';
+        $maleProduct = $this->makeProductWithGenderOption(
+            13794,
+            10,
+            'Devotion Pour Homme',
+            35,
+            137941,
+            100,
+            'edp',
+        );
+        $maleProduct->brand->name = 'Dolce & Gabbana';
+
+        $maleRow = $matcher->parseSupplierRow(
+            ['code' => 'dg-m', 'title' => 'Dolce&Gabbana Devotion (M) 100ml edp'],
+            $brands,
+            $rules,
+            [10 => [$femaleProduct, $maleProduct]],
+        );
+        $femaleRow = $matcher->parseSupplierRow(
+            ['code' => 'dg-l', 'title' => 'Dolce&Gabbana Devotion (L) test 100ml edp'],
+            $brands,
+            $rules,
+            [10 => [$femaleProduct, $maleProduct]],
+        );
+
+        $this->assertSame(13794, $maleRow['suggested_product']['id'] ?? null);
+        $this->assertSame(137941, $maleRow['suggested_variant']['id'] ?? null);
+        $this->assertNotSame(13663, $maleRow['suggested_product']['id'] ?? null);
+
+        $this->assertSame(13663, $femaleRow['suggested_product']['id'] ?? null);
+        $this->assertSame(136631, $femaleRow['suggested_variant']['id'] ?? null);
+    }
+
+    public function test_devotion_m_does_not_match_female_when_gender_attr_missing(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 10, 'name' => 'Dolce&Gabbana']]);
+        $rules = collect();
+
+        $brand = new Brand(['name' => 'Dolce & Gabbana']);
+        $brand->id = 10;
+        $femaleWithoutGender = new Product(['name' => 'Devotion', 'brand_id' => 10]);
+        $femaleWithoutGender->id = 13663;
+        $femaleWithoutGender->setRelation('brand', $brand);
+        $femaleWithoutGender->setRelation('attributeValues', collect());
+        $definition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+        ]);
+        $variant = new ProductVariantLink(['product_id' => 13663]);
+        $variant->id = 136631;
+        $variant->volume = 100;
+        $variant->concentration = 'edp';
+        $variant->setRelation('definition', $definition);
+        $variant->setRelation('product', $femaleWithoutGender);
+        $femaleWithoutGender->setRelation('variants', collect([$variant]));
+
+        $maleRow = $matcher->parseSupplierRow(
+            ['code' => 'dg-m', 'title' => 'Dolce&Gabbana Devotion (M) 100ml edp'],
+            $brands,
+            $rules,
+            [10 => [$femaleWithoutGender]],
+        );
+
+        $this->assertNull($maleRow['suggested_variant']);
+        $this->assertNotSame(13663, $maleRow['suggested_product']['id'] ?? null);
+    }
+
     private function makeProductWithGenderOption(
         int $productId,
         int $brandId,

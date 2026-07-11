@@ -112,8 +112,29 @@ final class CatalogProductLinkNameTokenizer
             return ['brand_id' => null, 'brand_name' => null, 'rest' => trim($title)];
         }
 
-        $pattern = '/^'.preg_quote($bestName, '/').'\s+/iu';
-        $rest = trim((string) preg_replace($pattern, '', $title, 1));
+        $rest = trim($title);
+        $brandStripVariants = array_values(array_unique(array_filter([
+            $bestName,
+            preg_replace('/\s*&\s*/u', '&', $bestName) ?: $bestName,
+            preg_replace('/\s*&\s*/u', ' & ', $bestName) ?: $bestName,
+            preg_replace('/\s+/u', '', $bestName) ?: $bestName,
+        ], static fn (string $v): bool => $v !== '')));
+
+        foreach ($brandStripVariants as $variant) {
+            $pattern = '/^'.preg_quote($variant, '/').'\s+/iu';
+            if (preg_match($pattern, $title) === 1) {
+                $stripped = trim((string) preg_replace($pattern, '', $title, 1));
+                if ($stripped !== '') {
+                    $rest = $stripped;
+                }
+                break;
+            }
+        }
+
+        // Normalized fallback: brand matched via normalizeText but raw spelling differs (Dolce&Gabbana vs Dolce & Gabbana).
+        if ($rest === trim($title) && Str::startsWith($normalizedTitle, self::normalizeText($bestName).' ')) {
+            $rest = trim((string) mb_substr($normalizedTitle, mb_strlen(self::normalizeText($bestName))));
+        }
 
         return ['brand_id' => $bestId, 'brand_name' => $bestName, 'rest' => $rest !== '' ? $rest : trim($title)];
     }
