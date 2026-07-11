@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Jobs\RunSellerOneParseJob;
 use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Modules\Catalog\Models\Brand;
@@ -777,6 +778,13 @@ class SupplierPriceImportService
      * }
      */
     public function refreshLinkedPricesFromAbsolutePath(string $absolutePath, ?callable $onProgress = null): array
+    {
+        return app(CatalogApiCacheService::class)->withoutDeferredInvalidation(
+            fn (): array => $this->refreshLinkedPricesFromAbsolutePathInternal($absolutePath, $onProgress),
+        );
+    }
+
+    private function refreshLinkedPricesFromAbsolutePathInternal(string $absolutePath, ?callable $onProgress = null): array
     {
         if (!is_readable($absolutePath)) {
             throw new InvalidArgumentException('Файл недоступен для чтения');

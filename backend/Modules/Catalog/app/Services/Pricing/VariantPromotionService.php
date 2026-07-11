@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Services\Pricing;
 
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -94,9 +95,15 @@ final class VariantPromotionService
             return 0;
         }
 
-        return ProductVariantLink::query()
+        $cleared = ProductVariantLink::query()
             ->whereIn('id', $toClear)
             ->where('is_promotion', true)
             ->update(['is_promotion' => false]);
+
+        if ($cleared > 0) {
+            app(CatalogApiCacheService::class)->requestInvalidation();
+        }
+
+        return $cleared;
     }
 }

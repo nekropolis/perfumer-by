@@ -9,8 +9,11 @@ use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
-use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Services\Pricing\VariantPromotionService;
+use Modules\Catalog\Services\VariantSupplierRetailPriceService;
+use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockMovement;
@@ -27,6 +30,9 @@ class StockInventoryService
     public const MOVEMENT_RELEASE = 'release';
     public const MOVEMENT_WRITEOFF = 'writeoff';
     public const MOVEMENT_WRITEOFF_REVERSAL = 'writeoff_reversal';
+
+    /** @var array<int, true> */
+    private array $catalogCacheVariantIds = [];
 
     public function getDefaultSupplierWarehouseId(): int
     {
@@ -108,6 +114,13 @@ class StockInventoryService
      */
     public function clearSupplierWarehouseShelfForVariantIds(array $variantIds): void
     {
+        $this->withCatalogCacheCommit(function () use ($variantIds): void {
+            $this->clearSupplierWarehouseShelfForVariantIdsInternal($variantIds);
+        });
+    }
+
+    private function clearSupplierWarehouseShelfForVariantIdsInternal(array $variantIds): void
+    {
         $supplierWarehouseId = $this->getDefaultSupplierWarehouseId();
         if ($supplierWarehouseId <= 0 || $variantIds === []) {
             return;
@@ -145,6 +158,13 @@ class StockInventoryService
 
     public function reserveForOrder(Order $order): array
     {
+        return $this->withCatalogCacheCommit(function () use ($order): array {
+            return $this->reserveForOrderInternal($order);
+        });
+    }
+
+    private function reserveForOrderInternal(Order $order): array
+    {
         $created = 0;
         $skipped = [];
 
@@ -180,6 +200,13 @@ class StockInventoryService
     }
 
     public function releaseForOrder(Order $order, string $reason = 'cancelled'): array
+    {
+        return $this->withCatalogCacheCommit(function () use ($order, $reason): array {
+            return $this->releaseForOrderInternal($order, $reason);
+        });
+    }
+
+    private function releaseForOrderInternal(Order $order, string $reason = 'cancelled'): array
     {
         $released = 0;
 
@@ -254,6 +281,13 @@ class StockInventoryService
     }
 
     public function completeOrder(Order $order): array
+    {
+        return $this->withCatalogCacheCommit(function () use ($order): array {
+            return $this->completeOrderInternal($order);
+        });
+    }
+
+    private function completeOrderInternal(Order $order): array
     {
         $existingWriteoff = StockWriteoff::query()
             ->where('type', 'order')
@@ -428,6 +462,13 @@ class StockInventoryService
 
     public function createManualWriteoff(array $validated): StockWriteoff
     {
+        return $this->withCatalogCacheCommit(function () use ($validated): StockWriteoff {
+            return $this->createManualWriteoffInternal($validated);
+        });
+    }
+
+    private function createManualWriteoffInternal(array $validated): StockWriteoff
+    {
         return DB::transaction(function () use ($validated) {
             $warehouseId = (int) ($validated['warehouse_id'] ?? $this->getDefaultSupplierWarehouseId());
             $writeoff = StockWriteoff::query()->create([
@@ -525,6 +566,13 @@ class StockInventoryService
     }
 
     public function createManualReserve(array $validated): StockWriteoff
+    {
+        return $this->withCatalogCacheCommit(function () use ($validated): StockWriteoff {
+            return $this->createManualReserveInternal($validated);
+        });
+    }
+
+    private function createManualReserveInternal(array $validated): StockWriteoff
     {
         return DB::transaction(function () use ($validated) {
             $warehouseId = (int) ($validated['warehouse_id'] ?? $this->getDefaultSupplierWarehouseId());
@@ -640,6 +688,13 @@ class StockInventoryService
      */
     public function reverseWriteoff(int $writeoffId): StockWriteoff
     {
+        return $this->withCatalogCacheCommit(function () use ($writeoffId): StockWriteoff {
+            return $this->reverseWriteoffInternal($writeoffId);
+        });
+    }
+
+    private function reverseWriteoffInternal(int $writeoffId): StockWriteoff
+    {
         return DB::transaction(function () use ($writeoffId) {
             $writeoff = StockWriteoff::query()->lockForUpdate()->findOrFail($writeoffId);
             if ($writeoff->status !== StockWriteoff::STATUS_POSTED) {
@@ -749,6 +804,17 @@ class StockInventoryService
         array $payload = [],
         ?int $warehouseId = null,
     ): void {
+        $this->increaseVariantStockInternal($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
+    }
+
+    private function increaseVariantStockInternal(
+        ProductVariantLink $variant,
+        int $qty,
+        string $documentType,
+        int $documentId,
+        array $payload = [],
+        ?int $warehouseId = null,
+    ): void {
         if ($qty <= 0) {
             return;
         }
@@ -782,6 +848,17 @@ class StockInventoryService
     }
 
     public function decreaseVariantStock(
+        ProductVariantLink $variant,
+        int $qty,
+        string $documentType,
+        int $documentId,
+        array $payload = [],
+        ?int $warehouseId = null,
+    ): void {
+        $this->decreaseVariantStockInternal($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
+    }
+
+    private function decreaseVariantStockInternal(
         ProductVariantLink $variant,
         int $qty,
         string $documentType,
@@ -886,7 +963,7 @@ class StockInventoryService
             return;
         }
 
-        $this->decreaseVariantStock($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
+        $this->decreaseVariantStockInternal($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
     }
 
     private function applyManualReserveLine(
@@ -1188,6 +1265,8 @@ class StockInventoryService
 
     private function syncVariantAggregates(int $variantId): void
     {
+        $this->markCatalogCacheVariant($variantId);
+
         $variant = ProductVariantLink::query()->find($variantId);
         if (!$variant) {
             return;
@@ -1346,6 +1425,68 @@ class StockInventoryService
             'document_id' => (int) $writeoff->id,
             'created' => true,
         ];
+    }
+
+    public function runWithCatalogCacheCommit(callable $callback): mixed
+    {
+        return $this->withCatalogCacheCommit($callback);
+    }
+
+    private function withCatalogCacheCommit(callable $callback): mixed
+    {
+        $cache = app(CatalogApiCacheService::class);
+        $this->catalogCacheVariantIds = [];
+        $cache->beginDeferredInvalidation();
+        try {
+            return $callback();
+        } finally {
+            $this->syncOfferRetailPricesForVariantsWithoutMainStock(array_keys($this->catalogCacheVariantIds));
+            $cache->commitInvalidation();
+            $this->catalogCacheVariantIds = [];
+        }
+    }
+
+    private function markCatalogCacheVariant(int $variantId): void
+    {
+        if ($variantId > 0) {
+            $this->catalogCacheVariantIds[$variantId] = true;
+        }
+    }
+
+    /**
+     * @param  list<int|string>  $variantIds
+     */
+    private function syncOfferRetailPricesForVariantsWithoutMainStock(array $variantIds): void
+    {
+        if ($variantIds === []) {
+            return;
+        }
+
+        $mainWarehouseId = $this->getMainWarehouseId();
+        $promotionService = app(VariantPromotionService::class);
+        $retailService = app(VariantSupplierRetailPriceService::class);
+        $pricing = app(SellerOnePricingService::class);
+
+        foreach ($variantIds as $variantId) {
+            $variantId = (int) $variantId;
+            if ($variantId <= 0) {
+                continue;
+            }
+
+            if ($promotionService->hasMainWarehouseAvailableStock($variantId, $mainWarehouseId)) {
+                continue;
+            }
+
+            $variant = ProductVariantLink::query()->find($variantId);
+            if ($variant === null || !CatalogVariantStockPresenter::supplierListingActive($variant)) {
+                continue;
+            }
+
+            $retailService->syncFromListingOffers(
+                $variant,
+                fn (float $purchase): float => $pricing->calculateRetailPrice($purchase, $variant),
+            );
+        }
     }
 
 }

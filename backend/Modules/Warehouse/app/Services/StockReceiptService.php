@@ -67,7 +67,8 @@ class StockReceiptService
      */
     public function post(StockReceipt $receipt): StockReceipt
     {
-        return DB::transaction(function () use ($receipt) {
+        return $this->inventoryService->runWithCatalogCacheCommit(function () use ($receipt): StockReceipt {
+            return DB::transaction(function () use ($receipt): StockReceipt {
             if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
                 abort(422, 'Можно провести только черновик прихода');
             }
@@ -103,6 +104,7 @@ class StockReceiptService
             );
 
             return $receipt->fresh(['supplier', 'items']);
+            });
         });
     }
 
@@ -182,7 +184,8 @@ class StockReceiptService
 
     public function destroy(StockReceipt $receipt): void
     {
-        DB::transaction(function () use ($receipt) {
+        $this->inventoryService->runWithCatalogCacheCommit(function () use ($receipt): void {
+            DB::transaction(function () use ($receipt): void {
             $receipt->load('items');
             if ($receipt->status === StockReceipt::STATUS_POSTED) {
                 $this->rollbackItems($receipt);
@@ -203,6 +206,7 @@ class StockReceiptService
                 ],
                 (int) $receipt->warehouse_id
             );
+            });
         });
     }
 

@@ -326,7 +326,8 @@ class ProductController extends Controller
         if (!$debug) {
             $responseCacheTtl = max(5, (int) config('services.catalog_search.response_cache_ttl_seconds', 120));
             $responseCacheKey = sprintf(
-                'catalog:smart-search:response:%s:%s',
+                'catalog:smart-search:response:v%s:%s:%s',
+                $this->cacheService->searchVersion(),
                 md5(mb_strtolower($query, 'UTF-8')),
                 $paginationRequested ? "{$perPage}:{$page}" : (string) $perPage,
             );

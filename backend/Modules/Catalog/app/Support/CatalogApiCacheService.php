@@ -4,12 +4,18 @@ namespace Modules\Catalog\Support;
 
 use Closure;
 use Illuminate\Support\Facades\Cache;
+use Modules\Catalog\Services\CatalogStorefrontRevalidationService;
+use Throwable;
 
 class CatalogApiCacheService
 {
     public const VERSION_KEY = 'catalog:api:version';
+    public const SEARCH_VERSION_KEY = 'catalog:search:version';
     public const TTL_SECONDS = 900;
-    private const SCHEMA_VERSION = 12;
+    private const SCHEMA_VERSION = 13;
+
+    private int $deferDepth = 0;
+    private bool $invalidationPending = false;
 
     public function rememberProducts(array $queryParams, Closure $resolver): array
     {
@@ -104,10 +110,58 @@ class CatalogApiCacheService
         return $result;
     }
 
+    public function requestInvalidation(): void
+    {
+        if ($this->deferDepth > 0) {
+            $this->invalidationPending = true;
+
+            return;
+        }
+
+        $this->bumpVersion();
+    }
+
+    public function beginDeferredInvalidation(): void
+    {
+        $this->deferDepth++;
+    }
+
+    public function commitInvalidation(): void
+    {
+        if ($this->deferDepth > 0) {
+            $this->deferDepth--;
+        }
+
+        if ($this->deferDepth !== 0 || !$this->invalidationPending) {
+            return;
+        }
+
+        $this->invalidationPending = false;
+        $this->bumpVersion();
+    }
+
+    /**
+     * @template T
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function withoutDeferredInvalidation(Closure $callback): mixed
+    {
+        $this->beginDeferredInvalidation();
+        try {
+            return $callback();
+        } finally {
+            $this->commitInvalidation();
+        }
+    }
+
     public function bumpVersion(): int
     {
         $next = $this->version() + 1;
         Cache::forever(self::VERSION_KEY, $next);
+        Cache::forever(self::SEARCH_VERSION_KEY, $this->searchVersion() + 1);
+        $this->triggerStorefrontRevalidation();
+
         return $next;
     }
 
@@ -115,5 +169,17 @@ class CatalogApiCacheService
     {
         return (int) Cache::get(self::VERSION_KEY, 1);
     }
-}
 
+    public function searchVersion(): int
+    {
+        return (int) Cache::get(self::SEARCH_VERSION_KEY, 1);
+    }
+
+    private function triggerStorefrontRevalidation(): void
+    {
+        try {
+            app(CatalogStorefrontRevalidationService::class)->revalidateCatalog();
+        } catch (Throwable) {
+        }
+    }
+}

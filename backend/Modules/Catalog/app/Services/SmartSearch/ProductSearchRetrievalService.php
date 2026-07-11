@@ -4,13 +4,15 @@ namespace Modules\Catalog\Services\SmartSearch;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use RuntimeException;
 
 class ProductSearchRetrievalService
 {
     public function __construct(
         private readonly MeiliSearchHttpClient $client,
-        private readonly ProductSearchIndexer $indexer
+        private readonly ProductSearchIndexer $indexer,
+        private readonly CatalogApiCacheService $cacheService,
     ) {
     }
 
@@ -35,7 +37,12 @@ class ProductSearchRetrievalService
 
         $start = microtime(true);
         $cacheTtl = max(5, (int) config('services.catalog_search.search_cache_ttl_seconds', 20));
-        $cacheKey = sprintf('catalog:smart-search:ids:%s:%d', md5(mb_strtolower(trim($query), 'UTF-8')), $limit);
+        $cacheKey = sprintf(
+            'catalog:smart-search:ids:v%s:%s:%d',
+            $this->cacheService->searchVersion(),
+            md5(mb_strtolower(trim($query), 'UTF-8')),
+            $limit,
+        );
 
         try {
             $payload = Cache::remember($cacheKey, $cacheTtl, function () use ($query, $limit): array {

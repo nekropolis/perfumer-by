@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
-use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Support\VanilleHelper;
@@ -66,8 +65,6 @@ class BrandController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        app(CatalogApiCacheService::class)->bumpVersion();
-
         return response()->json([
             'message' => 'Бренд создан',
             'data' => $brand->loadCount('products'),
@@ -109,8 +106,6 @@ class BrandController extends Controller
             'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? $brand->is_active,
         ]);
-
-        app(CatalogApiCacheService::class)->bumpVersion();
 
         return response()->json([
             'message' => 'Бренд обновлён',
@@ -182,6 +177,7 @@ class BrandController extends Controller
 
         $decoded = VanilleBrandParser::filterExcludedListingRows($decoded);
 
+        return app(\Modules\Catalog\Support\CatalogApiCacheService::class)->withoutDeferredInvalidation(function () use ($decoded, $path): JsonResponse {
         $existingEquivalentKeys = Brand::query()
             ->pluck('name')
             ->mapWithKeys(static function ($name): array {
@@ -274,6 +270,7 @@ class BrandController extends Controller
             'created' => $created,
             'skipped' => $skipped,
         ]);
+        });
     }
 
     private function resolveUniqueSlug(string $baseSlug, array &$usedSlugs): string

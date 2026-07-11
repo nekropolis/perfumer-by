@@ -10,6 +10,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\PriceRefreshRun;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Services\Pricing\PriceRefreshOrchestrator;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Throwable;
@@ -45,6 +46,8 @@ class RunPriceRefreshJob implements ShouldQueue
             'message' => 'Запуск обновления цен…',
             'updated_at' => now()->toDateTimeString(),
         ], now()->addHours(24));
+
+        app(CatalogApiCacheService::class)->beginDeferredInvalidation();
 
         try {
             $stats = $orchestrator->run(
@@ -99,6 +102,7 @@ class RunPriceRefreshJob implements ShouldQueue
 
             throw $e;
         } finally {
+            app(CatalogApiCacheService::class)->commitInvalidation();
             self::clearActiveJobIfMatches($this->jobId);
         }
     }

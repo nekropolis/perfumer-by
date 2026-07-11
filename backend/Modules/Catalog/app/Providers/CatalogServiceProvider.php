@@ -7,6 +7,8 @@ use Modules\Catalog\Models\Category;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\ProductAttributeOption;
+use Modules\Catalog\Models\ProductAttributeValue;
+use Modules\Catalog\Models\ProductAttributeValueOption;
 use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierProduct;
@@ -93,12 +95,18 @@ class CatalogServiceProvider extends ModuleServiceProvider
         SyncListingMinPricesCommand::class,
     ];
 
+    public function register(): void
+    {
+        $this->app->singleton(CatalogApiCacheService::class);
+        parent::register();
+    }
+
     public function boot(): void
     {
         parent::boot();
 
-        $bump = static function (): void {
-            app(CatalogApiCacheService::class)->bumpVersion();
+        $invalidate = static function (): void {
+            app(CatalogApiCacheService::class)->requestInvalidation();
         };
 
         foreach ([
@@ -110,9 +118,13 @@ class CatalogServiceProvider extends ModuleServiceProvider
             VariantDefinition::class,
             ProductAttribute::class,
             ProductAttributeOption::class,
+            ProductAttributeValue::class,
+            ProductAttributeValueOption::class,
+            SupplierVariantOffer::class,
+            WarehouseVariantStock::class,
         ] as $modelClass) {
-            $modelClass::saved($bump);
-            $modelClass::deleted($bump);
+            $modelClass::saved($invalidate);
+            $modelClass::deleted($invalidate);
         }
 
         Product::saved(function (Product $product): void {

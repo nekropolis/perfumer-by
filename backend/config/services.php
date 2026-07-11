@@ -55,4 +55,9 @@ return [
         ],
     ],
 
+    'catalog_storefront' => [
+        'revalidate_url' => env('CATALOG_STOREFRONT_REVALIDATE_URL'),
+        'revalidate_secret' => env('CATALOG_STOREFRONT_REVALIDATE_SECRET'),
+    ],
+
 ];
