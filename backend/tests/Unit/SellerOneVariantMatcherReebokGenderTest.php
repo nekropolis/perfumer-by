@@ -265,6 +265,22 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
         $this->assertNotSame(13663, $maleRow['suggested_product']['id'] ?? null);
     }
 
+    public function test_dolce_gabbana_ampersand_brand_is_stripped_from_parsed_product_name(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 10, 'name' => 'Dolce & Gabbana']]);
+
+        $row = $matcher->parseSupplierRow(
+            ['code' => 'dg-one', 'title' => 'Dolce&Gabbana The One (M) 100ml edt'],
+            $brands,
+            collect(),
+            [],
+        );
+
+        $this->assertSame('Dolce & Gabbana', $row['parsed']['brand'] ?? null);
+        $this->assertSame('The One', $row['parsed']['product_name'] ?? null);
+    }
+
     private function makeProductWithGenderOption(
         int $productId,
         int $brandId,

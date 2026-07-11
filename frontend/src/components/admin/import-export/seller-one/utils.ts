@@ -111,7 +111,8 @@ export function buildInitialSearchFromRow(row: SellerOneSupplierProductItem): st
     const parsedName = row.parsed?.product_name?.trim() || "";
 
     if (parsedBrand && parsedName) {
-        return `${parsedBrand} ${parsedName}`.trim();
+        const strippedName = stripBrandPrefixFromName(parsedBrand, parsedName);
+        return `${parsedBrand} ${strippedName}`.trim();
     }
 
     if (parsedName) {
@@ -171,9 +172,17 @@ export function buildSearchCandidates(query: string): string[] {
 }
 
 export function formatCatalogProductLabel(product: ProductAdminItem): string {
-    return product.brand?.name
-        ? `${product.brand.name} ${product.name}`.trim()
-        : product.name;
+    const brand = product.brand?.name?.trim() || "";
+    const name = product.name.trim();
+    if (!brand) {
+        return name;
+    }
+    const stripped = stripBrandPrefixFromName(brand, name);
+    if (stripped !== name) {
+        return `${brand} ${stripped}`.trim();
+    }
+
+    return `${brand} ${name}`.trim();
 }
 
 /** Строка для сравнения при ранжировании (без дубля бренда в name). */
@@ -198,7 +207,14 @@ export function buildSupplierLabelFromHint(hint: {
     brand: string;
     productName: string;
 }): string {
-    return [hint.brand.trim(), hint.productName.trim()].filter(Boolean).join(" ").trim();
+    const brand = hint.brand.trim();
+    const name = hint.productName.trim();
+    if (brand && name) {
+        const strippedName = stripBrandPrefixFromName(brand, name);
+        return `${brand} ${strippedName}`.trim();
+    }
+
+    return [brand, name].filter(Boolean).join(" ").trim();
 }
 
 export function productSearchMatchTier(full: string, target: string): number {
@@ -272,6 +288,188 @@ export function isGenderCanonToken(token: string): boolean {
     return token === GENDER_CANON_FEMALE
         || token === GENDER_CANON_MALE
         || token === GENDER_CANON_UNISEX;
+}
+
+/** Токены для подсветки имени: ≥2 символа или однобуквенные слова линии («A Corps Secret»). */
+function isHighlightNameToken(token: string): boolean {
+    if (isGenderCanonToken(token)) {
+        return true;
+    }
+    if (token.length >= 2) {
+        return true;
+    }
+    if (token.length !== 1 || !/^[\p{L}]$/u.test(token)) {
+        return false;
+    }
+
+    // Одиночные маркеры пола в скобках не попадают в product_name; на всякий случай не подсвечиваем.
+    return !["m", "l", "u", "w"].includes(token);
+}
+
+/**
+ * Номера линейки (№7, 1/6, trailing 1) — зеркало SellerOneVariantMatcher::extractProductEditionKeys.
+ *
+ * @return list<string> ключи n:7, f:1/6, d:1.7, t:1, l:x
+ */
+export function extractProductEditionKeys(name: string): string[] {
+    const keys: string[] = [];
+
+    const numberMarkRe = /(?:№|no\.?|#)\s*(\d+)\b/giu;
+    let numberMatch: RegExpExecArray | null;
+    while ((numberMatch = numberMarkRe.exec(name)) !== null) {
+        const raw = (numberMatch[1] ?? "").replace(/^0+/, "") || "0";
+        keys.push(`n:${raw}`);
+    }
+
+    const fractionRe = /\b(\d+)\s*\/\s*(\d+)\b/gu;
+    let fractionMatch: RegExpExecArray | null;
+    while ((fractionMatch = fractionRe.exec(name)) !== null) {
+        keys.push(`f:${parseInt(fractionMatch[1], 10)}/${parseInt(fractionMatch[2], 10)}`);
+    }
+
+    const decimalRe = /\b(\d+\.\d+)\b/gu;
+    let decimalMatch: RegExpExecArray | null;
+    while ((decimalMatch = decimalRe.exec(name)) !== null) {
+        const decimal = decimalMatch[1];
+        if (new RegExp(`\\b${escapeRegExp(decimal)}\\s*(ml|мл)\\b`, "iu").test(name)) {
+            continue;
+        }
+        keys.push(`d:${decimal}`);
+    }
+
+    let nameWithoutVolume = name
+        .replace(/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/giu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (
+        nameWithoutVolume !== ""
+        && !/\b\d+\s*\/\s*\d+\s*$/u.test(nameWithoutVolume)
+        && !/\b\d+\.\d+\s*$/u.test(nameWithoutVolume)
+    ) {
+        const trailingNumber = nameWithoutVolume.match(/\b(\d+)\s*$/u);
+        if (trailingNumber) {
+            const raw = trailingNumber[1].replace(/^0+/, "") || "0";
+            keys.push(`t:${raw}`);
+        } else {
+            const trailingLetter = nameWithoutVolume.match(/\b([a-z])\s*$/iu);
+            if (
+                trailingLetter
+                && !/\b[a-z]\s+[a-z]\s*$/iu.test(nameWithoutVolume)
+            ) {
+                keys.push(`l:${trailingLetter[1].toLowerCase()}`);
+            }
+        }
+    }
+
+    if (nameWithoutVolume !== "" && /(?:^|\s)x(?=\s)/iu.test(nameWithoutVolume)) {
+        const inlineX = nameWithoutVolume.match(/(?:^|\s)x(?=\s)/giu);
+        if (inlineX) {
+            for (let i = 0; i < inlineX.length; i += 1) {
+                keys.push("l:x");
+            }
+        }
+    }
+
+    return [...new Set(keys)];
+}
+
+function matchedEditionHighlightKeys(supplierName: string, catalogName: string): string[] {
+    const supplierKeys = extractProductEditionKeys(supplierName);
+    const catalogKeys = extractProductEditionKeys(catalogName);
+    if (supplierKeys.length === 0 && catalogKeys.length === 0) {
+        return [];
+    }
+
+    const sortedSupplier = [...supplierKeys].sort();
+    const sortedCatalog = [...catalogKeys].sort();
+    if (sortedSupplier.length !== sortedCatalog.length) {
+        return [];
+    }
+
+    for (let i = 0; i < sortedSupplier.length; i += 1) {
+        if (sortedSupplier[i] !== sortedCatalog[i]) {
+            return [];
+        }
+    }
+
+    return supplierKeys;
+}
+
+function editionKeyHighlightPattern(key: string): RegExp | null {
+    const colon = key.indexOf(":");
+    if (colon === -1) {
+        return null;
+    }
+
+    const type = key.slice(0, colon);
+    const value = key.slice(colon + 1);
+
+    switch (type) {
+        case "n": {
+            const num = value.replace(/^0+/, "") || "0";
+            return new RegExp(`(?:№|no\\.?|#)\\s*0*${escapeRegExp(num)}\\b`, "giu");
+        }
+        case "t": {
+            const num = value.replace(/^0+/, "") || "0";
+            return new RegExp(`\\b0*${escapeRegExp(num)}\\b`, "giu");
+        }
+        case "f": {
+            const [left, right] = value.split("/");
+            if (!left || !right) {
+                return null;
+            }
+
+            return new RegExp(
+                `\\b0*${escapeRegExp(left)}\\s*\\/\\s*0*${escapeRegExp(right)}\\b`,
+                "giu",
+            );
+        }
+        case "d":
+            return new RegExp(`\\b${escapeRegExp(value)}\\b`, "giu");
+        case "l":
+            return new RegExp(`\\b${escapeRegExp(value)}\\b`, "giu");
+        default:
+            return null;
+    }
+}
+
+/** Подсветка №7 / № 7 / No.7 и других ключей линейки в отображаемом тексте. */
+export function findEditionHighlightRanges(
+    text: string,
+    editionKeys: string[],
+    searchFrom = 0,
+): NameMatchHighlightRange[] {
+    if (!text || editionKeys.length === 0) {
+        return [];
+    }
+
+    const ranges: NameMatchHighlightRange[] = [];
+    const cursorStart = Math.max(0, searchFrom);
+
+    for (const key of editionKeys) {
+        const pattern = editionKeyHighlightPattern(key);
+        if (!pattern) {
+            continue;
+        }
+
+        pattern.lastIndex = cursorStart;
+        const match = pattern.exec(text);
+        if (!match) {
+            continue;
+        }
+
+        ranges.push({
+            start: match.index,
+            end: match.index + match[0].length,
+        });
+    }
+
+    return ranges;
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Базовая нормализация имени без схлопывания «de parfum» / «parfum» (для подсветки). */
@@ -489,7 +687,7 @@ function highlightProductNameTokens(productName: string, brandName?: string | nu
 
     return normalized
         .split(" ")
-        .filter((token) => token.length >= 2);
+        .filter(isHighlightNameToken);
 }
 
 function highlightSupplierProductNameTokens(
@@ -536,12 +734,40 @@ export function stripBrandPrefixFromName(brandName: string, productName: string)
         return name;
     }
 
-    const pattern = new RegExp(`^${escapeRegExp(brand)}\\s+`, "iu");
-    if (!pattern.test(name)) {
-        return name;
+    const literalVariants = new Set<string>([
+        brand,
+        brand.replace(/\s*&\s*/g, " & "),
+        brand.replace(/\s*&\s*/g, ""),
+        brand.replace(/\s*&\s*/g, " and "),
+    ]);
+    for (const variant of literalVariants) {
+        if (!variant) {
+            continue;
+        }
+        const pattern = new RegExp(`^${escapeRegExp(variant)}\\s+`, "iu");
+        if (pattern.test(name)) {
+            const stripped = name.replace(pattern, "").trim();
+            if (stripped) {
+                return stripped;
+            }
+        }
     }
 
-    return name.replace(pattern, "").trim() || name;
+    const parts = brand.split(/\s*(?:&|and)\s*/iu).map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+        const flexPattern = new RegExp(
+            `^${parts.map((part) => escapeRegExp(part)).join("\\s*(?:&|and)\\s*")}\\s+`,
+            "iu",
+        );
+        if (flexPattern.test(name)) {
+            const stripped = name.replace(flexPattern, "").trim();
+            if (stripped) {
+                return stripped;
+            }
+        }
+    }
+
+    return name;
 }
 
 function phraseHighlightTokens(phrase: string): string[] {
@@ -565,7 +791,7 @@ function catalogPhraseHighlightTokens(catalogLabel: string, catalogBrand: string
     const brandTokens = phraseHighlightTokens(catalogBrand);
 
     return tokens.filter(
-        (token) => token.length >= 2 || brandTokens.includes(token),
+        (token) => isHighlightNameToken(token) || brandTokens.includes(token),
     );
 }
 
@@ -737,6 +963,13 @@ export function findSellerOneRowNameMatchInfo(
         || backendNameExact
         || tokensExact
         || linkedExact;
+    const catalogNameForEdition = catalogProductName
+        || stripBrandPrefixFromName(catalogBrand, catalogLabel);
+    const supplierNameForEdition = supplierProductName || row.external_name;
+    const editionKeys = matchedEditionHighlightKeys(
+        supplierNameForEdition,
+        catalogNameForEdition,
+    );
 
     if (supplierProductName && catalogProductName) {
         const words = buildMatchedHighlightWords(
@@ -759,6 +992,7 @@ export function findSellerOneRowNameMatchInfo(
                 exact: highlightStrong,
                 brandPrefix,
                 catalogBrandPrefix,
+                editionKeys: editionKeys.length > 0 ? editionKeys : undefined,
                 supplierGenderMarker: highlightStrong
                     && supplierGenderMarker
                     && supplierGenderMarkerAlignsWithCatalog(supplierGenderMarker, catalogTokensForMatch)
@@ -803,6 +1037,7 @@ export function findSellerOneRowNameMatchInfo(
             exact: false,
             brandPrefix: brandPrefix && (words.length > 0 || supplierGenderMarker) ? brandPrefix : null,
             catalogBrandPrefix,
+            editionKeys: editionKeys.length > 0 ? editionKeys : undefined,
             supplierGenderMarker: supplierGenderMarker
                 && supplierGenderMarkerAlignsWithCatalog(supplierGenderMarker, catalogTokens)
                 ? supplierGenderMarker
@@ -810,11 +1045,16 @@ export function findSellerOneRowNameMatchInfo(
         };
     }
 
-    return findProductNameMatchInfo(
+    const fallback = findProductNameMatchInfo(
         buildSupplierParsedLabel(row.parsed, row.external_name),
         catalogLabel,
         { catalogBrand, isLinked: row.is_linked },
     );
+    if (editionKeys.length > 0) {
+        return { ...fallback, editionKeys };
+    }
+
+    return fallback;
 }
 
 export function isExactProductNameMatch(sourceName: string, candidateName: string): boolean {
@@ -825,10 +1065,6 @@ export function isExactProductNameMatch(sourceName: string, candidateName: strin
     }
 
     return leftTokens.every((token, index) => productNameTokensEquivalent(token, rightTokens[index]));
-}
-
-function escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Между словами в оригинале могут быть &, :, /, дефисы и прочие разделители. */
@@ -915,7 +1151,7 @@ export function findNameMatchHighlightRanges(
     }
 
     for (const word of normalizedWords) {
-        if (word.length < 2) {
+        if (!isHighlightNameToken(word)) {
             continue;
         }
         const re = new RegExp(
@@ -986,6 +1222,8 @@ export type ProductNameMatchInfo = {
     catalogBrandPrefix?: string | null;
     /** (M)/(L)/(U) в строке поставщика — подсветка при совпадении пола с каталогом. */
     supplierGenderMarker?: "m" | "l" | "u" | null;
+    /** Ключи линейки (n:7, t:1, …) — подсветка №7 / № 7 в отображаемом тексте. */
+    editionKeys?: string[];
 };
 
 function filterMatcherTokens(tokens: string[]): string[] {
@@ -1137,12 +1375,14 @@ function subsequenceMatchedCatalogWordsFromTokens(
     let supplierIndex = 0;
 
     for (const catalogToken of catalogTokens) {
-        if (
-            supplierIndex < supplierTokens.length
-            && productNameTokensEquivalent(catalogToken, supplierTokens[supplierIndex])
-        ) {
-            matched.push(catalogToken);
-            supplierIndex += 1;
+        let scanIndex = supplierIndex;
+        while (scanIndex < supplierTokens.length) {
+            if (productNameTokensEquivalent(catalogToken, supplierTokens[scanIndex])) {
+                matched.push(catalogToken);
+                supplierIndex = scanIndex + 1;
+                break;
+            }
+            scanIndex += 1;
         }
     }
 
@@ -1216,7 +1456,7 @@ export function findSubsequenceHighlightRanges(
     let cursor = Math.max(0, searchFrom);
 
     for (const word of normalizedWords) {
-        if (word.length < 2) {
+        if (!isHighlightNameToken(word)) {
             continue;
         }
 

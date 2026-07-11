@@ -14,8 +14,8 @@ use Modules\Catalog\Support\ProductDisplayName;
 /**
  * Матчер поставщика Seller One (и приход XLS на склад — тот же класс).
  *
- * Строка делится на «название» и «хвост варианта» по первому из:
- *   vial, test|tester|тестер, \d+ ml, extrait de parfum.
+ * Строка делится на «название» и «хвост варианта» по первому маркеру из
+ * {@see variantStartPatterns()} — всё от маркера до конца строки = вариант.
  *
  * Пробник (is_vial): слово vial в строке или объём ≤ 3 мл (без multipack/combo).
  *
@@ -113,20 +113,15 @@ class SellerOneVariantMatcher
         $matchedBrand = $this->detectBrand($title, $brands);
         $nameVariantSplit = $this->splitNameAndVariantTail($title);
         $variantTail = $nameVariantSplit['tail'];
-        $variantSource = $variantTail !== '' ? $variantTail : $title;
-        $volumeSpec = $this->parseVolumeFromText($variantSource);
-        $volume = $volumeSpec['volume'];
-        $volumeIsMultipack = $volumeSpec['is_multipack'];
-        $volumeMultipackCount = $volumeSpec['multipack_count'];
-        $volumeMultipackUnitMl = $volumeSpec['multipack_unit_volume'];
-        $concentration = $this->extractConcentration($variantSource);
-        $isTester = $this->extractIsTester($variantSource);
-        $isVial = $this->extractIsVial($variantSource) || $this->extractIsVial($nameVariantSplit['name']);
-        $isVial = $isVial || $this->supplierVolumeImpliesVial(
-            $volume,
-            $volumeIsMultipack,
-            (bool) ($volumeSpec['is_combo_set'] ?? false),
-        );
+        $variantText = $variantTail !== '' ? $variantTail : $title;
+        $tailSig = $this->parseVariantTailSignature($variantText);
+        $volume = $tailSig['volume'];
+        $volumeIsMultipack = (bool) ($tailSig['volume_is_multipack'] ?? false);
+        $volumeMultipackCount = $tailSig['volume_multipack_count'] ?? null;
+        $volumeMultipackUnitMl = $tailSig['volume_multipack_unit_ml'] ?? null;
+        $concentration = $tailSig['concentration'];
+        $isTester = (bool) $tailSig['is_tester'];
+        $isVial = (bool) $tailSig['is_vial'] || $this->extractIsVial($nameVariantSplit['name']);
         $genderMarker = $this->extractGenderMarker($title);
         $baseProductName = $this->extractBaseProductName($nameVariantSplit['name'], $matchedBrand['name'] ?? null);
         [$baseProductName, $concentration] = $this->applyTrailingParfumeLineNameRule(
@@ -444,6 +439,17 @@ class SellerOneVariantMatcher
         return '/\b\d+\s*[\*x]\s*\d+(?:[.,]\d+)?\s*(?:ml|мл)\b|\b\d+\s*[\*x]\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu';
     }
 
+    /** «2ml edp … 10шт» — набор однообразных флаконов, не одиночный объём. */
+    private function pieceCountVolumeMatchPattern(): string
+    {
+        return '/\b(\d+)\s*(?:шт|pcs|pc|pieces)\b/iu';
+    }
+
+    private function pieceCountVolumeStripPattern(): string
+    {
+        return '/\b\d+\s*(?:шт|pcs|pc|pieces)\b/iu';
+    }
+
     private function comboVolumeSetMatchPattern(): string
     {
         $volume = '\d+(?:[.,]\d+)?\s*(?:ml|мл)';
@@ -505,9 +511,13 @@ class SellerOneVariantMatcher
             return true;
         }
 
-        $blocking = ['limitee', 'gold', 'silver', 'platinum', 'anniversary', 'collector'];
+        $blocking = ['limitee', 'gold', 'silver', 'platinum', 'anniversary', 'collector', 'cologne'];
         foreach ($extraTokens as $token) {
             if (in_array($token, $blocking, true)) {
+                return true;
+            }
+
+            if (preg_match('/^\d+(?:шт|pcs|pc|pieces)?$/iu', $token)) {
                 return true;
             }
         }
@@ -658,18 +668,29 @@ class SellerOneVariantMatcher
         }
 
         if (preg_match('/(\d+(?:[.,]\d+)?)\s*(ml|мл)\b/iu', $text, $matches)) {
-            return [
-                'volume' => $this->toFloat($matches[1]),
-                'is_multipack' => false,
-                'is_combo_set' => false,
-                'multipack_count' => null,
-                'multipack_unit_volume' => null,
-            ];
+            $singleVolume = $this->toFloat($matches[1]);
+        } elseif (preg_match('/(\d+(?:[.,]\d+)?)(ml|мл)\b/iu', $text, $matches)) {
+            $singleVolume = $this->toFloat($matches[1]);
+        } else {
+            $singleVolume = null;
         }
 
-        if (preg_match('/(\d+(?:[.,]\d+)?)(ml|мл)\b/iu', $text, $matches)) {
+        if ($singleVolume !== null && preg_match($this->pieceCountVolumeMatchPattern(), $text, $pieceMatches)) {
+            $pieceCount = (int) $pieceMatches[1];
+            if ($pieceCount > 1) {
+                return [
+                    'volume' => null,
+                    'is_multipack' => true,
+                    'is_combo_set' => false,
+                    'multipack_count' => $pieceCount,
+                    'multipack_unit_volume' => $singleVolume,
+                ];
+            }
+        }
+
+        if ($singleVolume !== null) {
             return [
-                'volume' => $this->toFloat($matches[1]),
+                'volume' => $singleVolume,
                 'is_multipack' => false,
                 'is_combo_set' => false,
                 'multipack_count' => null,
@@ -1412,27 +1433,44 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * @return array{volume: ?float, volume_is_multipack: bool, concentration: ?string, is_tester: bool, is_vial: bool, has_limited_edition: bool, extra_tokens: list<string>}
+     * @return array{
+     *     volume: ?float,
+     *     volume_is_multipack: bool,
+     *     volume_is_combo_set: bool,
+     *     volume_multipack_count: ?int,
+     *     volume_multipack_unit_ml: ?float,
+     *     concentration: ?string,
+     *     is_tester: bool,
+     *     is_vial: bool,
+     *     has_limited_edition: bool,
+     *     extra_tokens: list<string>,
+     * }
      */
     private function parseVariantTailSignature(string $tail): array
     {
+        $empty = [
+            'volume' => null,
+            'volume_is_multipack' => false,
+            'volume_is_combo_set' => false,
+            'volume_multipack_count' => null,
+            'volume_multipack_unit_ml' => null,
+            'concentration' => null,
+            'is_tester' => false,
+            'is_vial' => false,
+            'has_limited_edition' => false,
+            'extra_tokens' => [],
+        ];
+
         $work = preg_replace('/\s+/u', ' ', trim($tail)) ?: '';
         if ($work === '') {
-            return [
-                'volume' => null,
-                'volume_is_multipack' => false,
-                'volume_is_combo_set' => false,
-                'concentration' => null,
-                'is_tester' => false,
-                'is_vial' => false,
-                'has_limited_edition' => false,
-                'extra_tokens' => [],
-            ];
+            return $empty;
         }
 
         $volume = null;
         $volumeIsMultipack = false;
         $volumeIsComboSet = false;
+        $volumeMultipackCount = null;
+        $volumeMultipackUnitMl = null;
         $concentration = null;
         $isTester = false;
         $isVial = false;
@@ -1444,7 +1482,10 @@ class SellerOneVariantMatcher
         $volumeSpec = $this->parseVolumeFromText($work);
         if ($volumeSpec['is_multipack']) {
             $volumeIsMultipack = true;
+            $volumeMultipackCount = $volumeSpec['multipack_count'];
+            $volumeMultipackUnitMl = $volumeSpec['multipack_unit_volume'];
             $work = (string) preg_replace($this->multipackVolumeStripPattern(), ' ', $work, 1);
+            $work = (string) preg_replace($this->pieceCountVolumeStripPattern(), ' ', $work, 1);
         } elseif ($volumeSpec['is_combo_set'] ?? false) {
             $volumeIsComboSet = true;
             $work = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(?:ml|мл)\b/iu', ' ', $work);
@@ -1471,6 +1512,13 @@ class SellerOneVariantMatcher
             $work = (string) preg_replace('/\b(edp|edt|edc)\b/iu', ' ', $work, 1);
         }
 
+        if (preg_match('/\b(?:eau\s+de\s+)?cologne\b/iu', $work)) {
+            if ($concentration === null) {
+                $concentration = 'edc';
+                $work = (string) preg_replace('/\b(?:eau\s+de\s+)?cologne\b/iu', ' ', $work, 1);
+            }
+        }
+
         if ($concentration === null && preg_match('/\b(parfum|parfume|parfums)\b/iu', $work)) {
             $concentration = 'parfum';
             $work = (string) preg_replace('/\b(parfum|parfume|parfums)\b/iu', ' ', $work, 1);
@@ -1490,6 +1538,7 @@ class SellerOneVariantMatcher
         // Это не «лишние слова» варианта — убираем повторы, уже извлеённые выше.
         if ($volume !== null || $volumeIsMultipack || $volumeIsComboSet) {
             $work = (string) preg_replace($this->multipackVolumeStripPattern(), ' ', $work);
+            $work = (string) preg_replace($this->pieceCountVolumeStripPattern(), ' ', $work);
             $work = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $work);
             $work = (string) preg_replace('/\b\d+(?:[.,]\d+)?(?:ml|мл)\b/iu', ' ', $work);
         }
@@ -1522,12 +1571,35 @@ class SellerOneVariantMatcher
             'volume' => $volume,
             'volume_is_multipack' => $volumeIsMultipack,
             'volume_is_combo_set' => $volumeIsComboSet,
+            'volume_multipack_count' => $volumeMultipackCount,
+            'volume_multipack_unit_ml' => $volumeMultipackUnitMl,
             'concentration' => $concentration,
             'is_tester' => $isTester,
             'is_vial' => $isVial,
             'has_limited_edition' => $hasLimitedEdition,
             'extra_tokens' => $extraTokens,
         ];
+    }
+
+    /**
+     * Парсинг хвоста варианта (публичная обёртка для тестов).
+     *
+     * @return array{
+     *     volume: ?float,
+     *     volume_is_multipack: bool,
+     *     volume_is_combo_set: bool,
+     *     volume_multipack_count: ?int,
+     *     volume_multipack_unit_ml: ?float,
+     *     concentration: ?string,
+     *     is_tester: bool,
+     *     is_vial: bool,
+     *     has_limited_edition: bool,
+     *     extra_tokens: list<string>,
+     * }
+     */
+    public function parseVariantFromTail(string $tail): array
+    {
+        return $this->parseVariantTailSignature($tail);
     }
 
     /**
@@ -1657,30 +1729,44 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * @return array{name: string, tail: string}
+     * Regex-маркеры начала варианта в строке прайса.
+     *
+     * Как только встречается совпадение — всё от этой позиции до конца строки
+     * считается хвостом варианта и не участвует в матче названия товара.
+     *
+     * Чтобы добавить новый маркер — допишите regex в этот список.
+     *
+     * @return list<string>
      */
-    public function splitNameAndVariantTail(string $title): array
+    public function variantStartPatterns(): array
     {
-        $title = preg_replace('/\s+/u', ' ', trim($title)) ?: '';
-        if ($title === '') {
-            return ['name' => '', 'tail' => ''];
-        }
-
-        $patterns = [
+        return [
+            // Multipack: 3*10ml, 4 x 10 ml
             '/\b\d+\s*\*\s*\d+(?:[.,]\d+)?\s*(?:ml|мл)\b/iu',
             '/\b\d+\s*\*\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',
             '/\b\d+\s*x\s*\d+(?:[.,]\d+)?\s*(?:ml|мл)\b/iu',
             '/\b\d+\s*x\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',
+            // Extrait de parfum
             '/\bextrait\s+de\s+parfum\b/iu',
+            // Концентрация (в т.ч. до объёма: «Bad Boy edp 100ml»)
             '/\b(edp|edt|edc)\b/iu',
+            // Пробник / тестер
             '/\bvial\b/iu',
             '/\b(test|tester|тестер)\b/iu',
+            // Одиночный объём: 50ml, 2 ml
             '/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu',
             '/\b\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',
         ];
+    }
 
+    /**
+     * Позиция первого маркера варианта или null, если маркеров нет.
+     */
+    private function findVariantStartPosition(string $title): ?int
+    {
         $cutAt = null;
-        foreach ($patterns as $pattern) {
+
+        foreach ($this->variantStartPatterns() as $pattern) {
             if (! preg_match($pattern, $title, $matches)) {
                 continue;
             }
@@ -1695,6 +1781,21 @@ class SellerOneVariantMatcher
                 $cutAt = $pos;
             }
         }
+
+        return $cutAt;
+    }
+
+    /**
+     * @return array{name: string, tail: string}
+     */
+    public function splitNameAndVariantTail(string $title): array
+    {
+        $title = preg_replace('/\s+/u', ' ', trim($title)) ?: '';
+        if ($title === '') {
+            return ['name' => '', 'tail' => ''];
+        }
+
+        $cutAt = $this->findVariantStartPosition($title);
 
         if ($cutAt === null) {
             return ['name' => $title, 'tail' => ''];
@@ -2063,7 +2164,9 @@ class SellerOneVariantMatcher
         $variants = [$brandName];
         $noAmp = str_replace('&', ' and ', $brandName);
         $withAmp = preg_replace('/\band\b/iu', '&', $brandName) ?? $brandName;
-        foreach ([$noAmp, $withAmp] as $variant) {
+        $spacedAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $brandName));
+        $compactAmp = trim((string) preg_replace('/\s*&\s*/u', '', $brandName));
+        foreach ([$noAmp, $withAmp, $spacedAmp, $compactAmp] as $variant) {
             $variant = trim($variant);
             if ($variant !== '' && !in_array($variant, $variants, true)) {
                 $variants[] = $variant;
@@ -2074,6 +2177,18 @@ class SellerOneVariantMatcher
             $prefixPattern = '/^'.preg_quote($variant, '/').'\s+/iu';
             if (preg_match($prefixPattern, $productName) === 1) {
                 return trim((string) preg_replace($prefixPattern, '', $productName, 1));
+            }
+        }
+
+        $parts = preg_split('/\s*(?:&|and)\s*/iu', $brandName) ?: [];
+        $parts = array_values(array_filter(array_map('trim', $parts), static fn (string $p): bool => $p !== ''));
+        if (count($parts) >= 2) {
+            $flexPattern = '/^'.implode(
+                '\\s*(?:&|and)\\s*',
+                array_map(static fn (string $p): string => preg_quote($p, '/'), $parts),
+            ).'\\s+/iu';
+            if (preg_match($flexPattern, $productName) === 1) {
+                return trim((string) preg_replace($flexPattern, '', $productName, 1));
             }
         }
 
@@ -2414,6 +2529,10 @@ class SellerOneVariantMatcher
     {
         if (preg_match('/\b(extrait de parfum|extrait|edp|edt|edc)\b/iu', $title, $matches)) {
             return $this->normalizeConcentration((string) $matches[1]);
+        }
+
+        if (preg_match('/\b(?:eau\s+de\s+)?cologne\b/iu', $title)) {
+            return 'edc';
         }
 
         // parfum/parfume — маркер концентрации после объёма («100ml Parfume») или в хвосте строки.

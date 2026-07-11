@@ -141,6 +141,21 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $f = $matcher->splitNameAndVariantTail('Carolina Herrera Bad Boy edp 100ml');
         $this->assertSame('Carolina Herrera Bad Boy', $f['name']);
         $this->assertSame('edp 100ml', $f['tail']);
+
+        $this->assertNotEmpty($matcher->variantStartPatterns());
+
+        $mfk = $matcher->splitNameAndVariantTail(
+            'Maison Francis Kurkdjian Aqua Celestia Forte 2ml edp Cologne 10шт',
+        );
+        $this->assertSame('Maison Francis Kurkdjian Aqua Celestia Forte', $mfk['name']);
+        $this->assertSame('2ml edp Cologne 10шт', $mfk['tail']);
+
+        $sig = $matcher->parseVariantFromTail('2ml edp Cologne 10шт');
+        $this->assertTrue($sig['volume_is_multipack']);
+        $this->assertSame(10, $sig['volume_multipack_count']);
+        $this->assertSame(2.0, $sig['volume_multipack_unit_ml']);
+        $this->assertSame('edp', $sig['concentration']);
+        $this->assertSame(['cologne'], $sig['extra_tokens']);
     }
 
     public function test_parse_variant_tail_detects_extra_words(): void
@@ -2530,5 +2545,114 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame(6010, $match['product']->id);
         $this->assertSame(60101, $match['variant']?->id);
         $this->assertSame(100, $match['total']);
+    }
+
+    public function test_piece_count_multipack_and_cologne_do_not_match_single_vial(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $tail = '2ml edp Cologne 10шт';
+
+        $spec = $matcher->parseVolumeFromText($tail);
+        $this->assertTrue($spec['is_multipack']);
+        $this->assertNull($spec['volume']);
+        $this->assertSame(10, $spec['multipack_count']);
+        $this->assertSame(2.0, $spec['multipack_unit_volume']);
+        $this->assertTrue($matcher->supplierVariantTailBlocksAutoLink($tail));
+
+        $parse = new ReflectionMethod($matcher, 'parseVariantTailSignature');
+        $parse->setAccessible(true);
+        $sig = $parse->invoke($matcher, $tail);
+        $this->assertTrue($sig['volume_is_multipack']);
+        $this->assertSame('edp', $sig['concentration']);
+        $this->assertFalse($sig['is_vial']);
+        $this->assertSame(['cologne'], $sig['extra_tokens']);
+
+        $resolve = new ReflectionMethod($matcher, 'resolveExactNameVariantMatch');
+        $resolve->setAccessible(true);
+
+        $definition = new VariantDefinition([
+            'volume_ml' => 2,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+            'is_vial' => true,
+        ]);
+        $variant = new ProductVariantLink(['product_id' => 7010]);
+        $variant->id = 70101;
+        $variant->volume = 2;
+        $variant->concentration = 'edp';
+        $variant->setRelation('definition', $definition);
+
+        $product = new Product(['name' => 'Aqua Celestia Forte', 'brand_id' => 701]);
+        $product->id = 7010;
+        $product->setRelation('variants', collect([$variant]));
+
+        $match = $resolve->invoke($matcher, $product, $tail, 'edp');
+        $this->assertNull($match['variant']);
+        $this->assertSame(90, $match['total']);
+        $this->assertSame('name_only', $match['link_match_level']);
+    }
+
+    public function test_q_intense_female_does_not_match_pour_femme_intense_via_gender_suffix(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $pourFemmeIntense = $this->makeProductWithGenderOption(
+            8001,
+            80,
+            'Pour Femme Intense',
+            3,
+            80011,
+            10,
+            'edp',
+            false,
+        );
+        $qIntense = $this->makeProductWithGenderOption(
+            8002,
+            80,
+            'Q Intense',
+            3,
+            80021,
+            10,
+            'edp',
+            false,
+        );
+
+        $wrong = $find->invoke(
+            $matcher,
+            80,
+            'Dolce & Gabbana',
+            'Q Intense Pour Femme',
+            '10ml edp',
+            10.0,
+            'edp',
+            false,
+            [80 => [$pourFemmeIntense, $qIntense]],
+            null,
+            'Q Intense',
+            'l',
+        );
+
+        $this->assertNull($wrong);
+
+        $right = $find->invoke(
+            $matcher,
+            80,
+            'Dolce & Gabbana',
+            'Q Intense',
+            '10ml edp',
+            10.0,
+            'edp',
+            false,
+            [80 => [$pourFemmeIntense, $qIntense]],
+            'female',
+            'Q Intense',
+            'l',
+        );
+
+        $this->assertNotNull($right);
+        $this->assertSame(8002, $right['product']->id);
+        $this->assertSame(100, $right['total']);
     }
 }

@@ -1,6 +1,4 @@
-"use client";
-
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import type {
     SellerOneDuplicateVariantLinksResponse,
     SellerOneListingDiagnostics,
@@ -10,16 +8,15 @@ import type {
 } from "@/types/Vanille";
 import {
     buildDefinitionSearchFromHint,
-    buildSupplierLabelFromHint,
     findNameMatchHighlightRanges,
     findBrandPrefixHighlightRange,
     findGenderMarkerHighlightRange,
     mergeHighlightRanges,
+    findEditionHighlightRanges,
     findSubsequenceHighlightRanges,
     formatCatalogProductLabel,
     formatParsedSupplierVariantHint,
     formatVariantOptionLabel,
-    findProductNameMatchInfo,
     getConfidenceBadgeClass,
     definitionMatchesVolumeHint,
     getDefinitionMatchFlags,
@@ -485,7 +482,7 @@ export function HighlightedNameText({
         ? (matchInfo?.catalogBrandPrefix ?? null)
         : (matchInfo?.brandPrefix ?? null);
 
-    if (words.length === 0 && !brandForPrefix && !matchInfo?.supplierGenderMarker) {
+    if (words.length === 0 && !brandForPrefix && !matchInfo?.supplierGenderMarker && !matchInfo?.editionKeys?.length) {
         return <span className={className}>{text}</span>;
     }
 
@@ -514,6 +511,7 @@ export function HighlightedNameText({
     ranges = mergeHighlightRanges([
         ...ranges,
         ...findSubsequenceHighlightRanges(text, words, searchFrom),
+        ...findEditionHighlightRanges(text, matchInfo?.editionKeys ?? [], searchFrom),
     ]);
 
     if (ranges.length === 0) {
@@ -575,8 +573,6 @@ export function ManualLinkModal({
     onPickDefinitionAction: (definitionId: number) => Promise<void>;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
 }) {
-    const supplierLabel = buildSupplierLabelFromHint(manualLink.sourceHint) || manualLink.rowName;
-
     const selectedProduct = manualLink.products.find((p) => p.id === manualLink.selectedProductId);
     const selectedProductLabel = selectedProduct ? formatCatalogProductLabel(selectedProduct) : "";
 
@@ -690,7 +686,6 @@ export function ManualLinkModal({
                                     >
                                     {rankedProducts.map((product) => {
                                         const label = formatCatalogProductLabel(product);
-                                        const matchInfo = findProductNameMatchInfo(supplierLabel, label);
 
                                         return (
                                             <button
@@ -699,12 +694,13 @@ export function ManualLinkModal({
                                                 onClick={() => void onPickProductAction(product)}
                                                 className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-admin-muted"
                                             >
-                                                <HighlightedNameText
-                                                    text={label}
-                                                    matchInfo={matchInfo}
-                                                    highlightSource="catalog"
-                                                    className="font-medium"
-                                                />
+                                                <span className="font-medium">
+                                                    {highlightAdminSearchTerms(
+                                                        label,
+                                                        productQuery,
+                                                        product.brand?.name ?? null,
+                                                    )}
+                                                </span>
                                             </button>
                                         );
                                     })}

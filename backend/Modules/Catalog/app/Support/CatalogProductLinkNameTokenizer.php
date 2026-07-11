@@ -76,7 +76,21 @@ final class CatalogProductLinkNameTokenizer
 
         $parts = preg_split('/\s+/u', $normalized) ?: [];
 
-        return array_values(array_filter($parts, static fn (string $t): bool => mb_strlen($t) >= 2));
+        return array_values(array_filter($parts, static fn (string $t): bool => self::isVariantMatchToken($t)));
+    }
+
+    /** Токены ≥2 символа; однобуквенные слова линии («Q Intense», «A Corps Secret») — сохраняем. */
+    private static function isVariantMatchToken(string $token): bool
+    {
+        if (mb_strlen($token) >= 2) {
+            return true;
+        }
+
+        if (mb_strlen($token) !== 1 || ! preg_match('/^\p{L}$/u', $token)) {
+            return false;
+        }
+
+        return ! in_array($token, ['m', 'l', 'u', 'w'], true);
     }
 
     /**

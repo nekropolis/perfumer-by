@@ -59,4 +59,11 @@ class CatalogProductLinkNameTokenizerSearchTest extends TestCase
         $this->assertContains('name', $tokens);
         $this->assertNotContains('-', $tokens);
     }
+
+    public function test_variant_match_tokens_keep_single_letter_line_words(): void
+    {
+        $tokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Q Intense', null);
+
+        $this->assertSame(['q', 'intense'], $tokens);
+    }
 }

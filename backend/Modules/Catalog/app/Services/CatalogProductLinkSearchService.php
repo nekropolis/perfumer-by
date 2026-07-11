@@ -52,14 +52,14 @@ class CatalogProductLinkSearchService
         }
 
         $rest = $query;
-        if ($stripBrandName !== null && $stripBrandName !== '') {
+        if ($split['rest'] !== '' && $split['rest'] !== $query) {
+            $rest = $split['rest'];
+        } elseif ($stripBrandName !== null && $stripBrandName !== '') {
             $pattern = '/^'.preg_quote($stripBrandName, '/').'\s+/iu';
             $stripped = trim((string) preg_replace($pattern, '', $query, 1));
-            if ($stripped !== '') {
+            if ($stripped !== '' && $stripped !== $query) {
                 $rest = $stripped;
             }
-        } elseif ($split['rest'] !== '') {
-            $rest = $split['rest'];
         }
 
         $tokens = CatalogProductLinkNameTokenizer::linkSearchTokensFromRest($rest, null);
@@ -171,14 +171,14 @@ class CatalogProductLinkSearchService
         }
 
         $rest = $query;
-        if ($stripBrandName !== null && $stripBrandName !== '') {
+        if ($split['rest'] !== '' && $split['rest'] !== $query) {
+            $rest = $split['rest'];
+        } elseif ($stripBrandName !== null && $stripBrandName !== '') {
             $pattern = '/^'.preg_quote($stripBrandName, '/').'\s+/iu';
             $stripped = trim((string) preg_replace($pattern, '', $query, 1));
-            if ($stripped !== '') {
+            if ($stripped !== '' && $stripped !== $query) {
                 $rest = $stripped;
             }
-        } elseif ($split['rest'] !== '') {
-            $rest = $split['rest'];
         }
 
         $tokens = CatalogProductLinkNameTokenizer::linkSearchTokensFromRest($rest, null);
