@@ -1,3 +1,4 @@
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import type {
     SellerOneDuplicateVariantLinksResponse,
