@@ -32,6 +32,7 @@ elif [[ -x /usr/bin/supervisorctl ]]; then
 fi
 
 MAINT_DOWN=0
+DEPLOY_ERROR_LOCK="${TMPDIR:-/tmp}/perfumer-deploy-error-$$"
 trap 'on_error $?' ERR
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
@@ -67,6 +68,13 @@ send_telegram() {
 
 on_error() {
     local code="$1"
+
+    # set -E inherits ERR trap into subshells; failed `(cd … && cmd)` can fire twice.
+    if [[ -f "$DEPLOY_ERROR_LOCK" ]]; then
+        exit "$code"
+    fi
+    : > "$DEPLOY_ERROR_LOCK"
+
     if [[ $MAINT_DOWN -eq 1 ]]; then
         warn "Deploy failed (exit $code). Backend will stay in maintenance mode."
         warn "Fix the issue and either re-run ./scripts/deploy.sh or 'php artisan up' manually."

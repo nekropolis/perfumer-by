@@ -23,7 +23,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const tags = Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : ["catalog"];
 
     for (const tag of tags) {
-        revalidateTag(tag);
+        // Next.js 16+: second arg required. Webhook from backend needs immediate invalidation.
+        revalidateTag(tag, { expire: 0 });
     }
 
     return NextResponse.json({
