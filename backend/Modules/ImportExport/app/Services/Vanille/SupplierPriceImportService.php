@@ -368,7 +368,8 @@ class SupplierPriceImportService
         foreach (SupplierProduct::query()
             ->where('supplier_id', $supplier->id)
             ->where('link_parsing_active', false)
-            ->cursor(['id', 'external_url', 'payload']) as $pausedRow) {
+            ->select(['id', 'external_url', 'payload'])
+            ->cursor() as $pausedRow) {
             $pp = is_array($pausedRow->payload) ? $pausedRow->payload : [];
             $c = trim((string) ($pp['external_code'] ?? str_replace('supplier-xls://', '', (string) $pausedRow->external_url)));
             if ($c !== '') {

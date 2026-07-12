@@ -9,17 +9,19 @@ use Modules\Catalog\Support\CatalogApiCacheService;
 
 class WarmCatalogCacheCommand extends Command
 {
-    protected $signature = 'catalog:warm-cache';
+    protected $signature = 'catalog:warm-cache {--pages=3 : Сколько страниц пагинации прогреть для базовых sort}';
 
     protected $description = 'Прогреть кэш bootstrap каталога для популярных query-комбинаций';
 
     /**
+     * @var list<string>
+     */
+    private const array BASE_SORTS = ['popular', 'name_asc', 'price_asc'];
+
+    /**
      * @var list<array<string, string>>
      */
-    private const array WARM_QUERIES = [
-        ['page' => '1', 'sort' => 'popular'],
-        ['page' => '1', 'sort' => 'name_asc'],
-        ['page' => '1', 'sort' => 'price_asc'],
+    private const array EXTRA_WARM_QUERIES = [
         ['page' => '1', 'sort' => 'name_asc', 'attr_2' => '2'],
         ['page' => '1', 'sort' => 'popular', 'new' => '1'],
         ['page' => '1', 'sort' => 'popular', 'hit' => '1'],
@@ -36,9 +38,11 @@ class WarmCatalogCacheCommand extends Command
             round((microtime(true) - $facetStartedAt) * 1000, 1),
         ));
 
+        $warmQueries = $this->buildWarmQueries();
+
         $this->info('Прогрев catalog bootstrap cache...');
 
-        foreach (self::WARM_QUERIES as $queryParams) {
+        foreach ($warmQueries as $queryParams) {
             $request = Request::create('/api/catalog/bootstrap', 'GET', $queryParams);
             $label = http_build_query($queryParams);
 
@@ -54,5 +58,25 @@ class WarmCatalogCacheCommand extends Command
         $this->info('Готово.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function buildWarmQueries(): array
+    {
+        $pageCount = max(1, min(10, (int) $this->option('pages')));
+        $queries = [];
+
+        foreach (self::BASE_SORTS as $sort) {
+            for ($page = 1; $page <= $pageCount; $page++) {
+                $queries[] = [
+                    'page' => (string) $page,
+                    'sort' => $sort,
+                ];
+            }
+        }
+
+        return [...$queries, ...self::EXTRA_WARM_QUERIES];
     }
 }

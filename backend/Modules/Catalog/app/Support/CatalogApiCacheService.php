@@ -108,6 +108,30 @@ class CatalogApiCacheService
 
     /**
      * @param  array<string, mixed>  $facetParams
+     * @return array<int, array<int, int>>
+     */
+    public function rememberAttributeFacetCounts(array $facetParams, Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            $this->facetPartialCacheKey('attribute-counts', $facetParams),
+            $resolver,
+        )['value'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $facetParams
+     * @return list<array{key: string, label: string, products_count: int}>
+     */
+    public function rememberVolumeFacetCounts(array $facetParams, Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            $this->facetPartialCacheKey('volume-counts', $facetParams),
+            $resolver,
+        )['value'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $facetParams
      * @return array{
      *     price: array{min: float|null, max: float|null},
      *     volume: list<array{key: string, label: string, products_count: int}>,
@@ -119,12 +143,7 @@ class CatalogApiCacheService
         ksort($facetParams);
 
         return $this->rememberTracked(
-            sprintf(
-                'catalog:api:filter-facets:s%s:v%s:%s',
-                self::SCHEMA_VERSION,
-                $this->version(),
-                md5(json_encode($facetParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
-            ),
+            $this->facetPartialCacheKey('facets', $facetParams),
             $resolver,
         )['value'];
     }
@@ -267,10 +286,18 @@ class CatalogApiCacheService
 
     private function scheduleFacetAggregatesWarmup(): void
     {
+        $warm = static function (): void {
+            app(CatalogFiltersService::class)->build(Request::create('/api/catalog/filters', 'GET'));
+        };
+
         try {
-            dispatch(static function (): void {
-                app(CatalogFiltersService::class)->build(Request::create('/api/catalog/filters', 'GET'));
-            })->afterResponse();
+            if (app()->runningInConsole()) {
+                $warm();
+
+                return;
+            }
+
+            dispatch($warm)->afterResponse();
         } catch (Throwable) {
         }
     }
@@ -326,6 +353,22 @@ class CatalogApiCacheService
             self::SCHEMA_VERSION,
             $this->version(),
             md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $facetParams
+     */
+    private function facetPartialCacheKey(string $suffix, array $facetParams): string
+    {
+        ksort($facetParams);
+
+        return sprintf(
+            'catalog:api:filter-%s:s%s:v%s:%s',
+            $suffix,
+            self::SCHEMA_VERSION,
+            $this->version(),
+            md5(json_encode($facetParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
         );
     }
 

@@ -104,6 +104,55 @@ final class CatalogProductQueryFilters
     }
 
     /**
+     * Products with at least one in-stock variant (warehouse or supplier offer).
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyCatalogVisibleToQuery(QueryBuilder $query, string $tableAlias = 'products'): void
+    {
+        $query->where("{$tableAlias}.is_active", true)
+            ->whereExists(function (QueryBuilder $variantExists) use ($tableAlias): void {
+                $variantExists->selectRaw('1')
+                    ->from('product_variant_links as catalog_in_stock_pvl')
+                    ->whereColumn('catalog_in_stock_pvl.product_id', "{$tableAlias}.id");
+
+                CatalogVariantStockPresenter::applyStorefrontInStockToVariantQueryForFacets(
+                    $variantExists,
+                    'catalog_in_stock_pvl',
+                );
+            });
+    }
+
+    /**
+     * @param  Builder<Product>  $query
+     */
+    public static function applyCatalogListingProductFilter(Builder $query): void
+    {
+        $query->where('products.is_active', true)
+            ->whereHas('variants', function (Builder $variantQuery): void {
+                CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
+            });
+    }
+
+    /**
+     * @param  QueryBuilder  $query
+     */
+    public static function applyCatalogVisibleProductExists(
+        QueryBuilder $query,
+        Request $request,
+        string $productIdColumn,
+    ): void {
+        $query->whereExists(function (QueryBuilder $productQuery) use ($request, $productIdColumn): void {
+            $productQuery->selectRaw('1')
+                ->from('products')
+                ->whereColumn('products.id', $productIdColumn);
+
+            self::applyCatalogVisibleToQuery($productQuery);
+            self::applyBaseFiltersToQuery($productQuery, $request);
+        });
+    }
+
+    /**
      * @param  Builder<Product>  $query
      */
     public static function applyPriceFilters(Builder $query, Request $request): void
@@ -115,7 +164,8 @@ final class CatalogProductQueryFilters
             return;
         }
 
-        $query->whereHas('activeVariants', function ($variantQuery) use ($minPrice, $maxPrice): void {
+        $query->whereHas('variants', function (Builder $variantQuery) use ($minPrice, $maxPrice): void {
+            CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
             $variantQuery->whereNotNull('price');
 
             if ($minPrice !== null) {
@@ -210,8 +260,11 @@ final class CatalogProductQueryFilters
             return;
         }
 
-        $query->whereHas('activeVariants.definition', function ($definitionQuery) use ($selectedBuckets): void {
-            self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+        $query->whereHas('variants', function (Builder $variantQuery) use ($selectedBuckets): void {
+            CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
+            $variantQuery->whereHas('definition', function ($definitionQuery) use ($selectedBuckets): void {
+                self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+            });
         });
     }
 

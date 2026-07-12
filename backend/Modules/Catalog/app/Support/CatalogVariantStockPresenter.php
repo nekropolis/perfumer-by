@@ -4,6 +4,7 @@ namespace Modules\Catalog\Support;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
@@ -51,6 +52,127 @@ final class CatalogVariantStockPresenter
     }
 
     /**
+     * In stock for catalog: active variant with warehouse stock or supplier offer (no preorder).
+     *
+     * @param  Builder<ProductVariantLink>  $query
+     */
+    public static function applyStorefrontInStockScope(Builder $query): void
+    {
+        $query->where('is_preorder', false)
+            ->where('is_active', true)
+            ->where(function (Builder $channel): void {
+                $channel->whereHas('warehouseStocks', function (Builder $stockQuery): void {
+                    $stockQuery
+                        ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0')
+                        ->whereHas('warehouse', function (Builder $warehouseQuery): void {
+                            $warehouseQuery->whereIn('code', [
+                                Warehouse::CODE_MAIN,
+                                Warehouse::CODE_SUPPLIER,
+                            ]);
+                        });
+                })->orWhereHas('supplierOffers', function (Builder $offerQuery): void {
+                    self::applySupplierOfferListingScope($offerQuery);
+                });
+            });
+    }
+
+    /**
+     * SQL variant filter: in stock (warehouse or supplier offer, no preorder).
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyStorefrontInStockToVariantQuery(
+        QueryBuilder $query,
+        string $variantAlias = 'pvl',
+    ): void {
+        $query->where("{$variantAlias}.is_preorder", false)
+            ->where("{$variantAlias}.is_active", true)
+            ->where(function (QueryBuilder $channel) use ($variantAlias): void {
+                $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias): void {
+                    $warehouseIds = self::listingWarehouseIds();
+                    $stockExists->selectRaw('1')
+                        ->from('warehouse_variant_stocks as wvs')
+                        ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
+                        ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0');
+
+                    if ($warehouseIds === []) {
+                        $stockExists->whereRaw('0 = 1');
+
+                        return;
+                    }
+
+                    $stockExists->whereIn('wvs.warehouse_id', $warehouseIds);
+                })->orWhereExists(function (QueryBuilder $offerExists) use ($variantAlias): void {
+                    $offerExists->selectRaw('1')
+                        ->from('supplier_variant_offers as svo')
+                        ->whereColumn('svo.product_variant_id', "{$variantAlias}.id")
+                        ->where('svo.is_active', true)
+                        ->where(function (QueryBuilder $payloadQuery): void {
+                            $payloadQuery->whereNull('svo.payload->missing_in_latest_price')
+                                ->orWhere('svo.payload->missing_in_latest_price', false);
+                        })
+                        ->where(function (QueryBuilder $payloadQuery): void {
+                            $payloadQuery->whereNull('svo.payload->out_of_stock_in_price_file')
+                                ->orWhere('svo.payload->out_of_stock_in_price_file', false);
+                        })
+                        ->where(function (QueryBuilder $payloadQuery): void {
+                            $payloadQuery->whereNull('svo.payload->seller_one_listing_deferred')
+                                ->orWhere('svo.payload->seller_one_listing_deferred', false);
+                        })
+                        ->whereExists(function (QueryBuilder $supplierProductExists) use ($variantAlias): void {
+                            $supplierProductExists->selectRaw('1')
+                                ->from('supplier_products as sp')
+                                ->whereColumn('sp.supplier_id', 'svo.supplier_id')
+                                ->whereColumn('sp.product_id', "{$variantAlias}.product_id")
+                                ->where('sp.is_linked', true)
+                                ->where('sp.is_active', true)
+                                ->where('sp.link_parsing_active', true);
+                        });
+                });
+            });
+    }
+
+    /**
+     * Faster in-stock filter for facet SQL (skips JSON payload checks on supplier offers).
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyStorefrontInStockToVariantQueryForFacets(
+        QueryBuilder $query,
+        string $variantAlias = 'pvl',
+    ): void {
+        $warehouseIds = self::listingWarehouseIds();
+
+        $query->where("{$variantAlias}.is_preorder", false)
+            ->where("{$variantAlias}.is_active", true)
+            ->where(function (QueryBuilder $channel) use ($variantAlias, $warehouseIds): void {
+                if ($warehouseIds !== []) {
+                    $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias, $warehouseIds): void {
+                        $stockExists->selectRaw('1')
+                            ->from('warehouse_variant_stocks as wvs')
+                            ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
+                            ->whereIn('wvs.warehouse_id', $warehouseIds)
+                            ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0');
+                    });
+                }
+
+                $channel->orWhereExists(function (QueryBuilder $offerExists) use ($variantAlias): void {
+                    $offerExists->selectRaw('1')
+                        ->from('supplier_variant_offers as svo')
+                        ->join('supplier_products as sp', function ($join) use ($variantAlias): void {
+                            $join->on('sp.supplier_id', '=', 'svo.supplier_id')
+                                ->on('sp.product_id', '=', "{$variantAlias}.product_id");
+                        })
+                        ->whereColumn('svo.product_variant_id', "{$variantAlias}.id")
+                        ->where('svo.is_active', true)
+                        ->where('sp.is_linked', true)
+                        ->where('sp.is_active', true)
+                        ->where('sp.link_parsing_active', true);
+                });
+            });
+    }
+
+    /**
      * Listing eligibility for facet SQL on `product_variant_links` alias.
      *
      * @param  QueryBuilder  $query
@@ -65,7 +187,7 @@ final class CatalogVariantStockPresenter
                     $inner->where("{$variantAlias}.is_active", true)
                         ->where(function (QueryBuilder $channel) use ($variantAlias): void {
                             $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias): void {
-                                $warehouseIds = CatalogListingWarehouseIds::resolve();
+                                $warehouseIds = self::listingWarehouseIds();
                                 $stockExists->selectRaw('1')
                                     ->from('warehouse_variant_stocks as wvs')
                                     ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
@@ -104,6 +226,50 @@ final class CatalogVariantStockPresenter
                                             ->where('sp.is_active', true)
                                             ->where('sp.link_parsing_active', true);
                                     });
+                            });
+                        });
+                });
+        });
+    }
+
+    /**
+     * Faster listing eligibility for facet aggregations (skips JSON payload checks on supplier offers).
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyStorefrontListingEligibleToVariantQueryForFacets(
+        QueryBuilder $query,
+        string $variantAlias = 'pvl',
+    ): void {
+        $warehouseIds = self::listingWarehouseIds();
+
+        $query->where(function (QueryBuilder $outer) use ($variantAlias, $warehouseIds): void {
+            $outer->where("{$variantAlias}.is_preorder", true)
+                ->orWhere(function (QueryBuilder $inner) use ($variantAlias, $warehouseIds): void {
+                    $inner->where("{$variantAlias}.is_active", true)
+                        ->where(function (QueryBuilder $channel) use ($variantAlias, $warehouseIds): void {
+                            if ($warehouseIds !== []) {
+                                $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias, $warehouseIds): void {
+                                    $stockExists->selectRaw('1')
+                                        ->from('warehouse_variant_stocks as wvs')
+                                        ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
+                                        ->whereIn('wvs.warehouse_id', $warehouseIds)
+                                        ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0');
+                                });
+                            }
+
+                            $channel->orWhereExists(function (QueryBuilder $offerExists) use ($variantAlias): void {
+                                $offerExists->selectRaw('1')
+                                    ->from('supplier_variant_offers as svo')
+                                    ->join('supplier_products as sp', function ($join) use ($variantAlias): void {
+                                        $join->on('sp.supplier_id', '=', 'svo.supplier_id')
+                                            ->on('sp.product_id', '=', "{$variantAlias}.product_id");
+                                    })
+                                    ->whereColumn('svo.product_variant_id', "{$variantAlias}.id")
+                                    ->where('svo.is_active', true)
+                                    ->where('sp.is_linked', true)
+                                    ->where('sp.is_active', true)
+                                    ->where('sp.link_parsing_active', true);
                             });
                         });
                 });
@@ -387,5 +553,24 @@ final class CatalogVariantStockPresenter
             'supplier_listing_price' => false,
             'availability_source' => 'unavailable',
         ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function listingWarehouseIds(): array
+    {
+        /** @var list<int> $ids */
+        $ids = Cache::remember('catalog:warehouse:listing-ids', 3600, static function (): array {
+            return Warehouse::query()
+                ->whereIn('code', [Warehouse::CODE_MAIN, Warehouse::CODE_SUPPLIER])
+                ->pluck('id')
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->values()
+                ->all();
+        });
+
+        return $ids;
     }
 }

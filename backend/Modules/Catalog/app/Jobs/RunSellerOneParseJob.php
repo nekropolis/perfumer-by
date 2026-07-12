@@ -123,7 +123,7 @@ class RunSellerOneParseJob implements ShouldQueue
                     return;
                 }
 
-                self::dispatch($this->jobId, $this->storedFilePath, $nextOffset);
+                dispatch(new self($this->jobId, $this->storedFilePath, $nextOffset));
                 return;
             }
 
@@ -155,7 +155,7 @@ class RunSellerOneParseJob implements ShouldQueue
                 ]);
 
                 if (! Cache::get($cacheKey . ':finished') && $resumeOffset !== $this->rowOffset) {
-                    self::dispatch($this->jobId, $this->storedFilePath, $resumeOffset);
+                    dispatch(new self($this->jobId, $this->storedFilePath, $resumeOffset));
 
                     return;
                 }

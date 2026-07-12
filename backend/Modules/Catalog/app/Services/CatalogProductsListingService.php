@@ -11,6 +11,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 
 class CatalogProductsListingService
@@ -54,9 +55,9 @@ class CatalogProductsListingService
             return $this->listPromotionVariants($request);
         }
 
-        $query = Product::query()
-            ->where('products.is_active', true)
-            ->select([
+        $query = Product::query();
+        CatalogProductQueryFilters::applyCatalogListingProductFilter($query);
+        $query->select([
                 'products.id',
                 'products.brand_id',
                 'products.main_category_id',
@@ -90,9 +91,6 @@ class CatalogProductsListingService
 
         if ($sort === 'popular') {
             $mainWarehouseId = $this->resolveWarehouseId(Warehouse::CODE_MAIN);
-            $supplierWarehouseId = $this->resolveWarehouseId(Warehouse::CODE_SUPPLIER);
-
-            $this->applyPopularInStockFilter($query, $mainWarehouseId, $supplierWarehouseId);
 
             $query->orderByRaw(
                 'COALESCE((SELECT 0 FROM warehouse_variant_stocks '
@@ -144,9 +142,9 @@ class CatalogProductsListingService
     private function listPromotionVariants(Request $request): array
     {
         $query = ProductVariantLink::query()
-            ->where('is_promotion', true)
-            ->catalogListingEligible()
-            ->whereHas('product', function ($productQuery) use ($request): void {
+            ->where('is_promotion', true);
+        CatalogVariantStockPresenter::applyStorefrontInStockScope($query);
+        $query->whereHas('product', function ($productQuery) use ($request): void {
                 $productQuery->where('is_active', true);
                 CatalogProductQueryFilters::applyBaseFilters($productQuery, $request);
                 CatalogProductQueryFilters::applyAttributeFilters($productQuery, $request);
@@ -209,35 +207,6 @@ class CatalogProductsListingService
                 'total' => $variants->total(),
             ],
         ];
-    }
-
-    /**
-     * @param  Builder<Product>  $query
-     */
-    private function applyPopularInStockFilter(
-        Builder $query,
-        int $mainWarehouseId,
-        int $supplierWarehouseId,
-    ): void {
-        $warehouseIds = array_values(array_filter([$mainWarehouseId, $supplierWarehouseId]));
-
-        if ($warehouseIds === []) {
-            $query->whereRaw('0 = 1');
-
-            return;
-        }
-
-        $query->whereHas('activeVariants', function (Builder $variantQuery) use ($warehouseIds): void {
-            $variantQuery
-                ->where('is_preorder', false)
-                ->whereNotNull('price')
-                ->where('price', '>', 0)
-                ->whereHas('warehouseStocks', function (Builder $stockQuery) use ($warehouseIds): void {
-                    $stockQuery
-                        ->whereIn('warehouse_id', $warehouseIds)
-                        ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0');
-                });
-        });
     }
 
     /**

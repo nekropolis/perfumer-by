@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import type { MouseEvent } from "react";
+import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
 type Props = {
     currentPage: number;
@@ -8,11 +12,13 @@ type Props = {
 };
 
 export default function CatalogPagination({
-                                              currentPage,
-                                              lastPage,
-                                              basePath,
-                                              queryString = "",
-                                          }: Props) {
+    currentPage,
+    lastPage,
+    basePath,
+    queryString = "",
+}: Props) {
+    const { navigate, isNavigating } = useCatalogNavigation();
+
     if (lastPage <= 1) {
         return null;
     }
@@ -23,13 +29,46 @@ export default function CatalogPagination({
         return `${basePath}?${params.toString()}`;
     };
 
+    const handlePageClick = (event: MouseEvent<HTMLAnchorElement>, page: number) => {
+        if (
+            page === currentPage
+            || isNavigating
+            || event.metaKey
+            || event.ctrlKey
+            || event.shiftKey
+            || event.altKey
+            || event.button !== 0
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        navigate(buildPageHref(page));
+    };
+
+    const pageLinkClass = (page: number) =>
+        `rounded-lg border px-3 py-2 text-sm transition ${
+            page === currentPage
+                ? "border-[var(--accent)] bg-[var(--accent)] font-semibold text-[var(--background)]"
+                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
+        } ${isNavigating ? "pointer-events-none opacity-60" : ""}`;
+
+    const navLinkClass = (disabled: boolean) =>
+        `rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)] ${
+            disabled || isNavigating ? "pointer-events-none opacity-50" : ""
+        }`;
+
     return (
-        <div className="mt-8 flex items-center justify-center gap-2">
+        <div
+            className="mt-8 flex items-center justify-center gap-2"
+            aria-busy={isNavigating}
+            aria-live="polite"
+        >
             <Link
                 href={buildPageHref(Math.max(1, currentPage - 1))}
-                className={`rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)] ${
-                    currentPage <= 1 ? "pointer-events-none opacity-50" : ""
-                }`}
+                onClick={(event) => handlePageClick(event, Math.max(1, currentPage - 1))}
+                className={navLinkClass(currentPage <= 1)}
+                aria-disabled={currentPage <= 1 || isNavigating}
             >
                 Назад
             </Link>
@@ -40,11 +79,10 @@ export default function CatalogPagination({
                     <Link
                         key={page}
                         href={buildPageHref(page)}
-                        className={`rounded-lg border px-3 py-2 text-sm transition ${
-                            page === currentPage
-                                ? "border-[var(--accent)] bg-[var(--accent)] font-semibold text-[var(--background)]"
-                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
-                        }`}
+                        onClick={(event) => handlePageClick(event, page)}
+                        className={pageLinkClass(page)}
+                        aria-current={page === currentPage ? "page" : undefined}
+                        aria-disabled={isNavigating && page !== currentPage}
                     >
                         {page}
                     </Link>
@@ -52,9 +90,9 @@ export default function CatalogPagination({
 
             <Link
                 href={buildPageHref(Math.min(lastPage, currentPage + 1))}
-                className={`rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)] ${
-                    currentPage >= lastPage ? "pointer-events-none opacity-50" : ""
-                }`}
+                onClick={(event) => handlePageClick(event, Math.min(lastPage, currentPage + 1))}
+                className={navLinkClass(currentPage >= lastPage)}
+                aria-disabled={currentPage >= lastPage || isNavigating}
             >
                 Вперёд
             </Link>
