@@ -3,7 +3,9 @@
 namespace Modules\Catalog\Support;
 
 use Closure;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Modules\Catalog\Services\CatalogFiltersService;
 use Modules\Catalog\Services\CatalogStorefrontRevalidationService;
 use Throwable;
 
@@ -258,8 +260,19 @@ class CatalogApiCacheService
         Cache::forever(self::VERSION_KEY, $next);
         Cache::forever(self::SEARCH_VERSION_KEY, $this->searchVersion() + 1);
         $this->triggerStorefrontRevalidation();
+        $this->scheduleFacetAggregatesWarmup();
 
         return $next;
+    }
+
+    private function scheduleFacetAggregatesWarmup(): void
+    {
+        try {
+            dispatch(static function (): void {
+                app(CatalogFiltersService::class)->build(Request::create('/api/catalog/filters', 'GET'));
+            })->afterResponse();
+        } catch (Throwable) {
+        }
     }
 
     public function version(): int

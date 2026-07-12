@@ -65,15 +65,19 @@ final class CatalogVariantStockPresenter
                     $inner->where("{$variantAlias}.is_active", true)
                         ->where(function (QueryBuilder $channel) use ($variantAlias): void {
                             $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias): void {
+                                $warehouseIds = CatalogListingWarehouseIds::resolve();
                                 $stockExists->selectRaw('1')
                                     ->from('warehouse_variant_stocks as wvs')
-                                    ->join('warehouses as w', 'w.id', '=', 'wvs.warehouse_id')
                                     ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
-                                    ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0')
-                                    ->whereIn('w.code', [
-                                        Warehouse::CODE_MAIN,
-                                        Warehouse::CODE_SUPPLIER,
-                                    ]);
+                                    ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0');
+
+                                if ($warehouseIds === []) {
+                                    $stockExists->whereRaw('0 = 1');
+
+                                    return;
+                                }
+
+                                $stockExists->whereIn('wvs.warehouse_id', $warehouseIds);
                             })->orWhereExists(function (QueryBuilder $offerExists) use ($variantAlias): void {
                                 $offerExists->selectRaw('1')
                                     ->from('supplier_variant_offers as svo')
