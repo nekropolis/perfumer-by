@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Support;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
@@ -43,6 +44,62 @@ final class CatalogVariantStockPresenter
                                     });
                             })->orWhereHas('supplierOffers', function (Builder $offerQuery): void {
                                 self::applySupplierOfferListingScope($offerQuery);
+                            });
+                        });
+                });
+        });
+    }
+
+    /**
+     * Listing eligibility for facet SQL on `product_variant_links` alias.
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyStorefrontListingEligibleToVariantQuery(
+        QueryBuilder $query,
+        string $variantAlias = 'pvl',
+    ): void {
+        $query->where(function (QueryBuilder $outer) use ($variantAlias): void {
+            $outer->where("{$variantAlias}.is_preorder", true)
+                ->orWhere(function (QueryBuilder $inner) use ($variantAlias): void {
+                    $inner->where("{$variantAlias}.is_active", true)
+                        ->where(function (QueryBuilder $channel) use ($variantAlias): void {
+                            $channel->whereExists(function (QueryBuilder $stockExists) use ($variantAlias): void {
+                                $stockExists->selectRaw('1')
+                                    ->from('warehouse_variant_stocks as wvs')
+                                    ->join('warehouses as w', 'w.id', '=', 'wvs.warehouse_id')
+                                    ->whereColumn('wvs.variant_id', "{$variantAlias}.id")
+                                    ->whereRaw('(wvs.stock - COALESCE(wvs.reserved_stock, 0)) > 0')
+                                    ->whereIn('w.code', [
+                                        Warehouse::CODE_MAIN,
+                                        Warehouse::CODE_SUPPLIER,
+                                    ]);
+                            })->orWhereExists(function (QueryBuilder $offerExists) use ($variantAlias): void {
+                                $offerExists->selectRaw('1')
+                                    ->from('supplier_variant_offers as svo')
+                                    ->whereColumn('svo.product_variant_id', "{$variantAlias}.id")
+                                    ->where('svo.is_active', true)
+                                    ->where(function (QueryBuilder $payloadQuery): void {
+                                        $payloadQuery->whereNull('svo.payload->missing_in_latest_price')
+                                            ->orWhere('svo.payload->missing_in_latest_price', false);
+                                    })
+                                    ->where(function (QueryBuilder $payloadQuery): void {
+                                        $payloadQuery->whereNull('svo.payload->out_of_stock_in_price_file')
+                                            ->orWhere('svo.payload->out_of_stock_in_price_file', false);
+                                    })
+                                    ->where(function (QueryBuilder $payloadQuery): void {
+                                        $payloadQuery->whereNull('svo.payload->seller_one_listing_deferred')
+                                            ->orWhere('svo.payload->seller_one_listing_deferred', false);
+                                    })
+                                    ->whereExists(function (QueryBuilder $supplierProductExists) use ($variantAlias): void {
+                                        $supplierProductExists->selectRaw('1')
+                                            ->from('supplier_products as sp')
+                                            ->whereColumn('sp.supplier_id', 'svo.supplier_id')
+                                            ->whereColumn('sp.product_id', "{$variantAlias}.product_id")
+                                            ->where('sp.is_linked', true)
+                                            ->where('sp.is_active', true)
+                                            ->where('sp.link_parsing_active', true);
+                                    });
                             });
                         });
                 });

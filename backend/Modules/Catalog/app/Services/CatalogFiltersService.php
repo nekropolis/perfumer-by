@@ -2,61 +2,54 @@
 
 namespace Modules\Catalog\Services;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductAttribute;
-use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 
 class CatalogFiltersService
 {
-    private const array VOLUME_BUCKETS = [
-        ['key' => '1-3', 'label' => '1-3', 'min' => 1, 'max' => 3],
-        ['key' => '4-9', 'label' => '4-9', 'min' => 4, 'max' => 9],
-        ['key' => '10-25', 'label' => '10-25', 'min' => 10, 'max' => 25],
-        ['key' => '25-50', 'label' => '25-50', 'min' => 25, 'max' => 50],
-        ['key' => '50-100', 'label' => '50-100', 'min' => 50, 'max' => 100],
-        ['key' => '100-200', 'label' => '100-200', 'min' => 100, 'max' => 200],
-        ['key' => '200-plus', 'label' => '200+', 'min' => 200, 'max' => null],
-    ];
+    private const array VOLUME_BUCKETS = CatalogProductQueryFilters::VOLUME_BUCKETS;
+
+    public function __construct(
+        private readonly CatalogApiCacheService $cacheService,
+    ) {}
 
     /**
      * @return array{data: array{price: array{min: float|null, max: float|null}, volume: list<array<string, mixed>>, attributes: list<array<string, mixed>>}}
      */
     public function build(Request $request): array
     {
-        $baseQuery = Product::query()->where('is_active', true);
-        CatalogProductQueryFilters::applyBaseFilters($baseQuery, $request);
+        $attributeSchema = $this->loadFilterableAttributeSchema();
+        $optionCounts = $this->resolveAttributeOptionCounts($request, $attributeSchema);
 
-        $priceBounds = $this->resolvePriceBounds($baseQuery);
-        $attributes = $this->loadFilterableAttributes();
-        $optionCounts = $this->resolveAttributeOptionCounts($baseQuery, $attributes);
-        $volumePayload = $this->resolveVolumeFacetCounts($baseQuery);
+        $attributePayload = collect($attributeSchema)
+            ->map(function (array $attribute) use ($optionCounts): array {
+                $attributeId = (int) $attribute['id'];
+                $countsForAttribute = $optionCounts->get($attributeId, collect());
 
-        $attributePayload = $attributes
-            ->map(function (ProductAttribute $attribute) use ($optionCounts): array {
-                $countsForAttribute = $optionCounts->get((int) $attribute->id, collect());
+                $options = collect($attribute['options'])
+                    ->map(function (array $option) use ($countsForAttribute): array {
+                        $optionId = (int) $option['id'];
 
-                $options = $attribute->activeOptions
-                    ->map(function ($option) use ($countsForAttribute): array {
                         return [
-                            'id' => (int) $option->id,
-                            'name' => (string) $option->name,
-                            'sort_order' => (int) $option->sort_order,
-                            'products_count' => (int) ($countsForAttribute->get((int) $option->id, 0)),
+                            'id' => $optionId,
+                            'name' => (string) $option['name'],
+                            'sort_order' => (int) $option['sort_order'],
+                            'products_count' => (int) ($countsForAttribute->get($optionId, 0)),
                         ];
                     })
                     ->values()
                     ->all();
 
                 return [
-                    'id' => (int) $attribute->id,
-                    'name' => (string) $attribute->name,
-                    'type' => (string) $attribute->type,
-                    'sort_order' => (int) $attribute->filter_sort_order,
+                    'id' => $attributeId,
+                    'name' => (string) $attribute['name'],
+                    'type' => (string) $attribute['type'],
+                    'sort_order' => (int) $attribute['sort_order'],
                     'options' => $options,
                 ];
             })
@@ -65,21 +58,23 @@ class CatalogFiltersService
 
         return [
             'data' => [
-                'price' => $priceBounds,
-                'volume' => $volumePayload,
+                'price' => $this->resolvePriceBounds($request),
+                'volume' => $this->resolveVolumeFacetCounts($request),
                 'attributes' => $attributePayload,
             ],
         ];
     }
 
     /**
-     * @param  Builder<Product>  $baseQuery
      * @return array{min: float|null, max: float|null}
      */
-    private function resolvePriceBounds(Builder $baseQuery): array
+    private function resolvePriceBounds(Request $request): array
     {
-        $row = (clone $baseQuery)
-            ->selectRaw('MIN(listing_min_price) as price_min, MAX(listing_max_price) as price_max')
+        $query = DB::table('products')->where('products.is_active', true);
+        CatalogProductQueryFilters::applyBaseFiltersToQuery($query, $request);
+
+        $row = $query
+            ->selectRaw('MIN(products.listing_min_price) as price_min, MAX(products.listing_max_price) as price_max')
             ->first();
 
         return [
@@ -89,32 +84,57 @@ class CatalogFiltersService
     }
 
     /**
-     * @return Collection<int, ProductAttribute>
+     * @return list<array{
+     *     id: int,
+     *     name: string,
+     *     type: string,
+     *     sort_order: int,
+     *     options: list<array{id: int, name: string, sort_order: int}>
+     * }>
      */
-    private function loadFilterableAttributes(): Collection
+    private function loadFilterableAttributeSchema(): array
     {
-        return ProductAttribute::query()
-            ->where('is_active', true)
-            ->where('is_filterable', true)
-            ->with(['activeOptions' => function ($q): void {
-                $q->select('id', 'product_attribute_id', 'name', 'sort_order')
-                    ->orderBy('sort_order')
-                    ->orderBy('name');
-            }])
-            ->orderBy('filter_sort_order')
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        return $this->cacheService->rememberFilterableAttributeSchema(static function (): array {
+            return ProductAttribute::query()
+                ->where('is_active', true)
+                ->where('is_filterable', true)
+                ->with(['activeOptions' => function ($q): void {
+                    $q->select('id', 'product_attribute_id', 'name', 'sort_order')
+                        ->orderBy('sort_order')
+                        ->orderBy('name');
+                }])
+                ->orderBy('filter_sort_order')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'filter_sort_order'])
+                ->map(static function (ProductAttribute $attribute): array {
+                    return [
+                        'id' => (int) $attribute->id,
+                        'name' => (string) $attribute->name,
+                        'type' => (string) $attribute->type,
+                        'sort_order' => (int) $attribute->filter_sort_order,
+                        'options' => $attribute->activeOptions
+                            ->map(static fn ($option): array => [
+                                'id' => (int) $option->id,
+                                'name' => (string) $option->name,
+                                'sort_order' => (int) $option->sort_order,
+                            ])
+                            ->values()
+                            ->all(),
+                    ];
+                })
+                ->values()
+                ->all();
+        });
     }
 
     /**
-     * @param  Builder<Product>  $baseQuery
-     * @param  Collection<int, ProductAttribute>  $attributes
-     * @return Collection<int, Collection<int, int>> attribute_id => (option_id => products_count)
+     * @param  list<array{id: int, options: list<array{id: int}>}>  $attributeSchema
+     * @return Collection<int, Collection<int, int>>
      */
-    private function resolveAttributeOptionCounts(Builder $baseQuery, Collection $attributes): Collection
+    private function resolveAttributeOptionCounts(Request $request, array $attributeSchema): Collection
     {
-        $attributeIds = $attributes
+        $attributeIds = collect($attributeSchema)
             ->pluck('id')
             ->map(static fn ($id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
@@ -125,11 +145,20 @@ class CatalogFiltersService
             return collect();
         }
 
-        $rows = DB::table('products')
+        $query = DB::table('products')
             ->join('product_attribute_values as pav', 'pav.product_id', '=', 'products.id')
-            ->join('product_attribute_value_options as pavo', 'pavo.product_attribute_value_id', '=', 'pav.id')
-            ->whereIn('products.id', (clone $baseQuery)->select('products.id'))
-            ->whereIn('pav.product_attribute_id', $attributeIds)
+            ->join(
+                'product_attribute_value_options as pavo',
+                'pavo.product_attribute_value_id',
+                '=',
+                'pav.id'
+            )
+            ->where('products.is_active', true)
+            ->whereIn('pav.product_attribute_id', $attributeIds);
+
+        CatalogProductQueryFilters::applyBaseFiltersToQuery($query, $request);
+
+        $rows = $query
             ->groupBy('pav.product_attribute_id', 'pavo.product_attribute_option_id')
             ->selectRaw('pav.product_attribute_id as attribute_id')
             ->selectRaw('pavo.product_attribute_option_id as option_id')
@@ -145,19 +174,10 @@ class CatalogFiltersService
     }
 
     /**
-     * @param  Builder<Product>  $baseQuery
      * @return list<array{key: string, label: string, products_count: int}>
      */
-    private function resolveVolumeFacetCounts(Builder $baseQuery): array
+    private function resolveVolumeFacetCounts(Request $request): array
     {
-        $filteredProductIds = (clone $baseQuery)->select('products.id');
-
-        $variantVolumeQuery = ProductVariantLink::query()
-            ->catalogListingEligible()
-            ->join('variant_definitions as vd', 'vd.id', '=', 'product_variant_links.variant_definition_id')
-            ->whereNotNull('vd.volume_ml')
-            ->select('product_variant_links.product_id', 'vd.volume_ml');
-
         $selectParts = [];
         foreach (self::VOLUME_BUCKETS as $bucket) {
             $min = (int) ($bucket['min'] ?? 0);
@@ -166,25 +186,30 @@ class CatalogFiltersService
 
             if ($max !== null) {
                 $selectParts[] = sprintf(
-                    'COUNT(DISTINCT CASE WHEN volume_ml >= %d AND volume_ml <= %d THEN product_id END) as `%s`',
+                    'COUNT(DISTINCT CASE WHEN vd.volume_ml >= %d AND vd.volume_ml <= %d THEN products.id END) as `%s`',
                     $min,
                     (int) $max,
                     $alias,
                 );
             } else {
                 $selectParts[] = sprintf(
-                    'COUNT(DISTINCT CASE WHEN volume_ml >= %d THEN product_id END) as `%s`',
+                    'COUNT(DISTINCT CASE WHEN vd.volume_ml >= %d THEN products.id END) as `%s`',
                     $min,
                     $alias,
                 );
             }
         }
 
-        $row = DB::query()
-            ->fromSub($variantVolumeQuery, 'variant_volumes')
-            ->whereIn('product_id', $filteredProductIds)
-            ->selectRaw(implode(', ', $selectParts))
-            ->first();
+        $query = DB::table('products')
+            ->join('product_variant_links as pvl', 'pvl.product_id', '=', 'products.id')
+            ->join('variant_definitions as vd', 'vd.id', '=', 'pvl.variant_definition_id')
+            ->where('products.is_active', true)
+            ->whereNotNull('vd.volume_ml');
+
+        CatalogProductQueryFilters::applyBaseFiltersToQuery($query, $request);
+        CatalogVariantStockPresenter::applyStorefrontListingEligibleToVariantQuery($query, 'pvl');
+
+        $row = $query->selectRaw(implode(', ', $selectParts))->first();
 
         return collect(self::VOLUME_BUCKETS)
             ->map(static function (array $bucket) use ($row): array {

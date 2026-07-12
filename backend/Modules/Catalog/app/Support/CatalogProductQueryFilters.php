@@ -4,6 +4,7 @@ namespace Modules\Catalog\Support;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 
@@ -60,6 +61,45 @@ final class CatalogProductQueryFilters
 
         if ($request->input('hit') === '1') {
             $query->where('is_hit', true);
+        }
+    }
+
+    /**
+     * Base catalog filters for query builder on `products` table (facets / aggregations).
+     *
+     * @param  QueryBuilder  $query
+     */
+    public static function applyBaseFiltersToQuery(QueryBuilder $query, Request $request): void
+    {
+        if ($request->filled('brand')) {
+            $brandIds = collect(explode(',', (string) $request->input('brand')))
+                ->map(static fn (string $value): int => (int) trim($value))
+                ->filter(static fn (int $value): bool => $value > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($brandIds !== []) {
+                $query->whereIn('products.brand_id', $brandIds);
+            }
+        }
+
+        if ($request->filled('brand_slug')) {
+            $slug = $request->string('brand_slug')->toString();
+            $query->whereExists(function (QueryBuilder $brandQuery) use ($slug): void {
+                $brandQuery->selectRaw('1')
+                    ->from('brands')
+                    ->whereColumn('brands.id', 'products.brand_id')
+                    ->where('brands.slug', $slug);
+            });
+        }
+
+        if ($request->input('new') === '1') {
+            $query->where('products.is_new', true);
+        }
+
+        if ($request->input('hit') === '1') {
+            $query->where('products.is_hit', true);
         }
     }
 

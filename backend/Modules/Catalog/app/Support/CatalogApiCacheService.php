@@ -87,6 +87,23 @@ class CatalogApiCacheService
         );
     }
 
+    /**
+     * @return list<array{
+     *     id: int,
+     *     name: string,
+     *     type: string,
+     *     sort_order: int,
+     *     options: list<array{id: int, name: string, sort_order: int}>
+     * }>
+     */
+    public function rememberFilterableAttributeSchema(Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            sprintf('catalog:api:filter-schema:s%s:v%s', self::SCHEMA_VERSION, $this->version()),
+            $resolver,
+        )['value'];
+    }
+
     public function rememberProductBySlug(string $slug, Closure $resolver): array
     {
         $key = sprintf(
