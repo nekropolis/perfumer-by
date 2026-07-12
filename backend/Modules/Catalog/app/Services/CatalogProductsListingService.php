@@ -219,7 +219,14 @@ class CatalogProductsListingService
             return $products;
         }
 
-        $stockContext = CatalogListingStockContext::fromProducts($products);
+        if (CatalogListingStockContext::current() === null) {
+            CatalogListingStockContext::prime($products);
+        }
+
+        $stockContext = CatalogListingStockContext::current();
+        if ($stockContext === null) {
+            return $products;
+        }
 
         foreach ($products as $product) {
             if (!$product->relationLoaded('activeVariants')) {

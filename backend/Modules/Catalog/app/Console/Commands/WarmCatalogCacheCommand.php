@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 use Modules\Catalog\Services\CatalogFiltersService;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogProductQueryFilters;
 
 class WarmCatalogCacheCommand extends Command
 {
@@ -16,7 +17,13 @@ class WarmCatalogCacheCommand extends Command
     /**
      * @var list<string>
      */
-    private const array BASE_SORTS = ['popular', 'name_asc', 'price_asc'];
+    private const array BASE_SORTS = [
+        'popular',
+        'price_asc',
+        'price_desc',
+        'name_asc',
+        'name_desc',
+    ];
 
     /**
      * @var list<array<string, string>>
@@ -30,9 +37,15 @@ class WarmCatalogCacheCommand extends Command
 
     public function handle(CatalogApiCacheService $cacheService, CatalogFiltersService $filtersService): int
     {
+        $defaultFiltersRequest = Request::create('/api/catalog/filters', 'GET');
+        $facetParams = CatalogProductQueryFilters::facetCacheQueryParams($defaultFiltersRequest);
+
         $this->info('Прогрев facet aggregates (default filters)...');
         $facetStartedAt = microtime(true);
-        $filtersService->build(Request::create('/api/catalog/filters', 'GET'));
+        $cacheService->rememberCatalogFilters(
+            $facetParams,
+            static fn (): array => $filtersService->build($defaultFiltersRequest),
+        );
         $this->line(sprintf(
             '  facets default (%s ms)',
             round((microtime(true) - $facetStartedAt) * 1000, 1),

@@ -43,7 +43,7 @@ export default function CatalogPagination({
         }
 
         event.preventDefault();
-        navigate(buildPageHref(page));
+        navigate(buildPageHref(page), { scroll: "top" });
     };
 
     const pageLinkClass = (page: number) =>

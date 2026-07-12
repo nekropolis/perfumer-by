@@ -50,7 +50,9 @@ class ProductListResource extends JsonResource
      */
     public static function resolveCollection(Collection $products): array
     {
-        CatalogListingStockContext::prime($products);
+        if (CatalogListingStockContext::current() === null) {
+            CatalogListingStockContext::prime($products);
+        }
         try {
             return self::collection($products)->resolve();
         } finally {

@@ -120,30 +120,24 @@ class CatalogApiCacheService
 
     /**
      * @param  array<string, mixed>  $facetParams
-     * @return list<array{key: string, label: string, products_count: int}>
+     * @return array{min: float|null, max: float|null}
      */
-    public function rememberVolumeFacetCounts(array $facetParams, Closure $resolver): array
+    public function rememberPriceFacetBounds(array $facetParams, Closure $resolver): array
     {
         return $this->rememberTracked(
-            $this->facetPartialCacheKey('volume-counts', $facetParams),
+            $this->facetPartialCacheKey('price-bounds', $facetParams),
             $resolver,
         )['value'];
     }
 
     /**
      * @param  array<string, mixed>  $facetParams
-     * @return array{
-     *     price: array{min: float|null, max: float|null},
-     *     volume: list<array{key: string, label: string, products_count: int}>,
-     *     optionCounts: array<int, array<int, int>>
-     * }
+     * @return list<array{key: string, label: string, products_count: int}>
      */
-    public function rememberFacetAggregates(array $facetParams, Closure $resolver): array
+    public function rememberVolumeFacetCounts(array $facetParams, Closure $resolver): array
     {
-        ksort($facetParams);
-
         return $this->rememberTracked(
-            $this->facetPartialCacheKey('facets', $facetParams),
+            $this->facetPartialCacheKey('volume-counts', $facetParams),
             $resolver,
         )['value'];
     }
@@ -178,10 +172,9 @@ class CatalogApiCacheService
     {
         $key = $this->bootstrapCacheKey($queryParams);
 
-        if (Cache::has($key)) {
-            /** @var array|null $cached */
-            $cached = Cache::get($key);
-
+        /** @var array|null|false $cached */
+        $cached = Cache::get($key);
+        if ($cached !== null && $cached !== false) {
             return [
                 'payload' => $cached,
                 'hit' => true,
@@ -379,10 +372,10 @@ class CatalogApiCacheService
      */
     private function rememberTracked(string $key, Closure $resolver): array
     {
-        if (Cache::has($key)) {
+        /** @var mixed $cached */
+        $cached = Cache::get($key);
+        if ($cached !== null && $cached !== false) {
             /** @var T $cached */
-            $cached = Cache::get($key);
-
             return [
                 'value' => $cached,
                 'hit' => true,

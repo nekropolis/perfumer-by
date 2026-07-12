@@ -32,7 +32,10 @@ class CatalogFiltersService
         $timingsMs = [];
 
         $sectionStartedAt = microtime(true);
-        $price = $this->resolvePriceBounds($request);
+        $price = $this->cacheService->rememberPriceFacetBounds(
+            $facetParams,
+            fn (): array => $this->resolvePriceBounds($request),
+        );
         $timingsMs['price'] = (microtime(true) - $sectionStartedAt) * 1000;
 
         $sectionStartedAt = microtime(true);
