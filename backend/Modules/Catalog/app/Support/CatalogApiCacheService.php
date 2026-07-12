@@ -19,25 +19,40 @@ class CatalogApiCacheService
 
     public function rememberProducts(array $queryParams, Closure $resolver): array
     {
-        ksort($queryParams);
-        $key = sprintf(
-            'catalog:api:products:s%s:v%s:%s',
-            self::SCHEMA_VERSION,
-            $this->version(),
-            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
-        );
+        return $this->rememberTracked(
+            $this->productsCacheKey($queryParams),
+            $resolver,
+        )['value'];
+    }
 
-        /** @var array $result */
-        $result = Cache::remember($key, self::TTL_SECONDS, $resolver);
-        return $result;
+    /**
+     * @return array{value: array, hit: bool}
+     */
+    public function rememberProductsTracked(array $queryParams, Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            $this->productsCacheKey($queryParams),
+            $resolver,
+        );
     }
 
     public function rememberBrands(Closure $resolver): array
     {
-        $key = sprintf('catalog:api:brands:s%s:v%s', self::SCHEMA_VERSION, $this->version());
-        /** @var array $result */
-        $result = Cache::remember($key, self::TTL_SECONDS, $resolver);
-        return $result;
+        return $this->rememberTracked(
+            sprintf('catalog:api:brands:s%s:v%s', self::SCHEMA_VERSION, $this->version()),
+            $resolver,
+        )['value'];
+    }
+
+    /**
+     * @return array{value: array, hit: bool}
+     */
+    public function rememberBrandsTracked(Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            sprintf('catalog:api:brands:s%s:v%s', self::SCHEMA_VERSION, $this->version()),
+            $resolver,
+        );
     }
 
     public function rememberBrandBySlug(string $slug, Closure $resolver): array
@@ -55,16 +70,21 @@ class CatalogApiCacheService
 
     public function rememberCatalogFilters(array $queryParams, Closure $resolver): array
     {
-        ksort($queryParams);
-        $key = sprintf(
-            'catalog:api:filters:s%s:v%s:%s',
-            self::SCHEMA_VERSION,
-            $this->version(),
-            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        return $this->rememberTracked(
+            $this->filtersCacheKey($queryParams),
+            $resolver,
+        )['value'];
+    }
+
+    /**
+     * @return array{value: array, hit: bool}
+     */
+    public function rememberCatalogFiltersTracked(array $queryParams, Closure $resolver): array
+    {
+        return $this->rememberTracked(
+            $this->filtersCacheKey($queryParams),
+            $resolver,
         );
-        /** @var array $result */
-        $result = Cache::remember($key, self::TTL_SECONDS, $resolver);
-        return $result;
     }
 
     public function rememberProductBySlug(string $slug, Closure $resolver): array
@@ -82,17 +102,54 @@ class CatalogApiCacheService
 
     public function rememberBootstrap(array $queryParams, Closure $resolver): ?array
     {
-        ksort($queryParams);
-        $key = sprintf(
-            'catalog:api:bootstrap:s%s:v%s:%s',
-            self::SCHEMA_VERSION,
-            $this->version(),
-            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
-        );
+        return $this->rememberBootstrapWithMeta($queryParams, $resolver)['payload'];
+    }
 
-        /** @var array|null $result */
-        $result = Cache::remember($key, self::TTL_SECONDS, $resolver);
-        return $result;
+    /**
+     * @return array{
+     *     payload: array|null,
+     *     hit: bool,
+     *     timings_ms?: array<string, float>,
+     *     cache_parts?: array<string, string>
+     * }
+     */
+    public function rememberBootstrapWithMeta(array $queryParams, Closure $resolver): array
+    {
+        $key = $this->bootstrapCacheKey($queryParams);
+
+        if (Cache::has($key)) {
+            /** @var array|null $cached */
+            $cached = Cache::get($key);
+
+            return [
+                'payload' => $cached,
+                'hit' => true,
+            ];
+        }
+
+        /** @var array{payload: array|null, timings_ms: array<string, float>, cache_parts: array<string, string>} $built */
+        $built = $resolver();
+        $payload = $built['payload'] ?? $built;
+        $timingsMs = $built['timings_ms'] ?? [];
+        $cacheParts = $built['cache_parts'] ?? [];
+
+        if (is_array($built) && array_key_exists('payload', $built)) {
+            Cache::put($key, $payload, self::TTL_SECONDS);
+
+            return [
+                'payload' => $payload,
+                'hit' => false,
+                'timings_ms' => $timingsMs,
+                'cache_parts' => $cacheParts,
+            ];
+        }
+
+        Cache::put($key, $payload, self::TTL_SECONDS);
+
+        return [
+            'payload' => $payload,
+            'hit' => false,
+        ];
     }
 
     public function rememberProductSimilarBySlug(string $slug, int $limit, Closure $resolver): ?array
@@ -181,5 +238,67 @@ class CatalogApiCacheService
             app(CatalogStorefrontRevalidationService::class)->revalidateCatalog();
         } catch (Throwable) {
         }
+    }
+
+    private function productsCacheKey(array $queryParams): string
+    {
+        ksort($queryParams);
+
+        return sprintf(
+            'catalog:api:products:s%s:v%s:%s',
+            self::SCHEMA_VERSION,
+            $this->version(),
+            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        );
+    }
+
+    private function filtersCacheKey(array $queryParams): string
+    {
+        ksort($queryParams);
+
+        return sprintf(
+            'catalog:api:filters:s%s:v%s:%s',
+            self::SCHEMA_VERSION,
+            $this->version(),
+            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        );
+    }
+
+    private function bootstrapCacheKey(array $queryParams): string
+    {
+        ksort($queryParams);
+
+        return sprintf(
+            'catalog:api:bootstrap:s%s:v%s:%s',
+            self::SCHEMA_VERSION,
+            $this->version(),
+            md5(json_encode($queryParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        );
+    }
+
+    /**
+     * @template T
+     * @param  Closure(): T  $resolver
+     * @return array{value: T, hit: bool}
+     */
+    private function rememberTracked(string $key, Closure $resolver): array
+    {
+        if (Cache::has($key)) {
+            /** @var T $cached */
+            $cached = Cache::get($key);
+
+            return [
+                'value' => $cached,
+                'hit' => true,
+            ];
+        }
+
+        $value = $resolver();
+        Cache::put($key, $value, self::TTL_SECONDS);
+
+        return [
+            'value' => $value,
+            'hit' => false,
+        ];
     }
 }

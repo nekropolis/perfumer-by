@@ -29,6 +29,7 @@ use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
 use Modules\Catalog\Console\Commands\SyncListingMinPricesCommand;
+use Modules\Catalog\Console\Commands\WarmCatalogCacheCommand;
 use Modules\Catalog\Console\Commands\VanilleBrandCommand;
 use Modules\Catalog\Console\Commands\VanilleSyncCommand;
 use Modules\Catalog\Console\Commands\VanilleBrendyiTotalCommand;
@@ -93,6 +94,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         VanilleBrandCommand::class,
         VanilleSyncCommand::class,
         SyncListingMinPricesCommand::class,
+        WarmCatalogCacheCommand::class,
     ];
 
     public function register(): void

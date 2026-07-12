@@ -14,7 +14,7 @@ const CATALOG_FETCH: Record<CatalogFetchProfile, ApiFetchOptions> = {
     brandDetail: { next: { revalidate: 300, tags: ["catalog", "catalog-brand-detail"] } },
     filters: { next: { revalidate: 300, tags: ["catalog", "catalog-filters"] } },
     productDetail: { next: { revalidate: 60, tags: ["catalog", "catalog-product-detail"] } },
-    bootstrap: { next: { revalidate: 60, tags: ["catalog", "catalog-bootstrap"] } },
+    bootstrap: { next: { revalidate: 300, tags: ["catalog", "catalog-bootstrap"] } },
     smartSearch: { next: { revalidate: 120, tags: ["catalog", "catalog-search"] } },
 };
 

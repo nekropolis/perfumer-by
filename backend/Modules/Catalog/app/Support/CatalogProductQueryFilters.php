@@ -89,6 +89,26 @@ final class CatalogProductQueryFilters
     }
 
     /**
+     * Query params that affect facet counts in CatalogFiltersService (base filters only).
+     *
+     * @return array<string, mixed>
+     */
+    public static function facetCacheQueryParams(Request $request): array
+    {
+        $params = [];
+
+        foreach (['brand', 'brand_slug', 'new', 'hit'] as $key) {
+            if (!$request->filled($key)) {
+                continue;
+            }
+
+            $params[$key] = $request->input($key);
+        }
+
+        return $params;
+    }
+
+    /**
      * @param  Builder<Product>  $query
      */
     public static function applyAttributeFilters(Builder $query, Request $request): void
@@ -111,16 +131,22 @@ final class CatalogProductQueryFilters
                 ->values()
                 ->all();
 
-            if (empty($optionIds)) {
+            if ($optionIds === []) {
                 continue;
             }
 
-            $query->whereHas('attributeValues', function ($valueQuery) use ($attributeId, $optionIds): void {
-                $valueQuery
-                    ->where('product_attribute_id', $attributeId)
-                    ->whereHas('selectedOptions', function ($selectedQuery) use ($optionIds): void {
-                        $selectedQuery->whereIn('product_attribute_option_id', $optionIds);
-                    });
+            $query->whereExists(function ($subQuery) use ($attributeId, $optionIds): void {
+                $subQuery->selectRaw('1')
+                    ->from('product_attribute_values as pav')
+                    ->join(
+                        'product_attribute_value_options as pavo',
+                        'pavo.product_attribute_value_id',
+                        '=',
+                        'pav.id'
+                    )
+                    ->whereColumn('pav.product_id', 'products.id')
+                    ->where('pav.product_attribute_id', $attributeId)
+                    ->whereIn('pavo.product_attribute_option_id', $optionIds);
             });
         }
     }

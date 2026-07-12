@@ -5,6 +5,7 @@ namespace Modules\Catalog\Services;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
@@ -88,12 +89,8 @@ class CatalogProductsListingService
         $sort = $request->string('sort')->toString();
 
         if ($sort === 'popular') {
-            $mainWarehouseId = (int) Warehouse::query()
-                ->where('code', Warehouse::CODE_MAIN)
-                ->value('id');
-            $supplierWarehouseId = (int) Warehouse::query()
-                ->where('code', Warehouse::CODE_SUPPLIER)
-                ->value('id');
+            $mainWarehouseId = $this->resolveWarehouseId(Warehouse::CODE_MAIN);
+            $supplierWarehouseId = $this->resolveWarehouseId(Warehouse::CODE_SUPPLIER);
 
             $this->applyPopularInStockFilter($query, $mainWarehouseId, $supplierWarehouseId);
 
@@ -107,7 +104,7 @@ class CatalogProductsListingService
                 . 'LIMIT 1), 1)',
                 [$mainWarehouseId]
             )
-                ->orderByRaw('RAND(DAY(CURDATE()))');
+                ->orderByRaw('CRC32(CONCAT(products.id, CURDATE()))');
         } elseif ($sort === 'price_desc') {
             $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('products.listing_min_price')
@@ -318,5 +315,12 @@ class CatalogProductsListingService
 
         return $supplierStock !== null
             && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0;
+    }
+
+    private function resolveWarehouseId(string $code): int
+    {
+        return (int) Cache::remember("catalog:warehouse:{$code}", 3600, static function () use ($code): int {
+            return (int) (Warehouse::query()->where('code', $code)->value('id') ?? 0);
+        });
     }
 }

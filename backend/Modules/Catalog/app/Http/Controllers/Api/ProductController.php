@@ -14,6 +14,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogProductQueryFilters;
 use Modules\Catalog\Support\CatalogSearchScoring;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
@@ -111,9 +112,13 @@ class ProductController extends Controller
 
     public function bootstrap(Request $request): JsonResponse
     {
-        $payload = $this->cacheService->rememberBootstrap($request->query(), function () use ($request): ?array {
-            return $this->bootstrapService->build($request);
-        });
+        $startedAt = microtime(true);
+        $cached = $this->cacheService->rememberBootstrapWithMeta(
+            $request->query(),
+            fn (): array => $this->bootstrapService->buildWithMetrics($request),
+        );
+
+        $payload = $cached['payload'];
 
         if ($payload === null) {
             return response()->json([
@@ -121,15 +126,50 @@ class ProductController extends Controller
             ], 404);
         }
 
-        return response()->json([
+        $response = response()->json([
             'data' => $payload,
         ]);
+
+        $response->headers->set('X-Catalog-Cache', $cached['hit'] ? 'HIT' : 'MISS');
+
+        $timingParts = [];
+        if ($cached['hit']) {
+            $timingParts[] = sprintf('bootstrap;dur="%.2f";desc="HIT"', (microtime(true) - $startedAt) * 1000);
+        } else {
+            $timingsMs = $cached['timings_ms'] ?? [];
+            $cacheParts = $cached['cache_parts'] ?? [];
+            foreach (['products', 'filters', 'brands', 'brand', 'total'] as $section) {
+                if (!isset($timingsMs[$section])) {
+                    continue;
+                }
+
+                $desc = $cacheParts[$section] ?? 'MISS';
+                $timingParts[] = sprintf('%s;dur="%.2f";desc="%s"', $section, $timingsMs[$section], $desc);
+            }
+        }
+
+        if ($timingParts !== []) {
+            $response->headers->set('Server-Timing', implode(', ', $timingParts));
+        }
+
+        $totalMs = (microtime(true) - $startedAt) * 1000;
+        if ($totalMs >= 1000) {
+            Log::warning('catalog.bootstrap.slow', [
+                'cache' => $cached['hit'] ? 'HIT' : 'MISS',
+                'total_ms' => round($totalMs, 2),
+                'query' => $request->query(),
+                'timings_ms' => $cached['timings_ms'] ?? null,
+                'cache_parts' => $cached['cache_parts'] ?? null,
+            ]);
+        }
+
+        return $response;
     }
 
     public function filters(Request $request): JsonResponse
     {
         $payload = $this->cacheService->rememberCatalogFilters(
-            $request->query(),
+            CatalogProductQueryFilters::facetCacheQueryParams($request),
             function () use ($request): array {
                 return $this->filtersService->build($request);
             },

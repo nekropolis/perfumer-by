@@ -223,6 +223,9 @@ log "Leaving maintenance mode"
 (cd "$BACKEND" && "$PHP_BIN" artisan up)
 MAINT_DOWN=0
 
+log "Warming catalog cache"
+(cd "$BACKEND" && "$PHP_BIN" artisan catalog:warm-cache) || warn "catalog:warm-cache failed — site is up, warm manually"
+
 log "Done. Current state:"
 "$PM2_BIN" list || true
 (cd "$BACKEND" && "$PHP_BIN" artisan --version)
