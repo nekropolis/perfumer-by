@@ -883,6 +883,7 @@ class SellerOneVariantMatcher
                 if (
                     in_array($genderMarker, ['m', 'l'], true)
                     && $this->catalogProductGenderBucket($product) === null
+                    && ! $this->catalogProductNameDeclaresGenderMarker($product, $brandName, $genderMarker)
                     && $this->brandHasGenderedSiblingForMarker(
                         $brandId,
                         $baseProductName,
@@ -1036,6 +1037,7 @@ class SellerOneVariantMatcher
             if (
                 in_array($supplierGenderMarker, ['m', 'l'], true)
                 && $this->catalogProductGenderBucket($product) === null
+                && ! $this->catalogProductNameDeclaresGenderMarker($product, $brandName, $supplierGenderMarker)
                 && $this->brandHasGenderedSiblingForMarker(
                     $brandId,
                     $supplierBaseProductName ?? $productName,
@@ -2224,6 +2226,26 @@ class SellerOneVariantMatcher
         }
 
         return null;
+    }
+
+    /** «The One For Men» — пол в названии, атрибут «Для кого» может отсутствовать. */
+    private function catalogProductNameDeclaresGenderMarker(
+        Product $product,
+        ?string $brandName,
+        string $supplierGenderMarker,
+    ): bool {
+        $expectedToken = match ($supplierGenderMarker) {
+            'm' => CatalogProductLinkNameTokenizer::TOKEN_GM,
+            'l' => CatalogProductLinkNameTokenizer::TOKEN_GF,
+            default => null,
+        };
+        if ($expectedToken === null) {
+            return false;
+        }
+
+        $tokens = $this->productNameTokens((string) $product->name, $brandName, $supplierGenderMarker);
+
+        return in_array($expectedToken, $tokens, true);
     }
 
     /**

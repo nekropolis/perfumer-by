@@ -281,6 +281,62 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
         $this->assertSame('The One', $row['parsed']['product_name'] ?? null);
     }
 
+    public function test_the_one_for_men_matches_male_row_without_gender_attribute(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $brands = collect([(object) ['id' => 10, 'name' => 'Dolce & Gabbana']]);
+
+        $brand = new Brand(['name' => 'Dolce & Gabbana']);
+        $brand->id = 10;
+
+        $maleDefinition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edp',
+            'is_tester' => true,
+        ]);
+        $maleVariant = new ProductVariantLink(['product_id' => 2001]);
+        $maleVariant->id = 20011;
+        $maleVariant->volume = 100;
+        $maleVariant->concentration = 'edp';
+        $maleVariant->setRelation('definition', $maleDefinition);
+
+        $maleProduct = new Product(['name' => 'The One For Men', 'brand_id' => 10]);
+        $maleProduct->id = 2001;
+        $maleProduct->setRelation('brand', $brand);
+        $maleProduct->setRelation('attributeValues', collect());
+        $maleVariant->setRelation('product', $maleProduct);
+        $maleProduct->setRelation('variants', collect([$maleVariant]));
+
+        $femaleDefinition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+        ]);
+        $femaleVariant = new ProductVariantLink(['product_id' => 2002]);
+        $femaleVariant->id = 20021;
+        $femaleVariant->volume = 100;
+        $femaleVariant->concentration = 'edp';
+        $femaleVariant->setRelation('definition', $femaleDefinition);
+
+        $femaleProduct = new Product(['name' => 'The One For Women', 'brand_id' => 10]);
+        $femaleProduct->id = 2002;
+        $femaleProduct->setRelation('brand', $brand);
+        $femaleProduct->setRelation('attributeValues', collect());
+        $femaleVariant->setRelation('product', $femaleProduct);
+        $femaleProduct->setRelation('variants', collect([$femaleVariant]));
+
+        $row = $matcher->parseSupplierRow(
+            ['code' => 'dg-one-m', 'title' => 'Dolce&Gabbana The One (M) test 100ml edp'],
+            $brands,
+            collect(),
+            [10 => [$maleProduct, $femaleProduct]],
+        );
+
+        $this->assertSame(2001, $row['suggested_product']['id'] ?? null);
+        $this->assertSame(20011, $row['suggested_variant']['id'] ?? null);
+        $this->assertSame(100, $row['suggested_variant']['confidence'] ?? null);
+    }
+
     private function makeProductWithGenderOption(
         int $productId,
         int $brandId,
