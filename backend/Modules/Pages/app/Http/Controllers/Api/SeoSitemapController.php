@@ -50,6 +50,9 @@ class SeoSitemapController extends Controller
 
         $products = Product::query()
             ->where('is_active', true)
+            ->whereHas('variants', static function ($variantQuery): void {
+                $variantQuery->where('is_active', true);
+            })
             ->select(['slug', 'updated_at'])
             ->get();
 

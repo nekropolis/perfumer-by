@@ -36,7 +36,15 @@ export function formatProductCardPrice(product: ProductListItem): string {
     const max = product.price_range?.max;
 
     if (!min && !max) {
-        return product.is_preorder_available ? "Предзаказ" : "Цена уточняется";
+        if (product.is_preorder_available) {
+            return "Предзаказ";
+        }
+
+        if (product.is_out_of_stock) {
+            return "Ожидается поступление";
+        }
+
+        return "Цена уточняется";
     }
 
     const fmtMin = formatMoneyDisplay(min);

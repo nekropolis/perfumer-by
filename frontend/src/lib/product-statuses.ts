@@ -1,9 +1,10 @@
-export type ProductStatusCode = "new" | "hit" | "discount";
+export type ProductStatusCode = "new" | "hit" | "discount" | "out_of_stock";
 
 type ProductStatusesInput = {
     isNew: boolean;
     isHit: boolean;
     hasPromotion: boolean;
+    isOutOfStock?: boolean;
 };
 
 type ProductStatusMeta = {
@@ -36,6 +37,13 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
         adminClassName: "bg-rose-50 text-rose-700 border-rose-100",
         storefrontClassName: "bg-[#8E2C3B] text-[#F6E7D6]",
     },
+    out_of_stock: {
+        code: "out_of_stock",
+        shortLabel: "Нет в наличии",
+        label: "Ожидается поступление",
+        adminClassName: "bg-stone-100 text-stone-700 border-stone-200",
+        storefrontClassName: "bg-[#4A433D] text-[#E7DECF]",
+    },
 };
 
 export const PRODUCT_STATUS_FILTER_OPTIONS = [
@@ -49,5 +57,6 @@ export function resolveProductStatuses(input: ProductStatusesInput): ProductStat
     if (input.isNew) statuses.push(STATUS_MAP.new);
     if (input.isHit) statuses.push(STATUS_MAP.hit);
     if (input.hasPromotion) statuses.push(STATUS_MAP.discount);
+    if (input.isOutOfStock) statuses.push(STATUS_MAP.out_of_stock);
     return statuses;
 }

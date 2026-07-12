@@ -76,11 +76,15 @@ final class CatalogListingStockContext
     {
         $variants = $products
             ->flatMap(static function (Product $product): Collection {
-                if (!$product->relationLoaded('activeVariants')) {
-                    return collect();
+                if ($product->relationLoaded('variants')) {
+                    return $product->variants;
                 }
 
-                return $product->activeVariants;
+                if ($product->relationLoaded('activeVariants')) {
+                    return $product->activeVariants;
+                }
+
+                return collect();
             })
             ->filter(static fn ($variant): bool => $variant instanceof ProductVariantLink);
 

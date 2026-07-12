@@ -48,6 +48,8 @@ export default function ProductCardBody({
         ? `/${product.slug}?variant=${product.listing_variant_id}`
         : `/${product.slug}`;
 
+    const showOutOfStock = Boolean(product.is_out_of_stock) && !product.is_preorder_available;
+
     return (
         <Link
             href={productHref}
@@ -58,6 +60,7 @@ export default function ProductCardBody({
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
                     hasPromotion={Boolean(product.has_promotion)}
+                    isOutOfStock={showOutOfStock}
                 />
 
                 {wishlistSlot}

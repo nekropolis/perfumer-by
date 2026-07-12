@@ -5,14 +5,12 @@ namespace Modules\Catalog\Services;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
-use Modules\Warehouse\Models\Warehouse;
 
 class CatalogProductsListingService
 {
@@ -77,32 +75,24 @@ class CatalogProductsListingService
             'brand:id,name,slug',
             'mainCategory:id,name,slug',
             'images' => ProductListResource::imagesForListingEagerLoad(),
-            'activeVariants' => static function ($q): void {
-                $q->select(self::VARIANT_LINK_COLUMNS)
+            'variants' => static function ($q): void {
+                $q->where('is_active', true)
+                    ->select(self::VARIANT_LINK_COLUMNS)
                     ->with([
                         'definition' => static function ($dq): void {
                             $dq->select(self::VARIANT_DEFINITION_COLUMNS);
                         },
-                    ]);
+                    ])
+                    ->orderBy('sort_order');
             },
         ]);
 
         $sort = $request->string('sort')->toString();
 
-        if ($sort === 'popular') {
-            $mainWarehouseId = $this->resolveWarehouseId(Warehouse::CODE_MAIN);
+        CatalogProductQueryFilters::applyCatalogListingAvailabilitySort($query);
 
-            $query->orderByRaw(
-                'COALESCE((SELECT 0 FROM warehouse_variant_stocks '
-                . 'INNER JOIN product_variant_links ON product_variant_links.id = warehouse_variant_stocks.variant_id '
-                . 'WHERE warehouse_variant_stocks.warehouse_id = ? '
-                . 'AND (warehouse_variant_stocks.stock - COALESCE(warehouse_variant_stocks.reserved_stock, 0)) > 0 '
-                . 'AND product_variant_links.product_id = products.id '
-                . 'AND product_variant_links.is_active = 1 '
-                . 'LIMIT 1), 1)',
-                [$mainWarehouseId]
-            )
-                ->orderByRaw('CRC32(CONCAT(products.id, CURDATE()))');
+        if ($sort === 'popular') {
+            $query->orderByRaw('CRC32(CONCAT(products.id, CURDATE()))');
         } elseif ($sort === 'price_desc') {
             $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('products.listing_min_price')
@@ -229,11 +219,15 @@ class CatalogProductsListingService
         }
 
         foreach ($products as $product) {
-            if (!$product->relationLoaded('activeVariants')) {
+            $variants = $this->listingVariants($product);
+            if ($variants->isEmpty()) {
                 continue;
             }
 
-            $variants = $product->activeVariants;
+            if ((bool) $product->is_out_of_stock) {
+                continue;
+            }
+
             $hasMainStock = $variants->contains(function (ProductVariantLink $variant) use ($stockContext): bool {
                 return $this->variantHasMainWarehouseAvailableStock($stockContext, $variant);
             });
@@ -256,15 +250,52 @@ class CatalogProductsListingService
                 return $stockContext->storefrontVariantPrice($variant, $presented) !== null;
             });
 
-            $product->setRelation('activeVariants', $filtered->values());
+            $this->setListingVariants($product, $filtered->values());
         }
 
         return $products
             ->filter(static function (Product $product): bool {
-                return $product->relationLoaded('activeVariants')
-                    && $product->activeVariants->isNotEmpty();
+                if ((bool) $product->is_out_of_stock) {
+                    return true;
+                }
+
+                return $product->relationLoaded('variants')
+                    ? $product->variants->isNotEmpty()
+                    : ($product->relationLoaded('activeVariants') && $product->activeVariants->isNotEmpty());
             })
             ->values();
+    }
+
+    /**
+     * @return Collection<int, ProductVariantLink>
+     */
+    private function listingVariants(Product $product): Collection
+    {
+        if ($product->relationLoaded('variants')) {
+            return $product->variants;
+        }
+
+        if ($product->relationLoaded('activeVariants')) {
+            return $product->activeVariants;
+        }
+
+        return collect();
+    }
+
+    /**
+     * @param  Collection<int, ProductVariantLink>  $variants
+     */
+    private function setListingVariants(Product $product, Collection $variants): void
+    {
+        if ($product->relationLoaded('variants')) {
+            $product->setRelation('variants', $variants);
+
+            return;
+        }
+
+        if ($product->relationLoaded('activeVariants')) {
+            $product->setRelation('activeVariants', $variants);
+        }
     }
 
     private function variantHasMainWarehouseAvailableStock(
@@ -291,12 +322,5 @@ class CatalogProductsListingService
 
         return $supplierStock !== null
             && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0;
-    }
-
-    private function resolveWarehouseId(string $code): int
-    {
-        return (int) Cache::remember("catalog:warehouse:{$code}", 3600, static function () use ($code): int {
-            return (int) (Warehouse::query()->where('code', $code)->value('id') ?? 0);
-        });
     }
 }

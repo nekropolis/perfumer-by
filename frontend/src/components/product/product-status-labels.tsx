@@ -4,11 +4,12 @@ type Props = {
     isNew: boolean;
     isHit: boolean;
     hasPromotion: boolean;
+    isOutOfStock?: boolean;
     className?: string;
 };
 
-export default function ProductStatusLabels({ isNew, isHit, hasPromotion, className = "" }: Props) {
-    const labels = resolveProductStatuses({ isNew, isHit, hasPromotion });
+export default function ProductStatusLabels({ isNew, isHit, hasPromotion, isOutOfStock = false, className = "" }: Props) {
+    const labels = resolveProductStatuses({ isNew, isHit, hasPromotion, isOutOfStock });
 
     if (labels.length === 0) {
         return null;

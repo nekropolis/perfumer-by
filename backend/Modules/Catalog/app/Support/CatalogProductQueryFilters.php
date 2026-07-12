@@ -104,7 +104,7 @@ final class CatalogProductQueryFilters
     }
 
     /**
-     * Products with at least one in-stock variant (warehouse or supplier offer).
+     * Active products with at least one active variant (in-stock, preorder, or temporarily OOS).
      *
      * @param  QueryBuilder  $query
      */
@@ -113,13 +113,9 @@ final class CatalogProductQueryFilters
         $query->where("{$tableAlias}.is_active", true)
             ->whereExists(function (QueryBuilder $variantExists) use ($tableAlias): void {
                 $variantExists->selectRaw('1')
-                    ->from('product_variant_links as catalog_in_stock_pvl')
-                    ->whereColumn('catalog_in_stock_pvl.product_id', "{$tableAlias}.id");
-
-                CatalogVariantStockPresenter::applyStorefrontInStockToVariantQueryForFacets(
-                    $variantExists,
-                    'catalog_in_stock_pvl',
-                );
+                    ->from('product_variant_links as catalog_visible_pvl')
+                    ->whereColumn('catalog_visible_pvl.product_id', "{$tableAlias}.id")
+                    ->where('catalog_visible_pvl.is_active', true);
             });
     }
 
@@ -130,8 +126,18 @@ final class CatalogProductQueryFilters
     {
         $query->where('products.is_active', true)
             ->whereHas('variants', function (Builder $variantQuery): void {
-                CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
+                $variantQuery->where('is_active', true);
             });
+    }
+
+    /**
+     * In stock first, then preorder-only, then temporarily out of stock.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public static function applyCatalogListingAvailabilitySort(Builder $query): void
+    {
+        CatalogVariantStockPresenter::applyCatalogListingAvailabilitySort($query);
     }
 
     /**

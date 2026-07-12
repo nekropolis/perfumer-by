@@ -79,9 +79,7 @@ class ProductListResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        $variants = $this->relationLoaded('activeVariants')
-            ? $this->activeVariants
-            : collect();
+        $variants = $this->listingVariantsCollection();
 
         $stockContext = CatalogListingStockContext::current()
             ?? CatalogListingStockContext::fromProducts(collect([$this->resource]));
@@ -376,5 +374,21 @@ class ProductListResource extends JsonResource
         }
 
         return $hasColumn;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, ProductVariantLink>
+     */
+    private function listingVariantsCollection(): \Illuminate\Support\Collection
+    {
+        if ($this->relationLoaded('variants')) {
+            return $this->variants;
+        }
+
+        if ($this->relationLoaded('activeVariants')) {
+            return $this->activeVariants;
+        }
+
+        return collect();
     }
 }
