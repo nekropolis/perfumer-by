@@ -6,9 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\ProductAttribute;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
-use Modules\Catalog\Support\CatalogVariantStockPresenter;
 
 class CatalogFiltersService
 {
@@ -24,7 +24,25 @@ class CatalogFiltersService
     public function build(Request $request): array
     {
         $attributeSchema = $this->loadFilterableAttributeSchema();
-        $optionCounts = $this->resolveAttributeOptionCounts($request, $attributeSchema);
+        $facetParams = CatalogProductQueryFilters::facetCacheQueryParams($request);
+
+        $aggregates = $this->cacheService->rememberFacetAggregates(
+            $facetParams,
+            function () use ($request, $attributeSchema): array {
+                $optionCounts = $this->resolveAttributeOptionCounts($request, $attributeSchema);
+
+                return [
+                    'price' => $this->resolvePriceBounds($request),
+                    'volume' => $this->resolveVolumeFacetCounts($request),
+                    'optionCounts' => $optionCounts
+                        ->map(static fn (Collection $counts): array => $counts->all())
+                        ->all(),
+                ];
+            },
+        );
+
+        $optionCounts = collect($aggregates['optionCounts'])
+            ->map(static fn (array $counts): Collection => collect($counts));
 
         $attributePayload = collect($attributeSchema)
             ->map(function (array $attribute) use ($optionCounts): array {
@@ -58,8 +76,8 @@ class CatalogFiltersService
 
         return [
             'data' => [
-                'price' => $this->resolvePriceBounds($request),
-                'volume' => $this->resolveVolumeFacetCounts($request),
+                'price' => $aggregates['price'],
+                'volume' => $aggregates['volume'],
                 'attributes' => $attributePayload,
             ],
         ];
@@ -145,7 +163,13 @@ class CatalogFiltersService
             return collect();
         }
 
-        $query = DB::table('products')
+        $filteredProducts = DB::table('products')
+            ->where('products.is_active', true)
+            ->select('products.id');
+
+        CatalogProductQueryFilters::applyBaseFiltersToQuery($filteredProducts, $request);
+
+        $rows = DB::table('products')
             ->join('product_attribute_values as pav', 'pav.product_id', '=', 'products.id')
             ->join(
                 'product_attribute_value_options as pavo',
@@ -153,12 +177,8 @@ class CatalogFiltersService
                 '=',
                 'pav.id'
             )
-            ->where('products.is_active', true)
-            ->whereIn('pav.product_attribute_id', $attributeIds);
-
-        CatalogProductQueryFilters::applyBaseFiltersToQuery($query, $request);
-
-        $rows = $query
+            ->whereIn('products.id', $filteredProducts)
+            ->whereIn('pav.product_attribute_id', $attributeIds)
             ->groupBy('pav.product_attribute_id', 'pavo.product_attribute_option_id')
             ->selectRaw('pav.product_attribute_id as attribute_id')
             ->selectRaw('pavo.product_attribute_option_id as option_id')
@@ -186,30 +206,38 @@ class CatalogFiltersService
 
             if ($max !== null) {
                 $selectParts[] = sprintf(
-                    'COUNT(DISTINCT CASE WHEN vd.volume_ml >= %d AND vd.volume_ml <= %d THEN products.id END) as `%s`',
+                    'COUNT(DISTINCT CASE WHEN volume_ml >= %d AND volume_ml <= %d THEN product_id END) as `%s`',
                     $min,
                     (int) $max,
                     $alias,
                 );
             } else {
                 $selectParts[] = sprintf(
-                    'COUNT(DISTINCT CASE WHEN vd.volume_ml >= %d THEN products.id END) as `%s`',
+                    'COUNT(DISTINCT CASE WHEN volume_ml >= %d THEN product_id END) as `%s`',
                     $min,
                     $alias,
                 );
             }
         }
 
-        $query = DB::table('products')
-            ->join('product_variant_links as pvl', 'pvl.product_id', '=', 'products.id')
-            ->join('variant_definitions as vd', 'vd.id', '=', 'pvl.variant_definition_id')
-            ->where('products.is_active', true)
-            ->whereNotNull('vd.volume_ml');
+        $variantVolumeQuery = ProductVariantLink::query()
+            ->catalogListingEligible()
+            ->join('variant_definitions as vd', 'vd.id', '=', 'product_variant_links.variant_definition_id')
+            ->whereNotNull('vd.volume_ml')
+            ->whereExists(function ($productQuery) use ($request): void {
+                $productQuery->selectRaw('1')
+                    ->from('products')
+                    ->whereColumn('products.id', 'product_variant_links.product_id')
+                    ->where('products.is_active', true);
 
-        CatalogProductQueryFilters::applyBaseFiltersToQuery($query, $request);
-        CatalogVariantStockPresenter::applyStorefrontListingEligibleToVariantQuery($query, 'pvl');
+                CatalogProductQueryFilters::applyBaseFiltersToQuery($productQuery, $request);
+            })
+            ->select('product_variant_links.product_id', 'vd.volume_ml');
 
-        $row = $query->selectRaw(implode(', ', $selectParts))->first();
+        $row = DB::query()
+            ->fromSub($variantVolumeQuery, 'variant_volumes')
+            ->selectRaw(implode(', ', $selectParts))
+            ->first();
 
         return collect(self::VOLUME_BUCKETS)
             ->map(static function (array $bucket) use ($row): array {

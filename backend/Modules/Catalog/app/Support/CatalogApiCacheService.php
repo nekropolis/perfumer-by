@@ -104,6 +104,29 @@ class CatalogApiCacheService
         )['value'];
     }
 
+    /**
+     * @param  array<string, mixed>  $facetParams
+     * @return array{
+     *     price: array{min: float|null, max: float|null},
+     *     volume: list<array{key: string, label: string, products_count: int}>,
+     *     optionCounts: array<int, array<int, int>>
+     * }
+     */
+    public function rememberFacetAggregates(array $facetParams, Closure $resolver): array
+    {
+        ksort($facetParams);
+
+        return $this->rememberTracked(
+            sprintf(
+                'catalog:api:filter-facets:s%s:v%s:%s',
+                self::SCHEMA_VERSION,
+                $this->version(),
+                md5(json_encode($facetParams, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+            ),
+            $resolver,
+        )['value'];
+    }
+
     public function rememberProductBySlug(string $slug, Closure $resolver): array
     {
         $key = sprintf(

@@ -4,6 +4,7 @@ namespace Modules\Catalog\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
+use Modules\Catalog\Services\CatalogFiltersService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 
 class WarmCatalogCacheCommand extends Command
@@ -25,8 +26,16 @@ class WarmCatalogCacheCommand extends Command
         ['page' => '1', 'sort' => 'popular', 'sale' => '1'],
     ];
 
-    public function handle(CatalogApiCacheService $cacheService): int
+    public function handle(CatalogApiCacheService $cacheService, CatalogFiltersService $filtersService): int
     {
+        $this->info('Прогрев facet aggregates (default filters)...');
+        $facetStartedAt = microtime(true);
+        $filtersService->build(Request::create('/api/catalog/filters', 'GET'));
+        $this->line(sprintf(
+            '  facets default (%s ms)',
+            round((microtime(true) - $facetStartedAt) * 1000, 1),
+        ));
+
         $this->info('Прогрев catalog bootstrap cache...');
 
         foreach (self::WARM_QUERIES as $queryParams) {
