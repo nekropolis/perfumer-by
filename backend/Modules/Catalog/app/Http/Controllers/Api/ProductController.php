@@ -1554,6 +1554,11 @@ class ProductController extends Controller
                 return $tierCompare;
             }
 
+            $availabilityCompare = (int) ($right['_availability_rank'] ?? 0) <=> (int) ($left['_availability_rank'] ?? 0);
+            if ($availabilityCompare !== 0) {
+                return $availabilityCompare;
+            }
+
             $scoreCompare = ((float) ($right['score'] ?? 0)) <=> ((float) ($left['score'] ?? 0));
             if ($scoreCompare !== 0) {
                 return $scoreCompare;
@@ -1564,8 +1569,20 @@ class ProductController extends Controller
                 return $lenCompare;
             }
 
-            return (int) ($right['_availability_rank'] ?? 0) <=> (int) ($left['_availability_rank'] ?? 0);
+            return (int) ($left['id'] ?? 0) <=> (int) ($right['id'] ?? 0);
         })->values();
+    }
+
+    private function smartSearchAvailabilityRank(
+        Product $product,
+        int $listingAvailableTotal,
+        bool $phaseOneScoring,
+    ): int {
+        if (!$phaseOneScoring && $listingAvailableTotal > 0) {
+            return 1;
+        }
+
+        return $product->is_out_of_stock ? 0 : 1;
     }
 
     /**
@@ -1753,9 +1770,11 @@ class ProductController extends Controller
                 'variants_count' => (int) ($product->variants?->count() ?? 0),
                 'variant_labels' => $variantTitles->values()->all(),
                 'matched_code' => $matchedCodeByProductId[(int) $product->id] ?? null,
-                '_availability_rank' => $phaseOneScoring
-                    ? ($product->is_out_of_stock ? 0 : 1)
-                    : (($listingAvailableTotal > 0 || $isPreorderAvailable) ? 1 : 0),
+                '_availability_rank' => $this->smartSearchAvailabilityRank(
+                    $product,
+                    $listingAvailableTotal,
+                    $phaseOneScoring,
+                ),
                 '_display_label_len' => mb_strlen($normalizedDisplay, 'UTF-8'),
                 '_match_tier' => $matchTier,
                 '_typo_phrase' => $typoPhrase,

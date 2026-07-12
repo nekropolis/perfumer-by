@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import CatalogPagination from "@/components/catalog/catalog-pagination";
+import { CatalogNavigationProvider } from "@/components/catalog/catalog-navigation";
+import CatalogResultsOverlay from "@/components/catalog/catalog-results-overlay";
 import ProductCardClient from "@/components/product/product-card.client";
 import {
     siteBtnSecondary,
@@ -89,23 +91,26 @@ export default function SearchResultsClient({
                             ) : null}
                         </div>
                     ) : (
-                        <>
-                            <p className="mb-4 text-sm text-admin-text-secondary">
-                                Найдено товаров:{" "}
-                                <span className="font-medium text-admin-text">{totalProducts}</span>
-                            </p>
-                            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                                {products.map((product, index) => (
-                                    <ProductCardClient key={product.id} product={product} eager={index < 4} />
-                                ))}
+                        <CatalogNavigationProvider>
+                            <div className="relative">
+                                <CatalogResultsOverlay />
+                                <p className="mb-4 text-sm text-admin-text-secondary">
+                                    Найдено товаров:{" "}
+                                    <span className="font-medium text-admin-text">{totalProducts}</span>
+                                </p>
+                                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                                    {products.map((product, index) => (
+                                        <ProductCardClient key={product.id} product={product} eager={index < 4} />
+                                    ))}
+                                </div>
+                                <CatalogPagination
+                                    currentPage={currentPage}
+                                    lastPage={lastPage}
+                                    basePath="/search"
+                                    queryString={queryString}
+                                />
                             </div>
-                            <CatalogPagination
-                                currentPage={currentPage}
-                                lastPage={lastPage}
-                                basePath="/search"
-                                queryString={queryString}
-                            />
-                        </>
+                        </CatalogNavigationProvider>
                     )}
                 </section>
             ) : null}
