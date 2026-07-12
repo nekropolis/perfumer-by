@@ -1,3 +1,5 @@
 {
-  "intelephense.environment.includePaths": ["${workspaceFolder}/backend"]
+  "intelephense.environment.includePaths": ["${workspaceFolder}/backend"],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }

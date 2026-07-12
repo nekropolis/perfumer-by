@@ -5,8 +5,10 @@ namespace Modules\Catalog\Support;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Warehouse\Models\Warehouse;
 
 final class CatalogProductQueryFilters
 {
@@ -137,7 +139,72 @@ final class CatalogProductQueryFilters
      */
     public static function applyCatalogListingAvailabilitySort(Builder $query): void
     {
-        CatalogVariantStockPresenter::applyCatalogListingAvailabilitySort($query);
+        $warehouseIds = self::listingWarehouseIds();
+        $bindings = [];
+        $inStockChecks = [];
+
+        if ($warehouseIds !== []) {
+            $warehousePlaceholders = implode(',', array_fill(0, count($warehouseIds), '?'));
+            $bindings = array_merge($bindings, $warehouseIds);
+            $inStockChecks[] = 'EXISTS (
+                SELECT 1
+                FROM warehouse_variant_stocks AS listing_avail_wvs
+                INNER JOIN product_variant_links AS listing_avail_pvl
+                    ON listing_avail_pvl.id = listing_avail_wvs.variant_id
+                WHERE listing_avail_pvl.product_id = products.id
+                    AND listing_avail_pvl.is_preorder = 0
+                    AND listing_avail_pvl.is_active = 1
+                    AND listing_avail_wvs.warehouse_id IN ('.$warehousePlaceholders.')
+                    AND (listing_avail_wvs.stock - COALESCE(listing_avail_wvs.reserved_stock, 0)) > 0
+            )';
+        }
+
+        $inStockChecks[] = 'EXISTS (
+            SELECT 1
+            FROM product_variant_links AS listing_avail_pvl
+            INNER JOIN supplier_variant_offers AS listing_avail_svo
+                ON listing_avail_svo.product_variant_id = listing_avail_pvl.id
+            INNER JOIN supplier_products AS listing_avail_sp
+                ON listing_avail_sp.supplier_id = listing_avail_svo.supplier_id
+                AND listing_avail_sp.product_id = listing_avail_pvl.product_id
+            WHERE listing_avail_pvl.product_id = products.id
+                AND listing_avail_pvl.is_preorder = 0
+                AND listing_avail_pvl.is_active = 1
+                AND listing_avail_svo.is_active = 1
+                AND listing_avail_sp.is_linked = 1
+                AND listing_avail_sp.is_active = 1
+                AND listing_avail_sp.link_parsing_active = 1
+        )';
+
+        $inStockCondition = '('.implode(' OR ', $inStockChecks).')';
+
+        $query->orderByRaw(
+            'CASE
+                WHEN products.is_out_of_stock = 1 THEN 2
+                WHEN '.$inStockCondition.' THEN 0
+                ELSE 1
+            END ASC',
+            $bindings,
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function listingWarehouseIds(): array
+    {
+        /** @var list<int> $ids */
+        $ids = Cache::remember('catalog:warehouse:listing-ids', 3600, static function (): array {
+            return Warehouse::query()
+                ->whereIn('code', [Warehouse::CODE_MAIN, Warehouse::CODE_SUPPLIER])
+                ->pluck('id')
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->values()
+                ->all();
+        });
+
+        return $ids;
     }
 
     /**
