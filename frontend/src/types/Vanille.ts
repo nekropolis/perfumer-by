@@ -158,7 +158,7 @@ export type SellerOneParseStatus = {
     job_id: string;
     /** Парсинг прайса (`parse`) или фоновое обновление цен связанных (`refresh_linked`). */
     job_type?: "parse" | "refresh_linked";
-    status: "queued" | "running" | "completed" | "failed";
+    status: "queued" | "running" | "completed" | "failed" | "cancelled";
     processed?: number;
     total_rows?: number;
     /** Для refresh_linked: число связанных строк каталога. */

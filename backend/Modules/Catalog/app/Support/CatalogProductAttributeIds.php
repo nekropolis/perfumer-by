@@ -1,0 +1,34 @@
+<?php
+
+namespace Modules\Catalog\Support;
+
+/**
+ * ID атрибутов и опций из product_attributes / product_attribute_options.
+ *
+ * Единый источник для Seller One, приходов XLS и eager-load индекса каталога при парсинге.
+ * При смене ID в БД — править только этот файл.
+ */
+final class CatalogProductAttributeIds
+{
+    /** product_attributes: «Для кого» */
+    public const int GENDER_ATTRIBUTE_ID = 2;
+
+    public const int GENDER_OPTION_FEMALE_ID = 2;
+
+    public const int GENDER_OPTION_MALE_ID = 27;
+
+    public const int GENDER_OPTION_UNISEX_ID = 62;
+
+    /**
+     * @return list<int>
+     */
+    public static function genderOptionIdsForBucket(string $bucket): array
+    {
+        return match ($bucket) {
+            'female' => [self::GENDER_OPTION_FEMALE_ID],
+            'male' => [self::GENDER_OPTION_MALE_ID],
+            'unisex' => [self::GENDER_OPTION_UNISEX_ID],
+            default => [],
+        };
+    }
+}

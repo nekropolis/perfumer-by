@@ -474,6 +474,56 @@ class VanilleImportController extends Controller
         ]);
     }
 
+    public function cancelSellerOneParse(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate([
+            'job_id' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $jobId = trim((string) ($validated['job_id'] ?? ''));
+        if ($jobId === '') {
+            $activeId = Cache::get(RunSellerOneParseJob::activeKey());
+            $jobId = is_string($activeId) ? trim($activeId) : '';
+        }
+
+        if ($jobId === '') {
+            return response()->json([
+                'message' => 'Нет активного парсинга Seller One',
+            ], 404);
+        }
+
+        $cacheKey = RunSellerOneParseJob::cacheKey($jobId);
+        $status = Cache::get($cacheKey);
+        if (! is_array($status)) {
+            RunSellerOneParseJob::clearActiveJobIfMatches($jobId);
+            Cache::forget('seller_one_parse_running:'.$jobId);
+
+            return response()->json([
+                'message' => 'Задача парсинга не найдена',
+            ], 404);
+        }
+
+        $statusName = (string) ($status['status'] ?? '');
+        if (! in_array($statusName, ['queued', 'running'], true)) {
+            return response()->json([
+                'message' => 'Парсинг уже не выполняется',
+                'job_id' => $jobId,
+                'data' => $status,
+            ]);
+        }
+
+        RunSellerOneParseJob::requestCancellation($jobId, 'Парсинг остановлен пользователем');
+        app(SupplierPriceImportService::class)->clearSellerOneParseArtifacts($jobId);
+
+        $updated = Cache::get($cacheKey);
+
+        return response()->json([
+            'message' => 'Остановка парсинга запрошена',
+            'job_id' => $jobId,
+            'data' => is_array($updated) ? $updated : null,
+        ]);
+    }
+
     /**
      * Discovery-эндпоинт для виджета активных задач в шапке:
      * возвращает текущий активный Seller One job без необходимости знать его id
@@ -492,7 +542,7 @@ class VanilleImportController extends Controller
                 Cache::forget(RunSellerOneParseJob::activeKey());
             } else {
                 $statusName = is_array($status) ? ($status['status'] ?? null) : null;
-                if ($statusName === 'completed' || $statusName === 'failed') {
+                if (in_array($statusName, ['completed', 'failed', 'cancelled'], true)) {
                     Cache::forget(RunSellerOneParseJob::activeKey());
                 } else {
                     return response()->json(['data' => $status]);

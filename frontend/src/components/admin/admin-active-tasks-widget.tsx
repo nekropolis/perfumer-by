@@ -58,6 +58,7 @@ const SELLER_ONE_STATUS_LABELS: Record<SellerOneParseStatus["status"], string> =
     running: "выполняется",
     completed: "завершено",
     failed: "ошибка",
+    cancelled: "остановлено",
 };
 
 function isVanilleActive(status: VanilleImportQueueJob["status"] | undefined): boolean {

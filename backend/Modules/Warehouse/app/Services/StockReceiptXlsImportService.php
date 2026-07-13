@@ -12,6 +12,7 @@ use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SellerOneMatchRule;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantLinkAutoCreator;
@@ -26,9 +27,6 @@ class StockReceiptXlsImportService
     private const IMPORT_SESSION_PREFIX = 'stock-receipt-xls-import';
 
     private const RESOLVE_BATCH_MAX = 150;
-
-    /** product_attributes: «Для кого» — единственный атрибут, который читает SellerOneVariantMatcher. */
-    private const GENDER_ATTRIBUTE_ID = 3;
 
     public function __construct(
         private readonly StockReceiptService $receiptService,
@@ -768,7 +766,7 @@ class StockReceiptXlsImportService
                     'variants.definition',
                     'attributeValues' => static fn ($query) => $query->where(
                         'product_attribute_id',
-                        self::GENDER_ATTRIBUTE_ID,
+                        CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID,
                     ),
                     'attributeValues.selectedOptions',
                 ])

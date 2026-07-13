@@ -48,6 +48,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     // Seller One / прайс (те же обработчики, что seller-one — fallback URL во фронте)
     Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
     Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
+    Route::post('/supplier-price/cancel', [VanilleImportController::class, 'cancelSellerOneParse']);
     Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);
     Route::get('/supplier-price/status/{jobId}', [VanilleImportController::class, 'sellerOneParseStatus']);
     Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
@@ -69,6 +70,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/ret
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/seller-one')->group(function () {
     Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
     Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
+    Route::post('/supplier-price/cancel', [VanilleImportController::class, 'cancelSellerOneParse']);
     // Discovery-эндпоинт для виджета задач в шапке: возвращает текущий активный
     // Seller One parse без необходимости знать его jobId на клиенте.
     Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);

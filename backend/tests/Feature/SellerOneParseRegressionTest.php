@@ -235,4 +235,65 @@ class SellerOneParseRegressionTest extends TestCase
 
         self::assertNotNull(Cache::get($dedupKey));
     }
+
+    public function test_request_cancellation_marks_job_cancelled_and_clears_active_key(): void
+    {
+        $jobId = 'seller-one-cancel-'.uniqid();
+        $cacheKey = RunSellerOneParseJob::cacheKey($jobId);
+
+        try {
+            Cache::put($cacheKey, [
+                'job_id' => $jobId,
+                'status' => 'running',
+                'processed' => 120,
+                'total_rows' => 1000,
+            ], now()->addHour());
+            Cache::put(RunSellerOneParseJob::activeKey(), $jobId, now()->addHour());
+
+            RunSellerOneParseJob::requestCancellation($jobId, 'Парсинг остановлен пользователем');
+
+            $status = Cache::get($cacheKey);
+            self::assertIsArray($status);
+            self::assertSame('cancelled', $status['status']);
+            self::assertSame('Парсинг остановлен пользователем', $status['message']);
+            self::assertTrue(RunSellerOneParseJob::isCancellationRequested($jobId));
+            self::assertNull(Cache::get(RunSellerOneParseJob::activeKey()));
+        } finally {
+            Cache::forget($cacheKey);
+            Cache::forget(RunSellerOneParseJob::finishedCacheKey($jobId));
+            Cache::forget(RunSellerOneParseJob::activeKey());
+        }
+    }
+
+    public function test_purge_stops_active_parse_job_before_deleting_data(): void
+    {
+        $jobId = 'seller-one-purge-'.uniqid();
+        $cacheKey = RunSellerOneParseJob::cacheKey($jobId);
+
+        try {
+            Cache::put($cacheKey, [
+                'job_id' => $jobId,
+                'status' => 'running',
+                'processed' => 500,
+                'total_rows' => 30000,
+            ], now()->addHour());
+            Cache::put(RunSellerOneParseJob::activeKey(), $jobId, now()->addHour());
+
+            $service = app(SupplierPriceImportService::class);
+            $result = $service->stopActiveSellerOneBackgroundJobs('Очистка данных Seller One');
+
+            self::assertSame($jobId, $result['parse_job_id']);
+            self::assertNull(Cache::get(RunSellerOneParseJob::activeKey()));
+            self::assertTrue(RunSellerOneParseJob::isCancellationRequested($jobId));
+
+            $status = Cache::get($cacheKey);
+            self::assertIsArray($status);
+            self::assertSame('cancelled', $status['status']);
+        } finally {
+            Cache::forget($cacheKey);
+            Cache::forget(RunSellerOneParseJob::finishedCacheKey($jobId));
+            Cache::forget(RunSellerOneParseJob::activeKey());
+            Cache::forget('seller_one_parse_running:'.$jobId);
+        }
+    }
 }

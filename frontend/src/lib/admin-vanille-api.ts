@@ -514,6 +514,70 @@ export async function fetchSellerOneParseStatus(jobId: string): Promise<{ data: 
     );
 }
 
+export async function cancelSellerOneParseJob(jobId?: string | null): Promise<{
+    message?: string;
+    job_id?: string;
+    data?: SellerOneParseStatus | null;
+}> {
+    const method = "POST";
+    const paths = [
+        "/admin/import-export/seller-one/supplier-price/cancel",
+        "/admin/import-export/vanille/supplier-price/cancel",
+    ];
+    const errors: string[] = [];
+
+    for (let index = 0; index < paths.length; index += 1) {
+        const path = paths[index];
+        const url = `${API_BASE}${path}`;
+        const res = await fetch(url, {
+            method,
+            headers: {
+                ...getAuthHeaders(),
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(jobId ? { job_id: jobId } : {}),
+            cache: "no-store",
+        });
+
+        const text = await res.text();
+        const data = tryParseJsonResponse<{
+            message?: string;
+            job_id?: string;
+            data?: SellerOneParseStatus | null;
+        }>(text);
+
+        if (res.ok && data) {
+            return data;
+        }
+
+        const message = buildHttpErrorMessage({
+            method,
+            url,
+            status: res.status,
+            serverMessage: res.ok ? "Сервер вернул не JSON" : data?.message,
+            responseText: text,
+            redirectedTo: res.redirected ? res.url : undefined,
+        });
+        errors.push(message);
+
+        const hasNextFallback = index < paths.length - 1;
+        if (
+            hasNextFallback
+            && isLaravelRouteNotFoundResponse(res.status, text, data?.message)
+        ) {
+            continue;
+        }
+
+        throw new Error(message);
+    }
+
+    throw new Error(
+        errors.length > 0
+            ? `All cancel parse API fallbacks failed:\n- ${errors.join("\n- ")}`
+            : "Cancel parse API fallback failed"
+    );
+}
+
 /**
  * Возвращает текущий активный Seller One parse без указания jobId.
  * Используется виджетом активных задач в шапке, чтобы показывать статус,

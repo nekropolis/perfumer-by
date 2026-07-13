@@ -6,8 +6,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductAttributeValueOption;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 use Modules\Catalog\Support\ProductDisplayName;
 
@@ -64,9 +66,6 @@ class SellerOneVariantMatcher
     /** База при лишнем токене в имени каталога (подпоследовательность, diff +1 в catalog). */
     private const BASE_POINTS_CATALOG_EXTRA = 50;
 
-    /** product_attributes: «Для кого» */
-    private const GENDER_ATTRIBUTE_ID = 3;
-
     /**
      * Кэши hot-path'а: при 25k+ строк прайса normalizeText по каждому бренду и
      * токенизация имён продуктов на каждую строку — основной расход CPU парсинга.
@@ -79,12 +78,8 @@ class SellerOneVariantMatcher
     /** @var array<int, list<string>> product_id => токены имени */
     private array $productTokensCache = [];
 
-    /** product_attribute_options */
-    private const GENDER_OPTION_FEMALE_ID = 3;
-
-    private const GENDER_OPTION_MALE_ID = 35;
-
-    private const GENDER_OPTION_UNISEX_ID = 438;
+    /** @var array<string, bool> productId:optionIds => результат проверки пола */
+    private array $genderOptionCache = [];
 
     public function shouldSkipParsingTitle(string $title): bool
     {
@@ -2199,13 +2194,7 @@ class SellerOneVariantMatcher
 
     private function productMatchesGenderAttribute(Product $product, string $expectedGender): bool
     {
-        $optionIds = match ($expectedGender) {
-            'female' => [self::GENDER_OPTION_FEMALE_ID],
-            'male' => [self::GENDER_OPTION_MALE_ID],
-            'unisex' => [self::GENDER_OPTION_UNISEX_ID],
-            default => [],
-        };
-
+        $optionIds = CatalogProductAttributeIds::genderOptionIdsForBucket($expectedGender);
         if ($optionIds === []) {
             return false;
         }
@@ -2352,28 +2341,59 @@ class SellerOneVariantMatcher
      */
     private function productHasGenderOption(Product $product, array $optionIds): bool
     {
-        if (! $product->relationLoaded('attributeValues')) {
+        if ($optionIds === []) {
             return false;
         }
 
-        foreach ($product->attributeValues as $value) {
-            if ((int) $value->product_attribute_id !== self::GENDER_ATTRIBUTE_ID) {
-                continue;
-            }
-
-            if (! $value->relationLoaded('selectedOptions')) {
-                continue;
-            }
-
-            foreach ($value->selectedOptions as $selected) {
-                $selectedOptionId = (int) ($selected->product_attribute_option_id ?? 0);
-                if (in_array($selectedOptionId, $optionIds, true)) {
-                    return true;
-                }
-            }
+        $sortedOptionIds = $optionIds;
+        sort($sortedOptionIds, SORT_NUMERIC);
+        $cacheKey = (int) $product->id.':'.implode(',', $sortedOptionIds);
+        if (array_key_exists($cacheKey, $this->genderOptionCache)) {
+            return $this->genderOptionCache[$cacheKey];
         }
 
-        return false;
+        $genderAttributeId = CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID;
+
+        if ($product->relationLoaded('attributeValues')) {
+            foreach ($product->attributeValues as $value) {
+                if ((int) $value->product_attribute_id !== $genderAttributeId) {
+                    continue;
+                }
+
+                if (! $value->relationLoaded('selectedOptions')) {
+                    continue;
+                }
+
+                foreach ($value->selectedOptions as $selected) {
+                    $selectedOptionId = (int) ($selected->product_attribute_option_id ?? 0);
+                    if (in_array($selectedOptionId, $optionIds, true)) {
+                        return $this->genderOptionCache[$cacheKey] = true;
+                    }
+                }
+            }
+
+            return $this->genderOptionCache[$cacheKey] = false;
+        }
+
+        $productId = (int) $product->id;
+        if ($productId <= 0 || ! self::canQueryGenderFromDatabase()) {
+            return $this->genderOptionCache[$cacheKey] = false;
+        }
+
+        $hasOption = ProductAttributeValueOption::query()
+            ->whereIn('product_attribute_option_id', $optionIds)
+            ->whereHas('productAttributeValue', function ($query) use ($productId, $genderAttributeId): void {
+                $query->where('product_id', $productId)
+                    ->where('product_attribute_id', $genderAttributeId);
+            })
+            ->exists();
+
+        return $this->genderOptionCache[$cacheKey] = $hasOption;
+    }
+
+    private static function canQueryGenderFromDatabase(): bool
+    {
+        return Product::getConnectionResolver() !== null;
     }
 
     private function extractGenderMarker(string $title): ?string

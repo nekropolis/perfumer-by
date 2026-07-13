@@ -13,6 +13,7 @@ import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     createSellerOneRule,
     deleteSellerOneRule,
+    cancelSellerOneParseJob,
     fetchSellerOneDuplicateVariantLinks,
     fetchSellerOneParseStatus,
     fetchSellerOneActiveStatus,
@@ -257,6 +258,7 @@ const SELLER_ONE_ACTIVE_JOB_STORAGE_KEY = "seller-one-active-job-id";
 export default function SellerOneImportPage() {
     const [supplierFile, setSupplierFile] = useState<File | null>(null);
     const [supplierPreviewLoading, setSupplierPreviewLoading] = useState(false);
+    const [cancelParseLoading, setCancelParseLoading] = useState(false);
     const [batchProgress, setBatchProgress] = useState("");
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [supplierError, setSupplierError] = useState("");
@@ -438,6 +440,21 @@ export default function SellerOneImportPage() {
                     setActiveJobId(null);
                     return;
                 }
+
+                if (data.status === "cancelled") {
+                    setSupplierPreviewLoading(false);
+                    setBatchProgress("");
+                    setSupplierError("");
+                    setSupplierSuccess(data.message || "Парсинг остановлен");
+                    window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
+                    setActiveJobId(null);
+                    try {
+                        await loadRows(page);
+                    } catch {
+                        // ignore reload errors after cancel
+                    }
+                    return;
+                }
             } catch (e: unknown) {
                 if (!cancelled) {
                     if (isTransientNetworkError(e)) {
@@ -468,7 +485,33 @@ export default function SellerOneImportPage() {
                 clearTimeout(timer);
             }
         };
-    }, [activeJobId, loadRows, setPage]);
+    }, [activeJobId, loadRows, page, setPage]);
+
+    const handleCancelParse = async () => {
+        if (!activeJobId && !supplierPreviewLoading) {
+            return;
+        }
+
+        setCancelParseLoading(true);
+        setSupplierError("");
+        try {
+            const result = await cancelSellerOneParseJob(activeJobId);
+            setSupplierPreviewLoading(false);
+            setBatchProgress("");
+            setSupplierSuccess(result.message || "Парсинг остановлен");
+            window.localStorage.removeItem(SELLER_ONE_ACTIVE_JOB_STORAGE_KEY);
+            setActiveJobId(null);
+            try {
+                await loadRows(page);
+            } catch {
+                // ignore reload errors after cancel
+            }
+        } catch (e: unknown) {
+            setSupplierError(e instanceof Error ? e.message : "Не удалось остановить парсинг");
+        } finally {
+            setCancelParseLoading(false);
+        }
+    };
 
     const handlePreviewSupplierPrice = async () => {
         if (!supplierFile) {
@@ -794,11 +837,21 @@ export default function SellerOneImportPage() {
                     <button
                         type="button"
                         onClick={handlePreviewSupplierPrice}
-                        disabled={supplierPreviewLoading || !supplierFile}
+                        disabled={supplierPreviewLoading || cancelParseLoading || !supplierFile}
                         className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                     >
                         {supplierPreviewLoading ? "Парсинг..." : "Новый парсинг"}
                     </button>
+                    {(supplierPreviewLoading || activeJobId) ? (
+                        <button
+                            type="button"
+                            onClick={() => void handleCancelParse()}
+                            disabled={cancelParseLoading}
+                            className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 hover:bg-red-100 disabled:opacity-50"
+                        >
+                            {cancelParseLoading ? "Остановка..." : "Остановить парсинг"}
+                        </button>
+                    ) : null}
                     <button type="button" onClick={() => void openRulesModal()} className="rounded-xl border px-4 py-2 text-sm">
                         Правила поиска
                     </button>

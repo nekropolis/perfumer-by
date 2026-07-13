@@ -45,8 +45,9 @@ class RunSellerOneParseJob implements ShouldQueue
 
         $cacheKey = self::cacheKey($this->jobId);
 
-        // 🛑 HARD STOP если уже завершено
-        if (Cache::get($cacheKey . ':finished')) {
+        if (self::isCancellationRequested($this->jobId)) {
+            self::finalizeCancellation($cacheKey, $this->jobId, $service);
+
             return;
         }
 
@@ -96,6 +97,20 @@ class RunSellerOneParseJob implements ShouldQueue
             $processed = (int) ($result['processed'] ?? 0);
             $totalRows = (int) ($result['total_rows'] ?? 0);
 
+            if (! empty($result['cancelled']) || self::isCancellationRequested($this->jobId)) {
+                self::markCancelled(
+                    $cacheKey,
+                    $this->jobId,
+                    (string) ($result['message'] ?? 'Парсинг остановлен пользователем'),
+                    $processed,
+                    $totalRows,
+                    $result,
+                );
+                $shouldCleanup = true;
+
+                return;
+            }
+
             /**
              * ✅ Единственный источник истины — has_more
              */
@@ -109,7 +124,10 @@ class RunSellerOneParseJob implements ShouldQueue
                     'total_rows' => $totalRows,
                 ]);
 
-                if (Cache::get($cacheKey . ':finished')) {
+                if (self::isCancellationRequested($this->jobId)) {
+                    self::markCancelled($cacheKey, $this->jobId, 'Парсинг остановлен пользователем', $processed, $totalRows);
+                    $shouldCleanup = true;
+
                     return;
                 }
 
@@ -154,8 +172,15 @@ class RunSellerOneParseJob implements ShouldQueue
                     'skipped_linked' => (int) ($result['skipped_linked'] ?? 0),
                 ]);
 
-                if (! Cache::get($cacheKey . ':finished') && $resumeOffset !== $this->rowOffset) {
+                if (! self::isCancellationRequested($this->jobId) && $resumeOffset !== $this->rowOffset) {
                     dispatch(new self($this->jobId, $this->storedFilePath, $resumeOffset));
+
+                    return;
+                }
+
+                if (self::isCancellationRequested($this->jobId)) {
+                    self::markCancelled($cacheKey, $this->jobId, 'Парсинг остановлен пользователем', $processed, $totalRows);
+                    $shouldCleanup = true;
 
                     return;
                 }
@@ -266,6 +291,87 @@ class RunSellerOneParseJob implements ShouldQueue
         if (Cache::get(self::activeKey()) === $jobId) {
             Cache::forget(self::activeKey());
         }
+    }
+
+    public static function finishedCacheKey(string $jobId): string
+    {
+        return self::cacheKey($jobId).':finished';
+    }
+
+    public static function isCancellationRequested(string $jobId): bool
+    {
+        return Cache::get(self::finishedCacheKey($jobId)) !== null;
+    }
+
+    public static function requestCancellation(string $jobId, string $message = 'Остановка парсинга запрошена'): void
+    {
+        $cacheKey = self::cacheKey($jobId);
+        $current = Cache::get($cacheKey);
+        $current = is_array($current) ? $current : [];
+
+        Cache::put(self::finishedCacheKey($jobId), [
+            'at' => now()->toDateTimeString(),
+        ], now()->addDays(7));
+
+        Cache::put($cacheKey, [
+            ...$current,
+            'job_id' => $jobId,
+            'status' => 'cancelled',
+            'message' => $message,
+            'updated_at' => now()->toDateTimeString(),
+        ], now()->addHours(24));
+
+        self::clearActiveJobIfMatches($jobId);
+        Cache::forget('seller_one_parse_running:'.$jobId);
+    }
+
+    public static function finalizeCancellation(
+        string $cacheKey,
+        string $jobId,
+        SupplierPriceImportService $service,
+    ): void {
+        if (! self::isCancellationRequested($jobId)) {
+            self::requestCancellation($jobId);
+        }
+
+        self::clearActiveJobIfMatches($jobId);
+        $service->clearSellerOneParseArtifacts($jobId);
+        Cache::forget('seller_one_parse_running:'.$jobId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    public static function markCancelled(
+        string $cacheKey,
+        string $jobId,
+        string $message,
+        int $processed = 0,
+        int $totalRows = 0,
+        array $result = [],
+    ): void {
+        $current = Cache::get($cacheKey);
+        $current = is_array($current) ? $current : [];
+
+        Cache::put($cacheKey, [
+            ...$current,
+            'job_id' => $jobId,
+            'status' => 'cancelled',
+            'message' => $message,
+            'processed' => max($processed, (int) ($current['processed'] ?? 0)),
+            'total_rows' => max($totalRows, (int) ($current['total_rows'] ?? 0)),
+            'matched' => (int) ($result['matched'] ?? $current['matched'] ?? 0),
+            'inserted' => (int) ($result['inserted'] ?? $current['inserted'] ?? 0),
+            'updated' => (int) ($result['updated'] ?? $current['updated'] ?? 0),
+            'skipped_linked' => (int) ($result['skipped_linked'] ?? $current['skipped_linked'] ?? 0),
+            'updated_at' => now()->toDateTimeString(),
+        ], now()->addHours(24));
+
+        Cache::put(self::finishedCacheKey($jobId), [
+            'at' => now()->toDateTimeString(),
+        ], now()->addDays(7));
+
+        self::clearActiveJobIfMatches($jobId);
     }
 
     public static function publishParseProgress(string $cacheKey, string $jobId, array $progress): void

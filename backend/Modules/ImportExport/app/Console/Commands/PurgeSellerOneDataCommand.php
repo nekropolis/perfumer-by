@@ -3,6 +3,10 @@
 namespace Modules\ImportExport\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
+use Modules\Catalog\Jobs\RunSellerOneParseJob;
+use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
+use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierPriceHistory;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
@@ -50,19 +54,27 @@ class PurgeSellerOneDataCommand extends Command
         $this->line("Записей supplier_price_histories: {$historyCount}");
         $this->line('Сохраняются: правила матча, настройки наценки, каталог.');
 
-        if ($productsCount === 0 && $offersCount === 0) {
-            $this->info('Нечего удалять.');
+        $this->printActiveJobWarnings();
+        $this->printOrphanSupplierProductHints($supplierId);
 
-            return self::SUCCESS;
-        }
+        $hasDbRows = $productsCount > 0 || $offersCount > 0;
 
         if ($dryRun) {
+            if (! $hasDbRows) {
+                $this->info('В БД для Seller One нет строк, но будут остановлены активные задачи и очищен кэш парсинга.');
+            }
             $this->comment('Запусти без --dry-run, чтобы выполнить очистку.');
 
             return self::SUCCESS;
         }
 
-        if (! $force && ! $this->confirm('Удалить все данные Seller One? Это необратимо.', false)) {
+        if ($hasDbRows && ! $force && ! $this->confirm('Удалить все данные Seller One? Это необратимо.', false)) {
+            $this->warn('Отменено.');
+
+            return self::FAILURE;
+        }
+
+        if (! $hasDbRows && ! $force && ! $this->confirm('Очистить кэш/задачи Seller One (строк в БД нет)?', false)) {
             $this->warn('Отменено.');
 
             return self::FAILURE;
@@ -72,6 +84,12 @@ class PurgeSellerOneDataCommand extends Command
 
         $this->newLine();
         $this->info('Готово.');
+        if (is_string($result['parse_job_stopped'] ?? null) && $result['parse_job_stopped'] !== '') {
+            $this->line('Остановлен парсинг: '.$result['parse_job_stopped']);
+        }
+        if (is_string($result['refresh_job_stopped'] ?? null) && $result['refresh_job_stopped'] !== '') {
+            $this->line('Остановлено обновление цен: '.$result['refresh_job_stopped']);
+        }
         $this->line('Удалено строк supplier_products: '.(int) $result['supplier_products_deleted']);
         $this->line('Удалено офферов: '.(int) $result['offers_deleted']);
         $this->line('Удалено записей истории цен: '.(int) $result['price_history_deleted']);
@@ -80,5 +98,41 @@ class PurgeSellerOneDataCommand extends Command
         $this->comment('Дальше: загрузи прайс и запусти «Новый парсинг» в админке.');
 
         return self::SUCCESS;
+    }
+
+    private function printActiveJobWarnings(): void
+    {
+        $parseJobId = Cache::get(RunSellerOneParseJob::activeKey());
+        if (is_string($parseJobId) && $parseJobId !== '') {
+            $this->warn("Активен парсинг Seller One ({$parseJobId}). Без остановки данные могут появиться снова.");
+        }
+
+        $refreshJobId = Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey());
+        if (is_string($refreshJobId) && $refreshJobId !== '') {
+            $this->warn("Активно обновление цен Seller One ({$refreshJobId}).");
+        }
+    }
+
+    private function printOrphanSupplierProductHints(int $sellerOneSupplierId): void
+    {
+        $otherRows = SupplierProduct::query()
+            ->where('supplier_id', '!=', $sellerOneSupplierId)
+            ->selectRaw('supplier_id, COUNT(*) as row_count')
+            ->groupBy('supplier_id')
+            ->get();
+
+        if ($otherRows->isEmpty()) {
+            return;
+        }
+
+        $supplierNames = Supplier::query()
+            ->whereIn('id', $otherRows->pluck('supplier_id'))
+            ->pluck('code', 'id');
+
+        $this->warn('Есть supplier_products у других поставщиков (purge их не трогает):');
+        foreach ($otherRows as $row) {
+            $code = (string) ($supplierNames[(int) $row->supplier_id] ?? 'unknown');
+            $this->line("  #{$row->supplier_id} ({$code}): {$row->row_count}");
+        }
     }
 }

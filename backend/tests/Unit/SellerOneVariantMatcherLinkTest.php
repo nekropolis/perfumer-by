@@ -8,6 +8,8 @@ use Modules\Catalog\Models\ProductAttributeValue;
 use Modules\Catalog\Models\ProductAttributeValueOption;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
+use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -395,7 +397,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $product = $this->makeProductWithGenderOption(991, 73, 'Graduate 1954', 438, 9911, 50, 'parfum', true);
+        $product = $this->makeProductWithGenderOption(991, 73, 'Graduate 1954', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9911, 50, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -439,7 +441,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('Holiday', $lineName);
         $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(981, 72, 'Holiday', 438, 9811, 75, 'parfum', true);
+        $product = $this->makeProductWithGenderOption(981, 72, 'Holiday', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9811, 75, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -497,7 +499,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('Melati Gaharu', $lineName);
         $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(1003, 74, 'Melati Gaharu', 438, 10031, 30, 'parfum');
+        $product = $this->makeProductWithGenderOption(1003, 74, 'Melati Gaharu', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 10031, 30, 'parfum');
 
         $match = $find->invoke(
             $matcher,
@@ -565,7 +567,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $extraitVariant->id = 11013;
         $extraitVariant->setRelation('definition', $extraitDefinition);
 
-        $product = $this->makeProductWithGenderOption(1101, 80, "L'Interdit", 3, 11011, 10, 'parfum');
+        $product = $this->makeProductWithGenderOption(1101, 80, "L'Interdit", CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 11011, 10, 'parfum');
         $product->setRelation('variants', collect([$parfumVariant, $edpVariant, $extraitVariant]));
 
         $variantMatch = $resolve->invoke($matcher, $product, '10ml edp', 'parfum');
@@ -609,7 +611,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame("L'Interdit", $lineName);
         $this->assertSame('parfum', $concentration);
 
-        $product = $this->makeProductWithGenderOption(1102, 80, "L'Interdit", 3, 11021, 80, 'parfum', true);
+        $product = $this->makeProductWithGenderOption(1102, 80, "L'Interdit", CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 11021, 80, 'parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -906,8 +908,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $plainGlow = $this->makeProductWithGenderOption(971, 80, 'glow', 3, 9711, 100, 'edt', true);
-        $laGlow = $this->makeProductWithGenderOption(972, 80, 'L.A. Glow', 3, 9721, 100, 'edt', true);
+        $plainGlow = $this->makeProductWithGenderOption(971, 80, 'glow', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9711, 100, 'edt', true);
+        $laGlow = $this->makeProductWithGenderOption(972, 80, 'L.A. Glow', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9721, 100, 'edt', true);
 
         $match = $find->invoke(
             $matcher,
@@ -946,8 +948,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $baseProduct = $this->makeProductWithGenderOption(981, 90, 'Mandarina Duck', 3, 9811, 100, 'edt', true);
-        $forHerProduct = $this->makeProductWithGenderOption(982, 90, 'Mandarina Duck For Her', 3, 9821, 100, 'edt', true);
+        $baseProduct = $this->makeProductWithGenderOption(981, 90, 'Mandarina Duck', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9811, 100, 'edt', true);
+        $forHerProduct = $this->makeProductWithGenderOption(982, 90, 'Mandarina Duck For Her', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9821, 100, 'edt', true);
 
         $match = $find->invoke(
             $matcher,
@@ -980,7 +982,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             991,
             95,
             'Evoke Silver for Her',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             9911,
             75,
             'edp',
@@ -989,7 +991,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             992,
             95,
             'Evoke Silver for Him',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             9921,
             75,
             'edp',
@@ -1026,7 +1028,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             993,
             96,
             'Evoke Silver for Her',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             9931,
             75,
             'edp',
@@ -1035,7 +1037,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             994,
             96,
             'Evoke Silver for Him',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             9941,
             75,
             'edp',
@@ -1074,7 +1076,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             995,
             97,
             'Evoke Silver for Her',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             9951,
             75,
             'edp',
@@ -1083,7 +1085,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             996,
             97,
             'Evoke Silver for Him',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             9961,
             75,
             'edp',
@@ -1124,8 +1126,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             $tokens->invoke($matcher, 'Ormonde Woman', 'Ormonde Jayne', null),
         );
 
-        $baseProduct = $this->makeProductWithGenderOption(1001, 100, 'Ormonde', 438, 10011, 120, 'edp');
-        $womanProduct = $this->makeProductWithGenderOption(1002, 100, 'Ormonde Woman', 3, 10021, 120, 'edp');
+        $baseProduct = $this->makeProductWithGenderOption(1001, 100, 'Ormonde', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 10011, 120, 'edp');
+        $womanProduct = $this->makeProductWithGenderOption(1002, 100, 'Ormonde Woman', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 10021, 120, 'edp');
         $baseProduct->brand->name = 'Ormonde Jayne';
         $womanProduct->brand->name = 'Ormonde Jayne';
 
@@ -1172,8 +1174,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $baseProduct = $this->makeProductWithGenderOption(701, 20, 'Rouge Smoking', 3, 7011, 100, 'edp');
-        $extraitProduct = $this->makeProductWithGenderOption(702, 20, 'Rouge Smoking Extrait', 3, 7021, 100, 'extrait de parfum', true);
+        $baseProduct = $this->makeProductWithGenderOption(701, 20, 'Rouge Smoking', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 7011, 100, 'edp');
+        $extraitProduct = $this->makeProductWithGenderOption(702, 20, 'Rouge Smoking Extrait', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 7021, 100, 'extrait de parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -1202,8 +1204,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $baseProduct = $this->makeProductWithGenderOption(711, 20, 'Rouge Smoking', 3, 7111, 100, 'edp');
-        $extraitProduct = $this->makeProductWithGenderOption(712, 20, 'Rouge Smoking Extrait', 3, 7121, 100, 'extrait de parfum');
+        $baseProduct = $this->makeProductWithGenderOption(711, 20, 'Rouge Smoking', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 7111, 100, 'edp');
+        $extraitProduct = $this->makeProductWithGenderOption(712, 20, 'Rouge Smoking Extrait', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 7121, 100, 'extrait de parfum');
 
         $match = $find->invoke(
             $matcher,
@@ -1496,8 +1498,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $plain = $this->makeProductWithGenderOption(811, 12, 'Strip', 3, 8111, 50);
-        $leProduct = $this->makeProductWithGenderOption(812, 12, 'Strip L.E.', 3, 8121, 50);
+        $plain = $this->makeProductWithGenderOption(811, 12, 'Strip', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 8111, 50);
+        $leProduct = $this->makeProductWithGenderOption(812, 12, 'Strip L.E.', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 8121, 50);
 
         $match = $find->invoke(
             $matcher,
@@ -1562,8 +1564,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $base = $this->makeProductWithGenderOption(901, 40, 'The Only One', 3, 9011, 100, 'edp', true);
-        $sequel = $this->makeProductWithGenderOption(902, 40, 'The Only One 2', 3, 9021, 100, 'edp', true);
+        $base = $this->makeProductWithGenderOption(901, 40, 'The Only One', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9011, 100, 'edp', true);
+        $sequel = $this->makeProductWithGenderOption(902, 40, 'The Only One 2', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9021, 100, 'edp', true);
 
         $match = $find->invoke(
             $matcher,
@@ -1591,7 +1593,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $base = $this->makeProductWithGenderOption(911, 40, 'The Only One', 3, 9111, 100, 'edp', true);
+        $base = $this->makeProductWithGenderOption(911, 40, 'The Only One', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9111, 100, 'edp', true);
 
         $match = $find->invoke(
             $matcher,
@@ -1630,8 +1632,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $base = $this->makeProductWithGenderOption(921, 41, 'Hundred Silent Ways', 438, 9211, 50, 'extrait de parfum', true);
-        $withX = $this->makeProductWithGenderOption(922, 41, 'Hundred Silent Ways X', 438, 9221, 50, 'extrait de parfum', true);
+        $base = $this->makeProductWithGenderOption(921, 41, 'Hundred Silent Ways', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9211, 50, 'extrait de parfum', true);
+        $withX = $this->makeProductWithGenderOption(922, 41, 'Hundred Silent Ways X', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9221, 50, 'extrait de parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -1659,7 +1661,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $base = $this->makeProductWithGenderOption(931, 41, 'Hundred Silent Ways', 438, 9311, 50, 'extrait de parfum', true);
+        $base = $this->makeProductWithGenderOption(931, 41, 'Hundred Silent Ways', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9311, 50, 'extrait de parfum', true);
 
         $match = $find->invoke(
             $matcher,
@@ -1719,8 +1721,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $plain = $this->makeProductWithGenderOption(941, 41, 'Nishane Hacivat', 438, 9411, 50, 'extrait de parfum', true);
-        $withX = $this->makeProductWithGenderOption(942, 41, 'Nishane X Hacivat', 438, 9421, 50, 'extrait de parfum', true);
+        $plain = $this->makeProductWithGenderOption(941, 41, 'Nishane Hacivat', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9411, 50, 'extrait de parfum', true);
+        $withX = $this->makeProductWithGenderOption(942, 41, 'Nishane X Hacivat', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9421, 50, 'extrait de parfum', true);
 
         $matchWrong = $find->invoke(
             $matcher,
@@ -1772,7 +1774,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $product = $this->makeProductWithGenderOption(951, 60, 'In Red Blooming Bouquet', 3, 9511, 100, 'edt');
+        $product = $this->makeProductWithGenderOption(951, 60, 'In Red Blooming Bouquet', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9511, 100, 'edt');
 
         $pass1 = $find->invoke(
             $matcher,
@@ -1806,9 +1808,9 @@ class SellerOneVariantMatcherLinkTest extends TestCase
 
         $femaleProduct = new Product(['name' => 'Devotion', 'brand_id' => 55]);
         $femaleProduct->id = 901;
-        $femaleValue = new ProductAttributeValue(['product_attribute_id' => 3]);
+        $femaleValue = new ProductAttributeValue(['product_attribute_id' => CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID]);
         $femaleValue->setRelation('selectedOptions', collect([
-            new ProductAttributeValueOption(['product_attribute_option_id' => 3]),
+            new ProductAttributeValueOption(['product_attribute_option_id' => CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID]),
         ]));
         $femaleProduct->setRelation('attributeValues', collect([$femaleValue]));
 
@@ -1851,7 +1853,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $femaleProduct = $this->makeProductWithGenderOption(902, 55, 'Devotion', 3, 9021, 50);
+        $femaleProduct = $this->makeProductWithGenderOption(902, 55, 'Devotion', CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID, 9021, 50);
 
         $match = $find->invoke(
             $matcher,
@@ -1878,7 +1880,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $find = new ReflectionMethod($matcher, 'findBestMatch');
         $find->setAccessible(true);
 
-        $unisexProduct = $this->makeProductWithGenderOption(903, 55, 'Devotion', 438, 9031, 50);
+        $unisexProduct = $this->makeProductWithGenderOption(903, 55, 'Devotion', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9031, 50);
 
         $match = $find->invoke(
             $matcher,
@@ -1908,7 +1910,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             961,
             70,
             'Carolina Herrera Carolina Herrera',
-            438,
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
             9611,
             100,
             'edt',
@@ -1943,7 +1945,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             962,
             70,
             'Carolina Herrera Carolina Herrera',
-            438,
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
             9621,
             100,
             'edt',
@@ -1978,7 +1980,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             963,
             70,
             'Carolina Herrera Carolina Herrera',
-            438,
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
             9631,
             100,
             'edt',
@@ -2011,7 +2013,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $conflict = new ReflectionMethod($matcher, 'supplierGenderConflictsCatalog');
         $conflict->setAccessible(true);
 
-        $unisexProduct = $this->makeProductWithGenderOption(964, 70, 'Carolina Herrera Carolina Herrera', 438, 9641, 100);
+        $unisexProduct = $this->makeProductWithGenderOption(964, 70, 'Carolina Herrera Carolina Herrera', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 9641, 100);
 
         $this->assertTrue($conflict->invoke($matcher, 'm', $unisexProduct));
         $this->assertTrue($conflict->invoke($matcher, 'l', $unisexProduct));
@@ -2029,7 +2031,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $extendedBrand = new Brand(['name' => '12 Parfumeurs Francais']);
         $extendedBrand->id = 72;
 
-        $product = $this->makeProductWithGenderOption(1001, 72, 'Ma Reine', 438, 10011, 100, 'edp');
+        $product = $this->makeProductWithGenderOption(1001, 72, 'Ma Reine', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 10011, 100, 'edp');
         $product->setRelation('brand', $extendedBrand);
 
         $match = $find->invoke(
@@ -2063,7 +2065,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $brand = new Brand(['name' => '12 Parfumeurs']);
         $brand->id = 71;
 
-        $product = $this->makeProductWithGenderOption(1002, 71, 'Francais Ma Reine', 438, 10021, 100, 'edp');
+        $product = $this->makeProductWithGenderOption(1002, 71, 'Francais Ma Reine', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 10021, 100, 'edp');
         $product->setRelation('brand', $brand);
 
         $match = $find->invoke(
@@ -2100,7 +2102,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             1201,
             55,
             'The One for Men Eau de Parfum',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             12011,
             150,
             'edp',
@@ -2109,7 +2111,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             1202,
             55,
             'The One for Men Eau de Parfum Intense',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             12021,
             150,
             'edp',
@@ -2143,7 +2145,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             1211,
             55,
             'Devotion for Women Eau de Parfum',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             12111,
             50,
             'edp',
@@ -2175,7 +2177,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             1221,
             12,
             'Line X Eau de Parfum',
-            438,
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
             12211,
             100,
             'edp',
@@ -2201,8 +2203,8 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $matcher = new SellerOneVariantMatcher();
         $brands = collect([(object) ['id' => 12, 'name' => 'Brand']]);
 
-        $unisexPlain = $this->makeProductWithGenderOption(1231, 12, 'Line', 438, 12311, 100, 'edp');
-        $withEauSuffix = $this->makeProductWithGenderOption(1232, 12, 'Line Eau de Parfum', 438, 12321, 100, 'edp');
+        $unisexPlain = $this->makeProductWithGenderOption(1231, 12, 'Line', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 12311, 100, 'edp');
+        $withEauSuffix = $this->makeProductWithGenderOption(1232, 12, 'Line Eau de Parfum', CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID, 12321, 100, 'edp');
         $brands = collect([(object) ['id' => 12, 'name' => 'Brand']]);
 
         $find = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
@@ -2256,7 +2258,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $product = new Product(['name' => $name, 'brand_id' => $brandId]);
         $product->id = $productId;
         $product->setRelation('brand', $brand);
-        $value = new ProductAttributeValue(['product_attribute_id' => 3]);
+        $value = new ProductAttributeValue(['product_attribute_id' => CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID]);
         $value->setRelation('selectedOptions', collect([
             new ProductAttributeValueOption(['product_attribute_option_id' => $genderOptionId]),
         ]));
@@ -2308,7 +2310,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $testerVariant->concentration = 'edt';
         $testerVariant->setRelation('definition', $testerDefinition);
 
-        $product = $this->makeProductWithGenderOption(5010, 501, 'Ice Dive', 35, 50101, 50, 'edt');
+        $product = $this->makeProductWithGenderOption(5010, 501, 'Ice Dive', CatalogProductAttributeIds::GENDER_OPTION_MALE_ID, 50101, 50, 'edt');
         $regularVariant->setRelation('product', $product);
         $testerVariant->setRelation('product', $product);
         $product->setRelation('variants', collect([$regularVariant, $testerVariant]));
@@ -2386,7 +2388,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             5020,
             502,
             'Ice Dive for Man',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             50201,
             100,
             'edt',
@@ -2405,7 +2407,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $testerVariant->concentration = 'edt';
         $testerVariant->setRelation('definition', $testerDefinition);
 
-        $plainProduct = $this->makeProductWithGenderOption(5021, 502, 'Ice Dive', 35, 50211, 50, 'edt', true);
+        $plainProduct = $this->makeProductWithGenderOption(5021, 502, 'Ice Dive', CatalogProductAttributeIds::GENDER_OPTION_MALE_ID, 50211, 50, 'edt', true);
         $testerVariant->setRelation('product', $plainProduct);
         $plainProduct->setRelation('variants', collect([$testerVariant]));
 
@@ -2602,7 +2604,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             8001,
             80,
             'Pour Femme Intense',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             80011,
             10,
             'edp',
@@ -2612,7 +2614,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             8002,
             80,
             'Q Intense',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             80021,
             10,
             'edp',
@@ -2654,5 +2656,54 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertNotNull($right);
         $this->assertSame(8002, $right['product']->id);
         $this->assertSame(100, $right['total']);
+    }
+
+    public function test_abercrombie_8_sweet_reveal_female_tester_matches_catalog_product(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $brand = new Brand(['name' => 'Abercrombie & Fitch']);
+        $brand->id = 90;
+
+        $product = $this->makeProductWithGenderOption(
+            9001,
+            90,
+            '8 Sweet Reveal',
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
+            90011,
+            50,
+            'edp',
+            true,
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            90,
+            'Abercrombie & Fitch',
+            '8 Sweet Reveal',
+            'test 50ml edp',
+            50.0,
+            'edp',
+            true,
+            [90 => [$product]],
+            'female',
+            '8 Sweet Reveal',
+            'l',
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(9001, $match['product']->id);
+        $this->assertSame(90011, $match['variant']?->id);
+        $this->assertSame(100, $match['total']);
+    }
+
+    public function test_leading_line_number_token_is_preserved_for_matching(): void
+    {
+        $tokens = CatalogProductLinkNameTokenizer::variantMatchTokens('8 Sweet Reveal', 'Abercrombie & Fitch');
+
+        $this->assertSame(['line8', 'sweet', 'reveal'], $tokens);
     }
 }

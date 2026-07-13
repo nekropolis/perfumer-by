@@ -8,6 +8,7 @@ use Modules\Catalog\Models\ProductAttributeValue;
 use Modules\Catalog\Models\ProductAttributeValueOption;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
 use Tests\TestCase;
 
@@ -23,7 +24,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             3289,
             100,
             'Move Your Spirit',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             32891,
             100,
             'edt',
@@ -33,7 +34,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             3288,
             100,
             'Move Your Spirit For Men',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             32881,
             100,
             'edt',
@@ -73,7 +74,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             3289,
             100,
             'Move Your Spirit',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             32891,
             100,
             'edt',
@@ -83,7 +84,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             3288,
             100,
             'Move Your Spirit For Men',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             32881,
             50,
             'edt',
@@ -133,7 +134,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             3288,
             100,
             'Move Your Spirit For Men',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             32881,
             100,
             'edt',
@@ -162,7 +163,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             5001,
             101,
             'Eros',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             50011,
             100,
             'edp',
@@ -190,7 +191,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             13663,
             10,
             'Devotion',
-            3,
+            CatalogProductAttributeIds::GENDER_OPTION_FEMALE_ID,
             136631,
             100,
             'edp',
@@ -201,7 +202,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
             13794,
             10,
             'Devotion Pour Homme',
-            35,
+            CatalogProductAttributeIds::GENDER_OPTION_MALE_ID,
             137941,
             100,
             'edp',
@@ -353,7 +354,7 @@ class SellerOneVariantMatcherReebokGenderTest extends TestCase
         $product = new Product(['name' => $name, 'brand_id' => $brandId]);
         $product->id = $productId;
         $product->setRelation('brand', $brand);
-        $value = new ProductAttributeValue(['product_attribute_id' => 3]);
+        $value = new ProductAttributeValue(['product_attribute_id' => CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID]);
         $value->setRelation('selectedOptions', collect([
             new ProductAttributeValueOption(['product_attribute_option_id' => $genderOptionId]),
         ]));

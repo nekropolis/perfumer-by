@@ -59,6 +59,7 @@ final class CatalogProductLinkNameTokenizer
         $normalized = self::applyGenderCanonicalTokens($normalized, $applyStandaloneGenderTokens);
         $normalized = (string) preg_replace('/\b\d+(?:[.,]\d+)?\s*(ml|мл)\b/iu', ' ', $normalized);
         if ($applyLineSuffixTokens) {
+            $normalized = self::applyLeadingLineNumberToken($normalized);
             $normalized = self::applyTrailingLineSuffixToken($normalized);
             $normalized = self::applyInlineLineLetterTokens($normalized);
         }
@@ -86,11 +87,35 @@ final class CatalogProductLinkNameTokenizer
             return true;
         }
 
+        if (mb_strlen($token) === 1 && preg_match('/^\d$/', $token)) {
+            return true;
+        }
+
         if (mb_strlen($token) !== 1 || ! preg_match('/^\p{L}$/u', $token)) {
             return false;
         }
 
         return ! in_array($token, ['m', 'l', 'u', 'w'], true);
+    }
+
+    /**
+     * «8 Sweet Reveal» — номер линии в начале имени, не объём.
+     */
+    private static function applyLeadingLineNumberToken(string $normalized): string
+    {
+        $trimmed = trim($normalized);
+        if ($trimmed === '' || ! preg_match('/^(\d+)\s+/u', $trimmed, $matches)) {
+            return $trimmed;
+        }
+
+        $digits = (string) $matches[1];
+        $lineNumber = ltrim($digits, '0') !== '' ? ltrim($digits, '0') : '0';
+
+        return trim((string) preg_replace(
+            '/^'.preg_quote($digits, '/').'\s+/u',
+            ' line'.$lineNumber.' ',
+            $trimmed,
+        ));
     }
 
     /**

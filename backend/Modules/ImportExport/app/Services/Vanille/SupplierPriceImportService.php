@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Jobs\RunSellerOneParseJob;
 use Modules\Catalog\Jobs\RunSellerOneRefreshLinkedPricesJob;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Modules\Catalog\Models\Brand;
@@ -39,9 +40,6 @@ class SupplierPriceImportService
 {
     private const string DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
     private const string DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
-
-    /** product_attributes.id «Для кого» — должен совпадать с SellerOneVariantMatcher. */
-    private const int GENDER_ATTRIBUTE_ID = 3;
 
     private const int LISTING_DIAGNOSTIC_SAMPLE_LIMIT = 80;
 
@@ -254,6 +252,25 @@ class SupplierPriceImportService
         $batchSize = max($batchSize, 1);
         $isContinuation = $startOffset > 0;
 
+        if ($jobId !== null && RunSellerOneParseJob::isCancellationRequested($jobId)) {
+            return [
+                'message' => 'Парсинг остановлен пользователем',
+                'total_rows' => 0,
+                'processed' => 0,
+                'matched' => 0,
+                'inserted' => 0,
+                'updated' => 0,
+                'skipped_linked' => 0,
+                'skipped_parsing_inactive' => 0,
+                'skipped_skip_marker' => 0,
+                'marked_preorder' => 0,
+                'marked_absent_unlinked' => 0,
+                'cancelled' => true,
+                'has_more' => false,
+                'next_offset' => $startOffset,
+            ];
+        }
+
         $supplier = $this->getOrCreateSellerOneSupplier();
 
         $totalMatched = 0;
@@ -391,6 +408,7 @@ class SupplierPriceImportService
 
         $chunkStartedAt = time();
         $stoppedEarly = false;
+        $cancelled = false;
         $nextOffset = $totalRows;
 
         // ── Non-linked existing: batch-load как реальные модели ──
@@ -517,6 +535,16 @@ class SupplierPriceImportService
             }
 
             if (
+                $jobId !== null
+                && RunSellerOneParseJob::isCancellationRequested($jobId)
+            ) {
+                $stoppedEarly = true;
+                $cancelled = true;
+                $nextOffset = min($offset + $batchSize, $totalRows);
+                break;
+            }
+
+            if (
                 $chunkTimeBudgetSeconds > 0
                 && (time() - $chunkStartedAt) >= $chunkTimeBudgetSeconds
                 && ($offset + $batchSize) < $totalRows
@@ -529,6 +557,29 @@ class SupplierPriceImportService
 
         $markedPreorder = 0;
         $markedAbsentUnlinked = 0;
+        if ($cancelled) {
+            if ($jobId !== null) {
+                $this->persistSupplierProductIndex($jobId, $supplierProductIndex);
+            }
+            unset($allRows, $brands, $productsIndex, $rules);
+
+            return [
+                'message' => 'Парсинг остановлен пользователем',
+                'total_rows' => $totalRows,
+                'processed' => $totalProcessed,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+                'skipped_parsing_inactive' => $totalSkippedParsingInactive,
+                'skipped_skip_marker' => $totalSkippedSkipMarker,
+                'marked_preorder' => 0,
+                'marked_absent_unlinked' => 0,
+                'cancelled' => true,
+                'has_more' => false,
+                'next_offset' => $nextOffset,
+            ];
+        }
         if ($stoppedEarly) {
             if ($jobId !== null) {
                 $this->persistSupplierProductIndex($jobId, $supplierProductIndex);
@@ -1480,20 +1531,57 @@ class SupplierPriceImportService
      *     temp_files_removed: int
      * }
      */
+    /**
+     * @return array{parse_job_id: ?string, refresh_job_id: ?string}
+     */
+    public function stopActiveSellerOneBackgroundJobs(string $reason = 'Очистка данных Seller One'): array
+    {
+        $stopped = [
+            'parse_job_id' => null,
+            'refresh_job_id' => null,
+        ];
+
+        $parseJobId = Cache::get(RunSellerOneParseJob::activeKey());
+        if (is_string($parseJobId) && $parseJobId !== '') {
+            RunSellerOneParseJob::requestCancellation($parseJobId, $reason);
+            $this->clearSellerOneParseArtifacts($parseJobId);
+            Cache::forget('seller_one_parse_running:'.$parseJobId);
+            $stopped['parse_job_id'] = $parseJobId;
+        }
+
+        $refreshJobId = Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey());
+        if (is_string($refreshJobId) && $refreshJobId !== '') {
+            $cacheKey = RunSellerOneRefreshLinkedPricesJob::cacheKey($refreshJobId);
+            $current = Cache::get($cacheKey);
+            $current = is_array($current) ? $current : [];
+
+            Cache::put($cacheKey, [
+                ...$current,
+                'job_id' => $refreshJobId,
+                'job_type' => 'refresh_linked',
+                'status' => 'cancelled',
+                'message' => $reason,
+                'updated_at' => now()->toDateTimeString(),
+            ], now()->addHours(24));
+            RunSellerOneRefreshLinkedPricesJob::clearActiveJobIfMatches($refreshJobId);
+            $stopped['refresh_job_id'] = $refreshJobId;
+        }
+
+        Cache::forget(RunSellerOneParseJob::activeKey());
+        Cache::forget(RunSellerOneRefreshLinkedPricesJob::activeKey());
+
+        return $stopped;
+    }
+
     public function purgeAllSellerOneData(): array
     {
         $supplier = $this->getOrCreateSellerOneSupplier();
         $supplierId = (int) $supplier->id;
 
-        $offerIds = SupplierVariantOffer::query()
-            ->where('supplier_id', $supplierId)
-            ->pluck('id');
+        $jobsStopped = $this->stopActiveSellerOneBackgroundJobs();
+        $tempFilesRemoved = $this->purgeSellerOneStorageArtifacts();
 
-        $priceHistoryDeleted = $offerIds->isEmpty()
-            ? 0
-            : SupplierPriceHistory::query()
-                ->whereIn('supplier_variant_offer_id', $offerIds)
-                ->delete();
+        $priceHistoryDeleted = $this->deleteSellerOnePriceHistories($supplierId);
 
         $offersDeleted = SupplierVariantOffer::query()
             ->where('supplier_id', $supplierId)
@@ -1510,11 +1598,6 @@ class SupplierPriceImportService
             ])
             ->delete();
 
-        Cache::forget(RunSellerOneParseJob::activeKey());
-        Cache::forget(RunSellerOneRefreshLinkedPricesJob::activeKey());
-
-        $tempFilesRemoved = $this->purgeSellerOneStorageArtifacts();
-
         return [
             'supplier_id' => $supplierId,
             'supplier_products_deleted' => $productsDeleted,
@@ -1522,7 +1605,31 @@ class SupplierPriceImportService
             'price_history_deleted' => $priceHistoryDeleted,
             'settings_cleared' => $settingsCleared,
             'temp_files_removed' => $tempFilesRemoved,
+            'parse_job_stopped' => $jobsStopped['parse_job_id'],
+            'refresh_job_stopped' => $jobsStopped['refresh_job_id'],
         ];
+    }
+
+    private function deleteSellerOnePriceHistories(int $supplierId): int
+    {
+        $deleted = 0;
+
+        SupplierVariantOffer::query()
+            ->where('supplier_id', $supplierId)
+            ->select('id')
+            ->orderBy('id')
+            ->chunkById(500, function ($offers) use (&$deleted): void {
+                $offerIds = $offers->pluck('id')->all();
+                if ($offerIds === []) {
+                    return;
+                }
+
+                $deleted += SupplierPriceHistory::query()
+                    ->whereIn('supplier_variant_offer_id', $offerIds)
+                    ->delete();
+            });
+
+        return $deleted;
     }
 
     public function apply(array $rows): array
@@ -2109,7 +2216,7 @@ class SupplierPriceImportService
                 'variants.definition',
                 'attributeValues' => static fn ($q) => $q->where(
                     'product_attribute_id',
-                    self::GENDER_ATTRIBUTE_ID,
+                    CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID,
                 ),
                 'attributeValues.selectedOptions',
             ])
