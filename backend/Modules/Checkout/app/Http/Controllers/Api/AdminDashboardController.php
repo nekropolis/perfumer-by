@@ -8,12 +8,28 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
 
 class AdminDashboardController extends Controller
 {
+    /** @var array<int, string> */
+    private const RU_MONTH_SHORT = [
+        1 => 'янв',
+        2 => 'фев',
+        3 => 'мар',
+        4 => 'апр',
+        5 => 'май',
+        6 => 'июн',
+        7 => 'июл',
+        8 => 'авг',
+        9 => 'сен',
+        10 => 'окт',
+        11 => 'ноя',
+        12 => 'дек',
+    ];
     public function stats(Request $request): JsonResponse
     {
         $period = $this->resolvePeriod((string) $request->query('period', 'month'));
@@ -62,11 +78,12 @@ class AdminDashboardController extends Controller
             ->whereHas('activeVariants')
             ->count();
 
-        $activeVariantsInStock = Product::query()
-            ->where('is_active', true)
-            ->withCount('activeVariants')
-            ->get()
-            ->sum('active_variants_count');
+        $activeVariantsInStock = ProductVariantLink::query()
+            ->catalogListingEligible()
+            ->whereHas('product', static function ($query): void {
+                $query->where('is_active', true);
+            })
+            ->count();
 
         $monthlyItemsBaseQuery = OrderItem::query()
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
@@ -176,9 +193,11 @@ class AdminDashboardController extends Controller
      */
     private function aggregateByBucket($query, string $bucketFormat): array
     {
+        $bucketExpression = "DATE_FORMAT(orders.created_at, '{$bucketFormat}')";
+
         return $query
-            ->selectRaw("DATE_FORMAT(orders.created_at, '{$bucketFormat}') as bucket, SUM(order_items.qty) as qty")
-            ->groupBy('bucket')
+            ->selectRaw("{$bucketExpression} as bucket, SUM(order_items.qty) as qty")
+            ->groupByRaw($bucketExpression)
             ->pluck('qty', 'bucket')
             ->map(fn ($value) => (int) $value)
             ->toArray();
@@ -211,7 +230,7 @@ class AdminDashboardController extends Controller
                 : $point->format('Y-m');
             $label = $isDaily
                 ? $point->format('d.m')
-                : $point->locale('ru')->translatedFormat('M');
+                : (self::RU_MONTH_SHORT[(int) $point->format('n')] ?? $point->format('m'));
 
             $labels[] = $label;
             $ordered[] = (int) ($orderedByBucket[$bucketKey] ?? 0);
