@@ -116,7 +116,8 @@ class SellerOneVariantMatcher
         $volumeMultipackUnitMl = $tailSig['volume_multipack_unit_ml'] ?? null;
         $concentration = $tailSig['concentration'];
         $isTester = (bool) $tailSig['is_tester'];
-        $isVial = (bool) $tailSig['is_vial'] || $this->extractIsVial($nameVariantSplit['name']);
+        $isMiniature = (bool) ($tailSig['is_miniature'] ?? false) || $this->extractIsMiniature($nameVariantSplit['name']);
+        $isVial = ! $isMiniature && ((bool) $tailSig['is_vial'] || $this->extractIsVial($nameVariantSplit['name']));
         $genderMarker = $this->extractGenderMarker($title);
         $baseProductName = $this->extractBaseProductName($nameVariantSplit['name'], $matchedBrand['name'] ?? null);
         [$baseProductName, $concentration] = $this->applyTrailingParfumeLineNameRule(
@@ -288,19 +289,22 @@ class SellerOneVariantMatcher
                     $productName = $baseProductName;
                 }
             } elseif (! $this->isGenderCascadeProductResolved($match) && $genderMarker === null) {
-                $match = $this->findBestMatch(
-                    $brandId,
-                    $brandName,
-                    $baseProductName,
-                    $variantTail,
-                    $volume,
-                    $concentration,
-                    $isTester,
-                    $productsIndex,
-                    null,
-                    $baseProductName,
-                    null,
-                    $brands,
+                $match = $this->pickBetterGenderCascadeMatch(
+                    $match,
+                    $this->findBestMatch(
+                        $brandId,
+                        $brandName,
+                        $baseProductName,
+                        $variantTail,
+                        $volume,
+                        $concentration,
+                        $isTester,
+                        $productsIndex,
+                        null,
+                        $baseProductName,
+                        null,
+                        $brands,
+                    ),
                 );
             }
         }
@@ -324,6 +328,7 @@ class SellerOneVariantMatcher
                 'concentration' => $concentration,
                 'is_tester' => $isTester,
                 'is_vial' => $isVial,
+                'is_miniature' => $isMiniature,
                 'skip_auto_match' => $hasSkipMarker,
             ],
             'suggested_variant' => $variant ? [
@@ -1409,7 +1414,8 @@ class SellerOneVariantMatcher
             && $catalogSig['concentration'] !== null
             && $supplierSig['concentration'] === $catalogSig['concentration'];
         $testerMatch = $supplierSig['is_tester'] === $catalogSig['is_tester']
-            && (bool) ($supplierSig['is_vial'] ?? false) === (bool) ($catalogSig['is_vial'] ?? false);
+            && (bool) ($supplierSig['is_vial'] ?? false) === (bool) ($catalogSig['is_vial'] ?? false)
+            && (bool) ($supplierSig['is_miniature'] ?? false) === (bool) ($catalogSig['is_miniature'] ?? false);
 
         $total = match ($bestStatus) {
             'exact' => self::SCORE_FULL,
@@ -1439,6 +1445,7 @@ class SellerOneVariantMatcher
      *     concentration: ?string,
      *     is_tester: bool,
      *     is_vial: bool,
+     *     is_miniature: bool,
      *     has_limited_edition: bool,
      *     extra_tokens: list<string>,
      * }
@@ -1454,6 +1461,7 @@ class SellerOneVariantMatcher
             'concentration' => null,
             'is_tester' => false,
             'is_vial' => false,
+            'is_miniature' => false,
             'has_limited_edition' => false,
             'extra_tokens' => [],
         ];
@@ -1471,6 +1479,7 @@ class SellerOneVariantMatcher
         $concentration = null;
         $isTester = false;
         $isVial = false;
+        $isMiniature = false;
         $hasLimitedEdition = $this->textHasLimitedEditionMarker($work);
         if ($hasLimitedEdition) {
             $work = (string) preg_replace($this->limitedEditionMarkerPattern(), ' ', $work);
@@ -1521,6 +1530,11 @@ class SellerOneVariantMatcher
             $work = (string) preg_replace('/\b(parfum|parfume|parfums)\b/iu', ' ', $work, 1);
         }
 
+        if ($concentration === null && preg_match('/\bperfume\s+spray\b/iu', $work)) {
+            $concentration = 'parfum';
+            $work = (string) preg_replace('/\bperfume\s+spray\b/iu', ' ', $work, 1);
+        }
+
         if (preg_match('/\b(test|tester|тестер)\b/iu', $work)) {
             $isTester = true;
             $work = (string) preg_replace('/\b(test|tester|тестер)\b/iu', ' ', $work, 1);
@@ -1531,7 +1545,12 @@ class SellerOneVariantMatcher
             $work = (string) preg_replace('/\bvial\b/iu', ' ', $work, 1);
         }
 
-        // Поставщик иногда дублирует объём/концентрацию в хвосте («100ml Extrait de Parfum 100ml»).
+        if (preg_match('/\b(min|mini|миниатюра)\b/iu', $work)) {
+            $isMiniature = true;
+            $work = (string) preg_replace('/\b(min|mini|миниатюра)\b/iu', ' ', $work, 1);
+        }
+
+        // Поставщик иногда дублирует объём/концентрацию в хвосте
         // Это не «лишние слова» варианта — убираем повторы, уже извлеённые выше.
         if ($volume !== null || $volumeIsMultipack || $volumeIsComboSet) {
             $work = (string) preg_replace($this->multipackVolumeStripPattern(), ' ', $work);
@@ -1544,6 +1563,7 @@ class SellerOneVariantMatcher
             $work = (string) preg_replace('/\bextrait\s+de\s+parfum\b/iu', ' ', $work);
             $work = (string) preg_replace('/\b(edp|edt|edc)\b/iu', ' ', $work);
             $work = (string) preg_replace('/\b(parfum|parfume|parfums)\b/iu', ' ', $work);
+            $work = (string) preg_replace('/\bperfume\s+spray\b/iu', ' ', $work);
         }
 
         if ($isTester) {
@@ -1554,13 +1574,17 @@ class SellerOneVariantMatcher
             $work = (string) preg_replace('/\bvial\b/iu', ' ', $work);
         }
 
+        if ($isMiniature) {
+            $work = (string) preg_replace('/\b(min|mini|миниатюра)\b/iu', ' ', $work);
+        }
+
         $work = $this->normalizeText($work);
         $extraTokens = array_values(array_filter(
             preg_split('/\s+/u', $work) ?: [],
             static fn (string $token): bool => mb_strlen($token) >= 2,
         ));
 
-        if ($this->supplierVolumeImpliesVial($volume, $volumeIsMultipack, $volumeIsComboSet)) {
+        if (! $isMiniature && $this->supplierVolumeImpliesVial($volume, $volumeIsMultipack, $volumeIsComboSet)) {
             $isVial = true;
         }
 
@@ -1573,6 +1597,7 @@ class SellerOneVariantMatcher
             'concentration' => $concentration,
             'is_tester' => $isTester,
             'is_vial' => $isVial,
+            'is_miniature' => $isMiniature,
             'has_limited_edition' => $hasLimitedEdition,
             'extra_tokens' => $extraTokens,
         ];
@@ -1590,6 +1615,7 @@ class SellerOneVariantMatcher
      *     concentration: ?string,
      *     is_tester: bool,
      *     is_vial: bool,
+     *     is_miniature: bool,
      *     has_limited_edition: bool,
      *     extra_tokens: list<string>,
      * }
@@ -1600,7 +1626,7 @@ class SellerOneVariantMatcher
     }
 
     /**
-     * @return array{volume: ?float, concentration: ?string, is_tester: bool, is_vial: bool, has_limited_edition: bool}
+     * @return array{volume: ?float, concentration: ?string, is_tester: bool, is_vial: bool, is_miniature: bool, has_limited_edition: bool}
      */
     private function catalogVariantSignature(ProductVariantLink $variant, ?Product $product = null): array
     {
@@ -1618,6 +1644,7 @@ class SellerOneVariantMatcher
             'concentration' => $concentration,
             'is_tester' => (bool) ($variant->definition?->is_tester ?? false),
             'is_vial' => (bool) ($variant->definition?->is_vial ?? false),
+            'is_miniature' => (bool) ($variant->definition?->is_miniature ?? false),
             'has_limited_edition' => $this->textHasLimitedEditionMarker($editionText)
                 || $this->textHasLimitedEditionMarker($productName),
         ];
@@ -1649,7 +1676,8 @@ class SellerOneVariantMatcher
             || !empty($supplier['volume_is_multipack'])
             || $supplier['concentration'] !== null
             || $supplier['is_tester']
-            || !empty($supplier['is_vial']);
+            || !empty($supplier['is_vial'])
+            || !empty($supplier['is_miniature']);
     }
 
     /**
@@ -1680,7 +1708,11 @@ class SellerOneVariantMatcher
             return false;
         }
 
-        return (bool) ($supplier['is_vial'] ?? false) === (bool) ($catalog['is_vial'] ?? false);
+        if ((bool) ($supplier['is_vial'] ?? false) !== (bool) ($catalog['is_vial'] ?? false)) {
+            return false;
+        }
+
+        return (bool) ($supplier['is_miniature'] ?? false) === (bool) ($catalog['is_miniature'] ?? false);
     }
 
     /**
@@ -1743,6 +1775,8 @@ class SellerOneVariantMatcher
             '/\b\d+\s*\*\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',
             '/\b\d+\s*x\s*\d+(?:[.,]\d+)?\s*(?:ml|мл)\b/iu',
             '/\b\d+\s*x\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',
+            // min / mini / миниатюра — маркер миниатюры, не часть названия линии
+            '/\b(min|mini|миниатюра)\b/iu',
             // Extrait de parfum
             '/\bextrait\s+de\s+parfum\b/iu',
             // Концентрация (в т.ч. до объёма: «Bad Boy edp 100ml»)
@@ -2482,9 +2516,14 @@ class SellerOneVariantMatcher
         return ! $supplierHasSubstantive && ! $catalogHasSubstantive;
     }
 
-    /** «Parfum» в названии линии (Missoni Parfum Pour Homme) — не то же самое, что «Pour Homme». */
+    /** «Parfum» в названии линии (Missoni Parfum Pour Homme) — не то же самое, что «Pour Homme». Суффикс Eau de Parfum — нет. */
     private function catalogNameContainsParfumLineWord(string $catalogProductName): bool
     {
+        $trimmed = trim($catalogProductName);
+        if ($trimmed !== '' && $this->nameEndsWithDeParfumLineSuffix($trimmed)) {
+            return false;
+        }
+
         return (bool) preg_match('/\bparfum\b/iu', $catalogProductName);
     }
 
@@ -2624,6 +2663,11 @@ class SellerOneVariantMatcher
     private function extractIsVial(string $title): bool
     {
         return (bool) preg_match('/\bvial\b/iu', $title);
+    }
+
+    private function extractIsMiniature(string $title): bool
+    {
+        return (bool) preg_match('/\b(min|mini|миниатюра)\b/iu', $title);
     }
 
     private function normalizeText(string $value): string

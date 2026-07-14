@@ -11,9 +11,14 @@ import type { ReviewItem } from "@/types/reviews";
 type Props = {
     product: ProductDetailData;
     initialProductReviews?: ReviewItem[];
+    variantFromQuery?: number;
 };
 
-export default async function ProductDetailPage({ product, initialProductReviews }: Props) {
+export default async function ProductDetailPage({
+    product,
+    initialProductReviews,
+    variantFromQuery = 0,
+}: Props) {
     let deliveryDate = DEFAULT_SITE_CONTENT.waiting_discount_delivery_date;
     try {
         const siteContent = await fetchSiteContent({ noCache: true });
@@ -31,6 +36,7 @@ export default async function ProductDetailPage({ product, initialProductReviews
                 attributesContent={<ProductDetailAttributes product={product} />}
                 descriptionContent={<ProductDetailDescription description={product.description} />}
                 deliveryDate={deliveryDate}
+                variantFromQuery={variantFromQuery}
             />
             <ProductSimilarSection slug={product.slug} />
         </main>

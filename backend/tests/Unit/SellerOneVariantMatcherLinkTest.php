@@ -2251,6 +2251,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         int $volumeMl,
         string $concentration = 'edp',
         bool $isTester = false,
+        bool $isMiniature = false,
     ): Product {
         $brand = new Brand(['name' => 'Brand '.$brandId]);
         $brand->id = $brandId;
@@ -2268,6 +2269,7 @@ class SellerOneVariantMatcherLinkTest extends TestCase
             'volume_ml' => $volumeMl,
             'concentration_code' => $concentration,
             'is_tester' => $isTester,
+            'is_miniature' => $isMiniature,
         ]);
         $variant = new ProductVariantLink(['product_id' => $productId]);
         $variant->id = $variantId;
@@ -2698,6 +2700,212 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame(9001, $match['product']->id);
         $this->assertSame(90011, $match['variant']?->id);
         $this->assertSame(100, $match['total']);
+    }
+
+    public function test_enrico_gi_oud_intense_min_10ml_matches_catalog_product(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+
+        $split = $matcher->splitNameAndVariantTail('Enrico Gi Oud Intense min 10ml edp');
+        $this->assertSame('Enrico Gi Oud Intense', $split['name']);
+        $this->assertSame('min 10ml edp', $split['tail']);
+
+        $find = new ReflectionMethod($matcher, 'findBestMatch');
+        $find->setAccessible(true);
+
+        $brand = new Brand(['name' => 'Enrico Gi']);
+        $brand->id = 50;
+
+        $product = $this->makeProductWithGenderOption(
+            5001,
+            50,
+            'Enrico Gi Oud Intense',
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
+            50011,
+            10,
+            'edp',
+            false,
+            true,
+        );
+
+        $match = $find->invoke(
+            $matcher,
+            50,
+            'Enrico Gi',
+            'Oud Intense',
+            'min 10ml edp',
+            10.0,
+            'edp',
+            false,
+            [50 => [$product]],
+            null,
+            'Oud Intense',
+            null,
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(5001, $match['product']->id);
+        $this->assertSame(50011, $match['variant']?->id);
+        $this->assertSame(100, $match['total']);
+    }
+
+    public function test_parse_mini_5ml_edt_sets_miniature_flag(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $parsed = $matcher->parseVariantFromTail('mini 5ml edt');
+
+        $this->assertTrue($parsed['is_miniature']);
+        $this->assertFalse($parsed['is_vial']);
+        $this->assertSame(5.0, $parsed['volume']);
+        $this->assertSame('edt', $parsed['concentration']);
+    }
+
+    public function test_parse_perfume_spray_50ml_sets_parfum_concentration(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $parsed = $matcher->parseVariantFromTail('Perfume Spray 50ml');
+
+        $this->assertSame('parfum', $parsed['concentration']);
+        $this->assertSame(50.0, $parsed['volume']);
+    }
+
+    public function test_min_3ml_edp_is_miniature_not_vial(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $parsed = $matcher->parseVariantFromTail('min 3ml edp');
+
+        $this->assertTrue($parsed['is_miniature']);
+        $this->assertFalse($parsed['is_vial']);
+    }
+
+    public function test_molton_brown_heavenly_gingerlily_test_100ml_edp_links_eau_de_parfum_product(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $findEdp = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $findEdp->setAccessible(true);
+        $brand = new Brand(['name' => 'Molton Brown']);
+        $brand->id = 600;
+
+        $regularDefinition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edp',
+            'is_tester' => false,
+        ]);
+        $regularVariant = new ProductVariantLink(['product_id' => 6001]);
+        $regularVariant->id = 60011;
+        $regularVariant->volume = 100;
+        $regularVariant->concentration = 'edp';
+        $regularVariant->setRelation('definition', $regularDefinition);
+
+        $testerDefinition = new VariantDefinition([
+            'volume_ml' => 100,
+            'concentration_code' => 'edp',
+            'is_tester' => true,
+        ]);
+        $testerVariant = new ProductVariantLink(['product_id' => 6001]);
+        $testerVariant->id = 60012;
+        $testerVariant->volume = 100;
+        $testerVariant->concentration = 'edp';
+        $testerVariant->setRelation('definition', $testerDefinition);
+
+        $product = $this->makeProductWithGenderOption(
+            6001,
+            600,
+            'Heavenly Gingerlily Eau De Parfum',
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
+            60011,
+            100,
+            'edp',
+        );
+        $regularVariant->setRelation('product', $product);
+        $testerVariant->setRelation('product', $product);
+        $product->setRelation('variants', collect([$regularVariant, $testerVariant]));
+
+        $match = $findEdp->invoke(
+            $matcher,
+            600,
+            'Molton Brown',
+            'Heavenly Gingerlily',
+            'test 100ml edp',
+            [600 => [$product]],
+            null,
+            collect([$brand]),
+        );
+
+        $this->assertNotNull($match);
+        $this->assertSame(6001, $match['product']->id);
+        $this->assertSame(60012, $match['variant']?->id);
+        $this->assertSame(100, $match['total']);
+        $this->assertSame('full', $match['link_match_level']);
+    }
+
+    public function test_molton_brown_edp_line_without_tester_variant_keeps_name_only_match(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $findEdp = new ReflectionMethod($matcher, 'findMatchByEdpCatalogLineName');
+        $findEdp->setAccessible(true);
+        $findBest = new ReflectionMethod($matcher, 'findBestMatch');
+        $findBest->setAccessible(true);
+        $pickBetter = new ReflectionMethod($matcher, 'pickBetterGenderCascadeMatch');
+        $pickBetter->setAccessible(true);
+        $brand = new Brand(['name' => 'Molton Brown']);
+        $brand->id = 601;
+
+        $product = $this->makeProductWithGenderOption(
+            6011,
+            601,
+            'Heavenly Gingerlily Eau De Parfum',
+            CatalogProductAttributeIds::GENDER_OPTION_UNISEX_ID,
+            60111,
+            100,
+            'edp',
+        );
+
+        $edpMatch = $findEdp->invoke(
+            $matcher,
+            601,
+            'Molton Brown',
+            'Heavenly Gingerlily',
+            'test 100ml edp',
+            [601 => [$product]],
+            null,
+            collect([$brand]),
+        );
+
+        $fallbackMatch = $findBest->invoke(
+            $matcher,
+            601,
+            'Molton Brown',
+            'Heavenly Gingerlily',
+            'test 100ml edp',
+            100.0,
+            'edp',
+            true,
+            [601 => [$product]],
+            null,
+            'Heavenly Gingerlily',
+            null,
+            collect([$brand]),
+        );
+
+        $match = $pickBetter->invoke($matcher, $edpMatch, $fallbackMatch);
+
+        $this->assertNotNull($match);
+        $this->assertSame(6011, $match['product']->id);
+        $this->assertSame(90, $match['total']);
+        $this->assertSame('name_only', $match['link_match_level']);
+        $this->assertNull($match['variant']);
+    }
+
+    public function test_catalog_name_eau_de_parfum_is_not_treated_as_parfum_line_word(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $method = new ReflectionMethod($matcher, 'catalogNameContainsParfumLineWord');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke($matcher, 'Heavenly Gingerlily Eau De Parfum'));
+        $this->assertTrue($method->invoke($matcher, 'Missoni Parfum Pour Homme'));
     }
 
     public function test_leading_line_number_token_is_preserved_for_matching(): void

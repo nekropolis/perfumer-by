@@ -9,6 +9,21 @@ type Props = {
     onDeleteAction: (item: VariantDefinitionItem) => void;
 };
 
+function FlagCell({ checked, label }: { checked: boolean; label: string }) {
+    return (
+        <td className="px-3 py-3 text-center">
+            <input
+                type="checkbox"
+                checked={checked}
+                readOnly
+                disabled
+                aria-label={label}
+                className="pointer-events-none"
+            />
+        </td>
+    );
+}
+
 export default function ProductVariantDefinitionsTable({
     items,
     onDeleteAction,
@@ -20,6 +35,9 @@ export default function ProductVariantDefinitionsTable({
                     <tr>
                         <th className="px-3 py-2.5">ID</th>
                         <th className="px-3 py-2.5">Название</th>
+                        <th className="px-3 py-2.5 text-center">Тестер</th>
+                        <th className="px-3 py-2.5 text-center">Пробник</th>
+                        <th className="px-3 py-2.5 text-center">Миниатюра</th>
                         <th className="px-3 py-2.5 text-right">Действия</th>
                     </tr>
                 </thead>
@@ -28,6 +46,9 @@ export default function ProductVariantDefinitionsTable({
                         <tr key={item.id} className="border-t border-admin-border align-top transition hover:bg-admin-muted/70">
                             <td className="px-3 py-3 text-admin-text-secondary">{item.id}</td>
                             <td className="px-3 py-3 text-admin-text">{item.title}</td>
+                            <FlagCell checked={!!item.is_tester} label="Тестер" />
+                            <FlagCell checked={!!item.is_vial} label="Пробник" />
+                            <FlagCell checked={!!item.is_miniature} label="Миниатюра" />
                             <td className="px-3 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link

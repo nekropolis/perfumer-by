@@ -2,7 +2,6 @@
 
 import { Heart } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart } from "@/lib/cart-api";
@@ -37,6 +36,7 @@ type Props = {
     attributesContent: React.ReactNode;
     descriptionContent: React.ReactNode;
     deliveryDate?: string | null;
+    variantFromQuery?: number;
 };
 
 export default function ProductDetailInteractive({
@@ -45,6 +45,7 @@ export default function ProductDetailInteractive({
     attributesContent,
     descriptionContent,
     deliveryDate,
+    variantFromQuery = 0,
 }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "reviews">("attributes");
@@ -52,11 +53,9 @@ export default function ProductDetailInteractive({
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
-    const searchParams = useSearchParams();
     const variants = useMemo(() => normalizeProductVariants(product.variants), [product.variants]);
 
     const initialVariantId = useMemo(() => {
-        const variantFromQuery = Number(searchParams.get("variant") || 0);
         if (variantFromQuery > 0 && variants.some((variant) => variant.id === variantFromQuery)) {
             return variantFromQuery;
         }
@@ -65,7 +64,7 @@ export default function ProductDetailInteractive({
             variants.find((variant) => variant.id === product.default_variant_id) || variants[0] || null;
 
         return defaultVariant?.id ?? null;
-    }, [product.default_variant_id, searchParams, variants]);
+    }, [product.default_variant_id, variantFromQuery, variants]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<number | null>(initialVariantId);
     const [waitingDiscountByVariant, setWaitingDiscountByVariant] = useState<Record<number, boolean>>({});
@@ -120,10 +119,12 @@ export default function ProductDetailInteractive({
 
     return (
         <>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
-                <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
+                <div className="xl:[grid-area:gallery]">
+                    <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
+                </div>
 
-                <section className="min-w-0">
+                <section className="min-w-0 xl:[grid-area:variants]">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <div className="flex min-w-0 items-center gap-1 text-sm text-admin-text-secondary">
                             <span className="shrink-0">Код товара:</span>
@@ -242,41 +243,43 @@ export default function ProductDetailInteractive({
                     )}
                 </section>
 
-                <aside className="contents xl:block xl:col-span-1 xl:sticky xl:top-24 xl:self-start">
-                    <ProductBuyBox
-                        selectedVariant={selectedVariant}
-                        isSelectedVariantInCart={isSelectedVariantInCart}
-                        isPending={isPending}
-                        onAddToCartAction={handleAddToCart}
-                        formatPriceAction={formatProductDetailPrice}
-                        productId={product.id}
-                        productName={productDisplayName(product)}
-                        isProductOutOfStock={product.is_out_of_stock}
-                        displayPrice={displayPrice}
-                        loyaltyCardNumber={
-                            isAuthenticated && selectedVariantEligibleForLoyalty
-                                ? (loyaltyCard?.number ?? null)
-                                : null
-                        }
-                        loyaltyPercent={loyaltyPercent}
-                        waitingDiscountActive={waitingDiscountActive}
-                        waitingDiscountForced={waitingDiscountForced}
-                        waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
-                        onWaitingDiscountChangeAction={(active) => {
-                            if (!selectedVariant || waitingDiscountForced) {
-                                return;
+                <aside className="contents xl:block xl:[grid-area:buybox] xl:self-start">
+                    <div className="xl:sticky xl:top-24">
+                        <ProductBuyBox
+                            selectedVariant={selectedVariant}
+                            isSelectedVariantInCart={isSelectedVariantInCart}
+                            isPending={isPending}
+                            onAddToCartAction={handleAddToCart}
+                            formatPriceAction={formatProductDetailPrice}
+                            productId={product.id}
+                            productName={productDisplayName(product)}
+                            isProductOutOfStock={product.is_out_of_stock}
+                            displayPrice={displayPrice}
+                            loyaltyCardNumber={
+                                isAuthenticated && selectedVariantEligibleForLoyalty
+                                    ? (loyaltyCard?.number ?? null)
+                                    : null
                             }
-                            setWaitingDiscountByVariant((prev) => ({
-                                ...prev,
-                                [selectedVariant.id]: active,
-                            }));
-                        }}
-                        waitingDiscountApplicable={selectedVariantEligibleForWaiting}
-                        deliveryDate={deliveryDate}
-                    />
+                            loyaltyPercent={loyaltyPercent}
+                            waitingDiscountActive={waitingDiscountActive}
+                            waitingDiscountForced={waitingDiscountForced}
+                            waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
+                            onWaitingDiscountChangeAction={(active) => {
+                                if (!selectedVariant || waitingDiscountForced) {
+                                    return;
+                                }
+                                setWaitingDiscountByVariant((prev) => ({
+                                    ...prev,
+                                    [selectedVariant.id]: active,
+                                }));
+                            }}
+                            waitingDiscountApplicable={selectedVariantEligibleForWaiting}
+                            deliveryDate={deliveryDate}
+                        />
+                    </div>
                 </aside>
 
-                <section className="md:col-span-2 xl:col-span-2">
+                <section className="md:col-span-2 xl:[grid-area:service]">
                     <ProductServiceInfo
                         productId={product.id}
                         productName={productDisplayName(product)}
@@ -285,7 +288,7 @@ export default function ProductDetailInteractive({
                     />
                 </section>
 
-                <section className="min-w-0 md:col-span-2 xl:col-span-2">
+                <section className="min-w-0 md:col-span-2 xl:[grid-area:tabs]">
                     <div className="rounded-3xl border border-admin-border bg-admin-surface">
                         <div
                             className="flex overflow-x-auto border-b border-admin-border"

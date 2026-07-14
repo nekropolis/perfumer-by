@@ -98,6 +98,7 @@ class ProductController extends Controller
         'concentration_label',
         'is_tester',
         'is_vial',
+        'is_miniature',
         'title',
     ];
 

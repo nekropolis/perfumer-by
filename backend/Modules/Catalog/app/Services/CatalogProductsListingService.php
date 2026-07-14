@@ -89,22 +89,25 @@ class CatalogProductsListingService
 
         $sort = $request->string('sort')->toString();
 
-        CatalogProductQueryFilters::applyCatalogListingAvailabilitySort($query);
-
         if ($sort === 'popular') {
+            CatalogProductQueryFilters::applyPopularListingAvailabilitySort($query);
             $query->orderByRaw('CRC32(CONCAT(products.id, CURDATE()))');
-        } elseif ($sort === 'price_desc') {
-            $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
-                ->orderByDesc('products.listing_min_price')
-                ->orderBy('products.slug');
-        } elseif ($sort === 'name_desc') {
-            $query->orderByDesc('products.slug');
-        } elseif ($sort === 'name_asc') {
-            $query->orderBy('products.slug');
         } else {
-            $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
-                ->orderBy('products.listing_min_price')
-                ->orderBy('products.slug');
+            CatalogProductQueryFilters::applyCatalogListingAvailabilitySort($query);
+
+            if ($sort === 'price_desc') {
+                $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
+                    ->orderByDesc('products.listing_min_price')
+                    ->orderBy('products.slug');
+            } elseif ($sort === 'name_desc') {
+                $query->orderByDesc('products.slug');
+            } elseif ($sort === 'name_asc') {
+                $query->orderBy('products.slug');
+            } else {
+                $query->orderByRaw('CASE WHEN products.listing_min_price IS NULL THEN 1 ELSE 0 END')
+                    ->orderBy('products.listing_min_price')
+                    ->orderBy('products.slug');
+            }
         }
 
         $products = $query->paginate(24);
@@ -232,38 +235,31 @@ class CatalogProductsListingService
                 return $this->variantHasMainWarehouseAvailableStock($stockContext, $variant);
             });
 
-            $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext, $hasMainStock): bool {
-                if ((bool) $variant->is_preorder) {
-                    return false;
+            if ($hasMainStock) {
+                $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext): bool {
+                    return !(bool) $variant->is_preorder
+                        && $this->variantHasMainWarehouseAvailableStock($stockContext, $variant);
+                });
+            } else {
+                $hasSupplierListing = $variants->contains(function (ProductVariantLink $variant) use ($stockContext): bool {
+                    return $this->variantHasSupplierListingAvailability($stockContext, $variant);
+                });
+
+                if ($hasSupplierListing) {
+                    $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext): bool {
+                        return $this->variantHasSupplierListingAvailability($stockContext, $variant);
+                    });
+                } else {
+                    $filtered = $variants->filter(static fn (ProductVariantLink $variant): bool => (bool) $variant->is_preorder);
                 }
+            }
 
-                if ($hasMainStock) {
-                    if (!$this->variantHasMainWarehouseAvailableStock($stockContext, $variant)) {
-                        return false;
-                    }
-                } elseif (!$this->variantHasOtherWarehouseAvailableStock($stockContext, $variant)) {
-                    return false;
-                }
-
-                $presented = $stockContext->presentedForListing($variant);
-
-                return $stockContext->storefrontVariantPrice($variant, $presented) !== null;
-            });
-
-            $this->setListingVariants($product, $filtered->values());
+            if ($filtered->isNotEmpty()) {
+                $this->setListingVariants($product, $filtered->values());
+            }
         }
 
-        return $products
-            ->filter(static function (Product $product): bool {
-                if ((bool) $product->is_out_of_stock) {
-                    return true;
-                }
-
-                return $product->relationLoaded('variants')
-                    ? $product->variants->isNotEmpty()
-                    : ($product->relationLoaded('activeVariants') && $product->activeVariants->isNotEmpty());
-            })
-            ->values();
+        return $products;
     }
 
     /**
@@ -308,19 +304,20 @@ class CatalogProductsListingService
             && max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0;
     }
 
-    private function variantHasOtherWarehouseAvailableStock(
+    private function variantHasSupplierListingAvailability(
         CatalogListingStockContext $stockContext,
         ProductVariantLink $variant,
     ): bool {
-        $presented = $stockContext->presentedForListing($variant);
-
-        if (($presented['availability_source'] ?? '') === 'supplier_only') {
+        if ((bool) $variant->is_preorder) {
             return false;
         }
 
-        [, $supplierStock] = $stockContext->warehouseStocksForVariant($variant);
+        if ($this->variantHasMainWarehouseAvailableStock($stockContext, $variant)) {
+            return false;
+        }
 
-        return $supplierStock !== null
-            && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0;
+        $presented = $stockContext->presentedForListing($variant);
+
+        return (bool) ($presented['is_available'] ?? false);
     }
 }

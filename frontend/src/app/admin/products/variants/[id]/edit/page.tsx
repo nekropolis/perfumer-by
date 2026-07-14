@@ -43,6 +43,7 @@ export default function AdminProductVariantEditPage() {
                     concentration_label: item.concentration_label ?? "",
                     is_tester: !!item.is_tester,
                     is_vial: !!item.is_vial,
+                    is_miniature: !!item.is_miniature,
                     excludes_from_free_delivery_threshold: !!item.excludes_from_free_delivery_threshold,
                 });
             } catch (e: unknown) {
@@ -83,6 +84,7 @@ export default function AdminProductVariantEditPage() {
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
+                is_miniature: form.is_miniature,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 

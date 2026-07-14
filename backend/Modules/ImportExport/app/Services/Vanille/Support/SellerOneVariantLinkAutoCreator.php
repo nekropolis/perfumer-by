@@ -4,8 +4,8 @@ namespace Modules\ImportExport\Services\Vanille\Support;
 
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
-use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\VariantDefinitionResolver;
 
 /**
  * Если продукт сматчился точно, но ProductVariantLink под объём/конц./тестер
@@ -17,6 +17,7 @@ class SellerOneVariantLinkAutoCreator
 {
     public function __construct(
         private readonly SellerOneVariantMatcher $variantMatcher,
+        private readonly VariantDefinitionResolver $definitionResolver,
     ) {
     }
 
@@ -76,6 +77,7 @@ class SellerOneVariantLinkAutoCreator
         $concentration = $parsedData['concentration'] ?? null;
         $isTester = (bool) ($parsedData['is_tester'] ?? false);
         $isVial = (bool) ($parsedData['is_vial'] ?? false);
+        $isMiniature = (bool) ($parsedData['is_miniature'] ?? false);
         if ($volume === null || ! is_string($concentration) || $concentration === '') {
             return $parsed;
         }
@@ -109,12 +111,13 @@ class SellerOneVariantLinkAutoCreator
             return $parsed;
         }
 
-        $definition = VariantDefinition::query()
-            ->where('volume_ml', $definitionVolumeMl)
-            ->where('concentration_code', $concentration)
-            ->where('is_tester', $isTester)
-            ->where('is_vial', $isVial)
-            ->first();
+        $definition = $this->definitionResolver->resolveOrCreate(
+            $definitionVolumeMl,
+            $concentration,
+            $isTester,
+            $isVial,
+            $isMiniature,
+        );
         if (! $definition) {
             return $parsed;
         }

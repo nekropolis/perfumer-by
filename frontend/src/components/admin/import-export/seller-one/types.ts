@@ -17,6 +17,7 @@ export type ManualLinkState = {
         concentration: string | null;
         isTester: boolean;
         isVial: boolean;
+        isMiniature: boolean;
     };
     products: ProductAdminItem[];
     productsLoading: boolean;

@@ -83,14 +83,14 @@ export function isVariantEligibleForWaitingDiscount(isPromotion?: boolean | null
     return !isPromotion;
 }
 
-/** Применить скидку 3% за ожидание доставки с округлением вниз до целых BYN. */
+/** Применить скидку 3% за ожидание доставки с округлением до десятых BYN. */
 export function applyWaitingDiscount(price: string | null): string | null {
     const discounted = applyPercentDiscount(price, WAITING_DISCOUNT_PERCENT);
-    return roundMoneyDownToWhole(discounted);
+    return roundMoneyToTenths(discounted);
 }
 
-/** Округлить сумму вниз до целых BYN (например 25,026 → 25,00). */
-export function roundMoneyDownToWhole(raw: string | null): string | null {
+/** Округлить сумму до десятых BYN по цифре сотых (102,88 → 102,90; 102,82 → 102,80). */
+export function roundMoneyToTenths(raw: string | null): string | null {
     if (!raw) {
         return null;
     }
@@ -100,11 +100,11 @@ export function roundMoneyDownToWhole(raw: string | null): string | null {
         return null;
     }
 
-    return Math.floor(value).toFixed(2);
+    return (Math.round(value * 10) / 10).toFixed(2);
 }
 
 /** Итоговая цена с учётом накопительной карты и скидки за ожидание.
- *  Порядок расчёта как в корзине: сначала скидка за ожидание (округление вниз до целых),
+ *  Порядок расчёта как в корзине: сначала скидка за ожидание (округление до десятых),
  *  затем скидка по карте от исходной цены. */
 export function resolveDiscountedPrice(
     price: string | null,

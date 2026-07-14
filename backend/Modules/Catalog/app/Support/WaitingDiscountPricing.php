@@ -8,7 +8,7 @@ final class WaitingDiscountPricing
 
     /**
      * Скидка 3% за ожидание доставки.
-     * Итоговая цена округляется вниз до целых BYN (например 25,026 → 25,00).
+     * Итоговая цена округляется до десятых BYN по цифре сотых (102,88 → 102,90; 102,82 → 102,80).
      */
     public static function apply(float $price): float
     {
@@ -18,7 +18,7 @@ final class WaitingDiscountPricing
 
         $discounted = $price * (1 - self::DISCOUNT_PERCENT / 100);
 
-        return (float) floor($discounted);
+        return round($discounted, 1);
     }
 
     public static function discountAmount(float $price): float

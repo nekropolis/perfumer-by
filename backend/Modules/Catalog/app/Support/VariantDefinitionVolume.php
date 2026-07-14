@@ -58,6 +58,7 @@ class VariantDefinitionVolume
         string $concentrationLabel,
         bool $isTester,
         bool $isVial = false,
+        bool $isMiniature = false,
     ): string {
         $title = sprintf(
             '%s мл / %s - %s',
@@ -72,6 +73,10 @@ class VariantDefinitionVolume
 
         if ($isVial) {
             $title .= ' / Пробник';
+        }
+
+        if ($isMiniature) {
+            $title .= ' / Миниатюра';
         }
 
         return $title;
@@ -95,7 +100,7 @@ class VariantDefinitionVolume
     }
 
     /**
-     * Уникальность: volume_ml + concentration_code + is_tester + is_vial (см. variant_definition_unique).
+     * Уникальность: volume_ml + concentration_code + is_tester + is_vial + is_miniature (см. variant_definition_unique).
      * concentration_label в ключ не входит.
      */
     public static function assertUnique(
@@ -103,6 +108,7 @@ class VariantDefinitionVolume
         string $concentrationCode,
         bool $isTester,
         bool $isVial,
+        bool $isMiniature = false,
         ?int $ignoreId = null,
     ): void {
         $exists = VariantDefinition::query()
@@ -110,12 +116,13 @@ class VariantDefinitionVolume
             ->where('concentration_code', mb_strtolower(trim($concentrationCode)))
             ->where('is_tester', $isTester)
             ->where('is_vial', $isVial)
+            ->where('is_miniature', $isMiniature)
             ->when($ignoreId !== null, static fn ($query) => $query->where('id', '!=', $ignoreId))
             ->exists();
 
         if ($exists) {
             throw ValidationException::withMessages([
-                'volume_ml' => ['Такой вариант уже есть в справочнике (объем, код концентрации, тестер, пробник).'],
+                'volume_ml' => ['Такой вариант уже есть в справочнике (объем, код концентрации, тестер, пробник, миниатюра).'],
             ]);
         }
     }

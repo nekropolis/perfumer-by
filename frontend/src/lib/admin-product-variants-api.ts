@@ -50,6 +50,7 @@ export type AdminProductVariantItem = {
         concentration_label: string;
         is_tester: boolean;
         is_vial?: boolean;
+        is_miniature?: boolean;
         excludes_from_free_delivery_threshold?: boolean;
     };
 };
@@ -82,6 +83,7 @@ export type VariantDefinitionItem = {
     concentration_label: string;
     is_tester: boolean;
     is_vial?: boolean;
+    is_miniature?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
 };
 
@@ -101,6 +103,7 @@ export type VariantDefinitionPayload = {
     concentration_label: string;
     is_tester?: boolean;
     is_vial?: boolean;
+    is_miniature?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
     sort_order?: number;
 };

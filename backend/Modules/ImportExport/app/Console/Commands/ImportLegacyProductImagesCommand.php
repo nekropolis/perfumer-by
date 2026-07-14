@@ -785,47 +785,31 @@ class ImportLegacyProductImagesCommand extends Command
         $normalizedPath = preg_replace('#^https?://[^/]+/#i', '', $normalizedPath) ?? $normalizedPath;
         $normalizedPath = preg_replace('#\\?.*$#', '', $normalizedPath) ?? $normalizedPath;
         $normalizedPath = ltrim((string) $normalizedPath, '/');
+
+        if (str_starts_with($normalizedPath, 'public/')) {
+            $normalizedPath = ltrim(substr($normalizedPath, 7), '/');
+        }
         if (str_starts_with($normalizedPath, 'image/')) {
             $normalizedPath = ltrim(substr($normalizedPath, 6), '/');
         }
-        $candidates = [];
 
-        if ($normalizedPath !== '') {
-            // Legacy import source is expected under storage/app/public/products/catalog/...
-            // so we prioritize products/<path> first.
-            if (! str_starts_with($normalizedPath, 'products/')) {
-                $candidates[] = 'products/'.$normalizedPath;
-            }
-            $candidates[] = $normalizedPath;
-            if (str_starts_with($normalizedPath, 'public/')) {
-                $withoutPublic = ltrim(substr($normalizedPath, 7), '/');
-                if ($withoutPublic !== '') {
-                    if (! str_starts_with($withoutPublic, 'products/')) {
-                        $candidates[] = 'products/'.$withoutPublic;
-                    }
-                    $candidates[] = $withoutPublic;
-                }
-            }
-
-            // Some legacy dumps use `catalog/...`, while files are physically in `category/...` (or vice versa).
-            foreach ([$normalizedPath, ...$candidates] as $candidatePath) {
-                if (str_contains($candidatePath, 'catalog/')) {
-                    $candidates[] = str_replace('catalog/', 'category/', $candidatePath);
-                }
-                if (str_contains($candidatePath, 'category/')) {
-                    $candidates[] = str_replace('category/', 'catalog/', $candidatePath);
-                }
-            }
+        if ($normalizedPath === '') {
+            return '';
         }
 
-        $uniqueCandidates = array_values(array_unique(array_filter($candidates, static fn (string $v): bool => $v !== '')));
-        foreach ($uniqueCandidates as $candidate) {
-            if ($this->sourceFileExists($disk, $candidate)) {
-                return $candidate;
-            }
+        if (str_starts_with($normalizedPath, 'products/image/')) {
+            $candidate = $normalizedPath;
+        } elseif (str_starts_with($normalizedPath, 'products/')) {
+            $candidate = 'products/image/'.ltrim(substr($normalizedPath, strlen('products/')), '/');
+        } else {
+            $candidate = 'products/image/'.$normalizedPath;
         }
 
-        return $uniqueCandidates[0] ?? $normalizedPath;
+        if ($this->sourceFileExists($disk, $candidate)) {
+            return $candidate;
+        }
+
+        return $candidate;
     }
 
     private function sourceFileExists(FilesystemAdapter $disk, string $relativePath): bool

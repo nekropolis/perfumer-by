@@ -81,15 +81,16 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
     if (def) {
         const tester = def.is_tester ? " · Тестер" : "";
         const vial = def.is_vial ? " · Пробник" : "";
+        const miniature = def.is_miniature ? " · Миниатюра" : "";
         const code = def.concentration_code?.trim();
         const label = def.concentration_label?.trim();
         if (code && label) {
-            return `${def.volume_ml} мл / ${code} - ${label}${tester}${vial}`;
+            return `${def.volume_ml} мл / ${code} - ${label}${tester}${vial}${miniature}`;
         }
         if (label) {
-            return `${def.volume_ml} мл / ${label}${tester}${vial}`;
+            return `${def.volume_ml} мл / ${label}${tester}${vial}${miniature}`;
         }
-        return `${def.volume_ml} мл${tester}${vial}`;
+        return `${def.volume_ml} мл${tester}${vial}${miniature}`;
     }
 
     const parts: string[] = [];
@@ -109,16 +110,6 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
     }
 
     return buildDisplayName(item);
-}
-
-function extractMlSearch(query: string): string | undefined {
-    const trimmed = query.trim();
-    if (!trimmed) {
-        return undefined;
-    }
-
-    const match = trimmed.match(/\d+/);
-    return match ? match[0] : undefined;
 }
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
@@ -380,7 +371,7 @@ export default function ProductVariantsEditor({
         setVariantDefinitionsLoading(true);
         try {
             const data = await fetchVariantDefinitions({
-                search: extractMlSearch(query),
+                search: query.trim() || undefined,
                 product_id: excludeLinkedToProduct ? productId : undefined,
             });
             setVariantDefinitions(data.data || []);

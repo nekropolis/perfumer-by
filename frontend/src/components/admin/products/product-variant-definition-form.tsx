@@ -8,6 +8,7 @@ export type ProductVariantDefinitionFormState = {
     concentration_label: string;
     is_tester: boolean;
     is_vial: boolean;
+    is_miniature: boolean;
     excludes_from_free_delivery_threshold: boolean;
 };
 
@@ -67,6 +68,7 @@ export default function ProductVariantDefinitionForm({
                                 ...form,
                                 is_tester: e.target.checked,
                                 is_vial: e.target.checked ? false : form.is_vial,
+                                is_miniature: e.target.checked ? false : form.is_miniature,
                             })
                         }
                     />
@@ -82,10 +84,26 @@ export default function ProductVariantDefinitionForm({
                                 ...form,
                                 is_vial: e.target.checked,
                                 is_tester: e.target.checked ? false : form.is_tester,
+                                is_miniature: e.target.checked ? false : form.is_miniature,
                             })
                         }
                     />
                     <span>Пробник</span>
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                    <input
+                        type="checkbox"
+                        checked={form.is_miniature}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                is_miniature: e.target.checked,
+                                is_vial: e.target.checked ? false : form.is_vial,
+                            })
+                        }
+                    />
+                    <span>Миниатюра</span>
                 </label>
 
                 <label className="inline-flex max-w-xl items-start gap-2 text-sm text-admin-text md:col-span-2">

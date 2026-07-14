@@ -10,6 +10,7 @@ export function formatParsedSupplierVariantHint(parsed: {
     concentration?: string | null;
     is_tester?: boolean | null;
     is_vial?: boolean | null;
+    is_miniature?: boolean | null;
 } | null | undefined): string {
     if (!parsed) {
         return "—";
@@ -33,6 +34,9 @@ export function formatParsedSupplierVariantHint(parsed: {
     }
     if (parsed.is_vial) {
         parts.push("Пробник");
+    }
+    if (parsed.is_miniature) {
+        parts.push("Миниатюра");
     }
 
     return parts.length > 0 ? parts.join(" / ") : "—";
@@ -1528,6 +1532,7 @@ export type SupplierVariantHint = {
     concentration: string | null;
     isTester: boolean;
     isVial: boolean;
+    isMiniature: boolean;
 };
 
 export type VariantMatchFlags = {
@@ -1540,6 +1545,9 @@ export type VariantMatchFlags = {
     /** Совпадение флага пробника (только если {@see vialRelevant}). */
     vial: boolean;
     vialRelevant: boolean;
+    /** Совпадение флага миниатюры (только если {@see miniatureRelevant}). */
+    miniature: boolean;
+    miniatureRelevant: boolean;
     score: number;
 };
 
@@ -1639,6 +1647,7 @@ export function getVariantMatchFlags(
             concentration_code?: string;
             is_tester?: boolean;
             is_vial?: boolean;
+            is_miniature?: boolean;
         } | null;
     },
     hint: SupplierVariantHint,
@@ -1647,6 +1656,7 @@ export function getVariantMatchFlags(
     const variantConcentration = variant.concentration ?? variant.definition?.concentration_code ?? null;
     const variantIsTester = Boolean(variant.definition?.is_tester);
     const variantIsVial = Boolean(variant.definition?.is_vial);
+    const variantIsMiniature = Boolean(variant.definition?.is_miniature);
 
     const volume =
         !hint.volumeIsMultipack
@@ -1665,13 +1675,17 @@ export function getVariantMatchFlags(
     const vialRelevant = hint.isVial || variantIsVial;
     const vial = variantIsVial === hint.isVial;
 
+    const miniatureRelevant = hint.isMiniature || variantIsMiniature;
+    const miniature = variantIsMiniature === hint.isMiniature;
+
     const score =
         (volume ? 70 : 0)
         + (concentration ? 30 : 0)
         + (testerRelevant && tester ? 20 : 0)
-        + (vialRelevant && vial ? 20 : 0);
+        + (vialRelevant && vial ? 20 : 0)
+        + (miniatureRelevant && miniature ? 20 : 0);
 
-    return { volume, concentration, tester, testerRelevant, vial, vialRelevant, score };
+    return { volume, concentration, tester, testerRelevant, vial, vialRelevant, miniature, miniatureRelevant, score };
 }
 
 export function getDefinitionMatchFlags(
@@ -1687,6 +1701,7 @@ export function getDefinitionMatchFlags(
                 concentration_code: definition.concentration_code,
                 is_tester: definition.is_tester,
                 is_vial: definition.is_vial,
+                is_miniature: definition.is_miniature,
             },
         },
         hint,
@@ -1697,7 +1712,8 @@ export function isFullVariantMatch(flags: VariantMatchFlags): boolean {
     return flags.volume
         && flags.concentration
         && (!flags.testerRelevant || flags.tester)
-        && (!flags.vialRelevant || flags.vial);
+        && (!flags.vialRelevant || flags.vial)
+        && (!flags.miniatureRelevant || flags.miniature);
 }
 
 export function getVariantMatchRowClass(flags: VariantMatchFlags, selected: boolean): string {

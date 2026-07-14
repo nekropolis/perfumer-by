@@ -452,6 +452,7 @@ function VariantMatchBadges({
             {badge("Конц.", flags.concentration)}
             {flags.testerRelevant ? badge("Тестер", flags.tester) : null}
             {flags.vialRelevant ? badge("Пробник", flags.vial) : null}
+            {flags.miniatureRelevant ? badge("Миниатюра", flags.miniature) : null}
             {isFullVariantMatch(flags) ? (
                 <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${partialClass}`}>
                     Полное совпадение
@@ -728,6 +729,7 @@ export function ManualLinkModal({
                                             concentration: manualLink.sourceHint.concentration,
                                             is_tester: manualLink.sourceHint.isTester,
                                             is_vial: manualLink.sourceHint.isVial,
+                                            is_miniature: manualLink.sourceHint.isMiniature,
                                         })}
                                     </div>
                                 ) : null}

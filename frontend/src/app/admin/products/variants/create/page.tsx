@@ -18,6 +18,7 @@ const emptyForm: ProductVariantDefinitionFormState = {
     concentration_label: "",
     is_tester: false,
     is_vial: false,
+    is_miniature: false,
     excludes_from_free_delivery_threshold: false,
 };
 
@@ -54,6 +55,7 @@ export default function AdminProductVariantCreatePage() {
                 concentration_label: form.concentration_label.trim(),
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
+                is_miniature: form.is_miniature,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 

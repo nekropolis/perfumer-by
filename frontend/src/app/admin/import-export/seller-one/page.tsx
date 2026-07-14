@@ -619,6 +619,7 @@ export default function SellerOneImportPage() {
             concentration: row.parsed?.concentration ?? null,
             isTester: Boolean(row.parsed?.is_tester),
             isVial: Boolean(row.parsed?.is_vial),
+            isMiniature: Boolean(row.parsed?.is_miniature),
         };
         setManualLink({
             rowId: row.id,

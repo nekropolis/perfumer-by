@@ -189,6 +189,95 @@ final class CatalogProductQueryFilters
     }
 
     /**
+     * Popular sort: main warehouse → supplier offer/warehouse → preorder → out of stock.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public static function applyPopularListingAvailabilitySort(Builder $query): void
+    {
+        $bindings = [];
+        $mainWarehouseId = self::warehouseIdByCode(Warehouse::CODE_MAIN);
+        $supplierWarehouseId = self::warehouseIdByCode(Warehouse::CODE_SUPPLIER);
+
+        $mainWarehouseStockSql = '0 = 1';
+        if ($mainWarehouseId > 0) {
+            $bindings[] = $mainWarehouseId;
+            $mainWarehouseStockSql = 'EXISTS (
+                SELECT 1
+                FROM warehouse_variant_stocks AS pop_main_wvs
+                INNER JOIN product_variant_links AS pop_main_pvl
+                    ON pop_main_pvl.id = pop_main_wvs.variant_id
+                WHERE pop_main_pvl.product_id = products.id
+                    AND pop_main_pvl.is_preorder = 0
+                    AND pop_main_pvl.is_active = 1
+                    AND pop_main_wvs.warehouse_id = ?
+                    AND (pop_main_wvs.stock - COALESCE(pop_main_wvs.reserved_stock, 0)) > 0
+            )';
+        }
+
+        $supplierChecks = [self::productSupplierListingOfferExistsSql()];
+
+        if ($supplierWarehouseId > 0) {
+            $bindings[] = $supplierWarehouseId;
+            $supplierChecks[] = 'EXISTS (
+                SELECT 1
+                FROM warehouse_variant_stocks AS pop_sup_wvs
+                INNER JOIN product_variant_links AS pop_sup_pvl
+                    ON pop_sup_pvl.id = pop_sup_wvs.variant_id
+                WHERE pop_sup_pvl.product_id = products.id
+                    AND pop_sup_pvl.is_preorder = 0
+                    AND pop_sup_pvl.is_active = 1
+                    AND pop_sup_wvs.warehouse_id = ?
+                    AND (pop_sup_wvs.stock - COALESCE(pop_sup_wvs.reserved_stock, 0)) > 0
+            )';
+        }
+
+        $supplierInStockSql = '('.implode(' OR ', $supplierChecks).')';
+
+        $preorderSql = 'EXISTS (
+            SELECT 1
+            FROM product_variant_links AS pop_po_pvl
+            WHERE pop_po_pvl.product_id = products.id
+                AND pop_po_pvl.is_active = 1
+                AND pop_po_pvl.is_preorder = 1
+        )';
+
+        $query->orderByRaw(
+            'CASE
+                WHEN products.is_out_of_stock = 1 THEN 3
+                WHEN '.$mainWarehouseStockSql.' THEN 0
+                WHEN '.$supplierInStockSql.' THEN 1
+                WHEN '.$preorderSql.' THEN 2
+                ELSE 3
+            END ASC',
+            $bindings,
+        );
+    }
+
+    /**
+     * EXISTS: product has an active supplier listing offer (linked supplier product).
+     */
+    private static function productSupplierListingOfferExistsSql(): string
+    {
+        return 'EXISTS (
+            SELECT 1
+            FROM product_variant_links AS pop_offer_pvl
+            INNER JOIN supplier_variant_offers AS pop_offer_svo
+                ON pop_offer_svo.product_variant_id = pop_offer_pvl.id
+            INNER JOIN supplier_products AS pop_offer_sp
+                ON pop_offer_sp.supplier_id = pop_offer_svo.supplier_id
+                AND pop_offer_sp.product_id = pop_offer_pvl.product_id
+            WHERE pop_offer_pvl.product_id = products.id
+                AND pop_offer_pvl.is_preorder = 0
+                AND pop_offer_pvl.is_active = 1
+                AND pop_offer_svo.is_active = 1
+                AND pop_offer_sp.is_linked = 1
+                AND pop_offer_sp.is_active = 1
+                AND pop_offer_sp.link_parsing_active = 1
+        )';
+    }
+
+    /**
      * @return list<int>
      */
     private static function listingWarehouseIds(): array
@@ -205,6 +294,18 @@ final class CatalogProductQueryFilters
         });
 
         return $ids;
+    }
+
+    private static function warehouseIdByCode(string $code): int
+    {
+        /** @var array<string, int> $cache */
+        static $cache = [];
+
+        if (!array_key_exists($code, $cache)) {
+            $cache[$code] = (int) Warehouse::query()->where('code', $code)->value('id');
+        }
+
+        return $cache[$code];
     }
 
     /**

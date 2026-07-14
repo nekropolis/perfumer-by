@@ -283,6 +283,7 @@ export type SellerOneSupplierProductItem = {
         concentration?: string | null;
         is_tester?: boolean;
         is_vial?: boolean;
+        is_miniature?: boolean;
     } | null;
     is_new: boolean;
     match_confidence: number;

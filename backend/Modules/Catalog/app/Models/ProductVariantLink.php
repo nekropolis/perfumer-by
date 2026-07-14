@@ -118,6 +118,10 @@ class ProductVariantLink extends Model
             return 'Пробник';
         }
 
+        if ($this->definition?->is_miniature) {
+            return 'Миниатюра';
+        }
+
         return null;
     }
 

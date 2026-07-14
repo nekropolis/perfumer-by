@@ -25,16 +25,6 @@ import {
 
 const PER_PAGE = 50;
 
-function extractMlSearch(query: string): string | undefined {
-    const trimmed = query.trim();
-    if (!trimmed) {
-        return undefined;
-    }
-
-    const match = trimmed.match(/\d+/);
-    return match ? match[0] : undefined;
-}
-
 export default function AdminProductVariantsPage() {
     const router = useRouter();
     const pathname = usePathname();
@@ -64,7 +54,7 @@ export default function AdminProductVariantsPage() {
 
         try {
             const data = await fetchVariantDefinitions({
-                search: extractMlSearch(targetSearch),
+                search: targetSearch.trim() || undefined,
                 page: targetPage,
                 per_page: PER_PAGE,
             });

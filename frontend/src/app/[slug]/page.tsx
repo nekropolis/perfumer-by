@@ -98,8 +98,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
 }
 
-export default async function RootSlugPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function RootSlugPage({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ slug: string }>;
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
     const { slug } = await params;
+    const sp = (await searchParams) ?? {};
+    const rawVariant = sp.variant;
+    const variantFromQuery = Number(Array.isArray(rawVariant) ? rawVariant[0] : rawVariant) || 0;
     if (slug === "home" || slug === "glavnaya") {
         redirect("/");
     }
@@ -168,7 +177,11 @@ export default async function RootSlugPage({ params }: { params: Promise<{ slug:
             <>
                 <JsonLd data={[productJsonLd(product, initialProductReviews), breadcrumbListJsonLd(crumbs)]} />
                 <ProductReviewsSeoHtml reviews={initialProductReviews} />
-                <ProductDetailPage product={product} initialProductReviews={initialProductReviews} />
+                <ProductDetailPage
+                    product={product}
+                    initialProductReviews={initialProductReviews}
+                    variantFromQuery={variantFromQuery}
+                />
             </>
         );
     } catch (e) {
