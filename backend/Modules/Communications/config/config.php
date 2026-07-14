@@ -49,5 +49,6 @@ return [
         'supervisor_min_uptime_seconds' => (int) env('SERVER_MONITOR_SUPERVISOR_MIN_UPTIME_SECONDS', 120),
         'load_warn_multiplier' => (float) env('SERVER_MONITOR_LOAD_WARN_MULTIPLIER', 1.5),
         'load_critical_multiplier' => (float) env('SERVER_MONITOR_LOAD_CRITICAL_MULTIPLIER', 2),
+        'storefront_health_url' => env('SERVER_MONITOR_STOREFRONT_HEALTH_URL', 'http://127.0.0.1:3000'),
     ],
 ];

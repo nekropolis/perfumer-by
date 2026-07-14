@@ -129,10 +129,11 @@ class ServerHealthMonitorService
     private function checkHttpHealth(): array
     {
         $base = rtrim((string) config('app.url'), '/');
+        $storefront = rtrim((string) config('communications.server_monitor.storefront_health_url', 'http://127.0.0.1:3000'), '/');
 
         return array_merge(
             $this->probeHttpUrl($base . '/up', 'HTTP /up'),
-            $this->probeHttpUrl($base . '/', 'HTTP витрина /'),
+            $this->probeHttpUrl($storefront . '/', 'HTTP витрина PM2'),
         );
     }
 

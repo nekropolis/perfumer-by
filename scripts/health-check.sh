@@ -57,6 +57,12 @@ if [[ -z "$SITE_URL" ]]; then
 fi
 SITE_URL="${SITE_URL%/}"
 
+STOREFRONT_HEALTH_URL="${HEALTH_CHECK_STOREFRONT_URL:-}"
+if [[ -z "$STOREFRONT_HEALTH_URL" ]]; then
+    STOREFRONT_HEALTH_URL="$(load_env SERVER_MONITOR_STOREFRONT_HEALTH_URL 'http://127.0.0.1:3000')"
+fi
+STOREFRONT_HEALTH_URL="${STOREFRONT_HEALTH_URL%/}"
+
 # ---------------------------------------------------------------------------
 # Telegram alert.
 # ---------------------------------------------------------------------------
@@ -175,7 +181,9 @@ if [[ -n "$SUPERVISORCTL" ]]; then
     fi
 fi
 
-# 6. Site health checks (Laravel /up и витрина Next.js на /).
+# 6. Site health checks.
+# /up — публичный URL (в nginx обычно auth_basic off).
+# Витрина — локальный PM2 (127.0.0.1:3000), иначе на staging с basic auth будет ложный 401.
 check_http_url() {
     local url="$1"
     local label="$2"
@@ -189,7 +197,7 @@ check_http_url() {
 
 if command -v curl >/dev/null 2>&1; then
     check_http_url "$SITE_URL/up" "Backend /up"
-    check_http_url "$SITE_URL/" "Витрина /"
+    check_http_url "$STOREFRONT_HEALTH_URL/" "Витрина PM2"
 fi
 
 # ---------------------------------------------------------------------------
