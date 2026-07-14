@@ -37,6 +37,7 @@ class ServerHealthMonitorService
             $this->checkRedis(),
             $this->checkMeilisearch(),
             $this->checkMemory(),
+            $this->checkLoadAverage(),
             $this->checkDisk(),
             $this->checkSupervisor(),
             $this->checkPm2(),
@@ -127,26 +128,37 @@ class ServerHealthMonitorService
      */
     private function checkHttpHealth(): array
     {
-        $url = rtrim((string) config('app.url'), '/') . '/up';
+        $base = rtrim((string) config('app.url'), '/');
 
+        return array_merge(
+            $this->probeHttpUrl($base . '/up', 'HTTP /up'),
+            $this->probeHttpUrl($base . '/', 'HTTP витрина /'),
+        );
+    }
+
+    /**
+     * @return list<array{name: string, status: string, message: string}>
+     */
+    private function probeHttpUrl(string $url, string $name): array
+    {
         try {
             $response = Http::timeout(8)->get($url);
             if ($response->successful()) {
                 return [[
-                    'name' => 'HTTP /up',
+                    'name' => $name,
                     'status' => 'ok',
                     'message' => (string) $response->status(),
                 ]];
             }
 
             return [[
-                'name' => 'HTTP /up',
+                'name' => $name,
                 'status' => 'fail',
                 'message' => 'HTTP ' . $response->status(),
             ]];
         } catch (\Throwable $e) {
             return [[
-                'name' => 'HTTP /up',
+                'name' => $name,
                 'status' => 'fail',
                 'message' => Str::limit($e->getMessage(), 120),
             ]];
@@ -282,6 +294,46 @@ class ServerHealthMonitorService
             'name' => 'RAM',
             'status' => $status,
             'message' => "total {$total}MB, used {$used}MB, available {$available}MB",
+        ]];
+    }
+
+    /**
+     * @return list<array{name: string, status: string, message: string}>
+     */
+    private function checkLoadAverage(): array
+    {
+        $loadRaw = @file_get_contents('/proc/loadavg');
+        if (!is_string($loadRaw) || trim($loadRaw) === '') {
+            return [[
+                'name' => 'Load average',
+                'status' => 'warn',
+                'message' => 'не удалось прочитать /proc/loadavg',
+            ]];
+        }
+
+        $parts = preg_split('/\s+/', trim($loadRaw));
+        $load1 = (float) ($parts[0] ?? 0);
+        $load5 = (float) ($parts[1] ?? 0);
+
+        $cpuResult = Process::run(['bash', '-lc', 'nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1']);
+        $cpus = max(1, (int) trim($cpuResult->output()));
+
+        $warnMultiplier = (float) config('communications.server_monitor.load_warn_multiplier', 1.5);
+        $criticalMultiplier = (float) config('communications.server_monitor.load_critical_multiplier', 2.0);
+        $warnThreshold = round($cpus * $warnMultiplier, 2);
+        $criticalThreshold = round($cpus * $criticalMultiplier, 2);
+
+        $status = 'ok';
+        if ($load1 >= $criticalThreshold) {
+            $status = 'fail';
+        } elseif ($load1 >= $warnThreshold) {
+            $status = 'warn';
+        }
+
+        return [[
+            'name' => 'Load average',
+            'status' => $status,
+            'message' => "1m={$load1}, 5m={$load5}, CPUs={$cpus}, warn≥{$warnThreshold}, critical≥{$criticalThreshold}",
         ]];
     }
 

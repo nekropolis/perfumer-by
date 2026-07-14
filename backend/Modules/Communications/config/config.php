@@ -47,5 +47,7 @@ return [
         'pm2_user' => env('SERVER_MONITOR_PM2_USER', 'deploy'),
         'supervisor_program' => env('SERVER_MONITOR_SUPERVISOR_PROGRAM', 'perfumer-queue'),
         'supervisor_min_uptime_seconds' => (int) env('SERVER_MONITOR_SUPERVISOR_MIN_UPTIME_SECONDS', 120),
+        'load_warn_multiplier' => (float) env('SERVER_MONITOR_LOAD_WARN_MULTIPLIER', 1.5),
+        'load_critical_multiplier' => (float) env('SERVER_MONITOR_LOAD_CRITICAL_MULTIPLIER', 2),
     ],
 ];

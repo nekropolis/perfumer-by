@@ -12,10 +12,13 @@ set -Eeuo pipefail
 ROOT="${PROJECT_ROOT:-/var/www/perfumer-by}"
 BACKEND="$ROOT/backend"
 
-SITE_URL="${SITE_URL:-https://prod.mobiz.by}"
+# По умолчанию берём APP_URL из backend/.env (на проде https://perfumer.by).
+SITE_URL="${SITE_URL:-}"
 DISK_THRESHOLD=85
 RAM_MIN_AVAILABLE_MB=500
 SWAP_WARN_MB=500
+LOAD_WARN_MULTIPLIER="${LOAD_WARN_MULTIPLIER:-1.5}"
+LOAD_CRITICAL_MULTIPLIER="${LOAD_CRITICAL_MULTIPLIER:-2}"
 ALERT_COOLDOWN_SECONDS=3600
 
 STATE_DIR="/var/lib/perfumer-health-check"
@@ -48,6 +51,11 @@ load_env() {
 TELEGRAM_ENABLED="$(load_env TELEGRAM_NOTIFICATIONS_ENABLED true)"
 TELEGRAM_TOKEN="$(load_env TELEGRAM_BOT_TOKEN '')"
 TELEGRAM_CHAT_ID="$(load_env TELEGRAM_CHAT_ID '')"
+
+if [[ -z "$SITE_URL" ]]; then
+    SITE_URL="$(load_env APP_URL 'https://perfumer.by')"
+fi
+SITE_URL="${SITE_URL%/}"
 
 # ---------------------------------------------------------------------------
 # Telegram alert.
@@ -133,7 +141,19 @@ if [[ "$SWAP_USED_MB" -gt "$SWAP_WARN_MB" ]] && [[ "$RAM_AVAILABLE_MB" -lt "$RAM
     ALERTS+=("🐌 Swap usage is ${SWAP_USED_MB} MB (available RAM ${RAM_AVAILABLE_MB} MB)")
 fi
 
-# 4. Queue worker status (3 retries with pause — covers supervisor restart window).
+# 4. CPU load average (перегрузка → таймауты и 502).
+CPU_COUNT=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1)
+read -r LOAD1 LOAD5 _ < /proc/loadavg
+LOAD_WARN_THRESHOLD=$(awk -v c="$CPU_COUNT" -v m="$LOAD_WARN_MULTIPLIER" 'BEGIN{printf "%.2f", c * m}')
+LOAD_CRITICAL_THRESHOLD=$(awk -v c="$CPU_COUNT" -v m="$LOAD_CRITICAL_MULTIPLIER" 'BEGIN{printf "%.2f", c * m}')
+
+if awk -v l="$LOAD1" -v t="$LOAD_CRITICAL_THRESHOLD" 'BEGIN{exit !(l >= t)}'; then
+    ALERTS+=("🔥 Load average ${LOAD1} (5m: ${LOAD5}), CPUs=${CPU_COUNT}, critical ≥ ${LOAD_CRITICAL_THRESHOLD}")
+elif awk -v l="$LOAD1" -v t="$LOAD_WARN_THRESHOLD" 'BEGIN{exit !(l >= t)}'; then
+    ALERTS+=("⚡ Load average ${LOAD1} (5m: ${LOAD5}), CPUs=${CPU_COUNT}, warning ≥ ${LOAD_WARN_THRESHOLD}")
+fi
+
+# 5. Queue worker status (3 retries with pause — covers supervisor restart window).
 SUPERVISORCTL=""
 if command -v supervisorctl >/dev/null 2>&1; then
     SUPERVISORCTL="$(command -v supervisorctl)"
@@ -155,11 +175,21 @@ if [[ -n "$SUPERVISORCTL" ]]; then
     fi
 fi
 
-# 5. Site health check.
-if command -v curl >/dev/null 2>&1; then
-    if ! curl -fsSL -o /dev/null -w '%{http_code}' "$SITE_URL/up" 2>/dev/null | grep -q '^200$'; then
-        ALERTS+=("🌐 Health check $SITE_URL/up failed")
+# 6. Site health checks (Laravel /up и витрина Next.js на /).
+check_http_url() {
+    local url="$1"
+    local label="$2"
+    local code
+
+    code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || echo "000")
+    if [[ "$code" != "200" ]]; then
+        ALERTS+=("🌐 ${label}: ${url} → HTTP ${code}")
     fi
+}
+
+if command -v curl >/dev/null 2>&1; then
+    check_http_url "$SITE_URL/up" "Backend /up"
+    check_http_url "$SITE_URL/" "Витрина /"
 fi
 
 # ---------------------------------------------------------------------------
