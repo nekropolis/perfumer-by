@@ -367,6 +367,7 @@ export default function StockReceiptsImportSystemPage() {
             concentration: parsed?.concentration ?? null,
             isTester: Boolean(parsed?.is_tester),
             isVial: Boolean(parsed?.is_vial),
+            isMiniature: Boolean(parsed?.is_miniature),
         };
         setManualLink({
             mapKey: row.map_key,

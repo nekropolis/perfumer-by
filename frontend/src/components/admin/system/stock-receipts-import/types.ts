@@ -12,6 +12,7 @@ export type StockReceiptImportParsed = {
     concentration?: string | null;
     is_tester?: boolean | null;
     is_vial?: boolean | null;
+    is_miniature?: boolean | null;
     skip_auto_match?: boolean | null;
 };
 
