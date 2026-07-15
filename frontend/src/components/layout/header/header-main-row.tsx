@@ -3,11 +3,11 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, type RefObject } from "react";
 import HeaderActions from "@/components/layout/header/header-actions";
-import HeaderCatalogButton from "@/components/layout/header/header-catalog-button";
 import HeaderLogo from "@/components/layout/header/header-logo";
+import HeaderMainNav from "@/components/layout/header/header-main-nav";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import HeaderSearch from "@/components/layout/header/header-search";
-import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
+import type { HeaderNavLink, HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
 import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 import { headerSearchProductTitle } from "@/lib/product-display-name";
 
@@ -15,7 +15,9 @@ type HeaderMainRowProps = {
     searchRef: RefObject<HTMLDivElement | null>;
     desktopSearchInputRef: RefObject<HTMLInputElement | null>;
     accountRef: RefObject<HTMLDivElement | null>;
-    catalogTriggerLabel: string;
+    burgerMenuRef: RefObject<HTMLDivElement | null>;
+    mainNavLinks: ReadonlyArray<HeaderNavLink>;
+    burgerLinks: ReadonlyArray<HeaderNavLink>;
     searchOpen: boolean;
     searchLoading: boolean;
     searchQuery: string;
@@ -31,7 +33,7 @@ type HeaderMainRowProps = {
     userName: string;
     userPhone: string;
     isMobileOpen: boolean;
-    onOpenCatalogDrawerAction: () => void;
+    isBurgerOpen: boolean;
     onSearchFocusAction: () => void;
     onSearchChangeAction: (value: string) => void;
     onSearchSubmitAction: () => void;
@@ -47,13 +49,17 @@ type HeaderMainRowProps = {
     onLogoutAction: () => void;
     onOpenMobileSearchAction: () => void;
     onToggleMobileMenuAction: () => void;
+    onToggleBurgerMenuAction: () => void;
+    onCloseBurgerMenuAction: () => void;
 };
 
 export default function HeaderMainRow({
     searchRef,
     desktopSearchInputRef,
     accountRef,
-    catalogTriggerLabel,
+    burgerMenuRef,
+    mainNavLinks,
+    burgerLinks,
     searchOpen,
     searchLoading,
     searchQuery,
@@ -69,7 +75,7 @@ export default function HeaderMainRow({
     userName,
     userPhone,
     isMobileOpen,
-    onOpenCatalogDrawerAction,
+    isBurgerOpen,
     onSearchFocusAction,
     onSearchChangeAction,
     onSearchSubmitAction,
@@ -85,6 +91,8 @@ export default function HeaderMainRow({
     onLogoutAction,
     onOpenMobileSearchAction,
     onToggleMobileMenuAction,
+    onToggleBurgerMenuAction,
+    onCloseBurgerMenuAction,
 }: HeaderMainRowProps) {
     const mobileSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -96,15 +104,9 @@ export default function HeaderMainRow({
 
     return (
         <div className="overflow-x-clip bg-admin-surface">
-            <div className="mx-auto max-w-7xl min-w-0 px-4 sm:px-6 lg:px-8">
-                <div className="flex h-[78px] min-h-0 min-w-0 items-center gap-3 md:gap-4">
-                    <div className="flex shrink-0 items-center gap-3">
-                        <HeaderLogo />
-                        <HeaderCatalogButton
-                            label={catalogTriggerLabel}
-                            onClickAction={onOpenCatalogDrawerAction}
-                        />
-                    </div>
+            <div className="mx-auto max-w-7xl min-w-0 px-3 sm:px-6 lg:px-8">
+                <div className="flex h-[64px] min-h-0 min-w-0 items-center gap-2 sm:gap-3 md:h-[78px] md:gap-4">
+                    <HeaderLogo />
 
                     <HeaderSearch
                         searchRef={searchRef}
@@ -129,6 +131,8 @@ export default function HeaderMainRow({
                         onSuggestedQueryAction={onSuggestedQueryAction}
                     />
 
+                    <HeaderMainNav links={mainNavLinks} />
+
                     <HeaderActions
                         wishlistQty={wishlistQty}
                         cartQty={cartQty}
@@ -137,12 +141,17 @@ export default function HeaderMainRow({
                         userName={userName}
                         userPhone={userPhone}
                         isMobileOpen={isMobileOpen}
+                        isBurgerOpen={isBurgerOpen}
+                        burgerLinks={burgerLinks}
                         accountRef={accountRef}
+                        burgerMenuRef={burgerMenuRef}
                         onToggleAccountAction={onToggleAccountAction}
                         onCloseAccountAction={onCloseAccountAction}
                         onLogoutAction={onLogoutAction}
                         onOpenMobileSearchAction={onOpenMobileSearchAction}
                         onToggleMobileMenuAction={onToggleMobileMenuAction}
+                        onToggleBurgerMenuAction={onToggleBurgerMenuAction}
+                        onCloseBurgerMenuAction={onCloseBurgerMenuAction}
                     />
                 </div>
 
@@ -174,7 +183,7 @@ export default function HeaderMainRow({
                                     }}
                                     onChange={(e) => onSearchChangeAction(e.target.value)}
                                     placeholder="Товары, бренды, код или артикул…"
-                                    className="w-full rounded-2xl border border-[var(--line)] bg-[var(--header-bg)] py-2.5 pl-9 pr-9 text-base text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-[var(--header-bg)]"
+                                    className="w-full rounded-2xl border-0 bg-[var(--header-control-bg)] py-2.5 pl-9 pr-9 text-base text-[var(--header-text)] outline-none transition placeholder:text-[var(--header-text-secondary)] focus:bg-[var(--header-control-bg)] focus:ring-2 focus:ring-admin-primary/10"
                                 />
                                 <button
                                     type="button"

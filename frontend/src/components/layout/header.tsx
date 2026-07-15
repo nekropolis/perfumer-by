@@ -10,10 +10,10 @@ import HeaderNav from "@/components/layout/header/header-nav";
 import HeaderServiceBar from "@/components/layout/header/header-service-bar";
 import { useHeaderSearch } from "@/components/layout/header/use-header-search";
 import {
-    HEADER_CATALOG_DRAWER_SECTIONS,
-    HEADER_CATALOG_TRIGGER,
+    HEADER_BURGER_LINKS,
+    HEADER_CATEGORY_PILLS,
+    HEADER_MAIN_LINKS,
     HEADER_POPULAR_SEARCHES,
-    HEADER_SECONDARY_LINKS,
 } from "@/components/layout/header/config";
 import { useSiteContent } from "@/components/layout/site-content-context";
 import {
@@ -25,11 +25,6 @@ import {
 } from "@/lib/site-contact";
 
 const HeaderMobileMenu = dynamic(() => import("@/components/layout/header/mobile-menu"), {
-    ssr: false,
-    loading: () => null,
-});
-
-const HeaderCatalogDrawer = dynamic(() => import("@/components/layout/header/catalog-drawer"), {
     ssr: false,
     loading: () => null,
 });
@@ -48,7 +43,7 @@ export default function Header() {
     const phoneLinks = buildPhoneLinks(siteContent);
     const contactLinks = buildContactLinks(siteContent);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
+    const [isBurgerOpen, setIsBurgerOpen] = useState(false);
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
     const [isMainRowPinned, setIsMainRowPinned] = useState(false);
@@ -66,6 +61,7 @@ export default function Header() {
     const { user, isAuthenticated, logout } = useAuth();
 
     const accountRef = useRef<HTMLDivElement | null>(null);
+    const burgerMenuRef = useRef<HTMLDivElement | null>(null);
     const searchRef = useRef<HTMLDivElement | null>(null);
     const phoneDropdownRef = useRef<HTMLDivElement | null>(null);
     const desktopSearchInputRef = useRef<HTMLInputElement | null>(null);
@@ -103,6 +99,13 @@ export default function Header() {
                 !phoneDropdownRef.current.contains(event.target as Node)
             ) {
                 setIsPhoneDropdownOpen(false);
+            }
+
+            if (
+                burgerMenuRef.current &&
+                !burgerMenuRef.current.contains(event.target as Node)
+            ) {
+                setIsBurgerOpen(false);
             }
 
             const isDesktop = window.innerWidth >= 768;
@@ -197,7 +200,7 @@ export default function Header() {
                     : headerRef.current?.getBoundingClientRect().bottom ?? 0;
 
             const catalogToolbarStickyTop = Math.max(64, headerBottom + topOffsetCompensation);
-            const sidebarStickyTop = Math.max(64, mainRowHeight + topOffsetCompensation);
+            const sidebarStickyTop = catalogToolbarStickyTop;
             const menuTop = Math.max(64, catalogToolbarStickyTop);
 
             setMenuTopOffset(menuTop);
@@ -333,7 +336,7 @@ export default function Header() {
     };
 
     const toggleMobileMenu = () => {
-        setIsCatalogDrawerOpen(false);
+        setIsBurgerOpen(false);
 
         if (isMobileOpen) {
             resetSearch();
@@ -345,7 +348,6 @@ export default function Header() {
     };
 
     const openMobileSearch = () => {
-        setIsCatalogDrawerOpen(false);
         setIsMobileOpen(false);
         if (searchOpen) {
             resetSearch();
@@ -389,7 +391,9 @@ export default function Header() {
                     searchRef={searchRef}
                     desktopSearchInputRef={desktopSearchInputRef}
                     accountRef={accountRef}
-                    catalogTriggerLabel={HEADER_CATALOG_TRIGGER.label}
+                    burgerMenuRef={burgerMenuRef}
+                    mainNavLinks={HEADER_MAIN_LINKS}
+                    burgerLinks={HEADER_BURGER_LINKS}
                     searchOpen={searchOpen}
                     searchLoading={searchLoading}
                     searchQuery={searchQuery}
@@ -405,7 +409,7 @@ export default function Header() {
                     userName={user?.name || "Пользователь"}
                     userPhone={user?.phone || ""}
                     isMobileOpen={isMobileOpen}
-                    onOpenCatalogDrawerAction={() => setIsCatalogDrawerOpen(true)}
+                    isBurgerOpen={isBurgerOpen}
                     onSearchFocusAction={() => setSearchOpen(true)}
                     onSearchChangeAction={handleSearchChange}
                     onSearchSubmitAction={submitSearchPage}
@@ -424,11 +428,13 @@ export default function Header() {
                     }}
                     onOpenMobileSearchAction={openMobileSearch}
                     onToggleMobileMenuAction={toggleMobileMenu}
+                    onToggleBurgerMenuAction={() => setIsBurgerOpen((prev) => !prev)}
+                    onCloseBurgerMenuAction={() => setIsBurgerOpen(false)}
                 />
             </div>
 
             <Suspense fallback={null}>
-                <HeaderNav isCompact={false} links={HEADER_SECONDARY_LINKS} />
+                <HeaderNav isCompact={false} links={HEADER_CATEGORY_PILLS} />
             </Suspense>
 
             <Suspense fallback={null}>
@@ -437,7 +443,7 @@ export default function Header() {
                 menuRootRef={mobileMenuRootRef}
                 anchorBottom={menuAnchorBottom}
                 wishlistQty={wishlistQty}
-                catalogSections={HEADER_CATALOG_DRAWER_SECTIONS}
+                burgerLinks={HEADER_BURGER_LINKS}
                 phoneLinks={phoneLinks}
                 contactLinks={contactLinks}
                 isAuthenticated={isAuthenticated}
@@ -454,12 +460,6 @@ export default function Header() {
                 }}
             />
             </Suspense>
-
-            <HeaderCatalogDrawer
-                isOpen={isCatalogDrawerOpen}
-                sections={HEADER_CATALOG_DRAWER_SECTIONS}
-                onCloseAction={() => setIsCatalogDrawerOpen(false)}
-            />
         </header>
     );
 }

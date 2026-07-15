@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
@@ -32,6 +33,7 @@ type Props = {
     waitingDiscountApplicable?: boolean;
     onWaitingDiscountChangeAction?: (active: boolean) => void;
     deliveryDate?: string | null;
+    surface?: "desktop" | "mobile" | "all";
 };
 
 export default function ProductBuyBox({
@@ -52,9 +54,13 @@ export default function ProductBuyBox({
     waitingDiscountApplicable = false,
     onWaitingDiscountChangeAction,
     deliveryDate,
+    surface = "all",
 }: Props) {
+    const showDesktop = surface === "all" || surface === "desktop";
+    const showMobile = surface === "all" || surface === "mobile";
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
+    const [mobileBarPortalReady, setMobileBarPortalReady] = useState(false);
 
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
@@ -100,6 +106,14 @@ export default function ProductBuyBox({
     const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
 
     useEffect(() => {
+        setMobileBarPortalReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!showMobile) {
+            return;
+        }
+
         if (typeof window === "undefined") {
             return;
         }
@@ -121,7 +135,7 @@ export default function ProductBuyBox({
             window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
             window.visualViewport?.removeEventListener("scroll", updateViewportOffsets);
         };
-    }, []);
+    }, [showMobile]);
 
     const callbackTriggerNode = (
         <CallbackRequestTrigger
@@ -261,8 +275,78 @@ export default function ProductBuyBox({
         );
     };
 
+    const mobileBar = (
+        <div
+            className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-2.5 backdrop-blur xl:hidden"
+            style={{
+                bottom: `${mobileBarBottomOffset}px`,
+                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+            }}
+        >
+            <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
+                <div className="min-w-0 flex-1">
+                    {hasVariant ? (
+                        <>
+                            <div className="truncate text-sm font-semibold leading-5 text-admin-text">
+                                {productName}
+                            </div>
+                            <div className="text-[11px] text-admin-text-secondary">Выбранный вариант</div>
+                            <div className="truncate text-sm font-medium leading-5 text-admin-text">
+                                {formatVariantVolumeLine(selectedVariant)}
+                            </div>
+                            <div className="truncate text-xs leading-4 text-admin-text-secondary">
+                                {formatVariantConcentrationLabel(selectedVariant)}
+                            </div>
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <span className="text-base font-semibold text-admin-text">
+                                    {effectivePrice
+                                        ? formatPriceAction(effectivePrice)
+                                        : selectedVariant.is_preorder
+                                            ? "Предзаказ"
+                                            : "Цена уточняется"}
+                                </span>
+                                {(selectedVariant.old_price || hasAnyDiscount) ? (
+                                    <span className="text-sm text-admin-text-secondary line-through">
+                                        {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                    </span>
+                                ) : null}
+                            </div>
+                            {hasLoyaltyDiscount ? (
+                                <div className="text-xs text-green-700">
+                                    Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
+                                </div>
+                            ) : null}
+                            {hasWaitingDiscount ? (
+                                <div className="text-xs text-green-700">
+                                    Скидка {waitingDiscountPercent}% за ожидание доставки
+                                </div>
+                            ) : null}
+                            {availability ? (
+                                <div className={`text-xs ${availability.className}`}>
+                                    {availability.text}
+                                </div>
+                            ) : null}
+                            {showWaitingCheckbox && (
+                                <div className="mt-1">{renderWaitingDiscountRow()}</div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="truncate text-sm font-medium text-admin-text">
+                                {productName}
+                            </div>
+                            <div className="text-xs text-admin-text-secondary">Выберите вариант</div>
+                        </>
+                    )}
+                </div>
+                {renderCartAction(true)}
+            </div>
+        </div>
+    );
+
     return (
         <>
+            {showDesktop ? (
             <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
                 {hasVariant ? (
                     <>
@@ -364,58 +448,9 @@ export default function ProductBuyBox({
                     </>
                 )}
             </div>
+            ) : null}
 
-            <div
-                className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-2.5 backdrop-blur xl:hidden"
-                style={{
-                    bottom: `${mobileBarBottomOffset}px`,
-                    paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-                }}
-            >
-                <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                        {hasVariant ? (
-                            <>
-                                <div className="truncate text-sm font-semibold leading-5 text-admin-text">
-                                    {productName}
-                                </div>
-                                <div className="text-[11px] text-admin-text-secondary">Выбранный вариант</div>
-                                <div className="truncate text-sm font-medium leading-5 text-admin-text">
-                                    {formatVariantVolumeLine(selectedVariant)}
-                                </div>
-                                <div className="truncate text-xs leading-4 text-admin-text-secondary">
-                                    {formatVariantConcentrationLabel(selectedVariant)}
-                                </div>
-                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                    <span className="text-base font-semibold text-admin-text">
-                                        {effectivePrice
-                                            ? formatPriceAction(effectivePrice)
-                                            : selectedVariant.is_preorder
-                                                ? "Предзаказ"
-                                                : "Цена уточняется"}
-                                    </span>
-                                    {availability ? (
-                                        <span className={`text-xs ${availability.className}`}>
-                                            {availability.text}
-                                        </span>
-                                    ) : null}
-                                </div>
-                                {showWaitingCheckbox && (
-                                    <div className="mt-1">{renderWaitingDiscountRow()}</div>
-                                )}
-                            </>
-                        ) : (
-                            <>
-                                <div className="truncate text-sm font-medium text-admin-text">
-                                    {productName}
-                                </div>
-                                <div className="text-xs text-admin-text-secondary">Выберите вариант</div>
-                            </>
-                        )}
-                    </div>
-                    {renderCartAction(true)}
-                </div>
-            </div>
+            {showMobile && mobileBarPortalReady ? createPortal(mobileBar, document.body) : null}
 
             <StockNotificationModal
                 open={notifyOpen}

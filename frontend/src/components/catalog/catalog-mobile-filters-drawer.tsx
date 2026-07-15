@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, X } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import CatalogFilters from "@/components/catalog/catalog-filters";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
-import { siteBtnPrimary, siteBtnSecondary } from "@/lib/site-ui-classes";
+import {
+    siteBtnPrimary,
+    siteBtnSecondary,
+    siteFilterChip,
+    siteFilterChipInactive,
+} from "@/lib/site-ui-classes";
 import {
     buildCatalogFacetedFiltersResetPath,
     hasCatalogFacetedFilters,
 } from "@/lib/catalog-listing-query";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -32,129 +38,180 @@ type Props = {
 };
 
 function DrawerPanel({
+    sheetState,
     onClose,
     onReset,
-    hasActiveFilters,
+    onShow,
+    onSheetTransitionEnd,
     productsCount,
     children,
 }: {
+    sheetState: "open" | "closed";
     onClose: () => void;
     onReset: () => void;
-    hasActiveFilters: boolean;
+    onShow: () => void;
+    onSheetTransitionEnd: () => void;
     productsCount: number;
     children: ReactNode;
 }) {
-    const closeRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        closeRef.current?.focus();
-    }, []);
-
     return (
         <div className="fixed inset-0 isolate z-[150] lg:hidden" role="presentation">
             <button
                 type="button"
                 aria-label="Закрыть фильтры"
-                className="absolute inset-0 z-0 bg-slate-900/40 backdrop-blur-[1px]"
+                className="catalog-filters-overlay absolute inset-0 z-0 bg-slate-900/40"
+                data-state={sheetState}
                 onClick={onClose}
             />
 
-            <aside
-                className="absolute inset-y-0 left-0 z-10 flex h-full w-[min(92vw,24rem)] max-w-full flex-col border-r border-admin-border bg-admin-surface shadow-2xl"
+            <div
+                className="catalog-filters-sheet fixed inset-x-0 bottom-0 top-15 z-10 flex flex-col overflow-hidden rounded-t-3xl bg-admin-surface shadow-2xl"
+                data-state={sheetState}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="catalog-mobile-filters-title"
+                onTransitionEnd={(event) => {
+                    if (event.target !== event.currentTarget || event.propertyName !== "transform") {
+                        return;
+                    }
+                    onSheetTransitionEnd();
+                }}
             >
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-admin-border px-4 py-3">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-admin-border px-5 py-4">
                     <h2
                         id="catalog-mobile-filters-title"
-                        className="min-w-0 flex-1 text-base font-semibold text-admin-text"
+                        className="text-lg font-semibold text-admin-text"
                     >
                         Фильтры
                     </h2>
                     <button
-                        ref={closeRef}
                         type="button"
                         onClick={onClose}
-                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-admin-surface text-admin-text transition hover:bg-admin-muted"
-                        aria-label="Закрыть фильтры"
+                        className="shrink-0 text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
                     >
-                        <X className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+                        Закрыть
                     </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
                     {children}
                 </div>
 
-                <div className="shrink-0 border-t border-admin-border bg-admin-surface p-3">
-                    <div className="flex flex-col gap-2">
-                        {hasActiveFilters ? (
-                            <button type="button" onClick={onReset} className={`${siteBtnSecondary} w-full`}>
-                                Очистить фильтры
-                            </button>
-                        ) : null}
-                        <button type="button" onClick={onClose} className={`${siteBtnPrimary} w-full`}>
-                            Показать {productsCount} {productsCountLabel(productsCount)}
+                <div
+                    className="shrink-0 border-t border-admin-border bg-admin-surface px-4 pt-4"
+                    style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+                >
+                    <div className="grid grid-cols-2 gap-3">
+                        <button type="button" onClick={onReset} className={`${siteBtnSecondary} w-full`}>
+                            Сбросить
+                        </button>
+                        <button type="button" onClick={onShow} className={`${siteBtnPrimary} w-full`}>
+                            Показать {productsCount}
                         </button>
                     </div>
                 </div>
-            </aside>
+            </div>
         </div>
     );
 }
 
-function productsCountLabel(count: number): string {
-    const mod10 = count % 10;
-    const mod100 = count % 100;
-    if (mod10 === 1 && mod100 !== 11) return "товар";
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "товара";
-    return "товаров";
-}
-
 export default function CatalogMobileFiltersDrawer(props: Props) {
-    const [open, setOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+    const [sheetState, setSheetState] = useState<"open" | "closed">("closed");
+    const closeAfterTransitionRef = useRef(false);
     const compact = props.compact ?? false;
     const searchParams = useSearchParams();
     const { navigate } = useCatalogNavigation();
+    const priceApplyRef = useRef<(() => void) | null>(null);
 
-    const hasActiveFilters = hasCatalogFacetedFilters(searchParams);
+    const openPanel = useCallback(() => {
+        closeAfterTransitionRef.current = false;
+        setMounted(true);
+        setSheetState("closed");
+    }, []);
 
     useEffect(() => {
-        if (!open) {
+        if (!mounted || sheetState !== "closed" || closeAfterTransitionRef.current) {
             return;
         }
-        const prev = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        return () => {
-            document.body.style.overflow = prev;
-        };
-    }, [open]);
+
+        const frame = requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setSheetState("open");
+            });
+        });
+
+        return () => cancelAnimationFrame(frame);
+    }, [mounted, sheetState]);
+
+    const requestClose = useCallback(() => {
+        closeAfterTransitionRef.current = true;
+        setSheetState("closed");
+    }, []);
+
+    const handleSheetTransitionEnd = useCallback(() => {
+        if (closeAfterTransitionRef.current && sheetState === "closed") {
+            setMounted(false);
+            closeAfterTransitionRef.current = false;
+        }
+    }, [sheetState]);
 
     useEffect(() => {
-        if (!open) {
+        if (!mounted) {
+            return;
+        }
+        return lockBodyScroll();
+    }, [mounted]);
+
+    useEffect(() => {
+        if (!mounted) {
+            return;
+        }
+
+        const preventBackgroundTouchMove = (event: TouchEvent) => {
+            const sheet = document.querySelector(".catalog-filters-sheet");
+            if (sheet?.contains(event.target as Node)) {
+                return;
+            }
+            event.preventDefault();
+        };
+
+        document.addEventListener("touchmove", preventBackgroundTouchMove, { passive: false });
+        return () => document.removeEventListener("touchmove", preventBackgroundTouchMove);
+    }, [mounted]);
+
+    useEffect(() => {
+        if (!mounted) {
             return;
         }
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                setOpen(false);
+                requestClose();
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [open]);
+    }, [mounted, requestClose]);
 
     const resetFilters = () => {
         navigate(buildCatalogFacetedFiltersResetPath(props.basePath, searchParams));
+        requestClose();
+    };
+
+    const showResults = () => {
+        priceApplyRef.current?.();
+        requestClose();
     };
 
     const drawer =
-        open && typeof document !== "undefined" ? (
+        mounted && typeof document !== "undefined" ? (
             createPortal(
                 <DrawerPanel
-                    onClose={() => setOpen(false)}
+                    sheetState={sheetState}
+                    onClose={requestClose}
                     onReset={resetFilters}
-                    hasActiveFilters={hasActiveFilters}
+                    onShow={showResults}
+                    onSheetTransitionEnd={handleSheetTransitionEnd}
                     productsCount={props.productsCount}
                 >
                     <CatalogFilters
@@ -165,26 +222,31 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                         priceRange={props.priceRange}
                         volumeOptions={props.volumeOptions}
                         hideReset
+                        variant="modal"
+                        priceApplyRef={priceApplyRef}
                     />
                 </DrawerPanel>,
                 document.body
             )
         ) : null;
 
+    const hasActiveFilters = hasCatalogFacetedFilters(searchParams);
+    const filterChipClass = `${siteFilterChip} ${siteFilterChipInactive} inline-flex items-center font-medium`;
+
     return (
         <>
-            <div className={compact ? "lg:hidden" : "mb-4 lg:hidden"}>
+            <div className={compact ? "shrink-0 lg:hidden" : "mb-4 lg:hidden"}>
                 <button
                     type="button"
-                    onClick={() => setOpen(true)}
+                    onClick={openPanel}
                     className={
                         compact
-                            ? `${siteBtnSecondary} h-11 w-full justify-between gap-2 px-3 [touch-action:manipulation]`
-                            : `${siteBtnSecondary} w-full justify-between px-4 py-3.5 [touch-action:manipulation]`
+                            ? `${filterChipClass} h-10 shrink-0 gap-2 px-4 text-sm [touch-action:manipulation]`
+                            : `${filterChipClass} w-full justify-center gap-2 px-4 py-3.5 text-sm [touch-action:manipulation]`
                     }
                 >
+                    <SlidersHorizontal className="h-4 w-4 shrink-0 text-admin-text-secondary" aria-hidden />
                     <span>Фильтры{hasActiveFilters ? " •" : ""}</span>
-                    <ChevronDown className="h-4 w-4 shrink-0 text-admin-text-secondary" aria-hidden />
                 </button>
             </div>
 

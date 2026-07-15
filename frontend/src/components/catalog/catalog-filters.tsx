@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useOptimistic, useState } from "react";
+import { useEffect, useMemo, useOptimistic, useState, type RefObject } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
@@ -9,6 +9,9 @@ import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput } from "@/lib/site-ui-classes";
 import {
     buildCatalogFacetedFiltersResetPath,
+    CATALOG_GENDER_ATTRIBUTE_ID,
+    getActiveCatalogGender,
+    getCatalogGenderBucketByOptionId,
     hasCatalogFacetedFilters,
 } from "@/lib/catalog-listing-query";
 
@@ -27,11 +30,9 @@ type Props = {
         products_count: number;
     }[];
     hideReset?: boolean;
+    variant?: "default" | "modal";
+    priceApplyRef?: RefObject<(() => void) | null>;
 };
-
-function formatPrice(value: number) {
-    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
-}
 
 export default function CatalogFilters({
     brands,
@@ -41,6 +42,8 @@ export default function CatalogFilters({
     priceRange,
     volumeOptions,
     hideReset = false,
+    variant = "default",
+    priceApplyRef,
 }: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
@@ -76,19 +79,39 @@ export default function CatalogFilters({
     };
 
     const toggleAttributeOption = (attributeId: number, optionId: number) => {
-        const key = `attr_${attributeId}`;
+        const genderBucket = attributeId === CATALOG_GENDER_ATTRIBUTE_ID
+            ? getCatalogGenderBucketByOptionId(optionId)
+            : null;
+
         pushParams((params) => {
+            if (genderBucket) {
+                const isActive = getActiveCatalogGender(params) === genderBucket;
+                params.delete(`attr_${CATALOG_GENDER_ATTRIBUTE_ID}`);
+
+                if (isActive) {
+                    params.delete("gender");
+                } else {
+                    params.set("gender", genderBucket);
+                }
+                return;
+            }
+
+            const key = `attr_${attributeId}`;
             const selected = new Set(
                 (params.get(key) || "")
                     .split(",")
                     .map((v) => Number(v))
-                    .filter((v) => Number.isInteger(v) && v > 0)
+                    .filter((v) => Number.isInteger(v) && v > 0),
             );
 
             if (selected.has(optionId)) {
                 selected.delete(optionId);
             } else {
                 selected.add(optionId);
+            }
+
+            if (attributeId === CATALOG_GENDER_ATTRIBUTE_ID) {
+                params.delete("gender");
             }
 
             if (selected.size === 0) {
@@ -118,7 +141,20 @@ export default function CatalogFilters({
         });
     };
 
+    useEffect(() => {
+        if (priceApplyRef) {
+            priceApplyRef.current = applyPrice;
+        }
+    });
+
     const isOptionSelected = (attributeId: number, optionId: number) => {
+        if (attributeId === CATALOG_GENDER_ATTRIBUTE_ID) {
+            const genderBucket = getCatalogGenderBucketByOptionId(optionId);
+            if (genderBucket) {
+                return getActiveCatalogGender(searchParams) === genderBucket;
+            }
+        }
+
         const selected = searchParams.get(`attr_${attributeId}`);
         if (!selected) {
             return false;
@@ -215,6 +251,35 @@ export default function CatalogFilters({
         target?.scrollIntoView({ block: "start" });
     };
 
+    const isModal = variant === "modal";
+    const sectionTitleClass = isModal
+        ? "text-[11px] font-semibold uppercase tracking-[0.14em] text-admin-text-secondary"
+        : "text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary";
+    const checkboxClass = isModal
+        ? "h-4 w-4 shrink-0 rounded-sm border-admin-border accent-admin-primary"
+        : "h-4 w-4 rounded border-admin-border accent-admin-primary";
+
+    const renderCheckboxOption = (
+        key: string,
+        label: string,
+        checked: boolean,
+        onToggle: () => void,
+    ) => (
+        <label
+            key={key}
+            className="flex cursor-pointer items-center gap-3 rounded-lg py-1.5 text-sm text-admin-text"
+        >
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={onToggle}
+                suppressHydrationWarning
+                className={checkboxClass}
+            />
+            <span>{label}</span>
+        </label>
+    );
+
     return (
         <div>
             {!hideReset ? (
@@ -227,35 +292,54 @@ export default function CatalogFilters({
                 </div>
             ) : null}
 
-            <div className="divide-y divide-admin-border">
+            <div className={isModal ? "space-y-6" : "divide-y divide-admin-border"}>
                 {showBrandFilter ? (
-                    <section className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                    <section className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
+                        <div className={sectionTitleClass}>
                             Бренд
                         </div>
-                        <input
-                            type="text"
-                            value={brandQuery}
-                            onChange={(e) => setBrandQuery(e.target.value)}
-                            placeholder="Поиск бренда"
-                            className={siteInput}
-                        />
-                        <div className="space-y-0.5">
-                            {displayBrands.map((brand) => (
-                                <label
-                                    key={`brand-preview-${brand.id}`}
-                                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isBrandSelected(brand.id)}
-                                        onChange={() => toggleBrand(brand.id)}
-                                        suppressHydrationWarning
-                                        className="h-4 w-4 rounded border-admin-border accent-admin-primary"
-                                    />
-                                    <span>{brand.name}</span>
-                                </label>
-                            ))}
+                        {!isModal ? (
+                            <input
+                                type="text"
+                                value={brandQuery}
+                                onChange={(e) => setBrandQuery(e.target.value)}
+                                placeholder="Поиск бренда"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-form-type="other"
+                                suppressHydrationWarning
+                                className={siteInput}
+                            />
+                        ) : null}
+                        <div className={isModal ? "space-y-0.5" : "space-y-0.5"}>
+                            {displayBrands.map((brand) =>
+                                isModal
+                                    ? renderCheckboxOption(
+                                        `brand-preview-${brand.id}`,
+                                        brand.name,
+                                        isBrandSelected(brand.id),
+                                        () => toggleBrand(brand.id),
+                                    )
+                                    : (
+                                        <label
+                                            key={`brand-preview-${brand.id}`}
+                                            className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isBrandSelected(brand.id)}
+                                                onChange={() => toggleBrand(brand.id)}
+                                                suppressHydrationWarning
+                                                className={checkboxClass}
+                                            />
+                                            <span>{brand.name}</span>
+                                        </label>
+                                    ),
+                            )}
                         </div>
                         <button
                             type="button"
@@ -268,26 +352,25 @@ export default function CatalogFilters({
                     </section>
                 ) : null}
 
-                <section className="space-y-3 py-5 first:pt-0">
-                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                <section className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
+                    <div className={sectionTitleClass}>
                         Цена, BYN
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                         <input
                             type="number"
                             inputMode="numeric"
-                            placeholder={priceRange.min !== null ? formatPrice(priceRange.min) : "От"}
+                            placeholder="от"
                             value={priceMinDraft}
                             onChange={(e) => setPriceMinDraft(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
                             suppressHydrationWarning
                             className={siteInput}
                         />
-                        <span className="text-admin-text-secondary">–</span>
                         <input
                             type="number"
                             inputMode="numeric"
-                            placeholder={priceRange.max !== null ? formatPrice(priceRange.max) : "До"}
+                            placeholder="до"
                             value={priceMaxDraft}
                             onChange={(e) => setPriceMaxDraft(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") applyPrice(); }}
@@ -295,67 +378,97 @@ export default function CatalogFilters({
                             className={siteInput}
                         />
                     </div>
-                    <button type="button" onClick={applyPrice} className={`${siteBtnPrimary} w-full`}>
-                        Применить
-                    </button>
+                    {!isModal ? (
+                        <button type="button" onClick={applyPrice} className={`${siteBtnPrimary} w-full`}>
+                            Применить
+                        </button>
+                    ) : null}
                 </section>
 
                 {safeVolumeOptions.length > 0 ? (
-                    <section className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
-                            Объем
+                    <section className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
+                        <div className={sectionTitleClass}>
+                            Объём, мл
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {safeVolumeOptions.map((item) => {
-                                const active = isVolumeSelected(item.key);
-                                return (
-                                    <button
-                                        key={item.key}
-                                        type="button"
-                                        onClick={() => toggleVolumeOption(item.key)}
-                                        className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
-                                    >
-                                        {item.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {isModal ? (
+                            <div className="space-y-0.5">
+                                {safeVolumeOptions.map((item) =>
+                                    renderCheckboxOption(
+                                        item.key,
+                                        item.label,
+                                        isVolumeSelected(item.key),
+                                        () => toggleVolumeOption(item.key),
+                                    ),
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {safeVolumeOptions.map((item) => {
+                                    const active = isVolumeSelected(item.key);
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            onClick={() => toggleVolumeOption(item.key)}
+                                            className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </section>
                 ) : null}
 
                 {safeAttributes.map((attribute) => (
-                    <section key={attribute.id} className="space-y-3 py-5 first:pt-0">
-                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                    <section key={attribute.id} className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
+                        <div className={sectionTitleClass}>
                             {attribute.name}
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {attribute.options.slice(0, 6).map((option) => {
-                                const active = isOptionSelected(attribute.id, option.id);
-                                return (
+                        {isModal ? (
+                            <div className="space-y-0.5">
+                                {attribute.options.map((option) =>
+                                    renderCheckboxOption(
+                                        `${attribute.id}-${option.id}`,
+                                        option.name,
+                                        isOptionSelected(attribute.id, option.id),
+                                        () => toggleAttributeOption(attribute.id, option.id),
+                                    ),
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex flex-wrap gap-2">
+                                    {attribute.options.slice(0, 6).map((option) => {
+                                        const active = isOptionSelected(attribute.id, option.id);
+                                        return (
+                                            <button
+                                                key={option.id}
+                                                type="button"
+                                                onClick={() => toggleAttributeOption(attribute.id, option.id)}
+                                                className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
+                                            >
+                                                {option.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {attribute.options.length > 6 ? (
                                     <button
-                                        key={option.id}
                                         type="button"
-                                        onClick={() => toggleAttributeOption(attribute.id, option.id)}
-                                        className={`${siteFilterChip} ${active ? siteFilterChipActive : siteFilterChipInactive}`}
+                                        onClick={() => {
+                                            setAttributeOptionQuery("");
+                                            setPopupAttributeId(attribute.id);
+                                        }}
+                                        className="inline-flex items-center gap-1 text-sm font-medium text-admin-primary transition hover:gap-1.5"
                                     >
-                                        {option.name}
+                                        Показать все ({attribute.options.length})
+                                        <span aria-hidden>→</span>
                                     </button>
-                                );
-                            })}
-                        </div>
-                        {attribute.options.length > 6 ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setAttributeOptionQuery("");
-                                    setPopupAttributeId(attribute.id);
-                                }}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-admin-primary transition hover:gap-1.5"
-                            >
-                                Показать все ({attribute.options.length})
-                                <span aria-hidden>→</span>
-                            </button>
-                        ) : null}
+                                ) : null}
+                            </>
+                        )}
                     </section>
                 ))}
             </div>
@@ -381,6 +494,14 @@ export default function CatalogFilters({
                             value={attributeOptionQuery}
                             onChange={(e) => setAttributeOptionQuery(e.target.value)}
                             placeholder="Поиск в фильтре"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            data-lpignore="true"
+                            data-1p-ignore="true"
+                            data-form-type="other"
+                            suppressHydrationWarning
                             className={`${siteInput} mb-3`}
                         />
                         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
@@ -434,6 +555,13 @@ export default function CatalogFilters({
                             value={brandQuery}
                             onChange={(e) => setBrandQuery(e.target.value)}
                             placeholder="Поиск бренда"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            data-lpignore="true"
+                            data-1p-ignore="true"
+                            data-form-type="other"
                             suppressHydrationWarning
                             className={`${siteInput} mb-3`}
                         />

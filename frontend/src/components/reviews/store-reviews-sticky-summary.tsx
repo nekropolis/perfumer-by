@@ -63,7 +63,7 @@ function StarRow({
             </span>
             <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-admin-border sm:h-2">
                 <div
-                    className="h-full rounded-full bg-amber-500/90 transition-[width]"
+                    className="h-full rounded-full bg-[var(--review-star)] transition-[width]"
                     style={{ width: `${pct}%` }}
                 />
             </div>
@@ -76,7 +76,7 @@ function StarRow({
 
 function AverageStars({ average }: { average: number }) {
     return (
-        <div className="flex flex-wrap gap-0.5 text-amber-500" aria-hidden>
+        <div className="flex flex-wrap gap-0.5 text-[var(--review-star)]" aria-hidden>
             {Array.from({ length: 5 }, (_, i) => {
                 const fill = Math.min(1, Math.max(0, average - i));
                 if (fill <= 0) {
@@ -88,7 +88,7 @@ function AverageStars({ average }: { average: number }) {
                 return (
                     <span key={i} className="relative inline-flex h-4 w-4 shrink-0 sm:h-5 sm:w-5">
                         <Star className="h-4 w-4 text-admin-border sm:h-5 sm:w-5" fill="currentColor" strokeWidth={0} />
-                        <span className="absolute inset-0 overflow-hidden text-amber-500" style={{ width: `${fill * 100}%` }}>
+                        <span className="absolute inset-0 overflow-hidden text-[var(--review-star)]" style={{ width: `${fill * 100}%` }}>
                             <Star className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" strokeWidth={0} />
                         </span>
                     </span>

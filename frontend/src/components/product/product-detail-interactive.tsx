@@ -119,7 +119,7 @@ export default function ProductDetailInteractive({
 
     return (
         <>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-stretch xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
                 <div className="xl:[grid-area:gallery]">
                     <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
                 </div>
@@ -243,8 +243,8 @@ export default function ProductDetailInteractive({
                     )}
                 </section>
 
-                <aside className="contents xl:block xl:[grid-area:buybox] xl:self-start">
-                    <div className="xl:sticky xl:top-24">
+                <aside className="hidden xl:block xl:self-stretch xl:[grid-area:buybox]">
+                    <div className="xl:sticky xl:top-[calc(var(--catalog-toolbar-sticky-top)+5px)] xl:z-10">
                         <ProductBuyBox
                             selectedVariant={selectedVariant}
                             isSelectedVariantInCart={isSelectedVariantInCart}
@@ -275,17 +275,13 @@ export default function ProductDetailInteractive({
                             }}
                             waitingDiscountApplicable={selectedVariantEligibleForWaiting}
                             deliveryDate={deliveryDate}
+                            surface="desktop"
                         />
                     </div>
                 </aside>
 
                 <section className="md:col-span-2 xl:[grid-area:service]">
-                    <ProductServiceInfo
-                        productId={product.id}
-                        productName={productDisplayName(product)}
-                        variantId={selectedVariant?.id ?? null}
-                        variantTitle={selectedVariant?.display_name ?? null}
-                    />
+                    <ProductServiceInfo />
                 </section>
 
                 <section className="min-w-0 md:col-span-2 xl:[grid-area:tabs]">
@@ -356,6 +352,39 @@ export default function ProductDetailInteractive({
                     </div>
                 </section>
             </div>
+
+            <ProductBuyBox
+                selectedVariant={selectedVariant}
+                isSelectedVariantInCart={isSelectedVariantInCart}
+                isPending={isPending}
+                onAddToCartAction={handleAddToCart}
+                formatPriceAction={formatProductDetailPrice}
+                productId={product.id}
+                productName={productDisplayName(product)}
+                isProductOutOfStock={product.is_out_of_stock}
+                displayPrice={displayPrice}
+                loyaltyCardNumber={
+                    isAuthenticated && selectedVariantEligibleForLoyalty
+                        ? (loyaltyCard?.number ?? null)
+                        : null
+                }
+                loyaltyPercent={loyaltyPercent}
+                waitingDiscountActive={waitingDiscountActive}
+                waitingDiscountForced={waitingDiscountForced}
+                waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
+                onWaitingDiscountChangeAction={(active) => {
+                    if (!selectedVariant || waitingDiscountForced) {
+                        return;
+                    }
+                    setWaitingDiscountByVariant((prev) => ({
+                        ...prev,
+                        [selectedVariant.id]: active,
+                    }));
+                }}
+                waitingDiscountApplicable={selectedVariantEligibleForWaiting}
+                deliveryDate={deliveryDate}
+                surface="mobile"
+            />
         </>
     );
 }

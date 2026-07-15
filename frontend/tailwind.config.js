@@ -8,6 +8,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      spacing: {
+        15: "3.75rem",
+      },
       colors: {
         brand: {
           charcoal: "#14110F",

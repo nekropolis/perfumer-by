@@ -353,7 +353,7 @@ export default function StoreReviewsView({
                                     <span className="text-sm font-semibold text-admin-text">{item.name}</span>
                                     <span className="text-xs text-admin-text-secondary">{formatReviewDateRu(item.created_at)}</span>
                                 </div>
-                                <div className="mb-2 flex gap-0.5 text-amber-500" aria-hidden>
+                                <div className="mb-2 flex gap-0.5 text-[var(--review-star)]" aria-hidden>
                                     {Array.from({ length: 5 }, (_, i) => (
                                         <Star
                                             key={i}

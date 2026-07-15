@@ -107,6 +107,14 @@ export function normalizeVariantLabels(value: unknown): string[] {
     return [];
 }
 
+export function formatVariantChipLabel(label: string): string {
+    const compact = compactVariantLabel(label);
+    if (/^\d+(?:,\d+)?$/.test(compact)) {
+        return `${compact} мл`;
+    }
+    return compact;
+}
+
 export function getProductCardTitleParts(product: ProductListItem): {
     cardTitle: string;
     brandName: string;

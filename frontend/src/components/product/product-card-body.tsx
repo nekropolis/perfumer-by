@@ -7,6 +7,7 @@ import {
     compactVariantLabel,
     formatProductCardOldPrice,
     formatProductCardPrice,
+    formatVariantChipLabel,
     getProductCardTitleParts,
     sortVariantLabelsByVolume,
     normalizeVariantLabels,
@@ -28,11 +29,11 @@ export default function ProductCardBody({
     wishlistSlot,
     loyaltySlot,
 }: Props) {
-    const showVariants = variant === "catalog";
+    const isCatalog = variant === "catalog";
     const rawVariants = sortVariantLabelsByVolume(normalizeVariantLabels(product.variant_labels));
     const compactVariants = rawVariants.map(compactVariantLabel);
-    const visibleVariants = compactVariants.slice(0, 3);
-    const hiddenVariantsCount = Math.max(compactVariants.length - 3, 0);
+    const visibleVariants = compactVariants.slice(0, isCatalog ? 4 : 3);
+    const hiddenVariantsCount = Math.max(compactVariants.length - visibleVariants.length, 0);
 
     const imagePath = product.image ? String(product.image) : null;
 
@@ -49,21 +50,43 @@ export default function ProductCardBody({
         : `/${product.slug}`;
 
     const showOutOfStock = Boolean(product.is_out_of_stock) && !product.is_preorder_available;
+    const showVariants =
+        isCatalog &&
+        (visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0));
 
     return (
         <Link
             href={productHref}
-            className={`${siteCard} group relative flex h-full min-w-0 flex-col p-3 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md active:scale-[0.99] sm:p-4`}
+            className={`${siteCard} group relative flex h-full min-w-0 flex-col transition active:scale-[0.99] ${
+                isCatalog
+                    ? "p-2 hover:border-admin-border-strong sm:p-3 lg:p-4"
+                    : "p-3 hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md sm:p-4"
+            }`}
         >
-            <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-lg bg-admin-muted sm:mb-4 sm:rounded-xl">
+            <div
+                className={`relative w-full overflow-hidden bg-white ${
+                    isCatalog
+                        ? "mb-2 aspect-[5/6] rounded-lg sm:mb-2.5 sm:aspect-[4/5] lg:mb-3 lg:aspect-square lg:rounded-xl"
+                        : "mb-3 aspect-square rounded-lg sm:mb-4 sm:rounded-xl"
+                }`}
+            >
                 <ProductStatusLabels
                     isNew={Boolean(product.is_new)}
                     isHit={Boolean(product.is_hit)}
                     hasPromotion={Boolean(product.has_promotion)}
                     isOutOfStock={showOutOfStock}
+                    className={isCatalog ? "left-1.5 top-1.5 gap-0.5 [&_span]:px-1.5 [&_span]:py-px [&_span]:text-[9px] sm:left-2 sm:top-2 sm:[&_span]:text-[10px]" : ""}
                 />
 
-                {wishlistSlot}
+                <div
+                    className={
+                        isCatalog
+                            ? "absolute right-1 top-1 z-10 origin-top-right scale-[0.88] sm:right-1.5 sm:top-1.5 sm:scale-100"
+                            : undefined
+                    }
+                >
+                    {wishlistSlot}
+                </div>
 
                 <ProductCardImage
                     imagePath={imagePath}
@@ -71,45 +94,81 @@ export default function ProductCardBody({
                     alt={cardTitle}
                     eager={eager}
                 />
-
             </div>
 
-            <div className="flex flex-1 flex-col">
+            <div className={`flex min-w-0 flex-1 flex-col ${isCatalog ? "gap-1" : ""}`}>
                 {showBrandLine ? (
-                    <div className="mb-1 text-sm text-admin-text-secondary">{brandName}</div>
+                    <div
+                        className={
+                            isCatalog
+                                ? "min-h-[14px] truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-admin-text-secondary sm:min-h-[15px] sm:text-[11px]"
+                                : "mb-1 text-sm text-admin-text-secondary"
+                        }
+                    >
+                        {brandName}
+                    </div>
+                ) : isCatalog ? (
+                    <div aria-hidden className="min-h-[14px] sm:min-h-[15px]" />
                 ) : null}
 
-                <div className="line-clamp-2 min-h-[44px] text-sm font-medium leading-5 text-admin-text sm:min-h-[48px] sm:text-base sm:leading-6">
+                <div
+                    className={
+                        isCatalog
+                            ? "line-clamp-2 min-h-[33px] text-[13px] font-semibold leading-[1.25] text-admin-text sm:min-h-[38px] sm:text-sm sm:leading-snug"
+                            : "line-clamp-2 min-h-[44px] text-sm font-medium leading-5 text-admin-text sm:min-h-[48px] sm:text-base sm:leading-6"
+                    }
+                >
                     {productTitle}
                 </div>
 
-                {showVariants &&
-                    (visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0)) && (
-                        <div className="mt-2 flex min-h-[22px] flex-wrap items-center gap-1">
-                            {visibleVariants.map((label, i) => (
-                                <span
-                                    key={`${label}-${i}`}
-                                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-admin-border bg-admin-muted px-1.5 text-[10px] font-semibold text-admin-text"
-                                >
-                                    {label}
-                                </span>
-                            ))}
-                            {hiddenVariantsCount > 0 && (
-                                <span className="inline-flex h-5 items-center justify-center rounded-full border border-admin-border px-1.5 text-[10px] font-semibold text-admin-text-secondary">
-                                    +{hiddenVariantsCount}
-                                </span>
-                            )}
-                        </div>
-                    )}
+                {showVariants ? (
+                    <div className="flex min-h-[22px] flex-wrap items-center gap-1 sm:min-h-6">
+                        {visibleVariants.map((label, i) => (
+                            <span
+                                key={`${label}-${i}`}
+                                className="inline-flex h-[22px] items-center justify-center rounded-md border border-admin-border bg-admin-muted px-1.5 text-[10px] font-semibold tabular-nums text-admin-text sm:h-6 sm:px-2 sm:text-[11px]"
+                            >
+                                {formatVariantChipLabel(label)}
+                            </span>
+                        ))}
+                        {hiddenVariantsCount > 0 ? (
+                            <span className="inline-flex h-[22px] items-center justify-center rounded-md border border-dashed border-admin-border px-1.5 text-[10px] font-semibold text-admin-text-secondary sm:h-6 sm:px-2 sm:text-[11px]">
+                                +{hiddenVariantsCount}
+                            </span>
+                        ) : null}
+                    </div>
+                ) : isCatalog ? (
+                    <div aria-hidden className="min-h-[22px] sm:min-h-6" />
+                ) : null}
 
-                <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+                <div
+                    className={
+                        isCatalog
+                            ? "mt-auto flex items-end justify-between gap-1.5 pt-1.5 sm:pt-2"
+                            : "mt-auto flex items-end justify-between gap-2 pt-4"
+                    }
+                >
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-end gap-2">
-                            <div className="text-base font-semibold text-admin-text sm:text-lg">
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                            <div
+                                className={
+                                    isCatalog
+                                        ? "text-[15px] font-bold leading-none tracking-tight text-admin-text tabular-nums sm:text-base lg:text-lg"
+                                        : "text-base font-semibold text-admin-text sm:text-lg"
+                                }
+                            >
                                 {formatProductCardPrice(product)}
                             </div>
                             {oldPrice ? (
-                                <div className="text-sm text-admin-text-secondary line-through">{oldPrice}</div>
+                                <div
+                                    className={
+                                        isCatalog
+                                            ? "text-[11px] text-admin-text-secondary line-through sm:text-xs"
+                                            : "text-sm text-admin-text-secondary line-through"
+                                    }
+                                >
+                                    {oldPrice}
+                                </div>
                             ) : null}
                         </div>
                         {loyaltySlot}
@@ -117,7 +176,11 @@ export default function ProductCardBody({
 
                     <span
                         aria-hidden
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white sm:h-9 sm:w-9"
+                        className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white ${
+                            isCatalog
+                                ? "hidden h-8 w-8 lg:flex"
+                                : "h-8 w-8 sm:h-9 sm:w-9"
+                        }`}
                         title="Перейти к товару"
                     >
                         <svg

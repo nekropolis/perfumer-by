@@ -12,6 +12,9 @@ export const siteBtnGhost =
 export const siteBtnIcon =
     "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-admin-border bg-admin-surface text-admin-text-secondary shadow-sm transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text active:scale-[0.98]";
 
+export const headerBtnIcon =
+    "inline-flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--header-text-secondary)] transition hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] active:scale-[0.98] md:h-11 md:w-11";
+
 export const siteBtnIconPrimary =
     "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-admin-primary bg-admin-primary text-white shadow-sm transition hover:border-admin-primary-hover hover:bg-admin-primary-hover active:scale-[0.98] md:h-auto md:w-auto md:gap-2 md:px-4 md:py-2.5";
 

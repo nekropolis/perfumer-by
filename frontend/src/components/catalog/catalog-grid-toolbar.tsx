@@ -5,30 +5,49 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useSearchParams } from "next/navigation";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
-import { siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive } from "@/lib/site-ui-classes";
+import {
+    siteFilterChip,
+    siteFilterChipActive,
+    siteFilterChipInactive,
+} from "@/lib/site-ui-classes";
 import {
     buildCatalogFacetedFiltersResetPath,
+    buildCatalogSectionChipPath,
+    getActiveCatalogSectionChip,
     hasCatalogFacetedFilters,
+    type CatalogSectionChip,
 } from "@/lib/catalog-listing-query";
 
 type Props = {
     basePath: string;
     brands: CatalogBrandItem[];
     attributes: CatalogFilterAttribute[];
+    showCategoryChips?: boolean;
     mobileRightAction?: ReactNode;
 };
 
 type SortOption = {
     value: string;
     label: string;
+    menuLabel: string;
 };
 
 const SORT_OPTIONS: SortOption[] = [
-    { value: "popular", label: "Популярные" },
-    { value: "price_asc", label: "Сначала дешевле" },
-    { value: "price_desc", label: "Сначала дороже" },
-    { value: "name_asc", label: "По названию (А-Я)" },
-    { value: "name_desc", label: "По названию (Я-А)" },
+    { value: "popular", label: "Популярные", menuLabel: "По популярности" },
+    { value: "price_asc", label: "Сначала дешевле", menuLabel: "Сначала дешевле" },
+    { value: "price_desc", label: "Сначала дороже", menuLabel: "Сначала дороже" },
+    { value: "name_asc", label: "По названию (А-Я)", menuLabel: "По названию (А-Я)" },
+    { value: "name_desc", label: "По названию (Я-А)", menuLabel: "По названию (Я-А)" },
+];
+
+const CATEGORY_CHIPS: ReadonlyArray<{ id: CatalogSectionChip; label: string }> = [
+    { id: "all", label: "Все" },
+    { id: "female", label: "Женские" },
+    { id: "male", label: "Мужские" },
+    { id: "unisex", label: "Унисекс" },
+    { id: "sale", label: "Акции" },
+    { id: "new", label: "Новинки" },
+    { id: "hit", label: "Хиты" },
 ];
 
 const VOLUME_LABELS: Record<string, string> = {
@@ -47,23 +66,20 @@ type ActiveChip = {
     removeAction: () => void;
 };
 
-type PinMetrics = {
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-};
-
-export default function CatalogGridToolbar({ basePath, brands, attributes, mobileRightAction }: Props) {
+export default function CatalogGridToolbar({
+    basePath,
+    brands,
+    attributes,
+    showCategoryChips = false,
+    mobileRightAction,
+}: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useSearchParams();
     const currentSort = searchParams.get("sort") || "popular";
+    const activeSectionChip = getActiveCatalogSectionChip(searchParams);
     const safeAttributes = useMemo(() => (Array.isArray(attributes) ? attributes : []), [attributes]);
     const [isSortOpen, setIsSortOpen] = useState(false);
     const sortMenuRef = useRef<HTMLDivElement | null>(null);
-    const sentinelRef = useRef<HTMLDivElement | null>(null);
-    const toolbarRef = useRef<HTMLDivElement | null>(null);
-    const [pinMetrics, setPinMetrics] = useState<PinMetrics | null>(null);
 
     const pushParams = useCallback((mutator: (params: URLSearchParams) => void) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -213,163 +229,113 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
         [searchParams],
     );
 
-    const currentSortLabel = SORT_OPTIONS.find((item) => item.value === currentSort)?.label ?? SORT_OPTIONS[0].label;
+    const currentSortOption = SORT_OPTIONS.find((item) => item.value === currentSort) ?? SORT_OPTIONS[0];
     const hasChips = activeChips.length > 0;
 
-    useEffect(() => {
-        const mq = window.matchMedia("(min-width: 1280px)");
+    const sortControl = (
+        <div className="relative shrink-0" ref={sortMenuRef}>
+            <button
+                type="button"
+                onClick={() => setIsSortOpen((prev) => !prev)}
+                className={`${siteFilterChip} ${siteFilterChipInactive} h-10 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:gap-2 sm:px-4`}
+                aria-haspopup="listbox"
+                aria-expanded={isSortOpen}
+                aria-label="Сортировка"
+            >
+                <span className="whitespace-nowrap">{currentSortOption.menuLabel}</span>
+                <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-admin-text-secondary transition ${isSortOpen ? "rotate-180" : ""}`}
+                />
+            </button>
 
-        const readStickyTop = () => {
-            const raw = getComputedStyle(document.documentElement).getPropertyValue("--catalog-toolbar-sticky-top");
-            const parsed = Number.parseFloat(raw);
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 79;
-        };
+            {isSortOpen ? (
+                <div className="absolute right-0 top-[calc(100%+0.4rem)] z-40 min-w-[240px] rounded-xl border border-admin-border bg-admin-surface p-1 shadow-xl">
+                    {SORT_OPTIONS.map((item) => {
+                        const isActive = item.value === currentSort;
+                        return (
+                            <button
+                                key={item.value}
+                                type="button"
+                                role="option"
+                                aria-selected={isActive}
+                                onClick={() => {
+                                    setIsSortOpen(false);
+                                    pushParams((params) => {
+                                        params.set("sort", item.value);
+                                    });
+                                }}
+                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                                    isActive
+                                        ? "bg-admin-muted text-admin-text"
+                                        : "text-admin-text hover:bg-admin-muted/70"
+                                }`}
+                            >
+                                <span>{item.label}</span>
+                                {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+        </div>
+    );
 
-        const update = () => {
-            if (mq.matches) {
-                setPinMetrics(null);
-                return;
-            }
-
-            const sentinel = sentinelRef.current;
-            const toolbar = toolbarRef.current;
-            if (!sentinel || !toolbar) {
-                return;
-            }
-
-            const stickyTop = readStickyTop();
-            if (sentinel.getBoundingClientRect().top > stickyTop) {
-                setPinMetrics(null);
-                return;
-            }
-
-            const anchor = toolbar.closest("section") ?? toolbar.parentElement ?? toolbar;
-            const box = anchor.getBoundingClientRect();
-
-            setPinMetrics((prev) => {
-                const next: PinMetrics = {
-                    top: stickyTop,
-                    left: box.left,
-                    width: box.width,
-                    height: toolbar.offsetHeight,
-                };
-
-                if (
-                    prev &&
-                    prev.top === next.top &&
-                    prev.left === next.left &&
-                    prev.width === next.width &&
-                    prev.height === next.height
-                ) {
-                    return prev;
-                }
-
-                return next;
-            });
-        };
-
-        update();
-        window.addEventListener("scroll", update, { passive: true });
-        window.addEventListener("resize", update);
-        mq.addEventListener("change", update);
-
-        const toolbar = toolbarRef.current;
-        const ro = toolbar ? new ResizeObserver(update) : null;
-        if (toolbar && ro) {
-            ro.observe(toolbar);
-        }
-
-        return () => {
-            window.removeEventListener("scroll", update);
-            window.removeEventListener("resize", update);
-            mq.removeEventListener("change", update);
-            ro?.disconnect();
-        };
-    }, []);
+    const categoryChips = showCategoryChips ? (
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
+            {CATEGORY_CHIPS.map((chip) => {
+                const isActive = activeSectionChip === chip.id;
+                return (
+                    <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => navigate(buildCatalogSectionChipPath(basePath, searchParams, chip.id))}
+                        className={`${siteFilterChip} shrink-0 rounded-full px-3 py-1.5 text-sm sm:px-4 ${
+                            isActive ? siteFilterChipActive : siteFilterChipInactive
+                        }`}
+                    >
+                        {chip.label}
+                    </button>
+                );
+            })}
+        </div>
+    ) : null;
 
     return (
-        <>
-            <div ref={sentinelRef} className="pointer-events-none h-0 w-full xl:hidden" aria-hidden />
-            {pinMetrics ? (
-                <div className="xl:hidden" style={{ height: pinMetrics.height }} aria-hidden />
-            ) : null}
-            <div
-                ref={toolbarRef}
-                className={`mb-4 bg-admin-bg pb-2 xl:static xl:z-auto xl:bg-transparent xl:pb-0 ${
-                    pinMetrics ? "fixed z-[110] xl:static" : "relative z-auto"
-                }`}
-                style={
-                    pinMetrics
-                        ? {
-                              top: pinMetrics.top,
-                              left: pinMetrics.left,
-                              width: pinMetrics.width,
-                          }
-                        : undefined
-                }
-            >
-                <div className="-mx-2 rounded-xl border border-admin-border bg-admin-surface px-2 py-2 shadow-sm xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
-                    <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:justify-between">
-                        <div className="relative min-w-0 md:w-fit" ref={sortMenuRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsSortOpen((prev) => !prev)}
-                                className={`${siteBtnSecondary} h-11 w-full justify-between px-3 text-left md:w-auto md:min-w-[220px]`}
-                                aria-haspopup="listbox"
-                                aria-expanded={isSortOpen}
-                                aria-label="Сортировка"
-                            >
-                                <span className="truncate">{currentSortLabel}</span>
-                                <ChevronDown className={`h-4 w-4 shrink-0 text-admin-text-secondary transition ${isSortOpen ? "rotate-180" : ""}`} />
-                            </button>
+        <div
+            className="sticky z-[110] border-b border-admin-border bg-[var(--background)]"
+            style={{ top: "var(--catalog-toolbar-sticky-top)" }}
+        >
+            <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4">
+                <div className="flex min-w-0 items-center gap-2">
+                    {!showCategoryChips ? (
+                        <div className="min-w-0 flex-1 lg:hidden">{mobileRightAction}</div>
+                    ) : (
+                        <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
+                    )}
 
-                            {isSortOpen ? (
-                                <div className="absolute left-0 top-[calc(100%+0.4rem)] z-40 w-full rounded-xl border border-admin-border bg-admin-surface p-1 shadow-xl md:min-w-[280px] md:w-max">
-                                    {SORT_OPTIONS.map((item) => {
-                                        const isActive = item.value === currentSort;
-                                        return (
-                                            <button
-                                                key={item.value}
-                                                type="button"
-                                                role="option"
-                                                aria-selected={isActive}
-                                                onClick={() => {
-                                                    setIsSortOpen(false);
-                                                    pushParams((params) => {
-                                                        params.set("sort", item.value);
-                                                    });
-                                                }}
-                                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                                                    isActive ? "bg-admin-muted text-admin-text" : "text-admin-text hover:bg-admin-muted/70"
-                                                }`}
-                                            >
-                                                <span>{item.label}</span>
-                                                {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ) : null}
-                        </div>
+                    {showCategoryChips ? (
+                        <div className="min-w-0 flex-1">{categoryChips}</div>
+                    ) : (
+                        <div className="hidden flex-1 lg:block" />
+                    )}
 
-                        <div className="min-w-0 lg:hidden">{mobileRightAction}</div>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-end gap-2">
-                        {hasActiveFilters ? (
-                            <button
-                                type="button"
-                                onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
-                                className="text-xs font-medium text-admin-text-secondary transition hover:text-admin-text"
-                            >
-                                Сбросить фильтры
-                            </button>
-                        ) : null}
-                    </div>
+                    {sortControl}
                 </div>
 
+                {hasActiveFilters ? (
+                    <div className="flex items-center justify-end">
+                        <button
+                            type="button"
+                            onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
+                            className="text-xs font-medium text-admin-text-secondary transition hover:text-admin-text"
+                        >
+                            Сбросить фильтры
+                        </button>
+                    </div>
+                ) : null}
+
                 {hasChips ? (
-                    <div className="mt-3 flex flex-wrap gap-2 max-xl:px-2">
+                    <div className="flex flex-wrap gap-2">
                         {activeChips.map((chip) => (
                             <button
                                 key={chip.id}
@@ -384,6 +350,6 @@ export default function CatalogGridToolbar({ basePath, brands, attributes, mobil
                     </div>
                 ) : null}
             </div>
-        </>
+        </div>
     );
 }

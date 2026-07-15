@@ -63,7 +63,7 @@ export default function HeaderSearch({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.8"
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--header-text-secondary)]"
                 >
                     <path
                         strokeLinecap="round"
@@ -93,8 +93,8 @@ export default function HeaderSearch({
                         }
                     }}
                     onChange={(e) => onChangeAction(e.target.value)}
-                    placeholder="Бренды, ароматы, товары, код или артикул…"
-                    className="h-11 min-w-0 w-full rounded-2xl border border-[var(--line)] bg-[var(--header-bg)] pl-9 pr-10 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--text-secondary)] focus:border-[var(--accent-soft)] focus:bg-[var(--header-bg)]"
+                    placeholder="Поиск ароматов, брендов…"
+                    className="h-11 min-w-0 w-full rounded-2xl border-0 bg-[var(--header-control-bg)] pl-9 pr-10 text-sm text-[var(--header-text)] outline-none transition placeholder:text-[var(--header-text-secondary)] focus:bg-[var(--header-control-bg)] focus:ring-2 focus:ring-admin-primary/10"
                 />
 
                 {searchQuery && (

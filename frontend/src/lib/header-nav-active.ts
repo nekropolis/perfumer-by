@@ -1,6 +1,8 @@
 /**
  * Активность пункта шапки: pathname + query (для /catalog?new=1 и т.п.).
  */
+import { getActiveCatalogGender } from "@/lib/catalog-listing-query";
+
 export function isHeaderNavLinkActive(
     href: string,
     pathname: string,
@@ -18,6 +20,11 @@ export function isHeaderNavLinkActive(
 
     if (currentPath !== linkPath && !currentPath.startsWith(`${linkPath}/`)) {
         return false;
+    }
+
+    const linkGender = link.searchParams.get("gender");
+    if (linkGender === "female" || linkGender === "male" || linkGender === "unisex") {
+        return getActiveCatalogGender(searchParams) === linkGender;
     }
 
     const linkQueryKeys = [...link.searchParams.keys()];

@@ -47,7 +47,7 @@ function StoreReviewCard({ review }: { review: HomePageReviewSnippet }) {
                 {review.date ? <div className="shrink-0 text-xs text-admin-text-muted">{review.date}</div> : null}
             </div>
             <p className="sr-only">Оценка {review.rating} из 5</p>
-            <div className="mt-1.5 flex gap-0.5 text-amber-500" aria-hidden>
+            <div className="mt-1.5 flex gap-0.5 text-[var(--review-star)]" aria-hidden>
                 {Array.from({ length: 5 }, (_, i) => (
                     <Star
                         key={i}

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CatalogFilters from "@/components/catalog/catalog-filters";
 import CatalogMobileFiltersDrawer from "@/components/catalog/catalog-mobile-filters-drawer";
@@ -15,6 +16,7 @@ type BreadcrumbItem = {
 
 type Props = {
     title: string;
+    intro?: string | null;
     breadcrumbs: BreadcrumbItem[];
     products: ProductsResponse;
     brands: CatalogBrandItem[];
@@ -36,56 +38,84 @@ type Props = {
     footerDescriptionHtml?: string | null;
 };
 
+function productsCountLabel(count: number): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return "товар";
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+        return "товара";
+    }
+    return "товаров";
+}
+
+function CatalogToolbarSkeleton() {
+    return (
+        <div
+            className="sticky z-[110] border-b border-admin-border bg-[var(--background)] py-3"
+            style={{ top: "var(--catalog-toolbar-sticky-top)" }}
+        >
+            <div className="h-10 animate-pulse rounded-full bg-admin-muted" />
+        </div>
+    );
+}
+
+function CatalogAsideFiltersSkeleton() {
+    return (
+        <aside className="hidden self-start lg:block">
+            <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
+                <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                        <div key={index} className="h-9 animate-pulse rounded-lg bg-admin-muted" />
+                    ))}
+                </div>
+            </div>
+        </aside>
+    );
+}
+
 export default function CatalogPageView({
-                                            title,
-                                            breadcrumbs,
-                                            products,
-                                            brands,
-                                            filters,
-                                            queryString,
-                                            currentPage,
-                                            basePath,
-                                            footerDescriptionHtml,
-                                        }: Props) {
+    title,
+    intro,
+    breadcrumbs,
+    products,
+    brands,
+    filters,
+    queryString,
+    currentPage,
+    basePath,
+    footerDescriptionHtml,
+}: Props) {
     const lastPage = products.meta?.last_page ?? 1;
     const showBrand = !basePath.includes("/brands/");
+    const productsTotal = products.meta?.total ?? products.data.length;
+    const showCategoryChips = basePath === "/catalog";
 
     return (
         <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
             <Breadcrumbs className="mb-4" items={breadcrumbs} />
 
-            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
-                        {title}
-                    </h1>
-                </div>
+            <div className="mb-6">
+                <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{title}</h1>
+                {intro?.trim() ? (
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-admin-text-secondary sm:text-base">
+                        {intro}
+                    </p>
+                ) : null}
             </div>
 
             <CatalogNavigationProvider>
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
-                <aside className="hidden self-start lg:block">
-                    <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
-                        <CatalogFilters
-                            brands={brands}
-                            basePath={basePath}
-                            showBrandFilter={showBrand}
-                            attributes={filters.attributes}
-                            priceRange={filters.price}
-                            volumeOptions={filters.volume}
-                        />
-                    </div>
-                </aside>
-
-                <section className="min-w-0">
+                <Suspense fallback={<CatalogToolbarSkeleton />}>
                     <CatalogGridToolbar
                         basePath={basePath}
                         brands={brands}
                         attributes={filters.attributes}
+                        showCategoryChips={showCategoryChips}
                         mobileRightAction={
                             <CatalogMobileFiltersDrawer
                                 compact
-                                productsCount={products.meta?.total ?? products.data.length}
+                                productsCount={productsTotal}
                                 brands={brands}
                                 basePath={basePath}
                                 showBrandFilter={showBrand}
@@ -95,50 +125,70 @@ export default function CatalogPageView({
                             />
                         }
                     />
+                </Suspense>
 
-                    <div className="relative">
-                        <CatalogResultsOverlay />
-
-                        {products.data.length > 0 ? (
-                            <>
-                                <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                                    {products.data.map((product, index) => (
-                                        <ProductCard
-                                            key={
-                                                product.listing_variant_id
-                                                    ? `${product.id}-${product.listing_variant_id}`
-                                                    : product.id
-                                            }
-                                            product={product}
-                                            eager={index < 4}
-                                        />
-                                    ))}
-                                </div>
-
-                                <div className="mt-8">
-                                    <CatalogPagination
-                                        currentPage={currentPage}
-                                        lastPage={lastPage}
-                                        basePath={basePath}
-                                        queryString={queryString}
-                                    />
-                                </div>
-                            </>
-                        ) : (
-                            <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
-                                <div className="mb-2 text-2xl font-semibold">
-                                    Ничего не найдено
-                                </div>
-
-                                <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
-                                    Попробуйте изменить фильтры или перейти в общий каталог,
-                                    чтобы посмотреть другие товары.
-                                </p>
+                <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <Suspense fallback={<CatalogAsideFiltersSkeleton />}>
+                        <aside className="hidden self-start lg:block">
+                            <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
+                                <CatalogFilters
+                                    brands={brands}
+                                    basePath={basePath}
+                                    showBrandFilter={showBrand}
+                                    attributes={filters.attributes}
+                                    priceRange={filters.price}
+                                    volumeOptions={filters.volume}
+                                />
                             </div>
-                        )}
-                    </div>
-                </section>
-            </div>
+                        </aside>
+                    </Suspense>
+
+                    <section className="min-w-0">
+                        <div className="mb-4 text-sm text-admin-text-secondary">
+                            Найдено: {productsTotal} {productsCountLabel(productsTotal)}
+                        </div>
+
+                        <div className="relative">
+                            <CatalogResultsOverlay />
+
+                            {products.data.length > 0 ? (
+                                <>
+                                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+                                        {products.data.map((product, index) => (
+                                            <ProductCard
+                                                key={
+                                                    product.listing_variant_id
+                                                        ? `${product.id}-${product.listing_variant_id}`
+                                                        : product.id
+                                                }
+                                                product={product}
+                                                eager={index < 4}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-8">
+                                        <CatalogPagination
+                                            currentPage={currentPage}
+                                            lastPage={lastPage}
+                                            basePath={basePath}
+                                            queryString={queryString}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
+                                    <div className="mb-2 text-2xl font-semibold">Ничего не найдено</div>
+
+                                    <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
+                                        Попробуйте изменить фильтры или перейти в общий каталог,
+                                        чтобы посмотреть другие товары.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </div>
             </CatalogNavigationProvider>
 
             {footerDescriptionHtml?.trim() ? (

@@ -44,7 +44,7 @@ export default function ProductCardImage({ imagePath, secondaryImagePath = null,
                 alt={alt}
                 fill
                 loading={eager ? "eager" : "lazy"}
-                sizes="(max-width: 640px) 50vw, 280px"
+                sizes="(max-width: 1024px) 50vw, 25vw"
                 className={`object-contain transition-opacity duration-300 ${secondarySrc ? "group-hover:opacity-0" : ""}`}
             />
             {secondarySrc ? (
@@ -54,7 +54,7 @@ export default function ProductCardImage({ imagePath, secondaryImagePath = null,
                     alt={`${alt} — вид 2`}
                     fill
                     loading="lazy"
-                    sizes="(max-width: 640px) 50vw, 280px"
+                    sizes="(max-width: 1024px) 50vw, 25vw"
                     className="pointer-events-none object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 />
             ) : null}

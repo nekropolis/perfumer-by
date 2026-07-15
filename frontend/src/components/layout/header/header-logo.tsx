@@ -14,8 +14,8 @@ export default function HeaderLogo() {
             alt="Perfumer"
             width={934}
             height={356}
-            sizes="(max-width: 768px) 128px, 168px"
-            className="h-auto w-[128px] object-contain md:w-[168px]"
+            sizes="(max-width: 640px) 112px, (max-width: 768px) 128px, 168px"
+            className="h-auto w-[112px] object-contain sm:w-[128px] md:w-[168px]"
             priority
             unoptimized
         />

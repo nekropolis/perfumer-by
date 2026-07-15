@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import WriteoffEditorPage from "@/components/admin/warehouse/writeoff-editor-page";
 
-export default function NewWriteoffPage() {
+function NewWriteoffPageContent() {
     const searchParams = useSearchParams();
 
     const prefillItem = useMemo(() => {
@@ -34,4 +34,12 @@ export default function NewWriteoffPage() {
     }, [searchParams]);
 
     return <WriteoffEditorPage prefillItem={prefillItem} />;
+}
+
+export default function NewWriteoffPage() {
+    return (
+        <Suspense fallback={null}>
+            <NewWriteoffPageContent />
+        </Suspense>
+    );
 }

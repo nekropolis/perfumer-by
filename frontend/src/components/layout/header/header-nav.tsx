@@ -16,12 +16,12 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
 
     return (
         <div
-            className={`hidden border-t border-admin-border bg-admin-surface transition-[max-height,opacity] duration-250 ease-out md:block ${
-                isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-11 opacity-100"
+            className={`bg-admin-surface transition-[max-height,opacity] duration-250 ease-out ${
+                isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100 md:max-h-16"
             }`}
             aria-hidden={isCompact}
         >
-            <div className="mx-auto flex h-11 max-w-7xl items-center gap-1 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex h-11 max-w-7xl items-center justify-center gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:justify-start md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
                 {links.map((item) => {
                     const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 
@@ -29,10 +29,10 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
                                 isActive
-                                    ? "bg-admin-muted text-admin-text"
-                                    : "text-admin-text-secondary hover:bg-admin-muted/70 hover:text-admin-text"
+                                    ? "border-[var(--header-text)] bg-admin-surface text-[var(--header-text)]"
+                                    : "border-admin-border text-[var(--header-text-secondary)] hover:border-[var(--header-text)]/40 hover:text-[var(--header-text)]"
                             }`}
                             aria-current={isActive ? "page" : undefined}
                         >

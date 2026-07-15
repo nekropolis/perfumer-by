@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { User } from "lucide-react";
 import type { RefObject } from "react";
 
 type Props = {
@@ -30,10 +31,10 @@ export default function HeaderAccountMenu({
                 <div className="relative">
                     <button
                         type="button"
-                        className="inline-flex h-11 items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)]"
+                        className="inline-flex h-11 items-center gap-2 rounded-2xl px-2 text-sm font-medium text-[var(--header-text)] transition hover:bg-[var(--header-control-bg)]"
                         onClick={onToggleAction}
                     >
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--background)] text-[10px] font-semibold text-[var(--foreground)]">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--header-control-bg)] text-[10px] font-semibold text-[var(--header-text)]">
                             {userName.slice(0, 1).toUpperCase()}
                         </span>
                         <span className="max-w-[120px] truncate">{userName}</span>
@@ -81,9 +82,10 @@ export default function HeaderAccountMenu({
             ) : (
                 <Link
                     href="/login"
-                    className="inline-flex h-11 items-center rounded-2xl border border-[var(--line)] bg-[var(--header-control-bg)] px-4 text-sm font-medium text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--background)] hover:text-[var(--accent)]"
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl px-2 text-sm font-medium text-[var(--header-text-secondary)] transition hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)]"
                 >
-                    Войти
+                    <User className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>Войти</span>
                 </Link>
             )}
         </div>

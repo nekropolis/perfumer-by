@@ -118,7 +118,7 @@ export default function ReviewFormModal({
                                     key={value}
                                     type="button"
                                     onClick={() => onStarsChangeAction(value)}
-                                    className="rounded-lg p-1 text-amber-500 transition hover:bg-amber-50"
+                                    className="rounded-lg p-1 text-[var(--review-star)] transition hover:bg-amber-50"
                                     aria-label={`${value} из 5`}
                                 >
                                     <Star

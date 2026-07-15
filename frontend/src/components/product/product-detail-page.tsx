@@ -2,6 +2,7 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import ProductDetailAttributes from "@/components/product/product-detail-attributes";
 import ProductDetailDescription from "@/components/product/product-detail-description";
 import ProductDetailInteractive from "@/components/product/product-detail-interactive";
+import RecentlyViewedTracker from "@/components/product/recently-viewed-tracker";
 import ProductSimilarSection from "@/components/product/product-similar-section";
 import { getProductBreadcrumbItems } from "@/lib/product-breadcrumbs";
 import { fetchSiteContent, DEFAULT_SITE_CONTENT } from "@/lib/site-content-api";
@@ -39,6 +40,7 @@ export default async function ProductDetailPage({
                 variantFromQuery={variantFromQuery}
             />
             <ProductSimilarSection slug={product.slug} />
+            <RecentlyViewedTracker product={product} />
         </main>
     );
 }

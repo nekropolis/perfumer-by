@@ -90,7 +90,8 @@ export default async function CatalogPage({
         <>
             <JsonLd data={breadcrumbListJsonLd([...catalogCrumbs])} />
             <CatalogPageView
-                title={pageCopy.breadcrumb}
+                title={pageCopy.title}
+                intro={pageCopy.intro}
                 breadcrumbs={[...catalogCrumbs]}
                 products={products}
                 brands={brands.data ?? []}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import { siteBtnIcon } from "@/lib/site-ui-classes";
+import { headerBtnIcon } from "@/lib/site-ui-classes";
 
 type HeaderMobileToggleProps = {
     isOpen: boolean;
@@ -15,7 +15,7 @@ export default function HeaderMobileToggle({
     return (
         <button
             type="button"
-            className={`${siteBtnIcon} md:hidden`}
+            className={`${headerBtnIcon} md:hidden`}
             onClick={onClickAction}
             aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
         >
