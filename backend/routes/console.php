@@ -24,7 +24,7 @@ Schedule::command('shop:advance-waiting-discount-delivery-date')
     ->dailyAt('00:01')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
-    ->runInBackground();
+    ->onOneServer();
 
 Schedule::command('catalog:warm-cache --pages=3')
     ->dailyAt('03:30')

@@ -3,12 +3,17 @@
 namespace Modules\Settings\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Modules\Communications\Jobs\SendTelegramMessageJob;
 use Modules\Settings\Services\ShopSettingService;
 use Modules\Settings\Support\WaitingDiscountDeliveryDate;
 
 class AdvanceWaitingDiscountDeliveryDateCommand extends Command
 {
+    private const LOCK_KEY = 'shop:advance-waiting-discount-delivery-date';
+
+    private const LOCK_SECONDS = 60;
+
     protected $signature = 'shop:advance-waiting-discount-delivery-date
         {--dry-run : Проверить без сохранения и без Telegram}';
 
@@ -36,30 +41,42 @@ class AdvanceWaitingDiscountDeliveryDateCommand extends Command
             return self::SUCCESS;
         }
 
-        $change = $settings->advanceWaitingDiscountDeliveryDateIfPast();
+        $lock = Cache::lock(self::LOCK_KEY, self::LOCK_SECONDS);
 
-        if ($change === null) {
-            $this->info('Дата актуальна — изменений не требуется.');
+        if (! $lock->get()) {
+            $this->info('Другой процесс уже выполняет обновление — пропускаем.');
 
             return self::SUCCESS;
         }
 
-        $message = implode("\n", [
-            '📅 Дата отправки товаров под заказ (скидка 3%) обновлена автоматически',
-            "Было: {$change['from']}",
-            "Стало: {$change['to']}",
-        ]);
+        try {
+            $change = $settings->advanceWaitingDiscountDeliveryDateIfPast();
 
-        $this->info("Обновлено: {$change['from']} → {$change['to']}");
+            if ($change === null) {
+                $this->info('Дата актуальна — изменений не требуется.');
 
-        SendTelegramMessageJob::dispatchSync($message, [
-            'type' => 'waiting_discount_delivery_date_advanced',
-            'from' => $change['from'],
-            'to' => $change['to'],
-        ]);
+                return self::SUCCESS;
+            }
 
-        $this->info('Уведомление отправлено в Telegram.');
+            $message = implode("\n", [
+                '📅 Дата отправки товаров под заказ (скидка 3%) обновлена автоматически',
+                "Было: {$change['from']}",
+                "Стало: {$change['to']}",
+            ]);
 
-        return self::SUCCESS;
+            $this->info("Обновлено: {$change['from']} → {$change['to']}");
+
+            SendTelegramMessageJob::dispatchSync($message, [
+                'type' => 'waiting_discount_delivery_date_advanced',
+                'from' => $change['from'],
+                'to' => $change['to'],
+            ]);
+
+            $this->info('Уведомление отправлено в Telegram.');
+
+            return self::SUCCESS;
+        } finally {
+            $lock->release();
+        }
     }
 }
