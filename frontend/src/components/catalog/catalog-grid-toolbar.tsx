@@ -2,7 +2,7 @@
 
 import { ChevronDown, Check } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import {
@@ -74,7 +74,7 @@ export default function CatalogGridToolbar({
     mobileRightAction,
 }: Props) {
     const { navigate } = useCatalogNavigation();
-    const searchParams = useSearchParams();
+    const searchParams = useCatalogSearchParams();
     const currentSort = searchParams.get("sort") || "popular";
     const activeSectionChip = getActiveCatalogSectionChip(searchParams);
     const safeAttributes = useMemo(() => (Array.isArray(attributes) ? attributes : []), [attributes]);

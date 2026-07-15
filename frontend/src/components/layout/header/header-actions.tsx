@@ -1,9 +1,10 @@
 "use client";
 
 import type { RefObject } from "react";
+import { Suspense } from "react";
 import { Search } from "lucide-react";
 import HeaderAccountMenu from "@/components/layout/header/account-menu";
-import HeaderBurgerMenu from "@/components/layout/header/header-burger-menu";
+import HeaderBurgerMenu, { HeaderBurgerMenuFallback } from "@/components/layout/header/header-burger-menu";
 import HeaderCartButton from "@/components/layout/header/header-cart-button";
 import HeaderMobileToggle from "@/components/layout/header/header-mobile-toggle";
 import HeaderWishlistButton from "@/components/layout/header/header-wishlist-button";
@@ -77,13 +78,15 @@ export default function HeaderActions({
 
             <HeaderCartButton qty={cartQty} />
 
-            <HeaderBurgerMenu
-                links={burgerLinks}
-                isOpen={isBurgerOpen}
-                menuRef={burgerMenuRef}
-                onToggleAction={onToggleBurgerMenuAction}
-                onCloseAction={onCloseBurgerMenuAction}
-            />
+            <Suspense fallback={<HeaderBurgerMenuFallback />}>
+                <HeaderBurgerMenu
+                    links={burgerLinks}
+                    isOpen={isBurgerOpen}
+                    menuRef={burgerMenuRef}
+                    onToggleAction={onToggleBurgerMenuAction}
+                    onCloseAction={onCloseBurgerMenuAction}
+                />
+            </Suspense>
 
             <HeaderMobileToggle
                 isOpen={isMobileOpen}

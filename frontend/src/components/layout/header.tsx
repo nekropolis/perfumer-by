@@ -6,7 +6,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
-import HeaderNav from "@/components/layout/header/header-nav";
+import HeaderNav, { HeaderNavFallback } from "@/components/layout/header/header-nav";
 import HeaderServiceBar from "@/components/layout/header/header-service-bar";
 import { useHeaderSearch } from "@/components/layout/header/use-header-search";
 import {
@@ -433,7 +433,7 @@ export default function Header() {
                 />
             </div>
 
-            <Suspense fallback={null}>
+            <Suspense fallback={<HeaderNavFallback isCompact={false} links={HEADER_CATEGORY_PILLS} />}>
                 <HeaderNav isCompact={false} links={HEADER_CATEGORY_PILLS} />
             </Suspense>
 

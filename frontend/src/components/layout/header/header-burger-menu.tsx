@@ -16,6 +16,16 @@ type HeaderBurgerMenuProps = {
     onCloseAction: () => void;
 };
 
+export function HeaderBurgerMenuFallback() {
+    return (
+        <div className="relative hidden md:block" aria-hidden>
+            <button type="button" className={headerBtnIcon} tabIndex={-1}>
+                <Menu className="h-5 w-5" />
+            </button>
+        </div>
+    );
+}
+
 export default function HeaderBurgerMenu({
     links,
     isOpen,

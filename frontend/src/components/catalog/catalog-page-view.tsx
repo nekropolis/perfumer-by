@@ -1,10 +1,10 @@
-import { Suspense } from "react";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import CatalogFilters from "@/components/catalog/catalog-filters";
 import CatalogMobileFiltersDrawer from "@/components/catalog/catalog-mobile-filters-drawer";
 import CatalogPagination from "@/components/catalog/catalog-pagination";
 import CatalogGridToolbar from "@/components/catalog/catalog-grid-toolbar";
 import { CatalogNavigationProvider } from "@/components/catalog/catalog-navigation";
+import { CatalogSearchParamsProvider } from "@/components/catalog/catalog-search-params";
 import CatalogResultsOverlay from "@/components/catalog/catalog-results-overlay";
 import ProductCard from "@/components/product/product-card";
 import type { CatalogBrandItem, CatalogFilterAttribute, ProductsResponse } from "@/types/catalog";
@@ -33,6 +33,7 @@ type Props = {
         attributes: CatalogFilterAttribute[];
     };
     queryString: string;
+    searchQueryString: string;
     currentPage: number;
     basePath: string;
     footerDescriptionHtml?: string | null;
@@ -50,31 +51,6 @@ function productsCountLabel(count: number): string {
     return "товаров";
 }
 
-function CatalogToolbarSkeleton() {
-    return (
-        <div
-            className="sticky z-[110] border-b border-admin-border bg-[var(--background)] py-3"
-            style={{ top: "var(--catalog-toolbar-sticky-top)" }}
-        >
-            <div className="h-10 animate-pulse rounded-full bg-admin-muted" />
-        </div>
-    );
-}
-
-function CatalogAsideFiltersSkeleton() {
-    return (
-        <aside className="hidden self-start lg:block">
-            <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
-                <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                        <div key={index} className="h-9 animate-pulse rounded-lg bg-admin-muted" />
-                    ))}
-                </div>
-            </div>
-        </aside>
-    );
-}
-
 export default function CatalogPageView({
     title,
     intro,
@@ -83,6 +59,7 @@ export default function CatalogPageView({
     brands,
     filters,
     queryString,
+    searchQueryString,
     currentPage,
     basePath,
     footerDescriptionHtml,
@@ -105,8 +82,8 @@ export default function CatalogPageView({
                 ) : null}
             </div>
 
-            <CatalogNavigationProvider>
-                <Suspense fallback={<CatalogToolbarSkeleton />}>
+            <CatalogSearchParamsProvider queryString={searchQueryString}>
+                <CatalogNavigationProvider>
                     <CatalogGridToolbar
                         basePath={basePath}
                         brands={brands}
@@ -125,10 +102,8 @@ export default function CatalogPageView({
                             />
                         }
                     />
-                </Suspense>
 
-                <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
-                    <Suspense fallback={<CatalogAsideFiltersSkeleton />}>
+                    <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
                         <aside className="hidden self-start lg:block">
                             <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
                                 <CatalogFilters
@@ -141,7 +116,6 @@ export default function CatalogPageView({
                                 />
                             </div>
                         </aside>
-                    </Suspense>
 
                     <section className="min-w-0">
                         <div className="mb-4 text-sm text-admin-text-secondary">
@@ -189,7 +163,8 @@ export default function CatalogPageView({
                         </div>
                     </section>
                 </div>
-            </CatalogNavigationProvider>
+                </CatalogNavigationProvider>
+            </CatalogSearchParamsProvider>
 
             {footerDescriptionHtml?.trim() ? (
                 <section className="mt-10 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">

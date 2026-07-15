@@ -101,6 +101,7 @@ export default async function CatalogPage({
                     attributes: normalizeList(filters.data?.attributes),
                 }}
                 queryString={paginationQuery.toString()}
+                searchQueryString={query.toString()}
                 currentPage={currentPage}
                 basePath="/catalog"
             />

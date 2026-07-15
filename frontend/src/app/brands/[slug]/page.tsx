@@ -143,6 +143,7 @@ export default async function BrandPage({
                     attributes: normalizeList(filters.data?.attributes),
                 }}
                 queryString={paginationQuery.toString()}
+                searchQueryString={productsQuery.toString()}
                 currentPage={currentPage}
                 basePath={`/brands/${slug}`}
                 footerDescriptionHtml={brand.data.description}

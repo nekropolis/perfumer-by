@@ -1,10 +1,10 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { useEffect, useRef, type RefObject } from "react";
+import { Suspense, useEffect, useRef, type RefObject } from "react";
 import HeaderActions from "@/components/layout/header/header-actions";
 import HeaderLogo from "@/components/layout/header/header-logo";
-import HeaderMainNav from "@/components/layout/header/header-main-nav";
+import HeaderMainNav, { HeaderMainNavFallback } from "@/components/layout/header/header-main-nav";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import HeaderSearch from "@/components/layout/header/header-search";
 import type { HeaderNavLink, HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
@@ -131,7 +131,9 @@ export default function HeaderMainRow({
                         onSuggestedQueryAction={onSuggestedQueryAction}
                     />
 
-                    <HeaderMainNav links={mainNavLinks} />
+                    <Suspense fallback={<HeaderMainNavFallback links={mainNavLinks} />}>
+                        <HeaderMainNav links={mainNavLinks} />
+                    </Suspense>
 
                     <HeaderActions
                         wishlistQty={wishlistQty}

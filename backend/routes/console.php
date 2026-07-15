@@ -25,3 +25,9 @@ Schedule::command('shop:advance-waiting-discount-delivery-date')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('catalog:warm-cache --pages=3')
+    ->dailyAt('03:30')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->runInBackground();

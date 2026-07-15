@@ -15,16 +15,17 @@ export default function RecentlyViewedProductCard({ product }: Props) {
             href={`/${product.slug}`}
             className="flex h-full min-w-0 w-full items-start gap-2 rounded-lg border border-admin-border bg-admin-surface px-2 py-1.5 transition hover:border-admin-border-strong hover:bg-admin-bg active:scale-[0.99]"
         >
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-admin-muted">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-white">
                 {imagePath ? (
                     <Image
                         src={imagePath}
                         loader={productImageLoader}
                         alt={product.name}
-                        fill
+                        width={36}
+                        height={36}
                         loading="lazy"
                         sizes="36px"
-                        className="object-contain"
+                        className="h-full w-full object-contain"
                     />
                 ) : (
                     <div className="flex h-full items-center justify-center text-[9px] text-admin-text-muted">

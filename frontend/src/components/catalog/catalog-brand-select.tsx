@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem } from "@/types/catalog";
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 
 export default function CatalogBrandSelect({ brands, selectedBrandId, basePath = "/catalog" }: Props) {
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const searchParams = useCatalogSearchParams();
 
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");

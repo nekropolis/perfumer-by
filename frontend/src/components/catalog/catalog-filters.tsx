@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useOptimistic, useState, type RefObject } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
@@ -46,7 +46,7 @@ export default function CatalogFilters({
     priceApplyRef,
 }: Props) {
     const { navigate } = useCatalogNavigation();
-    const searchParams = useSearchParams();
+    const searchParams = useCatalogSearchParams();
 
     const [priceMinDraft, setPriceMinDraft] = useState(searchParams.get("price_min") ?? "");
     const [priceMaxDraft, setPriceMaxDraft] = useState(searchParams.get("price_max") ?? "");

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import { SlidersHorizontal } from "lucide-react";
 import CatalogFilters from "@/components/catalog/catalog-filters";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
@@ -120,7 +120,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
     const [sheetState, setSheetState] = useState<"open" | "closed">("closed");
     const closeAfterTransitionRef = useRef(false);
     const compact = props.compact ?? false;
-    const searchParams = useSearchParams();
+    const searchParams = useCatalogSearchParams();
     const { navigate } = useCatalogNavigation();
     const priceApplyRef = useRef<(() => void) | null>(null);
 

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,15 +8,14 @@ export default function HeaderLogo() {
     const isHomePage = pathname === "/";
 
     const logoImage = (
-        <Image
+        <img
             src="/logo-dark.svg"
             alt="Perfumer"
-            width={934}
-            height={356}
-            sizes="(max-width: 640px) 112px, (max-width: 768px) 128px, 168px"
+            width={168}
+            height={64}
+            decoding="async"
+            fetchPriority="high"
             className="h-auto w-[112px] object-contain sm:w-[128px] md:w-[168px]"
-            priority
-            unoptimized
         />
     );
 

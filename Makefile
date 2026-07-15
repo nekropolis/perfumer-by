@@ -42,9 +42,17 @@ install-back:
 build:
 	cd $(FRONTEND) && rm -rf .next && $(NPM) run build
 
+FRONTEND_PREPARE_CSS = \
+	if [ -f "$(FRONTEND)/postcss.config.mjs" ]; then \
+		echo "Removing broken frontend/postcss.config.mjs (Tailwind v4 stub without v4 installed)..."; \
+		rm -f "$(FRONTEND)/postcss.config.mjs"; \
+	fi; \
+	rm -rf "$(FRONTEND)/.next"
+
 dev:
 	@$(MAKE) dev-check-api
 	@$(MAKE) dev-stop
+	@$(FRONTEND_PREPARE_CSS)
 	@if command -v $(PM2) >/dev/null 2>&1; then \
 		echo "Stopping prod frontend on :3000 if running (otherwise next dev jumps to 3001)..."; \
 		$(PM2) stop $(FRONT_PROD_NAME) >/dev/null 2>&1 || true; \
@@ -91,10 +99,11 @@ dev-stop:
 prod:
 	@echo "Stopping old prod process..."
 	-$(PM2) delete $(FRONT_PROD_NAME) >/dev/null 2>&1 || true
+	@$(FRONTEND_PREPARE_CSS)
 	@echo "Installing frontend deps..."
 	cd $(FRONTEND) && $(NPM) install
 	@echo "Building frontend..."
-	cd $(FRONTEND) && rm -rf .next && $(NPM) run build
+	cd $(FRONTEND) && $(NPM) run build
 	@echo "Starting frontend prod..."
 	cd $(FRONTEND) && $(PM2) start npm --name $(FRONT_PROD_NAME) -- run start
 	$(PM2) save
