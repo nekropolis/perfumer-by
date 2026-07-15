@@ -60,11 +60,31 @@ export function buildBrandProductsQuery(slug: string, sp: Record<string, string 
     const priceMin = sp?.price_min ? String(sp.price_min) : "";
     const priceMax = sp?.price_max ? String(sp.price_max) : "";
     const volume = sp?.volume ? String(sp.volume) : "";
+    const sale = sp?.sale ? String(sp.sale) : "";
+    const isNew = sp?.new ? String(sp.new) : "";
+    const isHit = sp?.hit ? String(sp.hit) : "";
+    const gender = sp?.gender ? String(sp.gender) : "";
 
     const query = new URLSearchParams();
     query.set("page", String(currentPage));
     query.set("brand_slug", slug);
     query.set("sort", sort);
+    if (sale) {
+        query.set("sale", sale);
+    }
+    if (isNew) {
+        query.set("new", isNew);
+    }
+    if (isHit) {
+        query.set("hit", isHit);
+    }
+    if (gender === "female") {
+        query.set("attr_2", String(CATALOG_GENDER_OPTION_IDS.female));
+    } else if (gender === "male") {
+        query.set("attr_2", String(CATALOG_GENDER_OPTION_IDS.male));
+    } else if (gender === "unisex") {
+        query.set("attr_2", String(CATALOG_GENDER_OPTION_IDS.unisex));
+    }
     if (priceMin) {
         query.set("price_min", priceMin);
     }
@@ -76,6 +96,10 @@ export function buildBrandProductsQuery(slug: string, sp: Record<string, string 
     }
     for (const [key, value] of Object.entries(sp || {})) {
         if (!key.startsWith("attr_") || !value) {
+            continue;
+        }
+        // gender chip already maps to attr_2 — don't overwrite with empty/conflict from URL
+        if (key === "attr_2" && (gender === "female" || gender === "male" || gender === "unisex")) {
             continue;
         }
         query.set(key, String(value));
@@ -144,6 +168,7 @@ export function getActiveCatalogGender(
 const CATALOG_NON_FACET_QUERY_KEYS = new Set<string>([
     "page",
     "sort",
+    "brand_slug",
     ...CATALOG_MENU_QUERY_PARAMS,
 ]);
 

@@ -67,7 +67,8 @@ export default function CatalogPageView({
     const lastPage = products.meta?.last_page ?? 1;
     const showBrand = !basePath.includes("/brands/");
     const productsTotal = products.meta?.total ?? products.data.length;
-    const showCategoryChips = basePath === "/catalog";
+    const showCategoryChips = basePath === "/catalog" || basePath.startsWith("/brands/");
+    const showResetFilters = showBrand;
 
     return (
         <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
@@ -89,6 +90,7 @@ export default function CatalogPageView({
                         brands={brands}
                         attributes={filters.attributes}
                         showCategoryChips={showCategoryChips}
+                        showResetFilters={showResetFilters}
                         mobileRightAction={
                             <CatalogMobileFiltersDrawer
                                 compact
@@ -113,6 +115,7 @@ export default function CatalogPageView({
                                     attributes={filters.attributes}
                                     priceRange={filters.price}
                                     volumeOptions={filters.volume}
+                                    hideReset={!showResetFilters}
                                 />
                             </div>
                         </aside>

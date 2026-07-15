@@ -23,6 +23,7 @@ type Props = {
     brands: CatalogBrandItem[];
     attributes: CatalogFilterAttribute[];
     showCategoryChips?: boolean;
+    showResetFilters?: boolean;
     mobileRightAction?: ReactNode;
 };
 
@@ -71,6 +72,7 @@ export default function CatalogGridToolbar({
     brands,
     attributes,
     showCategoryChips = false,
+    showResetFilters = true,
     mobileRightAction,
 }: Props) {
     const { navigate } = useCatalogNavigation();
@@ -322,7 +324,7 @@ export default function CatalogGridToolbar({
                     {sortControl}
                 </div>
 
-                {hasChips || hasActiveFilters ? (
+                {hasChips || (showResetFilters && hasActiveFilters) ? (
                     <div className="flex min-w-0 items-center gap-3">
                         {hasChips ? (
                             <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -342,7 +344,7 @@ export default function CatalogGridToolbar({
                             <div className="min-w-0 flex-1" />
                         )}
 
-                        {hasActiveFilters ? (
+                        {showResetFilters && hasActiveFilters ? (
                             <button
                                 type="button"
                                 onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
