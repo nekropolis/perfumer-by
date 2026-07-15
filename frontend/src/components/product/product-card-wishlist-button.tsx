@@ -19,7 +19,7 @@ export default function ProductCardWishlistButton({ productId }: Props) {
                 void toggleWishlist(productId);
             }}
             aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-            className={`absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:scale-110 active:scale-95 ${inWishlist
+            className={`absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-150 hover:scale-110 active:scale-95 ${inWishlist
                 ? "border-admin-primary/30 bg-admin-primary text-white shadow-sm"
                 : "border-admin-border bg-white/95 text-admin-text backdrop-blur hover:bg-admin-muted"
                 }`}

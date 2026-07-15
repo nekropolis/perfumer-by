@@ -57,9 +57,9 @@ export default function ProductCardBody({
     return (
         <Link
             href={productHref}
-            className={`${siteCard} group relative flex h-full min-w-0 flex-col transition active:scale-[0.99] ${
+            className={`${siteCard} group relative flex h-full min-w-0 flex-col transition duration-200 ease-out active:scale-[0.99] ${
                 isCatalog
-                    ? "p-2 hover:border-admin-border-strong sm:p-3 lg:p-4"
+                    ? "origin-center p-2 hover:z-10 hover:scale-[1.03] hover:border-admin-border-strong hover:shadow-md sm:p-3 lg:p-4"
                     : "p-3 hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md sm:p-4"
             }`}
         >
@@ -81,7 +81,7 @@ export default function ProductCardBody({
                 <div
                     className={
                         isCatalog
-                            ? "absolute right-1 top-1 z-10 origin-top-right scale-[0.88] sm:right-1.5 sm:top-1.5 sm:scale-100"
+                            ? "absolute right-0 top-0 z-10 origin-top-right scale-[0.88] sm:right-0.5 sm:top-0.5 sm:scale-100 [&_button]:static"
                             : undefined
                     }
                 >
@@ -122,38 +122,38 @@ export default function ProductCardBody({
                 </div>
 
                 {showVariants ? (
-                    <div className="flex min-h-[22px] flex-wrap items-center gap-1 sm:min-h-6">
+                    <div className="flex min-h-[18px] flex-wrap items-center gap-0.5 sm:min-h-5">
                         {visibleVariants.map((label, i) => (
                             <span
                                 key={`${label}-${i}`}
-                                className="inline-flex h-[22px] items-center justify-center rounded-md border border-admin-border bg-admin-muted px-1.5 text-[10px] font-semibold tabular-nums text-admin-text sm:h-6 sm:px-2 sm:text-[11px]"
+                                className="inline-flex h-[18px] items-center justify-center rounded border border-admin-border bg-admin-muted px-1 text-[9px] font-semibold tabular-nums text-admin-text sm:h-5 sm:px-1.5 sm:text-[10px]"
                             >
                                 {formatVariantChipLabel(label)}
                             </span>
                         ))}
                         {hiddenVariantsCount > 0 ? (
-                            <span className="inline-flex h-[22px] items-center justify-center rounded-md border border-dashed border-admin-border px-1.5 text-[10px] font-semibold text-admin-text-secondary sm:h-6 sm:px-2 sm:text-[11px]">
+                            <span className="inline-flex h-[18px] items-center justify-center rounded border border-dashed border-admin-border px-1 text-[9px] font-semibold text-admin-text-secondary sm:h-5 sm:px-1.5 sm:text-[10px]">
                                 +{hiddenVariantsCount}
                             </span>
                         ) : null}
                     </div>
                 ) : isCatalog ? (
-                    <div aria-hidden className="min-h-[22px] sm:min-h-6" />
+                    <div aria-hidden className="min-h-[18px] sm:min-h-5" />
                 ) : null}
 
                 <div
                     className={
                         isCatalog
-                            ? "mt-auto flex items-end justify-between gap-1.5 pt-1.5 sm:pt-2"
+                            ? "mt-auto flex items-end justify-between gap-1 pt-1.5 sm:pt-2"
                             : "mt-auto flex items-end justify-between gap-2 pt-4"
                     }
                 >
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                        <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
                             <div
                                 className={
                                     isCatalog
-                                        ? "text-[15px] font-bold leading-none tracking-tight text-admin-text tabular-nums sm:text-base lg:text-lg"
+                                        ? "whitespace-nowrap text-[12px] font-bold leading-tight tracking-tight text-admin-text tabular-nums sm:text-[13px] lg:text-sm"
                                         : "text-base font-semibold text-admin-text sm:text-lg"
                                 }
                             >
@@ -163,7 +163,7 @@ export default function ProductCardBody({
                                 <div
                                     className={
                                         isCatalog
-                                            ? "text-[11px] text-admin-text-secondary line-through sm:text-xs"
+                                            ? "whitespace-nowrap text-[10px] text-admin-text-secondary line-through sm:text-[11px]"
                                             : "text-sm text-admin-text-secondary line-through"
                                     }
                                 >
@@ -178,7 +178,7 @@ export default function ProductCardBody({
                         aria-hidden
                         className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white ${
                             isCatalog
-                                ? "hidden h-8 w-8 lg:flex"
+                                ? "hidden h-7 w-7 lg:flex"
                                 : "h-8 w-8 sm:h-9 sm:w-9"
                         }`}
                         title="Перейти к товару"

@@ -322,31 +322,35 @@ export default function CatalogGridToolbar({
                     {sortControl}
                 </div>
 
-                {hasActiveFilters ? (
-                    <div className="flex items-center justify-end">
-                        <button
-                            type="button"
-                            onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
-                            className="text-xs font-medium text-admin-text-secondary transition hover:text-admin-text"
-                        >
-                            Сбросить фильтры
-                        </button>
-                    </div>
-                ) : null}
+                {hasChips || hasActiveFilters ? (
+                    <div className="flex min-w-0 items-center gap-3">
+                        {hasChips ? (
+                            <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                                {activeChips.map((chip) => (
+                                    <button
+                                        key={chip.id}
+                                        type="button"
+                                        onClick={chip.removeAction}
+                                        className={`${siteFilterChip} ${siteFilterChipInactive} text-xs`}
+                                        title="Убрать фильтр"
+                                    >
+                                        {chip.label} ×
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="min-w-0 flex-1" />
+                        )}
 
-                {hasChips ? (
-                    <div className="flex flex-wrap gap-2">
-                        {activeChips.map((chip) => (
+                        {hasActiveFilters ? (
                             <button
-                                key={chip.id}
                                 type="button"
-                                onClick={chip.removeAction}
-                                className={`${siteFilterChip} ${siteFilterChipInactive} text-xs`}
-                                title="Убрать фильтр"
+                                onClick={() => navigate(buildCatalogFacetedFiltersResetPath(basePath, searchParams))}
+                                className="shrink-0 text-xs font-medium text-admin-text-secondary transition hover:text-admin-text"
                             >
-                                {chip.label} ×
+                                Сбросить фильтры
                             </button>
-                        ))}
+                        ) : null}
                     </div>
                 ) : null}
             </div>
