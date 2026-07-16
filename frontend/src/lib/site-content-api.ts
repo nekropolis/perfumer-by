@@ -1,5 +1,11 @@
 import { getApiBase } from "@/lib/api";
 
+export type HomePopularBrand = {
+    id: number;
+    name: string;
+    slug: string;
+};
+
 /** Публичные данные для шапки/подвала и др. (см. PublicSiteContentController). */
 export type SiteContent = {
     delivery_minsk_free_threshold: number;
@@ -12,6 +18,8 @@ export type SiteContent = {
     contact_telegram_url: string;
     contact_viber_url: string;
     waiting_discount_delivery_date: string;
+    home_popular_brands: HomePopularBrand[];
+    search_popular_brands: HomePopularBrand[];
 };
 
 export type SiteContentResponse = {
@@ -30,6 +38,8 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
     waiting_discount_delivery_date: "10.07.2026",
+    home_popular_brands: [],
+    search_popular_brands: [],
 };
 
 type FetchSiteContentOptions = {
@@ -54,5 +64,18 @@ export async function fetchSiteContent(options?: FetchSiteContentOptions): Promi
         throw new Error(text || `Site content API error: ${res.status}`);
     }
 
-    return res.json() as Promise<SiteContentResponse>;
+    const json = (await res.json()) as SiteContentResponse;
+
+    return {
+        data: {
+            ...DEFAULT_SITE_CONTENT,
+            ...json.data,
+            home_popular_brands: Array.isArray(json.data?.home_popular_brands)
+                ? json.data.home_popular_brands
+                : [],
+            search_popular_brands: Array.isArray(json.data?.search_popular_brands)
+                ? json.data.search_popular_brands
+                : [],
+        },
+    };
 }

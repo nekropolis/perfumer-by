@@ -4,11 +4,20 @@ namespace Modules\Settings\Services;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
+use Modules\Catalog\Models\Brand;
 use Modules\Settings\Models\ShopSetting;
 use Modules\Settings\Support\WaitingDiscountDeliveryDate;
 
 class ShopSettingService
 {
+    public const HOME_POPULAR_BRAND_IDS_KEY = 'home_popular_brand_ids';
+
+    public const SEARCH_POPULAR_BRAND_IDS_KEY = 'search_popular_brand_ids';
+
+    public const HOME_POPULAR_BRANDS_MAX = 5;
+
+    public const SEARCH_POPULAR_BRANDS_MAX = 8;
+
     private const PUBLIC_SETTINGS_CACHE_KEY = 'settings:shop-settings:all-map';
 
     private const PUBLIC_SETTINGS_CACHE_TTL_SECONDS = 300;
@@ -68,7 +77,7 @@ class ShopSettingService
     /**
      * Доставка + контакты для витрины (шапка, /site/content).
      *
-     * @return array<string, float|int|string>
+     * @return array<string, float|int|string|list<array{id: int, name: string, slug: string}>>
      */
     public function publicSiteContent(): array
     {
@@ -82,7 +91,98 @@ class ShopSettingService
                 WaitingDiscountDeliveryDate::SETTING_KEY,
                 WaitingDiscountDeliveryDate::DEFAULT
             ),
+            'home_popular_brands' => $this->homePopularBrands(),
+            'search_popular_brands' => $this->searchPopularBrands(),
         ]);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function homePopularBrandIds(): array
+    {
+        return $this->brandIdsFromSetting(self::HOME_POPULAR_BRAND_IDS_KEY, self::HOME_POPULAR_BRANDS_MAX);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, slug: string}>
+     */
+    public function homePopularBrands(): array
+    {
+        return $this->resolveActiveBrands($this->homePopularBrandIds());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function searchPopularBrandIds(): array
+    {
+        return $this->brandIdsFromSetting(self::SEARCH_POPULAR_BRAND_IDS_KEY, self::SEARCH_POPULAR_BRANDS_MAX);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, slug: string}>
+     */
+    public function searchPopularBrands(): array
+    {
+        return $this->resolveActiveBrands($this->searchPopularBrandIds());
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function brandIdsFromSetting(string $key, int $max): array
+    {
+        $raw = $this->get($key, '[]');
+        $decoded = json_decode((string) $raw, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($decoded as $value) {
+            $id = (int) $value;
+            if ($id > 0 && ! in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+            if (count($ids) >= $max) {
+                break;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return list<array{id: int, name: string, slug: string}>
+     */
+    private function resolveActiveBrands(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $byId = Brand::query()
+            ->whereIn('id', $ids)
+            ->where('is_active', true)
+            ->get(['id', 'name', 'slug'])
+            ->keyBy('id');
+
+        $result = [];
+        foreach ($ids as $id) {
+            $brand = $byId->get($id);
+            if ($brand === null) {
+                continue;
+            }
+            $result[] = [
+                'id' => (int) $brand->id,
+                'name' => (string) $brand->name,
+                'slug' => (string) $brand->slug,
+            ];
+        }
+
+        return $result;
     }
 
     /**

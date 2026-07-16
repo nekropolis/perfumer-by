@@ -14,7 +14,7 @@ class CatalogApiCacheService
     public const VERSION_KEY = 'catalog:api:version';
     public const SEARCH_VERSION_KEY = 'catalog:search:version';
     public const TTL_SECONDS = 900;
-    private const SCHEMA_VERSION = 15;
+    private const SCHEMA_VERSION = 16;
 
     private int $deferDepth = 0;
     private bool $invalidationPending = false;
@@ -268,13 +268,27 @@ class CatalogApiCacheService
 
     public function bumpVersion(): int
     {
+        return $this->bumpVersionDetailed()['version'];
+    }
+
+    /**
+     * @return array{
+     *     version: int,
+     *     storefront: array{status: 'ok'|'skipped'|'failed', message: string|null}
+     * }
+     */
+    public function bumpVersionDetailed(): array
+    {
         $next = $this->version() + 1;
         Cache::forever(self::VERSION_KEY, $next);
         Cache::forever(self::SEARCH_VERSION_KEY, $this->searchVersion() + 1);
-        $this->triggerStorefrontRevalidation();
+        $storefront = $this->triggerStorefrontRevalidation();
         $this->scheduleFacetAggregatesWarmup();
 
-        return $next;
+        return [
+            'version' => $next,
+            'storefront' => $storefront,
+        ];
     }
 
     private function scheduleFacetAggregatesWarmup(): void
@@ -305,11 +319,18 @@ class CatalogApiCacheService
         return (int) Cache::get(self::SEARCH_VERSION_KEY, 1);
     }
 
-    private function triggerStorefrontRevalidation(): void
+    /**
+     * @return array{status: 'ok'|'skipped'|'failed', message: string|null}
+     */
+    private function triggerStorefrontRevalidation(): array
     {
         try {
-            app(CatalogStorefrontRevalidationService::class)->revalidateCatalog();
-        } catch (Throwable) {
+            return app(CatalogStorefrontRevalidationService::class)->revalidateCatalog();
+        } catch (Throwable $e) {
+            return [
+                'status' => 'failed',
+                'message' => $e->getMessage(),
+            ];
         }
     }
 

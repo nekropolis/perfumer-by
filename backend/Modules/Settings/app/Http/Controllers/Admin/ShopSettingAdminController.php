@@ -23,6 +23,8 @@ class ShopSettingAdminController extends Controller
                 'contact_telegram_url' => (string) $settings->get('contact_telegram_url', 'https://t.me/perfumer_support'),
                 'contact_viber_url' => (string) $settings->get('contact_viber_url', 'viber://chat?number=%2B375296408833'),
                 'waiting_discount_delivery_date' => (string) $settings->get('waiting_discount_delivery_date', '10.07.2026'),
+                'home_popular_brands' => $settings->homePopularBrands(),
+                'search_popular_brands' => $settings->searchPopularBrands(),
             ],
         ]);
     }
@@ -40,6 +42,10 @@ class ShopSettingAdminController extends Controller
             'contact_telegram_url' => ['nullable', 'string', 'max:512'],
             'contact_viber_url' => ['nullable', 'string', 'max:512'],
             'waiting_discount_delivery_date' => ['nullable', 'string', 'max:64'],
+            'home_popular_brand_ids' => ['sometimes', 'array', 'max:'.ShopSettingService::HOME_POPULAR_BRANDS_MAX],
+            'home_popular_brand_ids.*' => ['integer', 'distinct', 'exists:brands,id'],
+            'search_popular_brand_ids' => ['sometimes', 'array', 'max:'.ShopSettingService::SEARCH_POPULAR_BRANDS_MAX],
+            'search_popular_brand_ids.*' => ['integer', 'distinct', 'exists:brands,id'],
         ]);
 
         $map = [];
@@ -62,6 +68,16 @@ class ShopSettingAdminController extends Controller
                 continue;
             }
             $map[$key] = $validated[$key];
+        }
+
+        if (array_key_exists('home_popular_brand_ids', $validated)) {
+            $ids = array_values(array_map('intval', $validated['home_popular_brand_ids']));
+            $map[ShopSettingService::HOME_POPULAR_BRAND_IDS_KEY] = json_encode($ids);
+        }
+
+        if (array_key_exists('search_popular_brand_ids', $validated)) {
+            $ids = array_values(array_map('intval', $validated['search_popular_brand_ids']));
+            $map[ShopSettingService::SEARCH_POPULAR_BRAND_IDS_KEY] = json_encode($ids);
         }
 
         if ($map !== []) {

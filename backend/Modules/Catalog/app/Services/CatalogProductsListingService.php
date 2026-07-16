@@ -168,6 +168,7 @@ class CatalogProductsListingService
 
         CatalogProductQueryFilters::applyVariantPriceFilters($query, $request);
         CatalogProductQueryFilters::applyVariantVolumeFilters($query, $request);
+        CatalogProductQueryFilters::applyVariantTypeFlagFilters($query, $request);
 
         $sort = $request->string('sort')->toString();
 
@@ -203,6 +204,10 @@ class CatalogProductsListingService
     }
 
     /**
+     * Popular sort already ranks products (main warehouse → supplier → preorder).
+     * In the card keep every storefront-available variant (warehouse + offer + preorder),
+     * not only the priority stock channel.
+     *
      * @param  Collection<int, Product>  $products
      * @return Collection<int, Product>
      */
@@ -223,36 +228,19 @@ class CatalogProductsListingService
 
         foreach ($products as $product) {
             $variants = $this->listingVariants($product);
-            if ($variants->isEmpty()) {
+            if ($variants->isEmpty() || (bool) $product->is_out_of_stock) {
                 continue;
             }
 
-            if ((bool) $product->is_out_of_stock) {
-                continue;
-            }
-
-            $hasMainStock = $variants->contains(function (ProductVariantLink $variant) use ($stockContext): bool {
-                return $this->variantHasMainWarehouseAvailableStock($stockContext, $variant);
-            });
-
-            if ($hasMainStock) {
-                $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext): bool {
-                    return !(bool) $variant->is_preorder
-                        && $this->variantHasMainWarehouseAvailableStock($stockContext, $variant);
-                });
-            } else {
-                $hasSupplierListing = $variants->contains(function (ProductVariantLink $variant) use ($stockContext): bool {
-                    return $this->variantHasSupplierListingAvailability($stockContext, $variant);
-                });
-
-                if ($hasSupplierListing) {
-                    $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext): bool {
-                        return $this->variantHasSupplierListingAvailability($stockContext, $variant);
-                    });
-                } else {
-                    $filtered = $variants->filter(static fn (ProductVariantLink $variant): bool => (bool) $variant->is_preorder);
+            $filtered = $variants->filter(function (ProductVariantLink $variant) use ($stockContext): bool {
+                if ((bool) $variant->is_preorder) {
+                    return true;
                 }
-            }
+
+                $presented = $stockContext->presentedForListing($variant);
+
+                return (bool) ($presented['is_available'] ?? false);
+            });
 
             if ($filtered->isNotEmpty()) {
                 $this->setListingVariants($product, $filtered->values());
@@ -294,30 +282,4 @@ class CatalogProductsListingService
         }
     }
 
-    private function variantHasMainWarehouseAvailableStock(
-        CatalogListingStockContext $stockContext,
-        ProductVariantLink $variant,
-    ): bool {
-        [$mainStock] = $stockContext->warehouseStocksForVariant($variant);
-
-        return $mainStock !== null
-            && max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0;
-    }
-
-    private function variantHasSupplierListingAvailability(
-        CatalogListingStockContext $stockContext,
-        ProductVariantLink $variant,
-    ): bool {
-        if ((bool) $variant->is_preorder) {
-            return false;
-        }
-
-        if ($this->variantHasMainWarehouseAvailableStock($stockContext, $variant)) {
-            return false;
-        }
-
-        $presented = $stockContext->presentedForListing($variant);
-
-        return (bool) ($presented['is_available'] ?? false);
-    }
 }

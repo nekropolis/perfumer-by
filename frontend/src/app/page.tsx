@@ -12,6 +12,7 @@ import {
 } from "@/lib/json-ld";
 import { fetchStoreReviews } from "@/lib/reviews-api";
 import { buildSeoMetadata } from "@/lib/seo";
+import { DEFAULT_SITE_CONTENT, fetchSiteContent } from "@/lib/site-content-api";
 
 export async function generateMetadata(): Promise<Metadata> {
     const page = await fetchCmsPageBySlug("glavnaya");
@@ -44,6 +45,14 @@ export default async function HomePage() {
         /* API недоступен или нет отзывов — главная без блока отзывов в JSON-LD */
     }
 
+    let popularBrands = DEFAULT_SITE_CONTENT.home_popular_brands;
+    try {
+        const site = await fetchSiteContent();
+        popularBrands = site.data.home_popular_brands ?? [];
+    } catch {
+        /* API недоступен — блок брендов скрыт */
+    }
+
     return (
         <>
             <JsonLd data={[homeStoreJsonLd(storeReviews), faqPageJsonLd(HOME_PAGE_FAQ_ITEMS)]} />
@@ -52,6 +61,7 @@ export default async function HomePage() {
                 heroDescription={heroDescription}
                 contentHtml={contentHtml}
                 storeReviews={storeReviews}
+                popularBrands={popularBrands}
             />
         </>
     );

@@ -13,7 +13,6 @@ import {
     HEADER_BURGER_LINKS,
     HEADER_CATEGORY_PILLS,
     HEADER_MAIN_LINKS,
-    HEADER_POPULAR_SEARCHES,
 } from "@/components/layout/header/config";
 import { useSiteContent } from "@/components/layout/site-content-context";
 import {
@@ -401,7 +400,7 @@ export default function Header() {
                     searchBrandResults={searchBrandResults}
                     suggestedQuery={suggestedQuery}
                     recentSearches={recentSearches}
-                    popularSearches={HEADER_POPULAR_SEARCHES}
+                    popularSearches={siteContent.search_popular_brands.map((b) => b.name)}
                     wishlistQty={wishlistQty}
                     cartQty={cartQty}
                     isAuthenticated={isAuthenticated}

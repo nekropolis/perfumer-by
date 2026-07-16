@@ -22,7 +22,22 @@ export type ShopContactSettings = {
     waiting_discount_delivery_date: string;
 };
 
-export type ShopSettings = ShopDeliverySettings & ShopContactSettings;
+export type ShopBrandOption = {
+    id: number;
+    name: string;
+    slug: string;
+};
+
+export type ShopSettings = ShopDeliverySettings &
+    ShopContactSettings & {
+        home_popular_brands: ShopBrandOption[];
+        search_popular_brands: ShopBrandOption[];
+    };
+
+export type ShopSettingsUpdatePayload = Partial<ShopDeliverySettings & ShopContactSettings> & {
+    home_popular_brand_ids?: number[];
+    search_popular_brand_ids?: number[];
+};
 
 function getAdminHeaders() {
     const token = typeof window !== "undefined" ? getAuthToken() : "";
@@ -41,13 +56,15 @@ export async function fetchAdminShopDeliverySettings(): Promise<{ data: ShopSett
     return res.json();
 }
 
-export async function updateAdminShopDeliverySettings(payload: Partial<ShopSettings>): Promise<{ data: ShopSettings }> {
+export async function updateAdminShopDeliverySettings(
+    payload: ShopSettingsUpdatePayload
+): Promise<{ data: ShopSettings }> {
     const res = await fetch(`${API_BASE}/admin/shop-settings`, {
         method: "PATCH",
         headers: getAdminHeaders(),
         body: JSON.stringify(payload),
         cache: "no-store",
     });
-    if (!res.ok) throw new Error(await res.text() || `Shop settings update error: ${res.status}`);
+    if (!res.ok) throw new Error((await res.text()) || `Shop settings update error: ${res.status}`);
     return res.json();
 }

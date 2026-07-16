@@ -9,27 +9,19 @@ type HomeTemplateProps = {
     heroDescription: string;
     contentHtml: string;
     storeReviews: HomePageReviewSnippet[];
+    popularBrands: { id: number; name: string; slug: string }[];
 };
 
 const categories = [
-    { title: "Женская парфюмерия", description: "Популярные и нишевые ароматы для неё", href: "/catalog?category=women" },
-    { title: "Мужская парфюмерия", description: "Классические и современные композиции", href: "/catalog?category=men" },
-    { title: "Тестеры и миниатюры", description: "Удобный формат для знакомства с ароматом", href: "/catalog?type=testers" },
+    { title: "Женская парфюмерия", description: "Популярные и нишевые ароматы для неё", href: "/catalog?gender=female" },
+    { title: "Мужская парфюмерия", description: "Классические и современные композиции", href: "/catalog?gender=male" },
+    { title: "Тестеры и миниатюры", description: "Удобный формат для знакомства с ароматом", href: "/catalog?tester=1&miniature=1" },
     { title: "Нишевая селекция", description: "Редкие композиции и коллекционные релизы", href: "/catalog?collection=niche" },
 ];
 
 const promos = [
     { title: "Сезонная подборка", description: "Тёплые шлейфовые композиции для вечера и прохладных дней.", href: "/catalog?sale=1" },
     { title: "Новые поступления", description: "Свежие релизы брендов, которые уже доступны в каталоге.", href: "/catalog?new=1" },
-];
-
-const brands = [
-    "Tom Ford",
-    "Maison Francis Kurkdjian",
-    "Xerjoff",
-    "Parfums de Marly",
-    "Byredo",
-    "Amouage",
 ];
 
 const trustItems = [
@@ -49,9 +41,9 @@ const featuredProducts = [
 const popularSearches = [
     { title: "Купить духи в Минске", href: "/catalog" },
     { title: "Нишевая парфюмерия", href: "/catalog?collection=niche" },
-    { title: "Женские духи", href: "/catalog?category=women" },
-    { title: "Мужские духи", href: "/catalog?category=men" },
-    { title: "Тестеры духов", href: "/catalog?type=testers" },
+    { title: "Женские духи", href: "/catalog?gender=female" },
+    { title: "Мужские духи", href: "/catalog?gender=male" },
+    { title: "Тестеры духов", href: "/catalog?tester=1&miniature=1" },
     { title: "Парфюмерия со скидкой", href: "/catalog?sale=1" },
 ];
 
@@ -79,7 +71,13 @@ function FeaturedProductCard({
     );
 }
 
-export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, storeReviews }: HomeTemplateProps) {
+export default function HomeTemplate({
+    heroTitle,
+    heroDescription,
+    contentHtml,
+    storeReviews,
+    popularBrands,
+}: HomeTemplateProps) {
     return (
         <>
             <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
@@ -158,23 +156,25 @@ export default function HomeTemplate({ heroTitle, heroDescription, contentHtml, 
                     </div>
                 </section>
 
-                <section className="mt-10">
-                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
-                        Популярные бренды
-                    </h2>
+                {popularBrands.length > 0 ? (
+                    <section className="mt-10">
+                        <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
+                            Популярные бренды
+                        </h2>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-                        {brands.map((brand) => (
-                            <Link
-                                key={brand}
-                                href={`/brands/${encodeURIComponent(brand.toLowerCase().replace(/\s+/g, "-"))}`}
-                                className={`${siteCard} flex min-h-[72px] items-center justify-center px-4 text-center text-sm font-semibold text-admin-text transition hover:border-admin-border-strong hover:bg-admin-muted`}
-                            >
-                                {brand}
-                            </Link>
-                        ))}
-                    </div>
-                </section>
+                        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+                            {popularBrands.map((brand) => (
+                                <Link
+                                    key={brand.id}
+                                    href={`/brands/${encodeURIComponent(brand.slug)}`}
+                                    className={`${siteCard} flex min-h-[72px] items-center justify-center px-4 text-center text-sm font-semibold text-admin-text transition hover:border-admin-border-strong hover:bg-admin-muted`}
+                                >
+                                    {brand.name}
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
 
                 <section className={`${siteCard} relative mt-10 overflow-hidden p-6 sm:p-8`}>
                     <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">

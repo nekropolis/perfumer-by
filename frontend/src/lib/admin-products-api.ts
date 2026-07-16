@@ -571,7 +571,36 @@ export async function deleteProduct(id: number) {
     return res.json();
 }
 
-export async function resetCatalogApiCache(): Promise<{ message?: string; cache_version?: number }> {
+export type ResetCatalogCacheResult = {
+    message: string;
+    cache_version?: number;
+    warmed?: boolean;
+    storefront_revalidated?: boolean;
+    storefront_revalidate_status?: "ok" | "skipped" | "failed";
+    storefront_revalidate_message?: string | null;
+    next_revalidated?: boolean;
+};
+
+function shortFetchError(status: number, body: string): string {
+    const trimmed = body.trim();
+    if (!trimmed) {
+        return `HTTP ${status}`;
+    }
+    if (trimmed.startsWith("<!") || trimmed.toLowerCase().startsWith("<html")) {
+        return `HTTP ${status} (HTML вместо JSON — проверьте путь revalidate)`;
+    }
+    try {
+        const json = JSON.parse(trimmed) as { message?: string };
+        if (typeof json.message === "string" && json.message.trim()) {
+            return json.message.trim();
+        }
+    } catch {
+        // plain text
+    }
+    return trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
+}
+
+export async function resetCatalogApiCache(): Promise<ResetCatalogCacheResult> {
     const res = await fetch(`${API_BASE}/admin/products/cache/reset`, {
         method: "POST",
         headers: getAdminHeaders(),
@@ -580,9 +609,46 @@ export async function resetCatalogApiCache(): Promise<{ message?: string; cache_
 
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `Reset catalog cache API error: ${res.status}`);
+        throw new Error(shortFetchError(res.status, text) || `Reset catalog cache API error: ${res.status}`);
     }
 
-    return res.json() as Promise<{ message?: string; cache_version?: number }>;
+    const backend = (await res.json()) as Omit<ResetCatalogCacheResult, "next_revalidated" | "message"> & {
+        message?: string;
+    };
+
+    // Outside /api — nginx proxies /api to Laravel; this must hit Next.js.
+    let nextRevalidated = false;
+    let nextError: string | null = null;
+    try {
+        const nextRes = await fetch("/actions/revalidate-catalog", {
+            method: "POST",
+            headers: getAdminHeaders(),
+            cache: "no-store",
+        });
+        if (nextRes.ok) {
+            nextRevalidated = true;
+        } else {
+            const text = await nextRes.text();
+            nextError = shortFetchError(nextRes.status, text);
+        }
+    } catch (e) {
+        nextError = e instanceof Error ? e.message : "Next revalidate failed";
+    }
+
+    const parts: string[] = [];
+    parts.push(backend.warmed === false ? "Кеш каталога сброшен, прогрев с ошибкой" : "Кеш каталога сброшен и прогрет");
+    if (nextRevalidated) {
+        parts.push("витрина обновлена");
+    } else if (nextError) {
+        parts.push(`витрина не обновлена: ${nextError}`);
+    } else if (backend.storefront_revalidate_status === "ok") {
+        parts.push("витрина обновлена");
+    }
+
+    return {
+        ...backend,
+        message: parts.join(". "),
+        next_revalidated: nextRevalidated,
+    };
 }
 

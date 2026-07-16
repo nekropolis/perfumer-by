@@ -141,23 +141,25 @@ export default function HeaderSearch({
                                         <div className="text-sm text-[var(--text-secondary)]">Пока пусто</div>
                                     )}
                                 </div>
-                                <div>
-                                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                                        Популярное
+                                {popularSearches.length > 0 ? (
+                                    <div>
+                                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                                            Популярное
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {popularSearches.map((item) => (
+                                                <button
+                                                    key={`popular-desktop-${item}`}
+                                                    type="button"
+                                                    onClick={() => onPopularSelectAction(item)}
+                                                    className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
+                                                >
+                                                    {item}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {popularSearches.map((item) => (
-                                            <button
-                                                key={`popular-desktop-${item}`}
-                                                type="button"
-                                                onClick={() => onPopularSelectAction(item)}
-                                                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
-                                            >
-                                                {item}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                                ) : null}
                             </div>
                         ) : searchBrandResults.length === 0 && searchResults.length === 0 ? (
                             <div className="px-3 py-3 text-sm text-[var(--text-secondary)]">

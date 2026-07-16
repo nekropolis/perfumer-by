@@ -31,6 +31,7 @@ final class CatalogProductQueryFilters
         self::applyAttributeFilters($query, $request);
         self::applyPriceFilters($query, $request);
         self::applyVolumeFilters($query, $request);
+        self::applyVariantTypeFilters($query, $request);
     }
 
     /**
@@ -443,6 +444,24 @@ final class CatalogProductQueryFilters
     }
 
     /**
+     * Filter products that have an in-stock variant marked as tester and/or miniature.
+     * When both flags are set, match either (OR).
+     *
+     * @param  Builder<Product>  $query
+     */
+    public static function applyVariantTypeFilters(Builder $query, Request $request): void
+    {
+        if ($request->input('tester') !== '1' && $request->input('miniature') !== '1') {
+            return;
+        }
+
+        $query->whereHas('variants', function (Builder $variantQuery) use ($request): void {
+            CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
+            self::applyVariantTypeFlagFilters($variantQuery, $request);
+        });
+    }
+
+    /**
      * @param  Builder<ProductVariantLink>  $query
      */
     public static function applyVariantPriceFilters(Builder $query, Request $request): void
@@ -486,6 +505,38 @@ final class CatalogProductQueryFilters
 
         $query->whereHas('definition', function ($definitionQuery) use ($selectedBuckets): void {
             self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+        });
+    }
+
+    /**
+     * @param  Builder<ProductVariantLink>  $query
+     */
+    public static function applyVariantTypeFlagFilters(Builder $query, Request $request): void
+    {
+        $wantTester = $request->input('tester') === '1';
+        $wantMiniature = $request->input('miniature') === '1';
+
+        if (!$wantTester && !$wantMiniature) {
+            return;
+        }
+
+        $query->whereHas('definition', function ($definitionQuery) use ($wantTester, $wantMiniature): void {
+            if ($wantTester && $wantMiniature) {
+                $definitionQuery->where(function ($typeQuery): void {
+                    $typeQuery->where('is_tester', true)
+                        ->orWhere('is_miniature', true);
+                });
+
+                return;
+            }
+
+            if ($wantTester) {
+                $definitionQuery->where('is_tester', true);
+            }
+
+            if ($wantMiniature) {
+                $definitionQuery->where('is_miniature', true);
+            }
         });
     }
 

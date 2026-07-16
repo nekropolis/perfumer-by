@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
@@ -615,11 +616,33 @@ class ProductAdminController extends Controller
 
     public function resetApiCache(CatalogApiCacheService $cacheService): JsonResponse
     {
-        $version = $cacheService->bumpVersion();
+        $bump = $cacheService->bumpVersionDetailed();
+        $warmExitCode = Artisan::call('catalog:warm-cache', ['--pages' => 3]);
+        $warmed = $warmExitCode === 0;
+        $storefront = $bump['storefront'];
+
+        $message = 'Кеш каталога сброшен';
+        if ($warmed) {
+            $message .= ', прогрет';
+        } else {
+            $message .= ', прогрев завершился с ошибкой';
+        }
+
+        if ($storefront['status'] === 'ok') {
+            $message .= ', витрина обновлена';
+        } elseif ($storefront['status'] === 'skipped') {
+            $message .= ' (HTTP revalidate витрины пропущен — настройте CATALOG_STOREFRONT_REVALIDATE_*)';
+        } else {
+            $message .= ' (HTTP revalidate витрины не удался)';
+        }
 
         return response()->json([
-            'message' => 'Кеш каталога принудительно сброшен',
-            'cache_version' => $version,
+            'message' => $message,
+            'cache_version' => $bump['version'],
+            'warmed' => $warmed,
+            'storefront_revalidated' => $storefront['status'] === 'ok',
+            'storefront_revalidate_status' => $storefront['status'],
+            'storefront_revalidate_message' => $storefront['message'],
         ]);
     }
 

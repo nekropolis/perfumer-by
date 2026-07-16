@@ -215,11 +215,18 @@ export default function AdminHeader({
 
     const handleResetCatalogCache = async () => {
         if (cacheResetBusy) return;
+        if (
+            typeof window !== "undefined" &&
+            !window.confirm("Сбросить кеш каталога и прогреть его заново?\n\nПродолжить?")
+        ) {
+            return;
+        }
         setCacheResetBusy(true);
         try {
             const res = await resetCatalogApiCache();
             if (typeof window !== "undefined") {
-                window.alert(res.message || "Кеш каталога сброшен");
+                const version = res.cache_version != null ? ` (v${res.cache_version})` : "";
+                window.alert(`${res.message || "Кеш каталога сброшен"}${version}`);
             }
         } catch (e) {
             if (typeof window !== "undefined") {

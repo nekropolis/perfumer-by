@@ -192,6 +192,18 @@ export default function CatalogFilters({
         });
     };
 
+    const isFlagSelected = (key: "tester" | "miniature") => searchParams.get(key) === "1";
+
+    const toggleFlag = (key: "tester" | "miniature") => {
+        pushParams((params) => {
+            if (params.get(key) === "1") {
+                params.delete(key);
+            } else {
+                params.set(key, "1");
+            }
+        });
+    };
+
     const popupAttribute = safeAttributes.find((item) => item.id === popupAttributeId) ?? null;
     const filteredPopupOptions = useMemo(() => {
         if (!popupAttribute) {
@@ -383,6 +395,21 @@ export default function CatalogFilters({
                             Применить
                         </button>
                     ) : null}
+                </section>
+
+                <section className={isModal ? "space-y-0.5" : "space-y-0.5 py-5 first:pt-0"}>
+                    {renderCheckboxOption(
+                        "tester",
+                        "Тестер",
+                        isFlagSelected("tester"),
+                        () => toggleFlag("tester"),
+                    )}
+                    {renderCheckboxOption(
+                        "miniature",
+                        "Миниатюра",
+                        isFlagSelected("miniature"),
+                        () => toggleFlag("miniature"),
+                    )}
                 </section>
 
                 {safeVolumeOptions.length > 0 ? (

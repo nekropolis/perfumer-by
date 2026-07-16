@@ -18,14 +18,3 @@ export const HEADER_BURGER_LINKS = [
     { label: "Отзывы", href: "/reviews" },
     { label: "Контакты", href: "/contacts" },
 ] as const;
-
-export const HEADER_POPULAR_SEARCHES = [
-    "Tom Ford",
-    "Dior",
-    "Mancera",
-    "Chanel",
-    "Montale",
-    "Versace",
-    "Gucci",
-    "Kilian",
-] as const;

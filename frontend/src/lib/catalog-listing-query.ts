@@ -13,6 +13,8 @@ export function buildCatalogProductsQuery(sp: Record<string, string | undefined>
     const isNew = sp?.new ? String(sp.new) : "";
     const isHit = sp?.hit ? String(sp.hit) : "";
     const gender = sp?.gender ? String(sp.gender) : "";
+    const tester = sp?.tester ? String(sp.tester) : "";
+    const miniature = sp?.miniature ? String(sp.miniature) : "";
 
     const query = new URLSearchParams();
     query.set("page", String(currentPage));
@@ -45,6 +47,12 @@ export function buildCatalogProductsQuery(sp: Record<string, string | undefined>
     if (volume) {
         query.set("volume", volume);
     }
+    if (tester === "1") {
+        query.set("tester", "1");
+    }
+    if (miniature === "1") {
+        query.set("miniature", "1");
+    }
     for (const [key, value] of Object.entries(sp || {})) {
         if (!key.startsWith("attr_") || !value) {
             continue;
@@ -64,6 +72,8 @@ export function buildBrandProductsQuery(slug: string, sp: Record<string, string 
     const isNew = sp?.new ? String(sp.new) : "";
     const isHit = sp?.hit ? String(sp.hit) : "";
     const gender = sp?.gender ? String(sp.gender) : "";
+    const tester = sp?.tester ? String(sp.tester) : "";
+    const miniature = sp?.miniature ? String(sp.miniature) : "";
 
     const query = new URLSearchParams();
     query.set("page", String(currentPage));
@@ -93,6 +103,12 @@ export function buildBrandProductsQuery(slug: string, sp: Record<string, string 
     }
     if (volume) {
         query.set("volume", volume);
+    }
+    if (tester === "1") {
+        query.set("tester", "1");
+    }
+    if (miniature === "1") {
+        query.set("miniature", "1");
     }
     for (const [key, value] of Object.entries(sp || {})) {
         if (!key.startsWith("attr_") || !value) {
