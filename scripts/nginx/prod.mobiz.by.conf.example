@@ -69,17 +69,14 @@ server {
 
     client_max_body_size 32M;
 
-    # --- 503 during deploy / Next outage ---
-    if (-f /var/www/perfumer-by/shared/maintenance.on) {
-        return 503;
-    }
-
+    # Branded 503 for storefront (location /) and Next upstream errors.
+    # Do NOT put maintenance if at server level — it would 503 /up and /api too.
     error_page 502 503 504 /503.html;
 
     location = /503.html {
         auth_basic off;
-        root /var/www/perfumer-by/shared;
-        internal;
+        default_type text/html;
+        alias /var/www/perfumer-by/shared/503.html;
         add_header Retry-After 60 always;
         add_header Cache-Control "no-store" always;
     }
@@ -137,6 +134,11 @@ server {
     location / {
         auth_basic "Restricted";
         auth_basic_user_file /etc/nginx/.htpasswd;
+
+        # Planned deploy flag — only storefront, not /up or /api
+        if (-f /var/www/perfumer-by/shared/maintenance.on) {
+            return 503;
+        }
 
         proxy_pass http://perfumer_next;
         proxy_http_version 1.1;

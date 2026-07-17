@@ -466,30 +466,50 @@ sudo mkdir -p /var/www/perfumer-by/shared
 sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
 ```
 
-2. В `server { listen 443 … }` **перед** `location /` добавьте (полный пример: [`scripts/nginx/503-maintenance.conf.example`](scripts/nginx/503-maintenance.conf.example)):
+2. В `server { listen 443 … }` (полный пример: [`scripts/nginx/503-maintenance.conf.example`](scripts/nginx/503-maintenance.conf.example) и [`scripts/nginx/prod.mobiz.by.conf.example`](scripts/nginx/prod.mobiz.by.conf.example)):
 
 ```nginx
-if (-f /var/www/perfumer-by/shared/maintenance.on) {
-    return 503;
-}
-
 error_page 502 503 504 /503.html;
 
 location = /503.html {
-    root /var/www/perfumer-by/shared;
-    internal;
+    auth_basic off;
+    default_type text/html;
+    alias /var/www/perfumer-by/shared/503.html;
     add_header Retry-After 60 always;
     add_header Cache-Control "no-store" always;
 }
+
+location / {
+    # Только витрина — НЕ на уровне server (иначе /up и /api тоже 503)
+    if (-f /var/www/perfumer-by/shared/maintenance.on) {
+        return 503;
+    }
+    proxy_pass http://perfumer_next;
+    proxy_intercept_errors on;
+    # ... остальные proxy_* ...
+}
 ```
 
-И в `location /` включите `proxy_intercept_errors on;` (см. фрагмент выше).
+Файл `503.html` должен читаться nginx (`www-data`):
+
+```bash
+sudo chown deploy:www-data /var/www/perfumer-by/shared /var/www/perfumer-by/shared/503.html
+sudo chmod 775 /var/www/perfumer-by/shared
+sudo chmod 644 /var/www/perfumer-by/shared/503.html
+```
 
 3. `sudo nginx -t && sudo systemctl reload nginx`
 
-Скрипты `deploy.sh` / `release.sh` сами ставят/снимают `shared/maintenance.on` вокруг pm2 reload и синхронизируют `503.html`.
+Скрипты `deploy.sh` / `release.sh` сами ставят/снимают `shared/maintenance.on` вокруг билда/pm2 reload и синхронизируют `503.html`.
 
-Проверка: `touch shared/maintenance.on` → `curl -sI https://домен/` → `503` и `Retry-After: 60`.
+Проверка:
+
+```bash
+touch /var/www/perfumer-by/shared/maintenance.on
+curl -sI https://домен/ | head          # 503 + Retry-After, не «nginx default»
+curl -sI https://домен/up | head        # 200
+rm -f /var/www/perfumer-by/shared/maintenance.on
+```
 
 Активация:
 

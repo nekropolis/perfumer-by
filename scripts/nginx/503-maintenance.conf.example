@@ -1,29 +1,32 @@
 # Nginx: 503 maintenance page during deploy / Next upstream outage
 #
-# 1) Copy page once (or let deploy/release scripts sync it):
+# 1) Copy page (readable by nginx www-data):
 #    sudo mkdir -p /var/www/perfumer-by/shared
-#    sudo cp /var/www/perfumer-by/current/frontend/public/503.html /var/www/perfumer-by/shared/503.html
-#    # or: sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+#    sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+#    sudo chown deploy:www-data /var/www/perfumer-by/shared /var/www/perfumer-by/shared/503.html
+#    sudo chmod 775 /var/www/perfumer-by/shared
+#    sudo chmod 644 /var/www/perfumer-by/shared/503.html
 #
-# 2) Add to server { listen 443 … } (before location /):
-
-    # Planned maintenance flag (touch/rm by deploy scripts)
-    if (-f /var/www/perfumer-by/shared/maintenance.on) {
-        return 503;
-    }
+# 2) In server { listen 443 … }:
 
     error_page 502 503 504 /503.html;
 
     location = /503.html {
-        root /var/www/perfumer-by/shared;
-        internal;
+        auth_basic off;
+        default_type text/html;
+        alias /var/www/perfumer-by/shared/503.html;
         add_header Retry-After 60 always;
         add_header Cache-Control "no-store" always;
     }
 
-# 3) In location / (Next proxy), enable intercept so 502 from Next becomes error_page:
+# 3) ONLY inside location / (NOT at server level — otherwise /up and /api also 503):
 
     location / {
+        # Planned deploy flag (touch/rm by deploy scripts)
+        if (-f /var/www/perfumer-by/shared/maintenance.on) {
+            return 503;
+        }
+
         proxy_pass http://perfumer_next;
         proxy_http_version 1.1;
         proxy_intercept_errors on;
@@ -41,5 +44,6 @@
 #
 # Manual test:
 #   touch /var/www/perfumer-by/shared/maintenance.on
-#   curl -sI https://perfumer.by/ | head
+#   curl -sI https://prod.mobiz.by/ | head          # → 503 + branded HTML
+#   curl -sI https://prod.mobiz.by/up | head        # → 200 (health)
 #   rm -f /var/www/perfumer-by/shared/maintenance.on

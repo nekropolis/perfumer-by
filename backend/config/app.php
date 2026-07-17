@@ -121,6 +121,8 @@ return [
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
+        // Keep health endpoint alive during `artisan down` (deploy / monitoring).
+        'except' => ['up'],
     ],
 
 ];

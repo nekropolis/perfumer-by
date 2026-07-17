@@ -196,8 +196,13 @@ check_http_url() {
 }
 
 if command -v curl >/dev/null 2>&1; then
-    check_http_url "$SITE_URL/up" "Backend /up"
-    check_http_url "$STOREFRONT_HEALTH_URL/" "Витрина PM2"
+    # Planned nginx/storefront maintenance — do not alert on expected 503.
+    if [[ -f "$ROOT/shared/maintenance.on" ]]; then
+        echo "shared/maintenance.on present — skipping storefront/backend HTTP checks"
+    else
+        check_http_url "$SITE_URL/up" "Backend /up"
+        check_http_url "$STOREFRONT_HEALTH_URL/" "Витрина PM2"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
