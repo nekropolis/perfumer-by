@@ -1,0 +1,161 @@
+# Example nginx site for prod.mobiz.by with 503 maintenance page.
+# Copy to /etc/nginx/sites-available/ and adjust paths if needed.
+#
+# Once:
+#   sudo mkdir -p /var/www/perfumer-by/shared
+#   sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+#   sudo nginx -t && sudo systemctl reload nginx
+
+upstream perfumer_next {
+    server 127.0.0.1:3000;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name prod.mobiz.by;
+
+    root /var/www/perfumer-by/backend/public;
+    index index.php;
+
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+
+    # Next.js SSR во время build обращается к API по loopback.
+    if ($host = "127.0.0.1") {
+        set $no_redirect 1;
+    }
+
+    if ($no_redirect != 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    location ^~ /api/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    location = /up {
+        try_files $uri /index.php?$query_string;
+    }
+
+    location ~ ^/index\.php(/|$) {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_read_timeout 120s;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    client_body_timeout 30s;
+    client_header_timeout 30s;
+    send_timeout 30s;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name prod.mobiz.by;
+
+    root /var/www/perfumer-by/backend/public;
+    index index.php;
+
+    ssl_certificate /etc/letsencrypt/live/prod.mobiz.by/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/prod.mobiz.by/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 32M;
+
+    # --- 503 during deploy / Next outage ---
+    if (-f /var/www/perfumer-by/shared/maintenance.on) {
+        return 503;
+    }
+
+    error_page 502 503 504 /503.html;
+
+    location = /503.html {
+        auth_basic off;
+        root /var/www/perfumer-by/shared;
+        internal;
+        add_header Retry-After 60 always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    location ^~ /storage/ {
+        auth_basic off;
+        alias /var/www/perfumer-by/backend/storage/app/public/;
+        access_log off;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location ^~ /api/ {
+        auth_basic off;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location = /up {
+        auth_basic off;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location ~ ^/index\.php(/|$) {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_read_timeout 120s;
+    }
+
+    location /_next/static/ {
+        auth_basic off;
+        proxy_cache_bypass $http_upgrade;
+        proxy_pass http://perfumer_next;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Connection "";
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # ISR revalidate (admin cache reset) — outside basic auth
+    location ^~ /actions/ {
+        auth_basic off;
+        proxy_pass http://perfumer_next;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+
+    location / {
+        auth_basic "Restricted";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
+        proxy_pass http://perfumer_next;
+        proxy_http_version 1.1;
+        proxy_intercept_errors on;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    client_body_timeout 30s;
+    client_header_timeout 30s;
+    send_timeout 30s;
+}

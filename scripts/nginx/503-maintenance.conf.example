@@ -1,0 +1,45 @@
+# Nginx: 503 maintenance page during deploy / Next upstream outage
+#
+# 1) Copy page once (or let deploy/release scripts sync it):
+#    sudo mkdir -p /var/www/perfumer-by/shared
+#    sudo cp /var/www/perfumer-by/current/frontend/public/503.html /var/www/perfumer-by/shared/503.html
+#    # or: sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+#
+# 2) Add to server { listen 443 … } (before location /):
+
+    # Planned maintenance flag (touch/rm by deploy scripts)
+    if (-f /var/www/perfumer-by/shared/maintenance.on) {
+        return 503;
+    }
+
+    error_page 502 503 504 /503.html;
+
+    location = /503.html {
+        root /var/www/perfumer-by/shared;
+        internal;
+        add_header Retry-After 60 always;
+        add_header Cache-Control "no-store" always;
+    }
+
+# 3) In location / (Next proxy), enable intercept so 502 from Next becomes error_page:
+
+    location / {
+        proxy_pass http://perfumer_next;
+        proxy_http_version 1.1;
+        proxy_intercept_errors on;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+# 4) sudo nginx -t && sudo systemctl reload nginx
+#
+# Manual test:
+#   touch /var/www/perfumer-by/shared/maintenance.on
+#   curl -sI https://perfumer.by/ | head
+#   rm -f /var/www/perfumer-by/shared/maintenance.on

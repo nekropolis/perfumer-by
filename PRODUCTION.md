@@ -284,11 +284,11 @@ sudo chmod -R 775 storage bootstrap/cache
 ## 5) Frontend
 
 > Процесс `perfumer-frontend` декларативно описан в
-> `frontend/ecosystem.config.cjs` (CWD, `NODE_ENV=production`, `max_memory_restart: 700M`,
-> логи в `/var/log/pm2/...`). Эти же настройки используются и в release-стиле деплое (§13),
+> `frontend/ecosystem.config.cjs` (CWD, `NODE_ENV=production`, **2 instances / cluster**,
+> `max_memory_restart: 700M`, логи в `/var/log/pm2/...`). Cluster нужен для zero-downtime
+> `pm2 reload`. Эти же настройки используются и в release-стиле деплое (§13),
 > именно поэтому файл лежит рядом с приложением — pm2 подхватывает его по реальному
 > пути и корректно работает после переключения симлинка `current`.
-
 
 ### 5.1. `.env.local`
 
@@ -318,7 +318,17 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-`ecosystem.config.cjs` уже включает `max_memory_restart: 700M` — спасает от ситуации, когда `next-server` за сутки распухает до 3+ ГБ и кладёт 4-гиговый сервер в swap.
+`ecosystem.config.cjs` запускает Next через `node_modules/next/dist/bin/next` в **cluster**
+с `instances: 2` и `max_memory_restart: 700M`. Так `pm2 reload` обновляет инстансы по очереди
+(без полного «page couldn’t load»), а память не раздувается бесконтрольно на 4 ГБ сервере.
+
+Если процесс уже был запущен в fork-режиме (старый конфиг), один раз пересоздайте:
+
+```bash
+pm2 delete perfumer-frontend
+pm2 start ecosystem.config.cjs
+pm2 save
+```
 
 После каждого нового билда (в in-place режиме) достаточно:
 
@@ -432,6 +442,8 @@ server {
     location / {
         proxy_pass http://perfumer_next;
         proxy_http_version 1.1;
+        proxy_intercept_errors on;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
@@ -442,6 +454,42 @@ server {
     }
 }
 ```
+
+### 6.0.1. 503 при деплое (вместо «This page couldn’t load»)
+
+Когда Next недоступен (pm2 reload) или включён флаг maintenance, nginx должен отдавать **HTTP 503** + branded HTML + `Retry-After`, а не пустой ответ браузера.
+
+1. Скопируйте страницу:
+
+```bash
+sudo mkdir -p /var/www/perfumer-by/shared
+sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+```
+
+2. В `server { listen 443 … }` **перед** `location /` добавьте (полный пример: [`scripts/nginx/503-maintenance.conf.example`](scripts/nginx/503-maintenance.conf.example)):
+
+```nginx
+if (-f /var/www/perfumer-by/shared/maintenance.on) {
+    return 503;
+}
+
+error_page 502 503 504 /503.html;
+
+location = /503.html {
+    root /var/www/perfumer-by/shared;
+    internal;
+    add_header Retry-After 60 always;
+    add_header Cache-Control "no-store" always;
+}
+```
+
+И в `location /` включите `proxy_intercept_errors on;` (см. фрагмент выше).
+
+3. `sudo nginx -t && sudo systemctl reload nginx`
+
+Скрипты `deploy.sh` / `release.sh` сами ставят/снимают `shared/maintenance.on` вокруг pm2 reload и синхронизируют `503.html`.
+
+Проверка: `touch shared/maintenance.on` → `curl -sI https://домен/` → `503` и `Retry-After: 60`.
 
 Активация:
 

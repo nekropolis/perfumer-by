@@ -24,6 +24,10 @@ FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
 QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
 COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
 
+SHARED_DIR="${SHARED_DIR:-$ROOT/shared}"
+MAINT_FLAG="$SHARED_DIR/maintenance.on"
+NGINX_MAINT=0
+
 SUPERVISORCTL=""
 if command -v supervisorctl >/dev/null 2>&1; then
     SUPERVISORCTL="$(command -v supervisorctl)"
@@ -37,6 +41,35 @@ trap 'on_error $?' ERR
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
+
+sync_503_html() {
+    mkdir -p "$SHARED_DIR"
+    local src=""
+    if [[ -f "$FRONTEND/public/503.html" ]]; then
+        src="$FRONTEND/public/503.html"
+    elif [[ -f "$ROOT/scripts/nginx/503.html" ]]; then
+        src="$ROOT/scripts/nginx/503.html"
+    fi
+    if [[ -n "$src" ]]; then
+        cp "$src" "$SHARED_DIR/503.html"
+        log "Synced 503.html -> $SHARED_DIR/503.html"
+    else
+        warn "503.html not found — nginx maintenance page may be missing"
+    fi
+}
+
+enable_nginx_maintenance() {
+    mkdir -p "$SHARED_DIR"
+    touch "$MAINT_FLAG"
+    NGINX_MAINT=1
+    log "nginx maintenance flag on: $MAINT_FLAG"
+}
+
+disable_nginx_maintenance() {
+    rm -f "$MAINT_FLAG"
+    NGINX_MAINT=0
+    log "nginx maintenance flag off"
+}
 
 load_env() {
     local key="$1"
@@ -82,6 +115,11 @@ on_error() {
     else
         warn "Deploy failed (exit $code). Backend was NOT put into maintenance mode."
         send_telegram "🚨 *Deploy failed* on $(hostname) at $(date +'%Y-%m-%d %H:%M')\n\nExit code: ${code}\nBackend is NOT in maintenance mode."
+    fi
+    if [[ $NGINX_MAINT -eq 1 ]]; then
+        warn "Снимаю nginx maintenance flag"
+        rm -f "$MAINT_FLAG" || true
+        NGINX_MAINT=0
     fi
     exit "$code"
 }
@@ -173,6 +211,8 @@ log "npm ci (frontend)"
 log "next build"
 (cd "$FRONTEND" && rm -rf .next && "$NPM_BIN" run build)
 
+sync_503_html
+
 # ---------------------------------------------------------------------------
 # From here on the site goes down briefly for backend-only updates.
 # ---------------------------------------------------------------------------
@@ -180,6 +220,8 @@ log "next build"
 log "Switching Laravel into maintenance mode"
 (cd "$BACKEND" && "$PHP_BIN" artisan down --render="errors::503" --retry=15 || true)
 MAINT_DOWN=1
+
+enable_nginx_maintenance
 
 log "artisan migrate --force"
 (cd "$BACKEND" && "$PHP_BIN" artisan migrate --force)
@@ -194,10 +236,14 @@ log "Reloading PM2 process: $FRONT_PROD_NAME"
 if "$PM2_BIN" describe "$FRONT_PROD_NAME" >/dev/null 2>&1; then
     "$PM2_BIN" reload "$FRONT_PROD_NAME" --update-env
 else
-    (cd "$FRONTEND" && "$PM2_BIN" start npm --name "$FRONT_PROD_NAME" -- run start)
+    (cd "$FRONTEND" && "$PM2_BIN" start ecosystem.config.cjs --only "$FRONT_PROD_NAME")
     "$PM2_BIN" restart "$FRONT_PROD_NAME" --max-memory-restart 700M
 fi
 "$PM2_BIN" save >/dev/null || true
+
+# Give Next a moment to listen before dropping the nginx flag
+sleep 2
+disable_nginx_maintenance
 
 log "Restarting queue workers: $QUEUE_GROUP"
 if [[ -n "$SUPERVISORCTL" ]]; then

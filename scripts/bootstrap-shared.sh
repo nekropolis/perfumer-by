@@ -62,6 +62,15 @@ mkdir -p "$SHARED_DIR/backend/storage/logs"
 
 chmod -R 775 "$SHARED_DIR/backend/storage" || true
 
+# Static 503 page for nginx during deploy / Next outage
+if [[ -f "$SRC/scripts/nginx/503.html" ]]; then
+    log "Копирую scripts/nginx/503.html -> shared/503.html"
+    cp "$SRC/scripts/nginx/503.html" "$SHARED_DIR/503.html"
+elif [[ -f "$SRC/frontend/public/503.html" ]]; then
+    log "Копирую frontend/public/503.html -> shared/503.html"
+    cp "$SRC/frontend/public/503.html" "$SHARED_DIR/503.html"
+fi
+
 log "Готово. Содержимое shared/:"
 ls -la "$SHARED_DIR" "$SHARED_DIR/backend" "$SHARED_DIR/frontend" 2>/dev/null || true
 

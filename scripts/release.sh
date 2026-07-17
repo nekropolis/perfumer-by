@@ -52,10 +52,44 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
 
 MAINT_DIR=""
+NGINX_MAINT=0
+MAINT_FLAG="$SHARED_DIR/maintenance.on"
 trap 'on_error $?' ERR
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
+
+sync_503_html() {
+    local release_root="${1:-$NEW_RELEASE}"
+    mkdir -p "$SHARED_DIR"
+    local src=""
+    if [[ -f "$release_root/frontend/public/503.html" ]]; then
+        src="$release_root/frontend/public/503.html"
+    elif [[ -f "$release_root/scripts/nginx/503.html" ]]; then
+        src="$release_root/scripts/nginx/503.html"
+    elif [[ -f "$PROJECT_ROOT/scripts/nginx/503.html" ]]; then
+        src="$PROJECT_ROOT/scripts/nginx/503.html"
+    fi
+    if [[ -n "$src" ]]; then
+        cp "$src" "$SHARED_DIR/503.html"
+        log "Synced 503.html -> $SHARED_DIR/503.html"
+    else
+        warn "503.html not found — nginx maintenance page may be missing"
+    fi
+}
+
+enable_nginx_maintenance() {
+    mkdir -p "$SHARED_DIR"
+    touch "$MAINT_FLAG"
+    NGINX_MAINT=1
+    log "nginx maintenance flag on: $MAINT_FLAG"
+}
+
+disable_nginx_maintenance() {
+    rm -f "$MAINT_FLAG"
+    NGINX_MAINT=0
+    log "nginx maintenance flag off"
+}
 
 on_error() {
     local code="$1"
@@ -64,6 +98,11 @@ on_error() {
     if [[ -n "$MAINT_DIR" ]]; then
         warn "Снимаю maintenance с $MAINT_DIR"
         (cd "$MAINT_DIR/backend" && "$PHP_BIN" artisan up || true) || true
+    fi
+    if [[ $NGINX_MAINT -eq 1 ]]; then
+        warn "Снимаю nginx maintenance flag"
+        rm -f "$MAINT_FLAG" || true
+        NGINX_MAINT=0
     fi
     exit "$code"
 }
@@ -150,12 +189,16 @@ log "npm ci (frontend)"
 log "next build"
 (cd "$NEW_RELEASE/frontend" && rm -rf .next && "$NPM_BIN" run build)
 
+sync_503_html "$NEW_RELEASE"
+
 # --- atomic switch ----------------------------------------------------------
 
 PREV_TARGET=""
 if [[ -L "$CURRENT" ]]; then
     PREV_TARGET="$(readlink "$CURRENT")"
 fi
+
+enable_nginx_maintenance
 
 log "Переключаю symlink: current -> $NEW_RELEASE"
 ln -snfT "$NEW_RELEASE" "$CURRENT"
@@ -170,6 +213,9 @@ else
     "$PM2_BIN" restart "$FRONT_PROD_NAME" --max-memory-restart "$PM2_MAX_MEMORY"
 fi
 "$PM2_BIN" save >/dev/null || true
+
+sleep 2
+disable_nginx_maintenance
 
 if command -v supervisorctl >/dev/null 2>&1; then
     log "supervisorctl restart $QUEUE_GROUP"
