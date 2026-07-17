@@ -51,7 +51,6 @@ export default function Header() {
     const [menuTopOffset, setMenuTopOffset] = useState(64);
     const [menuAnchorBottom, setMenuAnchorBottom] = useState(0);
 
-    const headerRef = useRef<HTMLElement | null>(null);
     const mainRowRef = useRef<HTMLDivElement | null>(null);
     const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
     const mobileMenuRootRef = useRef<HTMLDivElement | null>(null);
@@ -346,7 +345,7 @@ export default function Header() {
 
     return (
         <>
-            <div ref={headerRef} className="relative z-[140]">
+            <div className="relative z-[140]">
                 <HeaderServiceBar
                     isCompact={false}
                     promoText={promoText}
