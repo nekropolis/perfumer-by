@@ -61,7 +61,7 @@ warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
 
 sync_503_html() {
     local release_root="${1:-$NEW_RELEASE}"
-    mkdir -p "$SHARED_DIR"
+    mkdir -p "$SHARED_DIR" 2>/dev/null || true
     local src=""
     if [[ -f "$release_root/frontend/public/503.html" ]]; then
         src="$release_root/frontend/public/503.html"
@@ -70,25 +70,37 @@ sync_503_html() {
     elif [[ -f "$PROJECT_ROOT/scripts/nginx/503.html" ]]; then
         src="$PROJECT_ROOT/scripts/nginx/503.html"
     fi
-    if [[ -n "$src" ]]; then
-        cp "$src" "$SHARED_DIR/503.html"
+    if [[ -z "$src" ]]; then
+        warn "503.html not found — nginx maintenance page may be missing"
+        return 0
+    fi
+    if cp "$src" "$SHARED_DIR/503.html" 2>/dev/null; then
         log "Synced 503.html -> $SHARED_DIR/503.html"
     else
-        warn "503.html not found — nginx maintenance page may be missing"
+        warn "Cannot write $SHARED_DIR/503.html (permission denied). Fix once:"
+        warn "  sudo chown -R deploy:deploy $SHARED_DIR && sudo chmod 775 $SHARED_DIR"
+        warn "  sudo cp $src $SHARED_DIR/503.html && sudo chown deploy:deploy $SHARED_DIR/503.html"
     fi
 }
 
 enable_nginx_maintenance() {
-    mkdir -p "$SHARED_DIR"
-    touch "$MAINT_FLAG"
-    NGINX_MAINT=1
-    log "nginx maintenance flag on: $MAINT_FLAG"
+    mkdir -p "$SHARED_DIR" 2>/dev/null || true
+    if touch "$MAINT_FLAG" 2>/dev/null; then
+        NGINX_MAINT=1
+        log "nginx maintenance flag on: $MAINT_FLAG"
+    else
+        warn "Cannot create $MAINT_FLAG (permission denied) — release continues without nginx 503 flag"
+        warn "  sudo chown -R deploy:deploy $SHARED_DIR && sudo chmod 775 $SHARED_DIR"
+        NGINX_MAINT=0
+    fi
 }
 
 disable_nginx_maintenance() {
-    rm -f "$MAINT_FLAG"
-    NGINX_MAINT=0
-    log "nginx maintenance flag off"
+    if [[ $NGINX_MAINT -eq 1 ]]; then
+        rm -f "$MAINT_FLAG" 2>/dev/null || warn "Cannot remove $MAINT_FLAG — remove manually if present"
+        NGINX_MAINT=0
+        log "nginx maintenance flag off"
+    fi
 }
 
 on_error() {

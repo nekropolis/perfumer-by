@@ -43,32 +43,44 @@ log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
 
 sync_503_html() {
-    mkdir -p "$SHARED_DIR"
+    mkdir -p "$SHARED_DIR" 2>/dev/null || true
     local src=""
     if [[ -f "$FRONTEND/public/503.html" ]]; then
         src="$FRONTEND/public/503.html"
     elif [[ -f "$ROOT/scripts/nginx/503.html" ]]; then
         src="$ROOT/scripts/nginx/503.html"
     fi
-    if [[ -n "$src" ]]; then
-        cp "$src" "$SHARED_DIR/503.html"
+    if [[ -z "$src" ]]; then
+        warn "503.html not found — nginx maintenance page may be missing"
+        return 0
+    fi
+    if cp "$src" "$SHARED_DIR/503.html" 2>/dev/null; then
         log "Synced 503.html -> $SHARED_DIR/503.html"
     else
-        warn "503.html not found — nginx maintenance page may be missing"
+        warn "Cannot write $SHARED_DIR/503.html (permission denied). Fix once:"
+        warn "  sudo chown -R deploy:deploy $SHARED_DIR && sudo chmod 775 $SHARED_DIR"
+        warn "  sudo cp $src $SHARED_DIR/503.html && sudo chown deploy:deploy $SHARED_DIR/503.html"
     fi
 }
 
 enable_nginx_maintenance() {
-    mkdir -p "$SHARED_DIR"
-    touch "$MAINT_FLAG"
-    NGINX_MAINT=1
-    log "nginx maintenance flag on: $MAINT_FLAG"
+    mkdir -p "$SHARED_DIR" 2>/dev/null || true
+    if touch "$MAINT_FLAG" 2>/dev/null; then
+        NGINX_MAINT=1
+        log "nginx maintenance flag on: $MAINT_FLAG"
+    else
+        warn "Cannot create $MAINT_FLAG (permission denied) — deploy continues without nginx 503 flag"
+        warn "  sudo chown -R deploy:deploy $SHARED_DIR && sudo chmod 775 $SHARED_DIR"
+        NGINX_MAINT=0
+    fi
 }
 
 disable_nginx_maintenance() {
-    rm -f "$MAINT_FLAG"
-    NGINX_MAINT=0
-    log "nginx maintenance flag off"
+    if [[ $NGINX_MAINT -eq 1 ]]; then
+        rm -f "$MAINT_FLAG" 2>/dev/null || warn "Cannot remove $MAINT_FLAG — remove manually if present"
+        NGINX_MAINT=0
+        log "nginx maintenance flag off"
+    fi
 }
 
 load_env() {
@@ -205,23 +217,24 @@ require_service "nginx"
 require_service "php8.3-fpm" "php8.3-fpm"
 ensure_meilisearch
 
+# In-place deploy deletes .next while the live process still serves from it —
+# put nginx on 503 first so visitors see branded maintenance, not a blank error.
+sync_503_html
+enable_nginx_maintenance
+
 log "npm ci (frontend)"
 (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund)
 
 log "next build"
 (cd "$FRONTEND" && rm -rf .next && "$NPM_BIN" run build)
 
-sync_503_html
-
 # ---------------------------------------------------------------------------
-# From here on the site goes down briefly for backend-only updates.
+# Backend updates while storefront stays on nginx 503.
 # ---------------------------------------------------------------------------
 
 log "Switching Laravel into maintenance mode"
 (cd "$BACKEND" && "$PHP_BIN" artisan down --render="errors::503" --retry=15 || true)
 MAINT_DOWN=1
-
-enable_nginx_maintenance
 
 log "artisan migrate --force"
 (cd "$BACKEND" && "$PHP_BIN" artisan migrate --force)
@@ -242,7 +255,7 @@ fi
 "$PM2_BIN" save >/dev/null || true
 
 # Give Next a moment to listen before dropping the nginx flag
-sleep 2
+sleep 3
 disable_nginx_maintenance
 
 log "Restarting queue workers: $QUEUE_GROUP"
