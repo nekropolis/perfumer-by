@@ -413,6 +413,12 @@ class CatalogProductLinkSearchService
             $supplierStock = $supplierWarehouseId > 0 ? $byW->get($supplierWarehouseId) : null;
             $presented = \Modules\Catalog\Support\CatalogVariantStockPresenter::forListing($link, $mainStock, $supplierStock);
             $effectivePrice = \Modules\Catalog\Support\CatalogVariantStockPresenter::storefrontVariantPrice($link, $presented);
+            $mainAvailable = $mainStock
+                ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+                : 0;
+            $supplierAvailable = $supplierStock
+                ? max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock)
+                : 0;
             $out[] = [
                 'id' => (int) $link->id,
                 'title' => (string) $link->title,
@@ -421,6 +427,9 @@ class CatalogProductLinkSearchService
                 'is_available' => (bool) $presented['is_available'],
                 'is_preorder' => (bool) $presented['is_preorder'],
                 'price' => $effectivePrice !== null ? (string) $effectivePrice : null,
+                'can_fulfill_main' => $mainAvailable > 0,
+                'can_fulfill_offer' => \Modules\Catalog\Support\CatalogVariantStockPresenter::supplierListingActive($link)
+                    || $supplierAvailable > 0,
             ];
         }
 

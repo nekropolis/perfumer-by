@@ -565,6 +565,14 @@ class ProductAdminController extends Controller
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
                 'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
+                'can_fulfill_main' => $mainStock
+                    ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0
+                    : false,
+                'can_fulfill_offer' => CatalogVariantStockPresenter::supplierListingActive($variant)
+                    || (
+                        $supplierStock
+                        && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0
+                    ),
                 'warehouses' => $variant->warehouseStocks
                     ->filter(fn ($stock) => (int) ($stock->stock ?? 0) > 0)
                     ->map(function ($stock) {

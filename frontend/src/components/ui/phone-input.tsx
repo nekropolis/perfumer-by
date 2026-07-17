@@ -11,10 +11,12 @@ type Props = {
     showHint?: boolean;
 };
 
-const PHONE_INPUT_HINT_PLAIN = "Любые 5–14 цифр после 375.";
+const PHONE_INPUT_HINT_PLAIN = "Номер с кодом страны, только цифры (8–15).";
 const PHONE_INPUT_HINT_MOBILE = "Мобильный (25/29/33/44) и номер.";
 
 const COUNTRY_PREFIX = "375";
+const PLAIN_PHONE_MIN_DIGITS = 8;
+const PLAIN_PHONE_MAX_DIGITS = 15;
 /** Маска только для части после +375 (в инпуте без кода страны). */
 const MASK_LOCAL = `(__) ___-__-__`;
 const ALLOWED_OPERATOR_CODES = ["25", "29", "33", "44"];
@@ -75,24 +77,14 @@ export function isBelarusPhoneComplete(value: string): boolean {
     return /^375(25|29|33|44)\d{7}$/.test(digits);
 }
 
-/** Режим «нет мобильного»: хвост после 375, до 14 цифр (префикс хранится отдельно в значении как 375 + хвост). */
-function extractPlainRestFromStored(stored: string): string {
-    const d = stored.replace(/\D/g, "");
-    if (d.length === 0) {
-        return "";
-    }
-    if (d.startsWith(COUNTRY_PREFIX)) {
-        return d.slice(COUNTRY_PREFIX.length).slice(0, 14);
-    }
-    return d.slice(0, 14);
-}
-
+/** Режим «нет мобильного»: любые цифры с кодом страны (E.164 без «+»). */
 export function normalizePlainByDigitsInput(input: string): string {
-    return COUNTRY_PREFIX + extractPlainRestFromStored(input);
+    return input.replace(/\D/g, "").slice(0, PLAIN_PHONE_MAX_DIGITS);
 }
 
 export function isPlainByPhoneComplete(value: string): boolean {
-    return /^375\d{5,14}$/.test(value.replace(/\D/g, ""));
+    const digits = value.replace(/\D/g, "");
+    return digits.length >= PLAIN_PHONE_MIN_DIGITS && digits.length <= PLAIN_PHONE_MAX_DIGITS;
 }
 
 export default function PhoneInput({
@@ -111,16 +103,10 @@ export default function PhoneInput({
     ) : null;
 
     if (plainDigitsMode) {
-        const rest = extractPlainRestFromStored(value);
+        const digits = normalizePlainByDigitsInput(value);
         return (
             <div className={rootClass}>
                 <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
-                    <span
-                        className="flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary"
-                        aria-hidden
-                    >
-                        +375
-                    </span>
                     <input
                         ref={inputRef}
                         type="text"
@@ -129,13 +115,12 @@ export default function PhoneInput({
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck={false}
-                        value={rest}
-                        placeholder="номер без кода страны"
+                        value={digits}
+                        placeholder="79001234567"
                         onChange={(e) => {
-                            const nextRest = e.target.value.replace(/\D/g, "").slice(0, 14);
-                            onChangeAction(COUNTRY_PREFIX + nextRest);
+                            onChangeAction(normalizePlainByDigitsInput(e.target.value));
                         }}
-                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 outline-none ring-0 placeholder:text-admin-text-muted"
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono outline-none ring-0 placeholder:text-admin-text-muted"
                     />
                 </div>
                 {hintEl}

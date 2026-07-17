@@ -83,6 +83,14 @@ class ProductVariantResource extends JsonResource
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
             'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
+            'can_fulfill_main' => $mainStock
+                ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0
+                : false,
+            'can_fulfill_offer' => CatalogVariantStockPresenter::supplierListingActive($variant)
+                || (
+                    $supplierStock
+                    && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0
+                ),
         ];
     }
 

@@ -14,7 +14,12 @@ import {
     type AdminOrderCustomerContext,
 } from "@/lib/admin-orders-api";
 import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
-import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
+import {
+    clampAdminPhoneSearchInput,
+    isAdminPhoneContextReady,
+    isAdminPhoneSearchReady,
+    normalizeAdminPhoneSearchDigits,
+} from "@/lib/admin-phone-search";
 import { adminBtnSecondary } from "@/lib/admin-ui-classes";
 
 type Props = {
@@ -27,7 +32,7 @@ function phoneDigitsOnly(phone: string): string {
     return phone.replace(/\D+/g, "");
 }
 
-function isExactQuickPhoneMatch(userPhone: string, fullPhone: string, national: string): boolean {
+function isExactQuickPhoneMatch(userPhone: string, fullPhone: string): boolean {
     const digits = phoneDigitsOnly(userPhone);
     const want = phoneDigitsOnly(fullPhone);
     if (!digits || !want) {
@@ -36,7 +41,7 @@ function isExactQuickPhoneMatch(userPhone: string, fullPhone: string, national: 
     if (digits === want) {
         return true;
     }
-    return national.length === 9 && digits.endsWith(national);
+    return want.length >= 9 && digits.endsWith(want.slice(-9));
 }
 
 function QuickPhoneUserHitSummary({ user }: { user: AdminClient }) {
@@ -172,17 +177,11 @@ export default function AdminHeader({
     const debouncedQuickPhone = useDebouncedValue(quickPhone, 250);
 
     const digitsOnly = useCallback((s: string) => s.replace(/\D+/g, ""), []);
-    const clampNationalDigits = useCallback((s: string) => clampBelarusNationalDigits(s), []);
-    const formatNationalDisplay = (national: string) => {
-        const d = clampNationalDigits(national);
-        if (d.length <= 2) return d;
-        if (d.length <= 5) return `${d.slice(0, 2)} ${d.slice(2)}`;
-        if (d.length <= 7) return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5)}`;
-        return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}`;
-    };
-    const nationalDigits = clampNationalDigits(quickPhone);
-    const fullPhone = `375${nationalDigits}`;
-    const showQuickPhoneHits = quickPhoneFocused && nationalDigits.length >= 5;
+    const clampSearchDigits = useCallback((s: string) => clampAdminPhoneSearchInput(s), []);
+    const searchDigits = clampSearchDigits(quickPhone);
+    const fullPhone = normalizeAdminPhoneSearchDigits(searchDigits);
+    const showQuickPhoneHits = quickPhoneFocused && isAdminPhoneSearchReady(searchDigits);
+    const phoneContextReady = isAdminPhoneContextReady(searchDigits);
 
     const quickPhoneOrdersCount = quickPhoneContext
         ? quickPhoneContext.orders.completed +
@@ -195,12 +194,12 @@ export default function AdminHeader({
         "";
 
     const getCreateOrderHref = (phoneDigits: string, customerName?: string) => {
-        const national = clampNationalDigits(phoneDigits);
-        if (!national) {
+        const full = normalizeAdminPhoneSearchDigits(phoneDigits);
+        if (!full) {
             return "/admin/orders/create";
         }
         const params = new URLSearchParams();
-        params.set("phone", `375${national}`);
+        params.set("phone", full);
         const name = customerName?.trim();
         if (name) {
             params.set("name", name);
@@ -208,8 +207,27 @@ export default function AdminHeader({
         return `/admin/orders/create?${params.toString()}`;
     };
 
+    const getFindOrdersHref = (phoneDigits: string) => {
+        const full = normalizeAdminPhoneSearchDigits(phoneDigits);
+        if (!full) {
+            return "/admin/orders";
+        }
+        const params = new URLSearchParams();
+        params.set("search", full);
+        return `/admin/orders?${params.toString()}`;
+    };
+
     const openCreateOrderWithPhone = (phoneDigits: string, customerName?: string) => {
         router.push(getCreateOrderHref(phoneDigits, customerName));
+        setQuickPhoneFocused(false);
+    };
+
+    const openFindOrdersByPhone = (phoneDigits: string) => {
+        const full = normalizeAdminPhoneSearchDigits(phoneDigits);
+        if (!full) {
+            return;
+        }
+        router.push(getFindOrdersHref(full));
         setQuickPhoneFocused(false);
     };
 
@@ -254,24 +272,22 @@ export default function AdminHeader({
     }, []);
 
     useEffect(() => {
-        const national = clampNationalDigits(debouncedQuickPhone);
-        if (national.length < 5) {
+        if (!isAdminPhoneSearchReady(debouncedQuickPhone)) {
             setQuickPhoneHits([]);
             return;
         }
+        const want = normalizeAdminPhoneSearchDigits(debouncedQuickPhone);
         let cancelled = false;
         setQuickPhoneHitsLoading(true);
-        void fetchAdminClients({ search: `375${national}` })
+        void fetchAdminClients({ search: want })
             .then((response) => {
                 if (cancelled) return;
-                const want = `375${national}`;
                 const rows = (response.data ?? []).filter((u) => {
                     const d = digitsOnly(u.phone ?? "");
-                    if (!d || national.length === 0) {
+                    if (!d || !want) {
                         return false;
                     }
-                    const after375 = d.startsWith("375") ? d.slice(3) : d;
-                    return d === want || after375.startsWith(national) || d.endsWith(national);
+                    return d === want || d.endsWith(want) || want.endsWith(d) || d.includes(want);
                 });
                 setQuickPhoneHits(rows.slice(0, 6));
             })
@@ -284,18 +300,18 @@ export default function AdminHeader({
         return () => {
             cancelled = true;
         };
-    }, [clampNationalDigits, debouncedQuickPhone, digitsOnly]);
+    }, [debouncedQuickPhone, digitsOnly]);
 
     useEffect(() => {
-        const national = clampNationalDigits(debouncedQuickPhone);
-        if (national.length < 9) {
+        if (!isAdminPhoneContextReady(debouncedQuickPhone)) {
             setQuickPhoneContext(null);
             setQuickPhoneContextLoading(false);
             return;
         }
+        const want = normalizeAdminPhoneSearchDigits(debouncedQuickPhone);
         let cancelled = false;
         setQuickPhoneContextLoading(true);
-        void fetchAdminOrderCustomerContext(`375${national}`)
+        void fetchAdminOrderCustomerContext(want)
             .then((response) => {
                 if (!cancelled) setQuickPhoneContext(response.data);
             })
@@ -308,7 +324,7 @@ export default function AdminHeader({
         return () => {
             cancelled = true;
         };
-    }, [clampNationalDigits, debouncedQuickPhone]);
+    }, [debouncedQuickPhone]);
 
     useEffect(() => {
         setQuickPhone("");
@@ -332,30 +348,27 @@ export default function AdminHeader({
 
                     <div className="relative w-[calc(100vw-5rem)] max-w-[24rem] sm:w-[24rem] lg:w-[26rem] lg:max-w-none" ref={quickPhoneRef}>
                         <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
-                            <span className="flex items-center border-r border-admin-border bg-admin-muted px-2.5 text-xs font-medium text-admin-text-secondary">
-                                +375
-                            </span>
                             <input
-                                value={formatNationalDisplay(quickPhone)}
-                                onChange={(e) => setQuickPhone(clampNationalDigits(e.target.value))}
+                                value={searchDigits}
+                                onChange={(e) => setQuickPhone(clampSearchDigits(e.target.value))}
                                 onFocus={() => setQuickPhoneFocused(true)}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") {
                                         e.preventDefault();
-                                        openCreateOrderWithPhone(clampNationalDigits(quickPhone));
+                                        openFindOrdersByPhone(searchDigits);
                                     }
                                 }}
-                                placeholder="29 123-45-67"
+                                placeholder="297777777 или 7900…"
                                 inputMode="numeric"
                                 autoComplete="new-password"
                                 autoCorrect="off"
                                 autoCapitalize="off"
                                 spellCheck={false}
-                                className="w-full min-w-0 border-0 bg-transparent px-2 py-1.5 text-sm text-admin-text outline-none placeholder:text-admin-text-muted"
+                                className="w-full min-w-0 border-0 bg-transparent px-2.5 py-1.5 font-mono text-sm text-admin-text outline-none placeholder:text-admin-text-muted"
                             />
                             <button
                                 type="button"
-                                onClick={() => openCreateOrderWithPhone(clampNationalDigits(quickPhone))}
+                                onClick={() => openFindOrdersByPhone(searchDigits)}
                                 className="hidden shrink-0 border-l border-admin-border px-2.5 py-1.5 text-xs font-medium text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-text sm:inline-flex"
                             >
                                 Найти
@@ -372,22 +385,23 @@ export default function AdminHeader({
                         {showQuickPhoneHits ? (
                             <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-admin-border bg-admin-surface py-0 shadow-lg">
                                 {quickPhoneHitsLoading ||
-                                (nationalDigits.length >= 9 && quickPhoneContextLoading) ? (
+                                (phoneContextReady && quickPhoneContextLoading) ? (
                                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
                                         Поиск клиентов…
                                     </div>
                                 ) : (() => {
                                     const showOrdersContext =
-                                        nationalDigits.length >= 9 &&
+                                        phoneContextReady &&
                                         quickPhoneContext != null &&
                                         quickPhoneOrdersCount > 0;
                                     const exactHitInList = quickPhoneHits.some((u) =>
-                                        isExactQuickPhoneMatch(u.phone ?? "", fullPhone, nationalDigits),
+                                        isExactQuickPhoneMatch(u.phone ?? "", fullPhone),
                                     );
 
                                     return (
                                         <>
-                                            {showOrdersContext && !exactHitInList ? (
+                                            {/* Гость с заказами над списком клиентов — только если есть hits, но без точного совпадения */}
+                                            {showOrdersContext && !exactHitInList && quickPhoneHits.length > 0 ? (
                                                 <QuickPhoneCustomerOption
                                                     title={quickPhoneSuggestedName || "Гость"}
                                                     phoneLine={`+${fullPhone} — создать заказ`}
@@ -400,7 +414,7 @@ export default function AdminHeader({
                                                     showFullOrders={showOrdersContext}
                                                     onClick={() =>
                                                         openCreateOrderWithPhone(
-                                                            nationalDigits,
+                                                            fullPhone,
                                                             quickPhoneSuggestedName,
                                                         )
                                                     }
@@ -424,22 +438,22 @@ export default function AdminHeader({
                                                         showFullOrders={showOrdersContext}
                                                         onClick={() =>
                                                             openCreateOrderWithPhone(
-                                                                nationalDigits,
+                                                                fullPhone,
                                                                 quickPhoneSuggestedName,
                                                             )
                                                         }
                                                     />
-                                                ) : nationalDigits.length >= 5 && nationalDigits.length < 9 ? (
+                                                ) : searchDigits.length < 9 ? (
                                                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
-                                                        Клиенты не найдены. Введите все 9 цифр — покажем
-                                                        заказы гостя.
+                                                        Клиенты не найдены. Введите все 9 цифр BY или полный
+                                                        международный номер.
                                                     </div>
                                                 ) : (
                                                     <button
                                                         type="button"
                                                         className="w-full px-3 py-2 text-left text-xs text-admin-text-secondary hover:bg-admin-muted"
                                                         onClick={() =>
-                                                            openCreateOrderWithPhone(nationalDigits)
+                                                            openCreateOrderWithPhone(fullPhone)
                                                         }
                                                     >
                                                         Клиенты не найдены — создать заказ с этим
@@ -455,7 +469,6 @@ export default function AdminHeader({
                                                     const exact = isExactQuickPhoneMatch(
                                                         u.phone ?? "",
                                                         fullPhone,
-                                                        nationalDigits,
                                                     );
                                                     return (
                                                         <QuickPhoneCustomerOption
@@ -476,7 +489,7 @@ export default function AdminHeader({
                                                             userHit={u}
                                                             onClick={() =>
                                                                 openCreateOrderWithPhone(
-                                                                    u.phone ?? nationalDigits,
+                                                                    u.phone ?? fullPhone,
                                                                     hitName,
                                                                 )
                                                             }

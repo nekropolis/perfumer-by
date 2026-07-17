@@ -7,13 +7,8 @@ import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import ClientForm, { type ClientFormState } from "@/components/admin/clients/client-form";
+import ClientForm, { isValidClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
 import { fetchAdminClient, updateAdminClient } from "@/lib/admin-clients-api";
-
-function isValidPhone(phone: string): boolean {
-    const digits = phone.replace(/\D+/g, "");
-    return digits.length >= 12 && digits.startsWith("375");
-}
 
 export default function AdminClientsEditPage() {
     const router = useRouter();
@@ -54,8 +49,8 @@ export default function AdminClientsEditPage() {
         setSubmitting(true);
         setError("");
 
-        if (!isValidPhone(form.phone.trim())) {
-            setError("Телефон обязателен (полный номер +375)");
+        if (!isValidClientPhone(form.phone.trim())) {
+            setError("Телефон обязателен (BY +375 или международный 8–15 цифр)");
             setSubmitting(false);
             return;
         }

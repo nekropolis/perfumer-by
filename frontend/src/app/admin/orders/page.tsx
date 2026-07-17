@@ -184,6 +184,7 @@ export default function AdminOrdersPage() {
     ]);
 
     useEffect(() => {
+        setSearchInput(searchParamsFromUrl.get("search") ?? "");
         setStatusFilter(searchParamsFromUrl.get("status") ?? "");
         setPeriodFilter(searchParamsFromUrl.get("period") ?? "");
         setDateFrom(searchParamsFromUrl.get("from") ?? "");

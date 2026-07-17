@@ -15,7 +15,7 @@ export type CheckoutPaymentMethod = "cash" | "card";
 export type CheckoutPayload = {
     customer_name?: string;
     phone: string;
-    /** Режим «нет мобильного»: номер только цифрами, 375 + любые 5–14 цифр, без проверки кода оператора. */
+    /** Режим «нет мобильного»: любые 8–15 цифр с кодом страны, без проверки оператора BY. */
     phone_plain_digits?: boolean;
     comment?: string;
     delivery_method: CheckoutDeliveryMethod;

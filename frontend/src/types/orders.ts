@@ -1,3 +1,5 @@
+import type { ProductAvailabilitySource } from "@/types/catalog";
+
 export type OrderItemSupplierOffer = {
     id: number;
     supplier_id: number;
@@ -50,6 +52,15 @@ export type OrderSoldGiftCertificate = {
     balance_amount: string;
 };
 
+export type OrderItemFulfillmentOption = {
+    channel: "main" | "offer" | string;
+    label: string;
+    code: string | null;
+    title: string | null;
+    purchase_price: string | null;
+    qty: number;
+};
+
 export type OrderItem = {
     id: number;
     product_id: number | null;
@@ -63,6 +74,10 @@ export type OrderItem = {
     price: string;
     total: string;
     waiting_discount: boolean;
+    availability_source?: ProductAvailabilitySource | string | null;
+    can_fulfill_main?: boolean;
+    can_fulfill_offer?: boolean;
+    fulfillment_options?: OrderItemFulfillmentOption[];
     product_country?: string | null;
     image?: string | null;
     supplier_offers?: OrderItemSupplierOffer[];

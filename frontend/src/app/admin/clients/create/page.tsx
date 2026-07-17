@@ -6,7 +6,7 @@ import { useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import ClientForm, { type ClientFormState } from "@/components/admin/clients/client-form";
+import ClientForm, { isValidClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
 import { createAdminClient } from "@/lib/admin-clients-api";
 
 const emptyForm: ClientFormState = {
@@ -20,11 +20,6 @@ const emptyForm: ClientFormState = {
     passwordConfirmation: "",
 };
 
-function isValidPhone(phone: string): boolean {
-    const digits = phone.replace(/\D+/g, "");
-    return digits.length >= 12 && digits.startsWith("375");
-}
-
 export default function AdminClientsCreatePage() {
     const router = useRouter();
     const [form, setForm] = useState<ClientFormState>(emptyForm);
@@ -35,8 +30,8 @@ export default function AdminClientsCreatePage() {
         setSubmitting(true);
         setError("");
 
-        if (!isValidPhone(form.phone.trim())) {
-            setError("Телефон обязателен (полный номер +375)");
+        if (!isValidClientPhone(form.phone.trim())) {
+            setError("Телефон обязателен (BY +375 или международный 8–15 цифр)");
             setSubmitting(false);
             return;
         }

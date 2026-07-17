@@ -1,5 +1,8 @@
 "use client";
 
+import { ADMIN_PHONE_MAX_DIGITS } from "@/lib/admin-phone-search";
+import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
+
 type ClientFormState = {
     first_name: string;
     last_name: string;
@@ -27,14 +30,18 @@ function digitsOnly(value: string): string {
 }
 
 function clampNationalDigits(value: string): string {
-    return digitsOnly(value).slice(0, 9);
+    const d = digitsOnly(value);
+    if (d.startsWith(PHONE_PREFIX)) {
+        return d.slice(PHONE_PREFIX.length).slice(0, 9);
+    }
+    return d.slice(0, 9);
 }
 
-function nationalFromStoredPhone(phone: string): string {
+function shouldUsePlainPhoneUi(phone: string): boolean {
     const d = digitsOnly(phone);
-    if (d.startsWith(PHONE_PREFIX)) return d.slice(PHONE_PREFIX.length, PHONE_PREFIX.length + 9);
-    if (d.length >= 9) return d.slice(-9);
-    return d.slice(0, 9);
+    if (!d) return false;
+    if (d.startsWith(PHONE_PREFIX) && d.length <= 12) return false;
+    return true;
 }
 
 function formatNationalDisplay(national: string): string {
@@ -45,6 +52,12 @@ function formatNationalDisplay(national: string): string {
     return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}`;
 }
 
+export function isValidClientPhone(phone: string): boolean {
+    const digits = digitsOnly(phone);
+    if (isPlainByPhoneComplete(digits)) return true;
+    return digits.length >= 12 && digits.startsWith(PHONE_PREFIX);
+}
+
 export default function ClientForm({
     form,
     submitting,
@@ -53,7 +66,8 @@ export default function ClientForm({
     onChangeAction,
     onSubmitAction,
 }: Props) {
-    const nationalPhone = nationalFromStoredPhone(form.phone);
+    const plainMode = shouldUsePlainPhoneUi(form.phone);
+    const nationalPhone = clampNationalDigits(form.phone);
 
     return (
         <div className="space-y-4">
@@ -92,21 +106,45 @@ export default function ClientForm({
                     />
                 </div>
                 <div>
-                    <label className="mb-1 block text-sm text-admin-text-secondary">
-                        Телефон <span className="text-rose-600">*</span>
-                    </label>
-                    <div className="flex w-full items-stretch overflow-hidden rounded-xl border bg-white">
-                        <span className="flex shrink-0 items-center border-r bg-admin-muted px-3 text-sm text-admin-text-secondary">
-                            +375
-                        </span>
-                        <input
-                            value={formatNationalDisplay(nationalPhone)}
-                            onChange={(e) => {
-                                const national = clampNationalDigits(e.target.value);
-                                onChangeAction({ ...form, phone: national ? `${PHONE_PREFIX}${national}` : "" });
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                        <label className="block text-sm text-admin-text-secondary">
+                            Телефон <span className="text-rose-600">*</span>
+                        </label>
+                        <button
+                            type="button"
+                            className="text-[11px] font-medium text-admin-primary hover:underline"
+                            onClick={() => {
+                                if (plainMode) {
+                                    const d = digitsOnly(form.phone);
+                                    const national = d.startsWith(PHONE_PREFIX)
+                                        ? d.slice(PHONE_PREFIX.length).slice(0, 9)
+                                        : "";
+                                    onChangeAction({
+                                        ...form,
+                                        phone: national ? `${PHONE_PREFIX}${national}` : "",
+                                    });
+                                } else {
+                                    onChangeAction({
+                                        ...form,
+                                        phone: digitsOnly(form.phone).slice(0, ADMIN_PHONE_MAX_DIGITS),
+                                    });
+                                }
                             }}
-                            className="min-w-0 flex-1 border-0 px-3 py-2 text-sm outline-none ring-0 focus:ring-0"
-                            placeholder="29 123-45-67"
+                        >
+                            {plainMode ? "Белорусский" : "Международный"}
+                        </button>
+                    </div>
+                    {plainMode ? (
+                        <input
+                            value={digitsOnly(form.phone)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    phone: e.target.value.replace(/\D/g, "").slice(0, ADMIN_PHONE_MAX_DIGITS),
+                                })
+                            }
+                            className="w-full rounded-xl border px-3 py-2 font-mono text-sm"
+                            placeholder="79001234567"
                             inputMode="numeric"
                             autoComplete="new-password"
                             autoCorrect="off"
@@ -114,7 +152,39 @@ export default function ClientForm({
                             spellCheck={false}
                             required
                         />
-                    </div>
+                    ) : (
+                        <div className="flex w-full items-stretch overflow-hidden rounded-xl border bg-white">
+                            <span className="flex shrink-0 items-center border-r bg-admin-muted px-3 text-sm text-admin-text-secondary">
+                                +375
+                            </span>
+                            <input
+                                value={formatNationalDisplay(nationalPhone)}
+                                onChange={(e) => {
+                                    const raw = e.target.value.replace(/\D/g, "");
+                                    if (!raw.startsWith(PHONE_PREFIX) && raw.length >= 10) {
+                                        onChangeAction({
+                                            ...form,
+                                            phone: raw.slice(0, ADMIN_PHONE_MAX_DIGITS),
+                                        });
+                                        return;
+                                    }
+                                    const national = clampNationalDigits(e.target.value);
+                                    onChangeAction({
+                                        ...form,
+                                        phone: national ? `${PHONE_PREFIX}${national}` : "",
+                                    });
+                                }}
+                                className="min-w-0 flex-1 border-0 px-3 py-2 text-sm outline-none ring-0 focus:ring-0"
+                                placeholder="29 123-45-67"
+                                inputMode="numeric"
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                                required
+                            />
+                        </div>
+                    )}
                 </div>
                 <div>
                     <label className="mb-1 block text-sm text-admin-text-secondary">Email</label>

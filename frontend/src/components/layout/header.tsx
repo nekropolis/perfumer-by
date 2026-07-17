@@ -191,15 +191,8 @@ export default function Header() {
 
     useEffect(() => {
         const measure = () => {
-            const topOffsetCompensation = isMainRowPinned ? viewportTopOffset : 0;
-
-            const headerBottom =
-                isMainRowPinned && mainRowRef.current
-                    ? mainRowRef.current.getBoundingClientRect().bottom
-                    : headerRef.current?.getBoundingClientRect().bottom ?? 0;
-
-            const catalogToolbarStickyTop = Math.max(64, headerBottom + topOffsetCompensation);
-            const sidebarStickyTop = catalogToolbarStickyTop;
+            const mainRowBottom = mainRowRef.current?.getBoundingClientRect().bottom ?? 0;
+            const catalogToolbarStickyTop = Math.max(64, mainRowBottom);
             const menuTop = Math.max(64, catalogToolbarStickyTop);
 
             setMenuTopOffset(menuTop);
@@ -209,19 +202,15 @@ export default function Header() {
             );
             document.documentElement.style.setProperty(
                 "--page-sidebar-sticky-top",
-                `${sidebarStickyTop}px`,
+                `${catalogToolbarStickyTop}px`,
             );
         };
 
         measure();
         window.addEventListener("scroll", measure, { passive: true });
         window.addEventListener("resize", measure);
-        const el = headerRef.current;
         const row = mainRowRef.current;
         const ro = new ResizeObserver(() => measure());
-        if (el) {
-            ro.observe(el);
-        }
         if (row) {
             ro.observe(row);
         }
@@ -232,7 +221,7 @@ export default function Header() {
             document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
             document.documentElement.style.removeProperty("--page-sidebar-sticky-top");
         };
-    }, [isMainRowPinned, mainRowHeight, viewportTopOffset, isPhoneDropdownOpen, isMobileOpen]);
+    }, [mainRowHeight, viewportTopOffset, isPhoneDropdownOpen, isMobileOpen, searchOpen]);
 
     useEffect(() => {
         if (!isMobileOpen) {
@@ -356,35 +345,35 @@ export default function Header() {
     };
 
     return (
-        <header
-            ref={headerRef}
-            className={`relative z-[140] bg-admin-surface ${isMobileOpen ? "shadow-none" : "border-b border-admin-border shadow-admin-header"}`}
-        >
-            <HeaderServiceBar
-                isCompact={false}
-                promoText={promoText}
-                phoneShortLabel={phoneShortLabel}
-                phoneDropdownLinks={phoneDropdownLinks}
-                messengerLinks={messengerLinks}
-                isPhoneDropdownOpen={isPhoneDropdownOpen}
-                phoneDropdownRef={phoneDropdownRef}
-                onTogglePhoneDropdownAction={() =>
-                    setIsPhoneDropdownOpen((prev) => !prev)
-                }
-                onClosePhoneDropdownAction={() =>
-                    setIsPhoneDropdownOpen(false)
-                }
-                onOpenMessengerAction={openMessengerApp}
-            />
+        <>
+            <div ref={headerRef} className="relative z-[140]">
+                <HeaderServiceBar
+                    isCompact={false}
+                    promoText={promoText}
+                    phoneShortLabel={phoneShortLabel}
+                    phoneDropdownLinks={phoneDropdownLinks}
+                    messengerLinks={messengerLinks}
+                    isPhoneDropdownOpen={isPhoneDropdownOpen}
+                    phoneDropdownRef={phoneDropdownRef}
+                    onTogglePhoneDropdownAction={() =>
+                        setIsPhoneDropdownOpen((prev) => !prev)
+                    }
+                    onClosePhoneDropdownAction={() =>
+                        setIsPhoneDropdownOpen(false)
+                    }
+                    onOpenMessengerAction={openMessengerApp}
+                />
+            </div>
 
+            {/* Sentinel sits above sticky row: when it leaves, row is pinned (shadow). */}
             <div ref={mainRowSentinelRef} aria-hidden className="h-px w-full" />
-            {isMainRowPinned ? (
-                <div aria-hidden className="w-full" style={{ height: `${mainRowHeight}px` }} />
-            ) : null}
-            <div
+
+            <header
                 ref={mainRowRef}
-                className={`${isMainRowPinned ? "fixed inset-x-0 z-[120] shadow-admin-header" : "relative z-30"} ${isMobileOpen ? "" : "border-b border-admin-border"} bg-admin-surface`}
-                style={isMainRowPinned ? { top: `${viewportTopOffset}px` } : undefined}
+                className={`sticky z-[140] bg-admin-surface ${
+                    isMobileOpen ? "shadow-none" : "border-b border-admin-border"
+                } ${isMainRowPinned ? "shadow-admin-header" : ""}`}
+                style={{ top: `${viewportTopOffset}px` }}
             >
                 <HeaderMainRow
                     searchRef={searchRef}
@@ -430,7 +419,7 @@ export default function Header() {
                     onToggleBurgerMenuAction={() => setIsBurgerOpen((prev) => !prev)}
                     onCloseBurgerMenuAction={() => setIsBurgerOpen(false)}
                 />
-            </div>
+            </header>
 
             <Suspense fallback={<HeaderNavFallback isCompact={false} links={HEADER_CATEGORY_PILLS} />}>
                 <HeaderNav isCompact={false} links={HEADER_CATEGORY_PILLS} />
@@ -438,27 +427,27 @@ export default function Header() {
 
             <Suspense fallback={null}>
                 <HeaderMobileMenu
-                isOpen={isMobileOpen}
-                menuRootRef={mobileMenuRootRef}
-                anchorBottom={menuAnchorBottom}
-                wishlistQty={wishlistQty}
-                burgerLinks={HEADER_BURGER_LINKS}
-                phoneLinks={phoneLinks}
-                contactLinks={contactLinks}
-                isAuthenticated={isAuthenticated}
-                userName={user?.name || "Пользователь"}
-                userPhone={user?.phone || ""}
-                onCloseAction={() => {
-                    resetSearch();
-                    setIsMobileOpen(false);
-                }}
-                onLogoutAction={() => {
-                    logout();
-                    resetSearch();
-                    setIsMobileOpen(false);
-                }}
-            />
+                    isOpen={isMobileOpen}
+                    menuRootRef={mobileMenuRootRef}
+                    anchorBottom={menuAnchorBottom}
+                    wishlistQty={wishlistQty}
+                    burgerLinks={HEADER_BURGER_LINKS}
+                    phoneLinks={phoneLinks}
+                    contactLinks={contactLinks}
+                    isAuthenticated={isAuthenticated}
+                    userName={user?.name || "Пользователь"}
+                    userPhone={user?.phone || ""}
+                    onCloseAction={() => {
+                        resetSearch();
+                        setIsMobileOpen(false);
+                    }}
+                    onLogoutAction={() => {
+                        logout();
+                        resetSearch();
+                        setIsMobileOpen(false);
+                    }}
+                />
             </Suspense>
-        </header>
+        </>
     );
 }

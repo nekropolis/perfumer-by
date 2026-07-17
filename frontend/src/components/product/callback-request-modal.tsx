@@ -86,7 +86,7 @@ export default function CallbackRequestModal({
         if (!phoneIsValid) {
             setErrorMessage(
                 allowPlainPhone
-                    ? "Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после кода страны)."
+                    ? "Укажите номер с кодом страны: 8–15 цифр."
                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
             );
             return;

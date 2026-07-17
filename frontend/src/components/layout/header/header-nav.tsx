@@ -18,7 +18,7 @@ export function HeaderNavFallback({ isCompact, links }: HeaderNavProps) {
             }`}
             aria-hidden={isCompact}
         >
-            <div className="mx-auto flex h-11 max-w-7xl items-center justify-center gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:justify-start md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
+            <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
                 {links.map((item) => (
                     <Link
                         key={item.href}
@@ -44,7 +44,7 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
             }`}
             aria-hidden={isCompact}
         >
-            <div className="mx-auto flex h-11 max-w-7xl items-center justify-center gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:justify-start md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
+            <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
                 {links.map((item) => {
                     const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 

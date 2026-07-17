@@ -11,14 +11,15 @@ export function formatSearchPrice(item: HeaderSearchItem): ReactNode {
         !listingAvailable &&
         (Boolean(item.is_out_of_stock) || Boolean(min || max));
 
+    if (awaitingArrival) {
+        return "Ожидается поступление";
+    }
+
     if (item.is_preorder_available && !min && !max) {
         return "Предзаказ";
     }
 
     if (!min && !max) {
-        if (awaitingArrival) {
-            return "Ожидается поступление";
-        }
         return "Цена уточняется";
     }
 
@@ -28,27 +29,17 @@ export function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     const nMin = normalize(min);
     const nMax = normalize(max);
 
-    const priceBlock =
-        nMin && nMax && nMin !== nMax ? (
+    if (nMin && nMax && nMin !== nMax) {
+        return (
             <strong>
                 {nMin} - {nMax} <small>BYN</small>
             </strong>
-        ) : (
-            <strong>
-                {nMin || nMax} <small>BYN</small>
-            </strong>
-        );
-
-    if (awaitingArrival) {
-        return (
-            <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                {priceBlock}
-                <span className="font-normal text-[var(--text-secondary)]">
-                    · Ожидается поступление
-                </span>
-            </span>
         );
     }
 
-    return priceBlock;
+    return (
+        <strong>
+            {nMin || nMax} <small>BYN</small>
+        </strong>
+    );
 }

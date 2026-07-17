@@ -175,6 +175,8 @@ export type AdminOrderPayloadItem = {
   sku?: string | null;
   qty: number;
   price: number;
+  availability_source?: string | null;
+  waiting_discount?: boolean;
 };
 
 export type AdminOrderPayload = {
@@ -308,7 +310,7 @@ export async function updateOrder(id: number, payload: AdminOrderPayload): Promi
   return res.json();
 }
 
-export async function cancelOrder(id: number): Promise<OrderResponse> {
+export async function deleteOrder(id: number): Promise<{ message?: string }> {
   const res = await fetch(`${API_BASE}/admin/orders/${id}`, {
     method: "DELETE",
     headers: getAdminHeaders(),
@@ -316,8 +318,13 @@ export async function cancelOrder(id: number): Promise<OrderResponse> {
   });
 
   if (!res.ok) {
-    throw await parseOrderError(res, `Cancel order API error: ${res.status}`);
+    throw await parseOrderError(res, `Delete order API error: ${res.status}`);
   }
 
   return res.json();
+}
+
+/** @deprecated Используйте deleteOrder — DELETE теперь удаляет заказ, а не отменяет. */
+export async function cancelOrder(id: number): Promise<{ message?: string }> {
+  return deleteOrder(id);
 }

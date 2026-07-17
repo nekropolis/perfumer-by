@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   createOrder,
+  deleteOrder,
   fetchAdminOrderCustomerContext,
   fetchAdminOrderQuote,
   updateOrder,
@@ -14,8 +15,9 @@ import {
   type AdminOrderPayload,
   type AdminOrderQuote,
 } from "@/lib/admin-orders-api";
+import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
-import type { OrderData } from "@/types/orders";
+import type { OrderData, OrderItemFulfillmentOption } from "@/types/orders";
 import {
   fetchProductById,
   flattenProductSmartSearchHits,
@@ -31,7 +33,15 @@ import {
 import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { clampBelarusNationalDigits } from "@/lib/belarus-phone-national";
+import {
+  ADMIN_PHONE_MAX_DIGITS,
+  isAdminPhoneContextReady,
+  isAdminPhoneSearchReady,
+} from "@/lib/admin-phone-search";
+import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
+import { applyWaitingDiscount, WAITING_DISCOUNT_PERCENT } from "@/lib/loyalty-pricing";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
+import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
@@ -54,10 +64,12 @@ const clientFieldClass =
   "w-full rounded-lg border border-admin-border bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20";
 
 const orderLineTableGrid =
-  "grid grid-cols-[minmax(0,1fr)_2.75rem_5.75rem_6.5rem_2rem] items-center gap-x-3";
+  "grid grid-cols-[minmax(0,1fr)_7.5rem_2.75rem_5.75rem_6.5rem_2rem] items-start gap-x-3";
 
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]["value"];
+
+type FulfillmentChannel = "main" | "offer";
 
 type OrderLine = {
   product_id: number | null;
@@ -68,7 +80,15 @@ type OrderLine = {
   variant_title: string;
   sku: string | null;
   qty: number;
+  /** Текущая цена строки (с учётом скидки за ожидание, если офер). */
   price: number;
+  /** Цена до скидки за ожидание (для отображения было/стало). */
+  base_price: number;
+  availability_source: string | null;
+  waiting_discount: boolean;
+  can_fulfill_main: boolean;
+  can_fulfill_offer: boolean;
+  fulfillment_options: OrderItemFulfillmentOption[];
 };
 
 function digitsOnly(s: string): string {
@@ -100,6 +120,30 @@ function isValidBelarusMobileNational(national: string): boolean {
   const d = clampNationalDigits(national);
   if (d.length !== 9) return false;
   return ["25", "29", "33", "44"].includes(d.slice(0, 2));
+}
+
+/** BY mobile / короткие 375… — маска +375; иначе свободный ввод. */
+function shouldUsePlainPhoneUi(phone: string): boolean {
+  const d = digitsOnly(phone);
+  if (!d) return false;
+  if (d.startsWith(PHONE_PREFIX) && d.length <= 12) return false;
+  return true;
+}
+
+function phoneDigitsFromStored(phone: string): string {
+  return digitsOnly(phone).slice(0, ADMIN_PHONE_MAX_DIGITS);
+}
+
+function nationalFromPhoneDigits(phoneDigits: string): string {
+  const d = digitsOnly(phoneDigits);
+  if (d.startsWith(PHONE_PREFIX)) return d.slice(PHONE_PREFIX.length).slice(0, 9);
+  return d.slice(0, 9);
+}
+
+function isValidAdminOrderPhone(phoneDigits: string, plainMode: boolean): boolean {
+  const d = digitsOnly(phoneDigits);
+  if (plainMode) return isPlainByPhoneComplete(d);
+  return isValidBelarusMobileNational(nationalFromPhoneDigits(d));
 }
 
 type CustomerNameParts = {
@@ -167,6 +211,12 @@ function emptyLine(): OrderLine {
     sku: null,
     qty: 1,
     price: 0,
+    base_price: 0,
+    availability_source: null,
+    waiting_discount: false,
+    can_fulfill_main: false,
+    can_fulfill_offer: false,
+    fulfillment_options: [],
   };
 }
 
@@ -183,26 +233,95 @@ function isBlankOrderLine(l: OrderLine): boolean {
   return !l.product_id && !l.variant_id && !l.product_name.trim();
 }
 
-function nationalFromStoredPhone(phone: string): string {
-  const d = digitsOnly(phone);
-  if (d.startsWith(PHONE_PREFIX)) return d.slice(PHONE_PREFIX.length).slice(0, 9);
-  if (d.length >= 9) return d.slice(-9);
-  return d.slice(0, 9);
+function channelFromSource(source: string | null | undefined): FulfillmentChannel | null {
+  if (!source || source === "unavailable") return null;
+  if (source === "main" || source === "main+supplier") return "main";
+  return "offer";
+}
+
+function sourceFromChannel(
+  channel: FulfillmentChannel,
+  prevSource: string | null | undefined,
+  canMain: boolean,
+  canOffer: boolean,
+): string {
+  if (channel === "main") {
+    if (!canMain) return prevSource && prevSource !== "unavailable" ? prevSource : "unavailable";
+    if (prevSource === "main+supplier" && canOffer) return "main+supplier";
+    return "main";
+  }
+  if (!canOffer) return prevSource && prevSource !== "unavailable" ? prevSource : "unavailable";
+  return "supplier_only";
+}
+
+function defaultFulfillment(canMain: boolean, canOffer: boolean): Pick<
+  OrderLine,
+  "availability_source" | "can_fulfill_main" | "can_fulfill_offer" | "waiting_discount"
+> {
+  if (canMain) {
+    return {
+      availability_source: canOffer ? "main+supplier" : "main",
+      can_fulfill_main: true,
+      can_fulfill_offer: canOffer,
+      waiting_discount: false,
+    };
+  }
+  if (canOffer) {
+    return {
+      availability_source: "supplier_only",
+      can_fulfill_main: false,
+      can_fulfill_offer: true,
+      waiting_discount: true,
+    };
+  }
+  return {
+    availability_source: "unavailable",
+    can_fulfill_main: false,
+    can_fulfill_offer: false,
+    waiting_discount: false,
+  };
+}
+
+/** Восстановить базовую цену из цены со скидкой 3% за ожидание. */
+function estimateBaseFromWaitingPrice(waitingPrice: number): number {
+  if (waitingPrice <= 0) return 0;
+  return Math.round((waitingPrice / (1 - WAITING_DISCOUNT_PERCENT / 100)) * 10) / 10;
+}
+
+function priceWithOptionalWaiting(basePrice: number, waiting: boolean): number {
+  if (!waiting || basePrice <= 0) return Math.max(0, basePrice);
+  const next = applyWaitingDiscount(String(basePrice));
+  return next != null ? Number(next) : basePrice;
 }
 
 function linesFromOrderItems(order: OrderData): OrderLine[] {
   if (!order.items?.length) return [emptyLine()];
-  return order.items.map((item) => ({
-    product_id: item.product_id ?? null,
-    variant_id: item.variant_id ?? null,
-    product_name: item.product_name ?? "",
-    product_slug: item.product_slug ?? null,
-    brand_name: item.brand_name ?? null,
-    variant_title: item.variant_title ?? "",
-    sku: item.sku ?? null,
-    qty: Math.max(1, Number(item.qty) || 1),
-    price: Number(item.price) || 0,
-  }));
+  return order.items.map((item) => {
+    const source = item.availability_source ?? null;
+    const channel = channelFromSource(source);
+    const canMain = Boolean(item.can_fulfill_main) || channel === "main";
+    const canOffer = Boolean(item.can_fulfill_offer) || channel === "offer";
+    const waiting = Boolean(item.waiting_discount) || channel === "offer";
+    const price = Number(item.price) || 0;
+    const basePrice = waiting && price > 0 ? estimateBaseFromWaitingPrice(price) : price;
+    return {
+      product_id: item.product_id ?? null,
+      variant_id: item.variant_id ?? null,
+      product_name: item.product_name ?? "",
+      product_slug: item.product_slug ?? null,
+      brand_name: item.brand_name ?? null,
+      variant_title: item.variant_title ?? "",
+      sku: item.sku ?? null,
+      qty: Math.max(1, Number(item.qty) || 1),
+      price,
+      base_price: basePrice,
+      availability_source: source,
+      waiting_discount: waiting,
+      can_fulfill_main: canMain,
+      can_fulfill_offer: canOffer,
+      fulfillment_options: item.fulfillment_options ?? [],
+    };
+  });
 }
 
 const DELIVERY_VALUE_SET = new Set<string>(DELIVERY_OPTIONS.map((o) => o.value));
@@ -316,9 +435,12 @@ export default function AdminOrderCreateForm({
     isEdit && initialOrder && (initialOrder.status === "done" || initialOrder.status === "cancelled"),
   );
 
-  /** Только цифры после +375 (9 шт.: 25/29/33/44 + номер). */
-  const [nationalNumber, setNationalNumber] = useState(() =>
-    initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : nationalFromStoredPhone(initialPhone ?? ""),
+  /** Полный номер цифрами (375… или международный). */
+  const [phoneDigits, setPhoneDigits] = useState(() =>
+    phoneDigitsFromStored(initialOrder?.phone ?? initialPhone ?? ""),
+  );
+  const [plainPhoneMode, setPlainPhoneMode] = useState(() =>
+    shouldUsePlainPhoneUi(initialOrder?.phone ?? initialPhone ?? ""),
   );
   const [customerFirstName, setCustomerFirstName] = useState(
     () =>
@@ -339,6 +461,7 @@ export default function AdminOrderCreateForm({
       ).patronymic,
   );
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
+  const [orderStatus, setOrderStatus] = useState(() => initialOrder?.status ?? "new");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
   const [deliveryCity, setDeliveryCity] = useState(() => {
     const method = normalizeDelivery(initialOrder?.delivery_method);
@@ -360,6 +483,8 @@ export default function AdminOrderCreateForm({
   const [orderQuoteLoading, setOrderQuoteLoading] = useState(false);
   const [lines, setLines] = useState<OrderLine[]>(() => (initialOrder ? linesFromOrderItems(initialOrder) : [emptyLine()]));
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState("");
 
   const [phoneHits, setPhoneHits] = useState<AdminClient[]>([]);
@@ -370,7 +495,7 @@ export default function AdminOrderCreateForm({
   const [contextLoading, setContextLoading] = useState(false);
   const [ordersHistoryModal, setOrdersHistoryModal] = useState<OrdersHistoryModalKind | null>(null);
 
-  const debouncedNational = useDebouncedValue(nationalNumber, 280);
+  const debouncedPhone = useDebouncedValue(phoneDigits, 280);
 
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const activeProductSearchQ = activeLine !== null ? (lines[activeLine]?.product_name ?? "") : "";
@@ -476,22 +601,32 @@ export default function AdminOrderCreateForm({
   }, []);
 
   useEffect(() => {
-    const nat = clampNationalDigits(debouncedNational);
-    if (nat.length < PHONE_CLIENT_HINT_MIN_NATIONAL) {
+    const searchKey = plainPhoneMode
+      ? digitsOnly(debouncedPhone)
+      : fullPhoneFromNational(nationalFromPhoneDigits(debouncedPhone));
+    const national = nationalFromPhoneDigits(searchKey);
+    const ready = plainPhoneMode
+      ? isAdminPhoneSearchReady(searchKey) || searchKey.length >= PHONE_CLIENT_HINT_MIN_NATIONAL
+      : national.length >= PHONE_CLIENT_HINT_MIN_NATIONAL;
+    if (!ready || !searchKey) {
       setPhoneHits([]);
       return;
     }
-    const full = fullPhoneFromNational(nat);
     let cancelled = false;
     setPhoneHitsLoading(true);
-    void fetchAdminClients({ search: full })
+    void fetchAdminClients({ search: searchKey })
       .then((response) => {
         if (!cancelled) {
-          const want = digitsOnly(full);
+          const want = digitsOnly(searchKey);
           const rows = (response.data ?? []).filter((client) => {
             if (!client.phone) return false;
             const clientPhoneDigits = digitsOnly(client.phone);
-            return clientPhoneDigits === want || clientPhoneDigits.endsWith(nat);
+            return (
+              clientPhoneDigits === want ||
+              clientPhoneDigits.endsWith(want) ||
+              want.endsWith(clientPhoneDigits) ||
+              (!plainPhoneMode && clientPhoneDigits.endsWith(national))
+            );
           });
           setPhoneHits(rows.slice(0, 8));
         }
@@ -505,11 +640,16 @@ export default function AdminOrderCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [debouncedNational]);
+  }, [debouncedPhone, plainPhoneMode]);
 
   useEffect(() => {
-    const fullDigits = digitsOnly(fullPhoneFromNational(debouncedNational));
-    if (fullDigits.length < 10) {
+    const fullDigits = plainPhoneMode
+      ? digitsOnly(debouncedPhone)
+      : digitsOnly(fullPhoneFromNational(nationalFromPhoneDigits(debouncedPhone)));
+    const ready = plainPhoneMode
+      ? isAdminPhoneContextReady(fullDigits) || fullDigits.length >= 8
+      : fullDigits.length >= 10;
+    if (!ready) {
       setContext(null);
       return;
     }
@@ -528,22 +668,26 @@ export default function AdminOrderCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [debouncedNational]);
+  }, [debouncedPhone, plainPhoneMode]);
 
   useEffect(() => {
-    const nat = clampNationalDigits(debouncedNational);
-    if (nat.length !== 9) {
+    const phoneKey = plainPhoneMode
+      ? digitsOnly(debouncedPhone)
+      : fullPhoneFromNational(nationalFromPhoneDigits(debouncedPhone));
+    const complete = plainPhoneMode
+      ? isPlainByPhoneComplete(phoneKey)
+      : clampNationalDigits(nationalFromPhoneDigits(phoneKey)).length === 9;
+    if (!complete) {
       autoCustomerNamePhoneRef.current = "";
       return;
     }
 
-    const phoneKey = fullPhoneFromNational(nat);
     const suggested =
       context?.matched_user?.name?.trim() || context?.customer_name?.trim() || "";
     if (!suggested) return;
 
-    const initialNat = initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : "";
-    if (initialOrder && nat === initialNat) {
+    const initialKey = phoneDigitsFromStored(initialOrder?.phone ?? "");
+    if (initialOrder && phoneKey === initialKey) {
       autoCustomerNamePhoneRef.current = phoneKey;
       return;
     }
@@ -555,19 +699,21 @@ export default function AdminOrderCreateForm({
     setCustomerLastName(parts.last);
     setCustomerPatronymic(parts.patronymic);
     autoCustomerNamePhoneRef.current = phoneKey;
-  }, [context?.matched_user?.name, context?.customer_name, debouncedNational, initialOrder]);
+  }, [context?.matched_user?.name, context?.customer_name, debouncedPhone, plainPhoneMode, initialOrder]);
 
   useEffect(() => {
     setDiscountCardManuallyCleared(false);
-    const nat = clampNationalDigits(debouncedNational);
-    const initialNat = initialOrder?.phone ? nationalFromStoredPhone(initialOrder.phone) : "";
-    if (initialOrder && nat === initialNat) {
+    const phoneKey = plainPhoneMode
+      ? digitsOnly(debouncedPhone)
+      : fullPhoneFromNational(nationalFromPhoneDigits(debouncedPhone));
+    const initialKey = phoneDigitsFromStored(initialOrder?.phone ?? "");
+    if (initialOrder && phoneKey === initialKey) {
       return;
     }
     setAppliedDiscountCardNumber("");
     setDiscountCardInput("");
     setDiscountCardError("");
-  }, [debouncedNational, initialOrder]);
+  }, [debouncedPhone, plainPhoneMode, initialOrder]);
 
   useEffect(() => {
     if (!context?.delivery_cities?.length) {
@@ -804,7 +950,13 @@ export default function AdminOrderCreateForm({
 
   const selectPhoneHit = (u: AdminClient) => {
     const d = digitsOnly(u.phone ?? "");
-    setNationalNumber(d.startsWith(PHONE_PREFIX) ? d.slice(PHONE_PREFIX.length) : d.slice(-9));
+    if (shouldUsePlainPhoneUi(d)) {
+      setPlainPhoneMode(true);
+      setPhoneDigits(d.slice(0, ADMIN_PHONE_MAX_DIGITS));
+    } else {
+      setPlainPhoneMode(false);
+      setPhoneDigits(d.startsWith(PHONE_PREFIX) ? d.slice(0, 12) : fullPhoneFromNational(d));
+    }
     const parts = parseCustomerNameParts(u.name ?? "");
     setCustomerFirstName(parts.first);
     setCustomerLastName(parts.last);
@@ -866,6 +1018,11 @@ export default function AdminOrderCreateForm({
         return;
       }
       setError("");
+      const catalogPrice = Number(variant.price ?? variantPreview.price ?? 0);
+      const fulfillment = defaultFulfillment(
+        Boolean(variant.can_fulfill_main ?? variantPreview.can_fulfill_main),
+        Boolean(variant.can_fulfill_offer ?? variantPreview.can_fulfill_offer),
+      );
       setLines((prev) =>
         prev.map((row, i) =>
           i === lineIdx
@@ -878,7 +1035,10 @@ export default function AdminOrderCreateForm({
               variant_id: variant.id,
               variant_title: variant.title || variant.display_name || "",
               sku: variant.display_name ?? row.sku,
-              price: Number(variant.price ?? variantPreview.price ?? 0),
+              base_price: catalogPrice,
+              price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
+              fulfillment_options: row.fulfillment_options,
+              ...fulfillment,
             }
             : row,
         ),
@@ -895,6 +1055,8 @@ export default function AdminOrderCreateForm({
     setVariantTooltip(null);
     const v = detail.variants?.find((x) => x.id === variantId);
     if (!v) return;
+    const catalogPrice = Number(v.price ?? 0);
+    const fulfillment = defaultFulfillment(Boolean(v.can_fulfill_main), Boolean(v.can_fulfill_offer));
     setLines((prev) =>
       prev.map((row, i) =>
         i === lineIdx
@@ -903,7 +1065,9 @@ export default function AdminOrderCreateForm({
             variant_id: v.id,
             variant_title: v.title || v.display_name || "",
             sku: v.display_name ?? row.sku,
-            price: Number(v.price ?? 0),
+            base_price: catalogPrice,
+            price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
+            ...fulfillment,
           }
           : row,
       ),
@@ -916,6 +1080,50 @@ export default function AdminOrderCreateForm({
   const setLineQty = (idx: number, qty: number) => {
     if (itemsLocked) return;
     setLines((prev) => prev.map((row, i) => (i === idx ? { ...row, qty: Math.max(1, qty) } : row)));
+  };
+
+  const setLineChannel = (idx: number, channel: FulfillmentChannel) => {
+    if (itemsLocked) return;
+    setLines((prev) =>
+      prev.map((row, i) => {
+        if (i !== idx) return row;
+        if (channel === "main" && !row.can_fulfill_main) return row;
+        if (channel === "offer" && !row.can_fulfill_offer) return row;
+        const base = row.base_price > 0 ? row.base_price : row.price;
+        const waiting = channel === "offer";
+        return {
+          ...row,
+          availability_source: sourceFromChannel(
+            channel,
+            row.availability_source,
+            row.can_fulfill_main,
+            row.can_fulfill_offer,
+          ),
+          waiting_discount: waiting,
+          base_price: base,
+          price: priceWithOptionalWaiting(base, waiting),
+        };
+      }),
+    );
+  };
+
+  const setLinePrice = (idx: number, price: number) => {
+    if (itemsLocked) return;
+    const next = Math.max(0, Number.isFinite(price) ? price : 0);
+    setLines((prev) =>
+      prev.map((row, i) => {
+        if (i !== idx) return row;
+        // Ручная правка цены: при офере считаем это уже ценой со скидкой; база для инфо пересчитывается.
+        if (row.waiting_discount) {
+          return {
+            ...row,
+            price: next,
+            base_price: estimateBaseFromWaitingPrice(next),
+          };
+        }
+        return { ...row, price: next, base_price: next };
+      }),
+    );
   };
 
   const removeLine = (idx: number) => {
@@ -943,9 +1151,15 @@ export default function AdminOrderCreateForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const phoneDigits = fullPhoneFromNational(nationalNumber);
-    if (!isValidBelarusMobileNational(nationalNumber)) {
-      setError("Введите 9 цифр после +375 (код 25, 29, 33 или 44)");
+    const resolvedPhone = plainPhoneMode
+      ? digitsOnly(phoneDigits)
+      : fullPhoneFromNational(nationalFromPhoneDigits(phoneDigits));
+    if (!isValidAdminOrderPhone(resolvedPhone, plainPhoneMode)) {
+      setError(
+        plainPhoneMode
+          ? "Укажите номер с кодом страны: 8–15 цифр"
+          : "Введите 9 цифр после +375 (код 25, 29, 33 или 44)",
+      );
       return;
     }
     const hasIncompleteLine = lines.some((l) => !isBlankOrderLine(l) && !isCompleteOrderLine(l));
@@ -979,8 +1193,9 @@ export default function AdminOrderCreateForm({
           last: customerLastName,
           patronymic: customerPatronymic,
         }) || null,
-      phone: phoneDigits,
+      phone: resolvedPhone,
       comment: comment.trim() || null,
+      status: orderStatus,
       delivery_method: deliveryMethod,
       delivery_city: deliveryMethod === "pickup" ? null : resolvedCity || null,
       delivery_address: addr,
@@ -997,6 +1212,8 @@ export default function AdminOrderCreateForm({
         sku: item.sku,
         qty: Math.max(1, item.qty),
         price: Math.max(0, item.price),
+        availability_source: item.availability_source,
+        waiting_discount: item.waiting_discount,
       })),
     };
 
@@ -1016,14 +1233,39 @@ export default function AdminOrderCreateForm({
     }
   };
 
+  const canDeleteOrder =
+    isEdit &&
+    initialOrder != null &&
+    !["done", "completed"].includes(String(initialOrder.status));
+
+  const handleDeleteOrder = async () => {
+    if (!initialOrder || !canDeleteOrder || deleting) return;
+    setError("");
+    setDeleting(true);
+    try {
+      await deleteOrder(initialOrder.id);
+      setConfirmDeleteOpen(false);
+      router.push("/admin/orders?deleted=1");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить заказ");
+      setConfirmDeleteOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const savedCities = context?.delivery_cities ?? [];
   const showCitySelect =
     savedCities.length > 0 && deliveryMethod !== "pickup" && deliveryMethod !== "belarus_courier";
 
-  const nationalLive = clampNationalDigits(nationalNumber);
-  const nationalDebounced = clampNationalDigits(debouncedNational);
+  const nationalLive = nationalFromPhoneDigits(phoneDigits);
+  const nationalDebounced = nationalFromPhoneDigits(debouncedPhone);
   const showPhoneClientPanel =
-    phoneHitsOpen && nationalLive.length >= PHONE_CLIENT_HINT_MIN_NATIONAL;
+    phoneHitsOpen &&
+    (plainPhoneMode
+      ? digitsOnly(phoneDigits).length >= PHONE_CLIENT_HINT_MIN_NATIONAL
+      : nationalLive.length >= PHONE_CLIENT_HINT_MIN_NATIONAL);
   const hasOrderHistoryByPhone = totalOrdersCount(context) > 0;
 
   const belarusCitySearch = (
@@ -1125,39 +1367,115 @@ export default function AdminOrderCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {isEdit ? (
+        <SectionCard>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem]">
+              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Статус заказа</label>
+              <select
+                value={orderStatus}
+                disabled={itemsLocked}
+                onChange={(e) => setOrderStatus(e.target.value)}
+                className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20 disabled:opacity-60"
+              >
+                {ORDER_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {itemsLocked ? (
+              <p className="text-xs text-admin-text-secondary">Статус «Выполнен» / «Отменён» нельзя менять здесь.</p>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
+
       <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
           <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3.5 sm:max-w-[22rem] lg:max-w-[26rem]">
             <div className="relative">
-              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Телефон *</label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-xs font-medium text-admin-text-secondary">Телефон *</label>
+                <button
+                  type="button"
+                  className="text-[11px] font-medium text-admin-primary hover:underline"
+                  onClick={() => {
+                    setPlainPhoneMode((prev) => {
+                      if (prev) {
+                        const d = digitsOnly(phoneDigits);
+                        const national = d.startsWith(PHONE_PREFIX)
+                          ? d.slice(PHONE_PREFIX.length).slice(0, 9)
+                          : "";
+                        setPhoneDigits(national ? fullPhoneFromNational(national) : "");
+                        return false;
+                      }
+                      setPhoneDigits(digitsOnly(phoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS));
+                      return true;
+                    });
+                  }}
+                >
+                  {plainPhoneMode ? "Белорусский мобильный" : "Международный номер"}
+                </button>
+              </div>
 
-              <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
-                <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
-                  +375
-                </span>
+              {plainPhoneMode ? (
                 <input
-                  value={formatNationalDisplay(nationalNumber)}
+                  value={digitsOnly(phoneDigits)}
                   onChange={(e) => {
-                    setNationalNumber(clampNationalDigits(e.target.value));
+                    setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, ADMIN_PHONE_MAX_DIGITS));
                     setPhoneHitsOpen(true);
                   }}
                   onFocus={() => setPhoneHitsOpen(true)}
                   onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
-                  className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
-                  placeholder="29 123-45-67"
+                  className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 font-mono text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20"
+                  placeholder="79001234567"
                   inputMode="numeric"
                   autoComplete="new-password"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
                 />
-              </div>
+              ) : (
+                <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
+                  <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
+                    +375
+                  </span>
+                  <input
+                    value={formatNationalDisplay(nationalLive)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, "");
+                      if (!raw.startsWith(PHONE_PREFIX) && raw.length >= 10) {
+                        setPlainPhoneMode(true);
+                        setPhoneDigits(raw.slice(0, ADMIN_PHONE_MAX_DIGITS));
+                        setPhoneHitsOpen(true);
+                        return;
+                      }
+                      setPhoneDigits(fullPhoneFromNational(clampNationalDigits(e.target.value)));
+                      setPhoneHitsOpen(true);
+                    }}
+                    onFocus={() => setPhoneHitsOpen(true)}
+                    onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
+                    className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
+                    placeholder="29 123-45-67"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                  />
+                </div>
+              )}
 
               {showPhoneClientPanel ? (
                 <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[16rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
-                  {phoneHitsLoading || nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL ? (
+                  {phoneHitsLoading ||
+                  (plainPhoneMode
+                    ? digitsOnly(debouncedPhone).length < PHONE_CLIENT_HINT_MIN_NATIONAL
+                    : nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL) ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
                   ) : phoneHits.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
@@ -1361,6 +1679,7 @@ export default function AdminOrderCreateForm({
                   className={`${orderLineTableGrid} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
                 >
                   <span>Наименование</span>
+                  <span>Откуда</span>
                   <span className="text-center">Кол-во</span>
                   <span className="text-right">Цена</span>
                   <span className="text-right">Итого</span>
@@ -1369,15 +1688,64 @@ export default function AdminOrderCreateForm({
                 <div className="divide-y divide-admin-border/70">
                   {lines.map((line, idx) => {
                     if (!isCompleteOrderLine(line)) return null;
+                    const channel = channelFromSource(line.availability_source);
+                    const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
+                    const selectValue: FulfillmentChannel =
+                      channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
+                        ? "offer"
+                        : "main";
                     return (
                       <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
-                        <p className="min-w-0 truncate text-sm leading-snug text-admin-text">
-                          <span className="font-medium">{line.product_id} - {line.brand_name}  {line.product_name}</span>
-                          {line.variant_title ? (
-                            <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate text-sm leading-snug text-admin-text">
+                            <span className="font-medium">{line.product_id} - {line.brand_name}  {line.product_name}</span>
+                            {line.variant_title ? (
+                              <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                            ) : null}
+                          </p>
+                          {line.fulfillment_options.length > 0 ? (
+                            <ul className="space-y-0.5 text-[11px] leading-snug text-admin-text-secondary">
+                              {line.fulfillment_options.map((opt, optIdx) => (
+                                <li key={`${opt.channel}-${opt.code ?? optIdx}-${optIdx}`} className="min-w-0">
+                                  <span className="font-medium text-admin-text">{opt.label}</span>
+                                  {opt.code ? <>{" · "}{opt.code}</> : null}
+                                  {opt.title ? (
+                                    <>
+                                      {" · "}
+                                      <span className="text-admin-text">{opt.title}</span>
+                                    </>
+                                  ) : null}
+                                  {opt.purchase_price != null && opt.purchase_price !== "" ? (
+                                    <>{" · "}{opt.purchase_price}</>
+                                  ) : null}
+                                  <>{" · "}{opt.qty} шт.</>
+                                </li>
+                              ))}
+                            </ul>
                           ) : null}
-                        </p>
-                        <div className="justify-self-center">
+                        </div>
+                        <div className="min-w-0 self-start pt-0.5">
+                          {!canPickChannel && !channel ? (
+                            <p className="text-xs leading-snug text-admin-text-secondary">
+                              Нет склада и офера — выбирать не из чего
+                            </p>
+                          ) : itemsLocked || !canPickChannel ? (
+                            <p className="text-xs leading-snug text-admin-text">
+                              {channel === "main" ? "Склад" : channel === "offer" ? "Офер" : "—"}
+                            </p>
+                          ) : (
+                            <select
+                              value={selectValue}
+                              onChange={(e) => setLineChannel(idx, e.target.value as FulfillmentChannel)}
+                              className="h-8 w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 text-xs text-admin-text outline-none focus:ring-2 focus:ring-admin-primary/20"
+                              aria-label={`Откуда: ${line.product_name}`}
+                            >
+                              {line.can_fulfill_main ? <option value="main">Склад</option> : null}
+                              {line.can_fulfill_offer ? <option value="offer">Офер</option> : null}
+                            </select>
+                          )}
+                        </div>
+                        <div className="justify-self-center self-start pt-0.5">
                           {itemsLocked ? (
                             <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
                               {line.qty}
@@ -1393,11 +1761,39 @@ export default function AdminOrderCreateForm({
                             />
                           )}
                         </div>
-                        <p className="text-right text-sm tabular-nums text-admin-text">{formatMoneyRub(line.price)}</p>
-                        <p className="text-right text-sm font-semibold tabular-nums text-admin-text">
+                        <div className="justify-self-end self-start pt-0.5 text-right">
+                          {itemsLocked ? (
+                            <p className="flex h-8 items-center justify-end text-sm tabular-nums text-admin-text">
+                              {formatMoneyRub(line.price)}
+                            </p>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              aria-label={`Цена: ${line.product_name}`}
+                              className="h-8 w-[5.5rem] rounded-lg bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                              value={line.price}
+                              onChange={(e) => setLinePrice(idx, Number(e.target.value))}
+                            />
+                          )}
+                          {line.waiting_discount ? (
+                            <div className="mt-0.5 space-y-0.5">
+                              {line.base_price > 0 && line.base_price !== line.price ? (
+                                <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
+                                  {formatMoneyRub(line.base_price)}
+                                </p>
+                              ) : null}
+                              <p className="text-[10px] font-medium leading-tight text-amber-800">
+                                −{WAITING_DISCOUNT_PERCENT}% ожидание
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                        <p className="self-start pt-0.5 text-right text-sm font-semibold leading-8 tabular-nums text-admin-text">
                           {formatMoneyRub(orderLineMerchandiseTotal(line))}
                         </p>
-                        <div className="justify-self-end">
+                        <div className="justify-self-end self-start pt-0.5">
                           {!itemsLocked ? (
                             <button
                               type="button"
@@ -2008,14 +2404,43 @@ export default function AdminOrderCreateForm({
         )
         : null}
 
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded-full bg-admin-primary px-5 py-2.5 text-sm text-white disabled:opacity-50">
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={saving || deleting} className="rounded-full bg-admin-primary px-5 py-2.5 text-sm text-white disabled:opacity-50">
           {saving ? (isEdit ? "Сохранение…" : "Создание…") : isEdit ? "Сохранить изменения" : "Создать заказ"}
         </button>
-        <button type="button" onClick={() => router.push("/admin/orders")} className="rounded-xl border px-4 py-2 text-sm">
+        <button
+          type="button"
+          disabled={saving || deleting}
+          onClick={() => router.push("/admin/orders")}
+          className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+        >
           Отмена
         </button>
+        {canDeleteOrder ? (
+          <button
+            type="button"
+            disabled={saving || deleting}
+            onClick={() => setConfirmDeleteOpen(true)}
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          >
+            Удалить
+          </button>
+        ) : null}
       </div>
+
+      <AdminConfirmDialog
+        open={confirmDeleteOpen}
+        title="Удалить заказ?"
+        message="Точно удалить?"
+        confirmText="Удалить"
+        cancelText="Отмена"
+        loading={deleting}
+        confirmLoadingText="Удаление…"
+        onConfirmAction={() => void handleDeleteOrder()}
+        onCloseAction={() => {
+          if (!deleting) setConfirmDeleteOpen(false);
+        }}
+      />
     </form>
   );
 }

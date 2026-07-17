@@ -68,6 +68,8 @@ export type ProductSmartSearchVariantPreview = {
     is_available: boolean;
     is_preorder: boolean;
     price?: string | null;
+    can_fulfill_main?: boolean;
+    can_fulfill_offer?: boolean;
 };
 
 export type ProductSmartSearchFlatOption =
@@ -198,6 +200,8 @@ export type ProductAdminDetail = {
         is_active?: boolean;
         /** Склад / поставщик — из ProductVariantResource (админка). */
         fulfillment_tooltip?: string;
+        can_fulfill_main?: boolean;
+        can_fulfill_offer?: boolean;
     }>;
 
     images?: Array<{

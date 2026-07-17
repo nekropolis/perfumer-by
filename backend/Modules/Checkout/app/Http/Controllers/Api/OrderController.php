@@ -20,6 +20,7 @@ use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Checkout\Services\AdminOrderPricingService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
 use Modules\Checkout\Support\OrderAccountScope;
+use Modules\Warehouse\Models\StockReservation;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Services\StockInventoryService;
 
@@ -51,6 +52,12 @@ class OrderController extends Controller
             'items.*.sku' => ['nullable', 'string', 'max:255'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.availability_source' => [
+                'nullable',
+                'string',
+                'in:main,main+supplier,supplier_only,supplier_warehouse,unavailable',
+            ],
+            'items.*.waiting_discount' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -451,6 +458,7 @@ class OrderController extends Controller
 
         DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber) {
             $phone = Phone::normalize((string) $validated['phone']);
+            $nextStatus = (string) ($validated['status'] ?? $previousStatus);
             $order->update([
                 'client_id' => OrderAccountScope::resolveClientIdForPhone($phone) ?? $order->client_id,
                 'customer_name' => $validated['customer_name'] ?? null,
@@ -461,19 +469,31 @@ class OrderController extends Controller
                 'delivery_address' => $validated['delivery_address'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
                 'payment_method' => $validated['payment_method'] ?? null,
-                'status' => (string) ($validated['status'] ?? $previousStatus),
+                'status' => $nextStatus,
             ]);
 
             if ($isTerminal) {
                 $this->recalculateOrderTotalsFromExistingItems($order);
             } else {
+                $stockService = app(StockInventoryService::class);
+                $stockService->releaseForOrder($order, 'order_update');
                 $this->syncOrderItemsAndTotals($order, $validated['items'], [
                     'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
                     'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
                 ]);
+                $order->unsetRelation('items');
+                $order->load('items');
+
+                // Склад → резерв; офер/ожидание → без резерва (reserveOrderItem сам решает по availability_source).
+                if (
+                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'done', 'completed'], true)
+                    && $nextStatus !== 'cancelled'
+                ) {
+                    $stockService->reserveForOrder($order);
+                }
             }
-            $nextStatus = (string) $order->status;
-            $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
+
+            $this->applyStatusTransitionEffects($order, $previousStatus, (string) $order->status);
         });
 
         $order->refresh()->load([
@@ -494,33 +514,31 @@ class OrderController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $order = Order::query()->with('items')->findOrFail($id);
-        $previousStatus = (string) $order->status;
-        $nextStatus = 'cancelled';
+        $status = (string) $order->status;
 
-        if ($previousStatus === $nextStatus) {
+        if (in_array($status, ['done', 'completed'], true)) {
             return response()->json([
-                'data' => $this->orderPayloadWithInventoryFlag($order),
-                'message' => 'Order already cancelled',
-            ]);
+                'message' => 'Заказ в статусе «Выполнен» удалить нельзя.',
+            ], 422);
         }
 
-        DB::transaction(function () use ($order, $previousStatus, $nextStatus) {
-            $order->update(['status' => $nextStatus]);
-            $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
+        DB::transaction(function () use ($order) {
+            $stockService = app(StockInventoryService::class);
+            $stockService->releaseForOrder($order, 'order_deleted');
+            app(GiftCertificateLedgerService::class)->refundOrderCertificates($order);
+            app(SoldGiftCertificateFromOrderService::class)->voidSoldAwaitingCompletion($order);
+
+            // Резервы без FK на orders — удаляем явно после снятия.
+            StockReservation::query()
+                ->where('order_id', $order->id)
+                ->delete();
+
+            $order->items()->delete();
+            $order->delete();
         });
 
-        $order->refresh()->load([
-            'items.product.attributeValues.productAttribute',
-            'items.product.attributeValues.selectedOptions.productAttributeOption',
-            'discountCard:id,card_number',
-            'orderGiftCertificates.giftCertificate',
-            'giftCertificatePurchases',
-            'soldGiftCertificates.template',
-        ]);
-
         return response()->json([
-            'data' => $this->orderPayloadWithInventoryFlag($order),
-            'message' => 'Order cancelled',
+            'message' => 'Order deleted',
         ]);
     }
 
@@ -693,6 +711,10 @@ class OrderController extends Controller
                 'qty' => $qty,
                 'price' => $price,
                 'total' => $lineTotal,
+                'waiting_discount' => (bool) ($item['waiting_discount'] ?? false),
+                'availability_source' => isset($item['availability_source']) && is_string($item['availability_source'])
+                    ? $item['availability_source']
+                    : null,
             ]);
 
             $itemsQty += $qty;

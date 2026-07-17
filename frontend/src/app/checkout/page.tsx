@@ -53,19 +53,32 @@ import {
 } from "@/lib/checkout-line-selection";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
-const DELIVERY_HINTS: Record<CheckoutDeliveryMethod, string> = {
-    minsk_courier:
-        "Доставка по Минску бесплатно, если сумма заказа (после скидки по карте) выше порога из настроек. Иначе — фиксированная стоимость курьера по Минску. Время доставки согласуйте с менеджером.",
-    belarus_courier:
-        "Доставка по РБ курьерской служмой: бесплатно при заказе от двух наименований (строк корзины), если у варианта не отмечено «не учитывать в 2 наименования». Иначе — фиксированная стоимость. Сроки 1–2 дня.",
-    pickup:
-        "Самовывоз: забрать заказ можно по адресу менеджера (ул. Чичурина) после согласования времени — курьер доставит заказ со склада к менеджеру.",
-};
+const PICKUP_HINT =
+    "Самовывоз: В связи с переходом на удалённый режим работы, забрать самостоятельно ваш заказ можно по домашнему адресу менеджера (ул. Чичурина). Обязательно предварительное согласование времени, чтобы курьер успел переместить ваш заказ со склада к менеджеру.";
+
+function deliveryHint(
+    method: CheckoutDeliveryMethod,
+    shopSettings: CheckoutShopSettings | null,
+): string {
+    if (method === "pickup") {
+        return PICKUP_HINT;
+    }
+    if (method === "minsk_courier") {
+        const threshold = formatMoneyRub(String(shopSettings?.delivery_minsk_free_threshold ?? 50));
+        const fee = formatMoneyRub(String(shopSettings?.delivery_minsk_fee ?? 3));
+        return `Доставка осуществляется по Минску бесплатно, если сумма заказа более ${threshold}. Стоимость доставки меньше этой суммы составляет ${fee} Данный способ доставки дает вам возможность получить товар прямо в руки, курьером в Минске. Время доставки оговаривайте с менеджером в момент заказа товара в интернет-магазине.`;
+    }
+    const minLines = shopSettings?.delivery_belarus_free_min_lines ?? 2;
+    const fee = formatMoneyRub(String(shopSettings?.delivery_belarus_fee ?? 6));
+    return `Доставка по РБ курьерской службой осуществляется бесплатно при заказе от ${minLines} наименований. В остальных случаях стоимость такой доставки составляет всего ${fee} Сроки доставки 1-2 дня. Оплата курьеру при получении товара.`;
+}
 
 const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
-    cash: "Оплата наличными курьеру при получении.",
-    card: "Оплата картой при получении (при доставке по Минску или самовывозе). При оплате картой скидка по накопительной карте не применяется.",
+    cash: "Оплатить заказ товара Вы сможете непосредственно курьеру в руки при получение товара.",
+    card: "Оплата при получении (только при доставке по Минску или самовывозе).",
 };
+
+const CARD_PAYMENT_WARNING = "Внимание: при оплате по карте — скидки не предоставляются.";
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -202,7 +215,6 @@ export default function CheckoutPage() {
         if (!customerName) {
             const name = authUserCheckoutName(user);
             if (name) {
-                // eslint-disable-next-line react-hooks/set-state-in-effect -- однократная инициализация из auth/me
                 setCustomerName(name);
             }
         }
@@ -289,7 +301,7 @@ export default function CheckoutPage() {
         if (!phoneIsValid) {
             setErrorMessage(
                 allowPlainPhone
-                    ? "Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после кода страны)."
+                    ? "Укажите номер с кодом страны: 8–15 цифр."
                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX",
             );
             return;
@@ -442,7 +454,7 @@ export default function CheckoutPage() {
                         {showPhoneError ? (
                             <p className="mt-2 text-xs text-red-600">
                                 {allowPlainPhone
-                                    ? "Укажите номер: 375 и не менее 5 следующих цифр."
+                                    ? "Укажите номер с кодом страны: 8–15 цифр."
                                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX"}
                             </p>
                         ) : null}
@@ -481,19 +493,9 @@ export default function CheckoutPage() {
                                 );
                             })}
                         </div>
-                        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{DELIVERY_HINTS[deliveryMethod]}</p>
-                        {shopSettings && deliveryMethod === "minsk_courier" ? (
-                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                Бесплатно от {formatMoneyRub(String(shopSettings.delivery_minsk_free_threshold))} (после скидки по карте). Иначе{" "}
-                                {formatMoneyRub(String(shopSettings.delivery_minsk_fee))}.
-                            </p>
-                        ) : null}
-                        {shopSettings && deliveryMethod === "belarus_courier" ? (
-                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                                Бесплатно от {shopSettings.delivery_belarus_free_min_lines} наименований (без учёта позиций с флагом
-                                «не в 2 наименования»). Иначе {formatMoneyRub(String(shopSettings.delivery_belarus_fee))}.
-                            </p>
-                        ) : null}
+                        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                            {deliveryHint(deliveryMethod, shopSettings)}
+                        </p>
                     </fieldset>
 
                     {deliveryMethod === "belarus_courier" ? (
@@ -610,7 +612,15 @@ export default function CheckoutPage() {
                                 );
                             })}
                         </div>
-                        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{PAYMENT_HINTS[paymentMethod]}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                            {PAYMENT_HINTS[paymentMethod]}
+                            {paymentMethod === "card" ? (
+                                <>
+                                    {" "}
+                                    <span className="font-semibold text-amber-800">{CARD_PAYMENT_WARNING}</span>
+                                </>
+                            ) : null}
+                        </p>
                     </fieldset>
 
                     <div className="mb-5">

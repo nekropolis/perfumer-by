@@ -308,21 +308,22 @@ export default function CatalogGridToolbar({
             style={{ top: "var(--catalog-toolbar-sticky-top)" }}
         >
             <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4">
-                <div className="flex min-w-0 items-center gap-2">
-                    {!showCategoryChips ? (
+                {showCategoryChips ? (
+                    <>
+                        <div className="min-w-0 lg:hidden">{categoryChips}</div>
+                        <div className="flex min-w-0 items-center gap-2">
+                            <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
+                            <div className="hidden min-w-0 flex-1 lg:block">{categoryChips}</div>
+                            <div className="ml-auto shrink-0">{sortControl}</div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex min-w-0 items-center gap-2">
                         <div className="min-w-0 flex-1 lg:hidden">{mobileRightAction}</div>
-                    ) : (
-                        <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
-                    )}
-
-                    {showCategoryChips ? (
-                        <div className="min-w-0 flex-1">{categoryChips}</div>
-                    ) : (
                         <div className="hidden flex-1 lg:block" />
-                    )}
-
-                    {sortControl}
-                </div>
+                        {sortControl}
+                    </div>
+                )}
 
                 {hasChips || (showResetFilters && hasActiveFilters) ? (
                     <div className="flex min-w-0 items-center gap-3">

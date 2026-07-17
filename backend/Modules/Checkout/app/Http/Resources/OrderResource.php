@@ -4,8 +4,12 @@ namespace Modules\Checkout\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Warehouse\Models\StockReceiptItem;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class OrderResource extends JsonResource
 {
@@ -26,6 +30,17 @@ class OrderResource extends JsonResource
                 ->whereIn('variant_id', $variantIds->all())
                 ->with(['receipt.warehouse'])
                 ->orderByDesc('id')
+                ->get()
+                ->groupBy('variant_id');
+
+        $mainWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id') ?? 0);
+        $supplierWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id') ?? 0);
+        $warehouseIds = array_values(array_filter([$mainWarehouseId, $supplierWarehouseId]));
+        $stocksByVariant = $variantIds->isEmpty() || $warehouseIds === []
+            ? collect()
+            : WarehouseVariantStock::query()
+                ->whereIn('variant_id', $variantIds->all())
+                ->whereIn('warehouse_id', $warehouseIds)
                 ->get()
                 ->groupBy('variant_id');
 
@@ -101,7 +116,7 @@ class OrderResource extends JsonResource
             'discount_card_number' => $displayDiscountCardNumber,
             'discount_percent_snapshot' => number_format((float) $displayDiscountPercent, 2, '.', ''),
             'discount_amount' => number_format($discountAmount, 2, '.', ''),
-            'items' => $this->items->map(function ($item) use ($receiptItemsByVariant) {
+            'items' => $this->items->map(function ($item) use ($receiptItemsByVariant, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
                 $data = [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
@@ -115,11 +130,28 @@ class OrderResource extends JsonResource
                     'price' => number_format((float) $item->price, 2, '.', ''),
                     'total' => number_format((float) $item->total, 2, '.', ''),
                     'waiting_discount' => (bool) $item->waiting_discount,
+                    'availability_source' => $item->availability_source,
                     'product_country' => $this->productCountry($item),
                     'image' => $item->relationLoaded('product')
                         ? ($item->product?->mainImage?->path ?? null)
                         : null,
                 ];
+
+                $fulfillment = $this->fulfillmentFlagsForItem(
+                    $item,
+                    $stocksByVariant,
+                    $mainWarehouseId,
+                    $supplierWarehouseId,
+                );
+                $data['can_fulfill_main'] = $fulfillment['can_fulfill_main'];
+                $data['can_fulfill_offer'] = $fulfillment['can_fulfill_offer'];
+                $data['fulfillment_options'] = $this->fulfillmentOptionsForItem(
+                    $item,
+                    $stocksByVariant,
+                    $receiptItemsByVariant,
+                    $mainWarehouseId,
+                    $supplierWarehouseId,
+                );
 
                 // Supplier offers отдаём только когда явно подгружены (admin API).
                 if ($item->relationLoaded('variant') && $item->variant
@@ -182,6 +214,160 @@ class OrderResource extends JsonResource
 
                 return $data;
             })->values(),
+        ];
+    }
+
+    /**
+     * Краткие строки «где есть / по чём» для менеджера в редактировании заказа.
+     *
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, WarehouseVariantStock>>  $stocksByVariant
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, StockReceiptItem>>  $receiptItemsByVariant
+     * @return list<array{channel: string, label: string, code: string|null, title: string|null, purchase_price: string|null, qty: int}>
+     */
+    private function fulfillmentOptionsForItem(
+        mixed $item,
+        $stocksByVariant,
+        $receiptItemsByVariant,
+        int $mainWarehouseId,
+        int $supplierWarehouseId,
+    ): array {
+        $variantId = $item->variant_id !== null ? (int) $item->variant_id : 0;
+        if ($variantId <= 0) {
+            return [];
+        }
+
+        $options = [];
+        $rows = $stocksByVariant->get($variantId, collect());
+        $mainStock = $mainWarehouseId > 0
+            ? $rows->first(fn (WarehouseVariantStock $row) => (int) $row->warehouse_id === $mainWarehouseId)
+            : null;
+        $mainAvailable = $mainStock
+            ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+            : 0;
+        $mainPhysical = $mainStock ? max(0, (int) $mainStock->stock) : 0;
+        $storedSource = (string) ($item->availability_source ?? '');
+        $showWarehouse = $mainPhysical > 0 || in_array($storedSource, ['main', 'main+supplier'], true);
+
+        if ($showWarehouse) {
+            $receipts = $receiptItemsByVariant->get($variantId, collect());
+            /** @var StockReceiptItem|null $latestReceipt */
+            $latestReceipt = $receipts->first();
+            $payload = $latestReceipt && is_array($latestReceipt->payload) ? $latestReceipt->payload : [];
+            $title = $payload['supplier_product_name']
+                ?? $payload['name']
+                ?? $latestReceipt?->variant_title
+                ?? null;
+            $title = is_string($title) ? trim($title) : '';
+            // Не подставляем наше каталожное имя — менеджеру нужно имя поставщика.
+            $qty = $mainAvailable > 0
+                ? $mainAvailable
+                : max(1, (int) ($item->qty ?? 1));
+
+            $options[] = [
+                'channel' => 'main',
+                'label' => 'на складе',
+                'code' => $latestReceipt?->supplier_sku
+                    ?? ($item->product_id !== null ? (string) $item->product_id : null),
+                'title' => $title !== '' ? $title : null,
+                'purchase_price' => $latestReceipt?->supplier_price !== null
+                    ? number_format((float) $latestReceipt->supplier_price, 4, '.', '')
+                    : null,
+                'qty' => $qty,
+            ];
+        }
+
+        $variant = $item->relationLoaded('variant') ? $item->variant : null;
+        if ($variant && $variant->relationLoaded('supplierOffers')) {
+            foreach ($variant->supplierOffers as $offer) {
+                if (! (bool) $offer->is_active) {
+                    continue;
+                }
+                $options[] = [
+                    'channel' => 'offer',
+                    'label' => (string) ($offer->supplier?->name ?: $offer->supplier?->code ?: 'Офер'),
+                    'code' => $offer->external_id ?: $offer->sku,
+                    'title' => $this->supplierOfferDisplayTitle($offer),
+                    'purchase_price' => $offer->purchase_price !== null
+                        ? number_format((float) $offer->purchase_price, 4, '.', '')
+                        : null,
+                    'qty' => (int) $offer->stock,
+                ];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Название позиции как у поставщика (товар + вариант, без дубля).
+     */
+    private function supplierOfferDisplayTitle(mixed $offer): ?string
+    {
+        $productName = trim((string) ($offer->external_product_name ?? ''));
+        $variantName = trim((string) ($offer->external_variant_name ?? ''));
+
+        if ($productName !== '' && $variantName !== '' && strcasecmp($productName, $variantName) !== 0) {
+            return $productName.' — '.$variantName;
+        }
+
+        if ($productName !== '') {
+            return $productName;
+        }
+
+        return $variantName !== '' ? $variantName : null;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, WarehouseVariantStock>>  $stocksByVariant
+     * @return array{can_fulfill_main: bool, can_fulfill_offer: bool}
+     */
+    private function fulfillmentFlagsForItem(
+        mixed $item,
+        $stocksByVariant,
+        int $mainWarehouseId,
+        int $supplierWarehouseId,
+    ): array {
+        $variantId = $item->variant_id !== null ? (int) $item->variant_id : 0;
+        if ($variantId <= 0) {
+            return ['can_fulfill_main' => false, 'can_fulfill_offer' => false];
+        }
+
+        $variant = $item->relationLoaded('variant') ? $item->variant : null;
+        if (! $variant instanceof ProductVariantLink) {
+            $variant = ProductVariantLink::query()->with('supplierOffers')->find($variantId);
+        }
+        if (! $variant) {
+            return ['can_fulfill_main' => false, 'can_fulfill_offer' => false];
+        }
+
+        $rows = $stocksByVariant->get($variantId, collect());
+        $mainStock = $mainWarehouseId > 0
+            ? $rows->first(fn (WarehouseVariantStock $row) => (int) $row->warehouse_id === $mainWarehouseId)
+            : null;
+        $supplierStock = $supplierWarehouseId > 0
+            ? $rows->first(fn (WarehouseVariantStock $row) => (int) $row->warehouse_id === $supplierWarehouseId)
+            : null;
+
+        $mainAvailable = $mainStock
+            ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+            : 0;
+        $supplierAvailable = $supplierStock
+            ? max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock)
+            : 0;
+        $offerActive = CatalogVariantStockPresenter::supplierListingActive($variant);
+        $storedSource = (string) ($item->availability_source ?? '');
+
+        // Уже выбранный канал заказа остаётся доступным даже если free-stock = 0
+        // (товар зарезервирован этим же заказом).
+        $canMain = $mainAvailable > 0
+            || in_array($storedSource, ['main', 'main+supplier'], true);
+        $canOffer = $offerActive
+            || $supplierAvailable > 0
+            || in_array($storedSource, ['supplier_only', 'supplier_warehouse'], true);
+
+        return [
+            'can_fulfill_main' => $canMain,
+            'can_fulfill_offer' => $canOffer,
         ];
     }
 

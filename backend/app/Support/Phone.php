@@ -8,8 +8,8 @@ class Phone
 {
     public const REGEX = '/^\+?375[\s\-\(\)]*(25|29|33|44)[\s\-\)]*\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$/';
 
-    /** Только цифры: 375 и ещё 5–14 цифр (режим «нет мобильного», без кода оператора 25/29/33/44). */
-    public const REGEX_PLAIN_BY_DIGITS = '/^375\d{5,14}$/';
+    /** Только цифры: 8–15 (режим «нет мобильного» / международный номер с кодом страны). */
+    public const REGEX_PLAIN_BY_DIGITS = '/^\d{8,15}$/';
 
     public static function normalize(string $phone): string
     {
@@ -29,7 +29,7 @@ class Phone
     }
 
     /**
-     * Мобильный формат (REGEX) или «нет мобильного» (только цифры 375 + 5–14).
+     * Мобильный формат (REGEX) или «нет мобильного» (8–15 цифр с кодом страны).
      *
      * @throws ValidationException
      */
@@ -38,7 +38,7 @@ class Phone
         if ($plainDigits) {
             if (!self::isValidPlainBy($phone)) {
                 throw ValidationException::withMessages([
-                    'phone' => ['Укажите номер: 375 и не менее 5 следующих цифр (любые цифры после 375).'],
+                    'phone' => ['Укажите номер с кодом страны: 8–15 цифр.'],
                 ]);
             }
 
