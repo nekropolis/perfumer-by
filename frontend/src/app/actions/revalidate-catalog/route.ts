@@ -29,7 +29,12 @@ function resolveApiBase(): string | null {
 async function assertAdminBearer(
     request: NextRequest,
 ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
-    const authHeader = request.headers.get("authorization") ?? "";
+    // Prefer X-Admin-Authorization: browser Authorization: Bearer breaks nginx basic auth
+    // (browser replaces Basic credentials and shows the password dialog).
+    const authHeader =
+        request.headers.get("x-admin-authorization")
+        ?? request.headers.get("authorization")
+        ?? "";
     if (!authHeader.toLowerCase().startsWith("bearer ")) {
         return { ok: false, status: 401, message: "Unauthorized" };
     }

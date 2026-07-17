@@ -16,6 +16,16 @@ function getAdminHeaders() {
     };
 }
 
+/** Headers for same-origin Next revalidate — do NOT use Authorization (breaks nginx basic auth). */
+function getStorefrontRevalidateHeaders(): Record<string, string> {
+    const token = typeof window !== "undefined" ? getAuthToken() : "";
+
+    return {
+        "Content-Type": "application/json",
+        ...(token ? { "X-Admin-Authorization": `Bearer ${token}` } : {}),
+    };
+}
+
 export type ProductAdminItem = {
     id: number;
     name: string;
@@ -622,7 +632,7 @@ export async function resetCatalogApiCache(): Promise<ResetCatalogCacheResult> {
     try {
         const nextRes = await fetch("/actions/revalidate-catalog", {
             method: "POST",
-            headers: getAdminHeaders(),
+            headers: getStorefrontRevalidateHeaders(),
             cache: "no-store",
         });
         if (nextRes.ok) {

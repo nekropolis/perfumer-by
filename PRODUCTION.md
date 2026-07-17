@@ -490,7 +490,10 @@ auth_basic_user_file /etc/nginx/.htpasswd;
 В существующие `location` добавьте `auth_basic off;` для:
 
 - `/.well-known/acme-challenge/` — Let's Encrypt;
-- `/up` — health-check мониторинга.
+- `/up` — health-check мониторинга;
+- `/actions/` — сброс ISR-кеша витрины (admin «Сбросить кеш» и backend webhook). Без исключения браузер получает 401 Basic и показывает окно пароля nginx (заголовок `Authorization: Bearer` админки конфликтует с Basic Auth).
+
+Пример `location` для `/actions/` — в [`scripts/nginx/basic-auth.conf.example`](scripts/nginx/basic-auth.conf.example).
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
