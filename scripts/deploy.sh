@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Production deploy script for perfumer-by.
 # Run on server:  cd /var/www/perfumer-by && ./scripts/deploy.sh
+# Staging:        FRONT_PROD_NAME=frontend-staging ./scripts/deploy.sh
 # See PRODUCTION.md for the full setup story.
 #
 # Order matters:

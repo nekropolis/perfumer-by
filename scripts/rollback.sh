@@ -17,6 +17,7 @@ CURRENT="$PROJECT_ROOT/current"
 
 PHP_BIN="${PHP_BIN:-php}"
 PM2_BIN="${PM2_BIN:-pm2}"
+# Staging: FRONT_PROD_NAME=frontend-staging
 FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
 QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
 

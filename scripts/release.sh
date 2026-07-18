@@ -26,6 +26,7 @@
 # Запуск (с сервера):
 #   cd /var/www/perfumer-by && ./scripts/release.sh
 #   или   GIT_REF=v1.2.3 ./scripts/release.sh
+# Staging: FRONT_PROD_NAME=frontend-staging ./scripts/release.sh
 
 set -Eeuo pipefail
 

@@ -69,14 +69,14 @@ server {
 
     client_max_body_size 32M;
 
-    # Branded 503 for storefront (location /) and Next upstream errors.
-    # Do NOT put maintenance if at server level — it would 503 /up and /api too.
-    error_page 502 503 504 /503.html;
+    # Branded 503 (named location — надёжнее, чем alias + /503.html)
+    error_page 502 503 504 @maintenance;
 
-    location = /503.html {
+    location @maintenance {
         auth_basic off;
         default_type text/html;
-        alias /var/www/perfumer-by/shared/503.html;
+        root /var/www/perfumer-by/shared;
+        try_files /503.html =404;
         add_header Retry-After 60 always;
         add_header Cache-Control "no-store" always;
     }
