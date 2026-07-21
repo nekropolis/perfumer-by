@@ -97,6 +97,10 @@ export type OrderData = {
     delivery_method_label?: string | null;
     delivery_city?: string | null;
     delivery_address?: string | null;
+    /** Время доставки с (HH:mm). */
+    delivery_time_from?: string | null;
+    /** Время доставки по (HH:mm). */
+    delivery_time_to?: string | null;
     delivery_fee?: string;
     payment_method?: string | null;
     payment_method_label?: string | null;
@@ -119,6 +123,8 @@ export type OrderData = {
     discount_card_number?: string | null;
     discount_percent_snapshot?: string;
     discount_amount?: string;
+    /** Комментарий менеджера (только admin API). */
+    manager_comment?: string | null;
     items: OrderItem[];
     /** Заказ выполнен, но нет списания по складу — можно досоздать через API. */
     can_sync_inventory_writeoff?: boolean;

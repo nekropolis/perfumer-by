@@ -84,7 +84,7 @@ class CatalogProductLinkSearchService
             $pool->flatMap(static fn (Product $p) => $p->variants->pluck('id'))->unique()->filter()->values()->all()
         );
 
-        $ranked = $pool->map(function (Product $product) use ($normalizedQuery, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
+        $ranked = $pool->map(function (Product $product) use ($query, $normalizedQuery, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
             $name = (string) $product->name;
             $slug = (string) $product->slug;
             $brandName = (string) ($product->brand?->name ?? '');
@@ -102,6 +102,7 @@ class CatalogProductLinkSearchService
                 }
             }
 
+            $rank = CatalogSearchScoring::productSearchRank($query, $brandName, $name);
             $scoreName = CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($name));
             $scoreSlug = CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($slug));
             $scoreBrand = $brandName !== '' ? CatalogSearchScoring::similarityScore($normalizedQuery, CatalogSearchScoring::normalizeSearchText($brandName)) : 0.0;
@@ -111,9 +112,16 @@ class CatalogProductLinkSearchService
                 return max($carry, $score);
             }, 0.0);
 
-            $bestScore = max($scoreName, $scoreSlug * 0.95, $scoreBrand * 0.8, $scoreVariant * 0.9);
+            $bestScore = max(
+                (float) $rank['score'],
+                $scoreName,
+                $scoreSlug * 0.95,
+                $scoreBrand * 0.8,
+                $scoreVariant * 0.9,
+            );
 
-            if ($bestScore < 0.10) {
+            // Слабый fuzzy без смежной фразы в названии — отбрасываем.
+            if ((int) $rank['tier'] >= 3 && $bestScore < 0.10) {
                 return null;
             }
 
@@ -129,10 +137,29 @@ class CatalogProductLinkSearchService
                     $supplierWarehouseId
                 ),
                 'score' => round($bestScore, 6),
+                '_match_tier' => (int) $rank['tier'],
+                '_full_len' => (int) $rank['full_len'],
             ];
         })
             ->filter()
-            ->sortByDesc('score')
+            ->sort(function (array $left, array $right): int {
+                $tierCompare = ($left['_match_tier'] ?? 99) <=> ($right['_match_tier'] ?? 99);
+                if ($tierCompare !== 0) {
+                    return $tierCompare;
+                }
+
+                $scoreCompare = ($right['score'] ?? 0) <=> ($left['score'] ?? 0);
+                if ($scoreCompare !== 0) {
+                    return $scoreCompare;
+                }
+
+                $lenCompare = ($left['_full_len'] ?? 0) <=> ($right['_full_len'] ?? 0);
+                if ($lenCompare !== 0) {
+                    return $lenCompare;
+                }
+
+                return strcmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+            })
             ->take($limit)
             ->values()
             ->all();
@@ -589,14 +616,23 @@ class CatalogProductLinkSearchService
     }
 
     /**
+     * Дополняет выдачу точным id / SKU, не ломая tier-порядок текстового ранжирования.
+     *
      * @param  list<array<string, mixed>>  $ranked
      * @return list<array<string, mixed>>
      */
     private function appendAdminSmartSearchSkuAndIdHits(string $rawQuery, array $ranked, int $limit): array
     {
-        $byId = [];
-        foreach ($ranked as $row) {
-            $byId[(int) $row['id']] = $row;
+        $stripRankMeta = static function (array $row): array {
+            unset($row['_match_tier'], $row['_full_len']);
+
+            return $row;
+        };
+
+        $ordered = array_map($stripRankMeta, $ranked);
+        $seen = [];
+        foreach ($ordered as $row) {
+            $seen[(int) $row['id']] = true;
         }
 
         $trim = trim($rawQuery);
@@ -610,7 +646,7 @@ class CatalogProductLinkSearchService
                 [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
                     $product->variants->pluck('id')->filter()->values()->all()
                 );
-                $byId[$product->id] = [
+                $idHit = [
                     'id' => (int) $product->id,
                     'name' => (string) $product->name,
                     'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
@@ -623,6 +659,12 @@ class CatalogProductLinkSearchService
                     ),
                     'score' => 1.0,
                 ];
+                $ordered = array_values(array_filter(
+                    $ordered,
+                    static fn (array $row): bool => (int) $row['id'] !== $pid
+                ));
+                array_unshift($ordered, $idHit);
+                $seen[$pid] = true;
             }
         }
 
@@ -648,7 +690,7 @@ class CatalogProductLinkSearchService
 
             foreach ($productIds as $pid) {
                 $pid = (int) $pid;
-                if ($pid <= 0 || isset($byId[$pid])) {
+                if ($pid <= 0 || isset($seen[$pid])) {
                     continue;
                 }
                 $product = Product::query()
@@ -661,7 +703,7 @@ class CatalogProductLinkSearchService
                 [$stByV, $mw, $sw] = $this->batchWarehouseStocksByVariantIds(
                     $product->variants->pluck('id')->filter()->values()->all()
                 );
-                $byId[$pid] = [
+                $ordered[] = [
                     'id' => (int) $product->id,
                     'name' => (string) $product->name,
                     'brand_name' => $product->brand?->name ? (string) $product->brand->name : null,
@@ -674,12 +716,10 @@ class CatalogProductLinkSearchService
                     ),
                     'score' => 0.35,
                 ];
+                $seen[$pid] = true;
             }
         }
 
-        $merged = array_values($byId);
-        usort($merged, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-
-        return array_slice($merged, 0, $limit);
+        return array_slice($ordered, 0, $limit);
     }
 }

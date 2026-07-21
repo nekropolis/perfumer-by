@@ -262,7 +262,7 @@ export default function StockNotificationModal({
                                                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
                                             }`}
                                     >
-                                        Нет мобильного
+                                        Международный номер
                                     </span>
                                 </label>
                             </div>

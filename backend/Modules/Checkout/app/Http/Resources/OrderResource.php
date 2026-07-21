@@ -4,6 +4,7 @@ namespace Modules\Checkout\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Services\CheckoutDeliveryService;
@@ -88,10 +89,16 @@ class OrderResource extends JsonResource
             'delivery_method_label' => $this->deliveryMethodLabel($deliveryMethod),
             'delivery_city' => $deliveryCity,
             'delivery_address' => $this->delivery_address,
+            'delivery_time_from' => $this->formatOrderClockTime($this->delivery_time_from),
+            'delivery_time_to' => $this->formatOrderClockTime($this->delivery_time_to),
             'delivery_fee' => number_format((float) ($this->delivery_fee ?? 0), 2, '.', ''),
             'payment_method' => $paymentMethod !== '' ? $paymentMethod : null,
             'payment_method_label' => $this->paymentMethodLabel($paymentMethod),
             'total' => number_format((float) $this->total, 2, '.', ''),
+            'manager_comment' => $this->when(
+                str_contains($request->path(), 'admin/orders'),
+                $this->manager_comment,
+            ),
             'gift_certificate_code' => $giftCode,
             'gift_certificate_number' => $giftCode,
             'gift_certificate_amount' => number_format($giftTotal, 2, '.', ''),
@@ -435,6 +442,32 @@ class OrderResource extends JsonResource
             '' => null,
             default => $method,
         };
+    }
+
+    private function formatOrderClockTime(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('H:i');
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $raw, $matches) === 1) {
+            return sprintf('%02d:%02d', (int) $matches[1], (int) $matches[2]);
+        }
+
+        try {
+            return Carbon::parse($raw)->format('H:i');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function productCountry($item): ?string

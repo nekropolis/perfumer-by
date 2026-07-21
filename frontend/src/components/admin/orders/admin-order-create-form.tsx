@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,6 +45,9 @@ import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
+import AdminDeliveryTimeInput, {
+  snapDeliveryClockToTenMinutes,
+} from "@/components/admin/orders/admin-delivery-time-input";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Курьер по Минску" },
@@ -461,6 +464,7 @@ export default function AdminOrderCreateForm({
       ).patronymic,
   );
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
+  const [managerComment, setManagerComment] = useState(() => initialOrder?.manager_comment ?? "");
   const [orderStatus, setOrderStatus] = useState(() => initialOrder?.status ?? "new");
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
   const [deliveryCity, setDeliveryCity] = useState(() => {
@@ -470,6 +474,12 @@ export default function AdminOrderCreateForm({
   });
   const [citySelect, setCitySelect] = useState<string>("");
   const [deliveryAddress, setDeliveryAddress] = useState(() => initialOrder?.delivery_address ?? "");
+  const [deliveryTimeFrom, setDeliveryTimeFrom] = useState(
+    () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_from),
+  );
+  const [deliveryTimeTo, setDeliveryTimeTo] = useState(
+    () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_to),
+  );
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(initialOrder?.delivery_fee ?? 0) || 0));
   const [discountCardInput, setDiscountCardInput] = useState(() => initialOrder?.discount_card_number?.trim() ?? "");
@@ -514,6 +524,15 @@ export default function AdminOrderCreateForm({
   const [detailsByProductId, setDetailsByProductId] = useState<Record<number, ProductAdminDetail>>({});
   const [pickerProductId, setPickerProductId] = useState<number | null>(null);
   const productPickerRef = useRef<HTMLDivElement>(null);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
+  const productHitsListRef = useRef<HTMLDivElement>(null);
+  const [productHitsPos, setProductHitsPos] = useState<{
+    left: number;
+    width: number;
+    top: number;
+    maxHeight: number;
+    openUp: boolean;
+  } | null>(null);
   /** Не перезаписывать имя повторно для того же телефона после ручного ввода. */
   const autoCustomerNamePhoneRef = useRef<string>("");
 
@@ -984,11 +1003,55 @@ export default function AdminOrderCreateForm({
     if (!productPickerOpen) return;
     const onMouseDown = (e: MouseEvent) => {
       if (productPickerRef.current?.contains(e.target as Node)) return;
+      if (productHitsListRef.current?.contains(e.target as Node)) return;
       closeProductPicker();
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [productPickerOpen, closeProductPicker]);
+
+  const updateProductHitsPosition = useCallback(() => {
+    const el = productSearchInputRef.current;
+    if (!el) {
+      setProductHitsPos(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const gap = 4;
+    const preferredMax = 240;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(preferredMax, openUp ? spaceAbove : spaceBelow));
+    setProductHitsPos({
+      left: rect.left,
+      width: rect.width,
+      top: openUp ? rect.top - gap : rect.bottom + gap,
+      maxHeight,
+      openUp,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (activeLine === null) {
+      setProductHitsPos(null);
+      return;
+    }
+    updateProductHitsPosition();
+    window.addEventListener("resize", updateProductHitsPosition);
+    window.addEventListener("scroll", updateProductHitsPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateProductHitsPosition);
+      window.removeEventListener("scroll", updateProductHitsPosition, true);
+    };
+  }, [
+    activeLine,
+    productHits,
+    productHitsLoading,
+    debouncedProductQ,
+    loadingProductLineIdx,
+    updateProductHitsPosition,
+  ]);
 
   const openProductPicker = (lineIdx: number) => {
     if (itemsLocked) return;
@@ -1195,10 +1258,17 @@ export default function AdminOrderCreateForm({
         }) || null,
       phone: resolvedPhone,
       comment: comment.trim() || null,
+      manager_comment: managerComment.trim() || null,
       status: orderStatus,
       delivery_method: deliveryMethod,
       delivery_city: deliveryMethod === "pickup" ? null : resolvedCity || null,
       delivery_address: addr,
+      delivery_time_from: deliveryTimeFrom.trim()
+        ? snapDeliveryClockToTenMinutes(deliveryTimeFrom)
+        : null,
+      delivery_time_to: deliveryTimeTo.trim()
+        ? snapDeliveryClockToTenMinutes(deliveryTimeTo)
+        : null,
       delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       payment_method: paymentMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
@@ -1698,7 +1768,7 @@ export default function AdminOrderCreateForm({
                       <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
                         <div className="min-w-0 space-y-1">
                           <p className="truncate text-sm leading-snug text-admin-text">
-                            <span className="font-medium">{line.product_id} - {line.brand_name}  {line.product_name}</span>
+                            <span className="font-medium">{line.product_id} - {line.product_name}</span>
                             {line.variant_title ? (
                               <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
                             ) : null}
@@ -1838,6 +1908,7 @@ export default function AdminOrderCreateForm({
                     <div className="text-xs font-medium text-admin-text-secondary">Позиция {idx + 1}</div>
                     <div className="relative">
                       <input
+                        ref={showPicker ? productSearchInputRef : undefined}
                         value={line.product_name}
                         onFocus={() => openProductPicker(idx)}
                         onChange={(e) => {
@@ -1850,75 +1921,88 @@ export default function AdminOrderCreateForm({
                         className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
                         placeholder="Название, артикул или код товара"
                       />
-                      {showProductHitList ? (
-                        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg">
-                          {productHitsLoading ? (
-                            <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-                          ) : flatProductHits.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-                          ) : (
-                            flatProductHits.map((option) => {
-                              const q = line.product_name.trim();
-                              const hit = option.hit;
-                              if (option.kind === "no-variants") {
-                                return (
-                                  <div
-                                    key={option.key}
-                                    className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
-                                  >
-                                    <span className="tabular-nums text-gray-400">
-                                      {highlightQueryInText(String(hit.id), q)}
-                                    </span>{" "}
-                                    {hit.brand_name ? (
-                                      <span>{highlightQueryInText(hit.brand_name, q)} </span>
-                                    ) : null}
-                                    <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
-                                    <span className="text-admin-text-secondary"> — нет вариантов</span>
-                                  </div>
-                                );
-                              }
-                              const variant = option.variant;
-                              const availability = productSmartSearchAvailabilityLabel(variant);
-                              return (
-                                <button
-                                  key={option.key}
-                                  type="button"
-                                  className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
-                                  onMouseDown={(ev) => ev.preventDefault()}
-                                  onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
-                                >
-                                  <span className="tabular-nums text-gray-400">
-                                    {highlightQueryInText(String(hit.id), q)}
-                                  </span>{" "}
-                                  {hit.brand_name ? (
-                                    <span className="text-admin-text-secondary">
-                                      {highlightQueryInText(hit.brand_name, q)}{" "}
-                                    </span>
-                                  ) : null}
-                                  <span className="font-medium text-admin-text">
-                                    {highlightQueryInText(hit.name, q)}
-                                  </span>{" "}
-                                  <span className="text-admin-text">
-                                    {highlightQueryInText(variant.title, q)}
-                                  </span>
-                                  <span className="text-admin-text-secondary"> — </span>
-                                  <span className={productSmartSearchAvailabilityClass(variant)}>
-                                    {highlightQueryInText(availability, q)}
-                                  </span>
-                                  {productSmartSearchShowsPrice(variant) ? (
-                                    <>
-                                      <span className="text-admin-text-secondary"> — </span>
-                                      <span className="tabular-nums text-admin-text">
-                                        {productSmartSearchPriceLabel(variant)}
+                      {showProductHitList && productHitsPos && typeof document !== "undefined"
+                        ? createPortal(
+                            <div
+                              ref={productHitsListRef}
+                              className="fixed z-[9999] overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg"
+                              style={{
+                                left: productHitsPos.left,
+                                width: productHitsPos.width,
+                                maxHeight: productHitsPos.maxHeight,
+                                top: productHitsPos.top,
+                                transform: productHitsPos.openUp ? "translateY(-100%)" : undefined,
+                              }}
+                            >
+                              {productHitsLoading ? (
+                                <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
+                              ) : flatProductHits.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
+                              ) : (
+                                flatProductHits.map((option) => {
+                                  const q = line.product_name.trim();
+                                  const hit = option.hit;
+                                  if (option.kind === "no-variants") {
+                                    return (
+                                      <div
+                                        key={option.key}
+                                        className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
+                                      >
+                                        <span className="tabular-nums text-gray-400">
+                                          {highlightQueryInText(String(hit.id), q)}
+                                        </span>{" "}
+                                        {hit.brand_name ? (
+                                          <span>{highlightQueryInText(hit.brand_name, q)} </span>
+                                        ) : null}
+                                        <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
+                                        <span className="text-admin-text-secondary"> — нет вариантов</span>
+                                      </div>
+                                    );
+                                  }
+                                  const variant = option.variant;
+                                  const availability = productSmartSearchAvailabilityLabel(variant);
+                                  return (
+                                    <button
+                                      key={option.key}
+                                      type="button"
+                                      className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
+                                      onMouseDown={(ev) => ev.preventDefault()}
+                                      onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
+                                    >
+                                      <span className="tabular-nums text-gray-400">
+                                        {highlightQueryInText(String(hit.id), q)}
+                                      </span>{" "}
+                                      {hit.brand_name ? (
+                                        <span className="text-admin-text-secondary">
+                                          {highlightQueryInText(hit.brand_name, q)}{" "}
+                                        </span>
+                                      ) : null}
+                                      <span className="font-medium text-admin-text">
+                                        {highlightQueryInText(hit.name, q)}
+                                      </span>{" "}
+                                      <span className="text-admin-text">
+                                        {highlightQueryInText(variant.title, q)}
                                       </span>
-                                    </>
-                                  ) : null}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      ) : null}
+                                      <span className="text-admin-text-secondary"> — </span>
+                                      <span className={productSmartSearchAvailabilityClass(variant)}>
+                                        {highlightQueryInText(availability, q)}
+                                      </span>
+                                      {productSmartSearchShowsPrice(variant) ? (
+                                        <>
+                                          <span className="text-admin-text-secondary"> — </span>
+                                          <span className="tabular-nums text-admin-text">
+                                            {productSmartSearchPriceLabel(variant)}
+                                          </span>
+                                        </>
+                                      ) : null}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>,
+                            document.body,
+                          )
+                        : null}
                     </div>
 
                     {pickerProductId && line.product_id === pickerProductId && detail ? (
@@ -2092,6 +2176,24 @@ export default function AdminOrderCreateForm({
             ) : (
               <p className="text-xs text-admin-text-secondary">Самовывоз — адрес в заказе будет «нет - самовывоз».</p>
             )}
+
+            <div>
+              <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-admin-text-secondary">
+                  С
+                  <div className="mt-1">
+                    <AdminDeliveryTimeInput value={deliveryTimeFrom} onChangeAction={setDeliveryTimeFrom} />
+                  </div>
+                </label>
+                <label className="text-xs text-admin-text-secondary">
+                  По
+                  <div className="mt-1">
+                    <AdminDeliveryTimeInput value={deliveryTimeTo} onChangeAction={setDeliveryTimeTo} />
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
@@ -2232,12 +2334,24 @@ export default function AdminOrderCreateForm({
         </div>
 
         <label className="block border-t border-admin-border pt-4 text-sm text-admin-text-secondary">
-          Комментарий
+          Комментарий клиента
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={2}
             className="mt-1 w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+          />
+        </label>
+
+        <label className="block text-sm text-admin-text-secondary">
+          Комментарий менеджера
+          <span className="ml-1 text-xs font-normal text-admin-text-secondary/80">(только в админке)</span>
+          <textarea
+            value={managerComment}
+            onChange={(e) => setManagerComment(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+            placeholder="Внутренняя заметка для менеджеров…"
           />
         </label>
       </SectionCard>

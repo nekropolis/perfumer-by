@@ -104,7 +104,7 @@ export default function CallbackRequestModal({
 
             setSuccessMessage(
                 response.message ||
-                    "Спасибо! Запрос отправлен — ожидайте, мы перезвоним в ближайшее время.",
+                "Спасибо! Запрос отправлен — ожидайте, мы перезвоним в ближайшее время.",
             );
         } catch (error) {
             console.error(error);
@@ -225,13 +225,12 @@ export default function CallbackRequestModal({
                                         className="peer sr-only"
                                     />
                                     <span
-                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
-                                            allowPlainPhone
+                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
                                                 ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
                                                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
-                                        }`}
+                                            }`}
                                     >
-                                        Нет мобильного
+                                        Международный номер
                                     </span>
                                 </label>
                             </div>

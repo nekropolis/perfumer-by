@@ -77,7 +77,7 @@ export function isBelarusPhoneComplete(value: string): boolean {
     return /^375(25|29|33|44)\d{7}$/.test(digits);
 }
 
-/** Режим «нет мобильного»: любые цифры с кодом страны (E.164 без «+»). */
+/** Режим «Международный номер»: любые цифры с кодом страны (E.164 без «+»). */
 export function normalizePlainByDigitsInput(input: string): string {
     return input.replace(/\D/g, "").slice(0, PLAIN_PHONE_MAX_DIGITS);
 }

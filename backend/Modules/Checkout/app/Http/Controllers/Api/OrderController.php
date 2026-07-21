@@ -35,10 +35,13 @@ class OrderController extends Controller
             'customer_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:32'],
             'comment' => ['nullable', 'string'],
+            'manager_comment' => ['nullable', 'string', 'max:5000'],
             'status' => ['sometimes', 'required', 'string', 'max:50'],
             'delivery_method' => ['nullable', 'string', 'max:40'],
             'delivery_city' => ['nullable', 'string', 'max:255'],
             'delivery_address' => ['nullable', 'string'],
+            'delivery_time_from' => ['nullable', 'date_format:H:i'],
+            'delivery_time_to' => ['nullable', 'date_format:H:i'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'max:32'],
             'discount_card_number' => ['nullable', 'string', 'max:64'],
@@ -404,10 +407,13 @@ class OrderController extends Controller
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,
+                'manager_comment' => $validated['manager_comment'] ?? null,
                 'status' => (string) ($validated['status'] ?? 'new'),
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_time_from' => $validated['delivery_time_from'] ?? null,
+                'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
                 'payment_method' => $validated['payment_method'] ?? null,
             ]);
@@ -464,9 +470,12 @@ class OrderController extends Controller
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
                 'comment' => $validated['comment'] ?? null,
+                'manager_comment' => $validated['manager_comment'] ?? null,
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_time_from' => $validated['delivery_time_from'] ?? null,
+                'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
                 'payment_method' => $validated['payment_method'] ?? null,
                 'status' => $nextStatus,
@@ -586,6 +595,49 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Списание по резервам создано.',
             'data' => $this->orderPayloadWithInventoryFlag($order),
+        ]);
+    }
+
+    public function updateAdminFields(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'delivery_time_from' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'delivery_time_to' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'manager_comment' => ['sometimes', 'nullable', 'string', 'max:5000'],
+        ]);
+
+        if ($validated === []) {
+            return response()->json([
+                'message' => 'Нет полей для обновления.',
+            ], 422);
+        }
+
+        $order = Order::query()->findOrFail($id);
+        $payload = [];
+        if (array_key_exists('delivery_time_from', $validated)) {
+            $payload['delivery_time_from'] = $validated['delivery_time_from'];
+        }
+        if (array_key_exists('delivery_time_to', $validated)) {
+            $payload['delivery_time_to'] = $validated['delivery_time_to'];
+        }
+        if (array_key_exists('manager_comment', $validated)) {
+            $raw = $validated['manager_comment'];
+            $payload['manager_comment'] = is_string($raw) && trim($raw) !== '' ? trim($raw) : null;
+        }
+
+        $order->update($payload);
+        $order->refresh()->load([
+            'items.product.attributeValues.productAttribute',
+            'items.product.attributeValues.selectedOptions.productAttributeOption',
+            'discountCard:id,card_number',
+            'orderGiftCertificates.giftCertificate',
+            'giftCertificatePurchases',
+            'soldGiftCertificates.template',
+        ]);
+
+        return response()->json([
+            'data' => $this->orderPayloadWithInventoryFlag($order),
+            'message' => 'Order admin fields updated',
         ]);
     }
 

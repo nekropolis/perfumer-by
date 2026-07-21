@@ -444,7 +444,7 @@ export default function CheckoutPage() {
                                             : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted"
                                     }`}
                                 >
-                                    Нет мобильного
+                                    Международный номер
                                 </span>
                             </label>
                         </div>

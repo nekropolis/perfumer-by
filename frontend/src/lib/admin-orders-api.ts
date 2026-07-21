@@ -139,6 +139,30 @@ export async function updateOrderStatus(
   return res.json();
 }
 
+export type AdminOrderFieldsPayload = {
+  delivery_time_from?: string | null;
+  delivery_time_to?: string | null;
+  manager_comment?: string | null;
+};
+
+export async function updateOrderAdminFields(
+  id: number,
+  payload: AdminOrderFieldsPayload,
+): Promise<OrderResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders/${id}/admin-fields`, {
+    method: "PATCH",
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Order admin fields API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export async function syncOrderInventoryWriteoff(id: number): Promise<OrderResponse> {
   const res = await fetch(`${API_BASE}/admin/orders/${id}/sync-inventory-writeoff`, {
     method: "POST",
@@ -183,10 +207,13 @@ export type AdminOrderPayload = {
   customer_name?: string | null;
   phone: string;
   comment?: string | null;
+  manager_comment?: string | null;
   status?: string;
   delivery_method?: string | null;
   delivery_city?: string | null;
   delivery_address?: string | null;
+  delivery_time_from?: string | null;
+  delivery_time_to?: string | null;
   delivery_fee?: number;
   payment_method?: string | null;
   /** Номер активной скидочной карты; пусто — без скидки по карте. */

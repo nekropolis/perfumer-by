@@ -27,6 +27,7 @@ use Modules\Catalog\Console\Commands\MergeDuplicateBrandsCommand;
 use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
+use Modules\Catalog\Console\Commands\FixBrokenSeoProductNamesCommand;
 use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
 use Modules\Catalog\Console\Commands\SyncListingMinPricesCommand;
 use Modules\Catalog\Console\Commands\WarmCatalogCacheCommand;
@@ -88,6 +89,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         MergeDuplicateBrandsCommand::class,
         RegenerateProductImageVariantsCommand::class,
         ReindexProductSearchCommand::class,
+        FixBrokenSeoProductNamesCommand::class,
         StripBrandFromProductNamesCommand::class,
         VanilleImportQueueCommand::class,
         VanilleBrendyiTotalCommand::class,

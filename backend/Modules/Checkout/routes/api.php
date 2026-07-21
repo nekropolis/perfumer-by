@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);
     Route::put('/{id}', [OrderController::class, 'update']);
+    Route::patch('/{id}/admin-fields', [OrderController::class, 'updateAdminFields']);
     Route::delete('/{id}', [OrderController::class, 'destroy']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
 });

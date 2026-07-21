@@ -106,6 +106,7 @@ class CatalogSearchScoring
     public static function productSearchRank(string $query, string $brandName, string $productName): array
     {
         $normalizedQuery = self::normalizeSearchText($query);
+        $normalizedName = self::normalizeSearchText($productName);
         $full = self::buildProductSearchLabel($brandName, $productName);
         $score = self::similarityScore($normalizedQuery, $full);
         $fullLen = mb_strlen($full, 'UTF-8');
@@ -114,8 +115,16 @@ class CatalogSearchScoring
             return ['tier' => 3, 'score' => 0.0, 'full' => $full, 'full_len' => $fullLen];
         }
 
-        if ($full === $normalizedQuery) {
-            return ['tier' => 0, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+        // Точное совпадение названия товара («the one» → «The One») выше, чем brand+name.
+        if ($normalizedName === $normalizedQuery || $full === $normalizedQuery) {
+            return ['tier' => 0, 'score' => max($score, 1.0), 'full' => $full, 'full_len' => $fullLen];
+        }
+
+        if (str_starts_with($normalizedName, $normalizedQuery)) {
+            $nameTail = mb_substr($normalizedName, mb_strlen($normalizedQuery, 'UTF-8'), null, 'UTF-8');
+            if ($nameTail === '' || preg_match('/^\s/u', $nameTail) === 1) {
+                return ['tier' => 1, 'score' => max($score, self::similarityScore($normalizedQuery, $normalizedName)), 'full' => $full, 'full_len' => $fullLen];
+            }
         }
 
         if (str_starts_with($full, $normalizedQuery)) {
@@ -125,8 +134,13 @@ class CatalogSearchScoring
             }
         }
 
-        if (str_contains($full, $normalizedQuery)) {
-            return ['tier' => 2, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+        // Смежная фраза в названии («… The One …») выше разрозненных токенов («The Only One»).
+        if (str_contains($normalizedName, $normalizedQuery) || str_contains($full, $normalizedQuery)) {
+            $nameScore = str_contains($normalizedName, $normalizedQuery)
+                ? self::similarityScore($normalizedQuery, $normalizedName)
+                : $score;
+
+            return ['tier' => 2, 'score' => max($score, $nameScore), 'full' => $full, 'full_len' => $fullLen];
         }
 
         return ['tier' => 3, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
