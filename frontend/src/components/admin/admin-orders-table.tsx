@@ -24,9 +24,7 @@ type Props = {
     searchQuery?: string;
     onSuccessMessageAction?: (message: string) => void;
     onErrorMessageAction?: (message: string) => void;
-    /** Подпись фильтра по дате создания (как у кнопки в тулбаре). */
-    dateFilterSummary?: string;
-    /** Открыть тот же попап фильтра по датам (вызывается с родителя). */
+    /** Открыть попап фильтра по дате доставки (из заголовка колонки). */
     onDateFilterHeaderClickAction?: () => void;
     selectedOrderIds?: number[];
     onSelectedOrderIdsChangeAction?: (ids: number[]) => void;
@@ -91,33 +89,79 @@ function highlightQueryInText(text: string, query: string): ReactNode {
     return parts.length > 0 ? <>{parts}</> : text;
 }
 
-function formatOrderCreatedParts(value?: string | null): { date: string; time: string } | null {
+function formatOrderDeliveryDate(value?: string | null): string {
     if (!value) {
-        return null;
+        return "—";
     }
     try {
-        const d = new Date(value);
+        const d = new Date(`${value}T12:00:00`);
         if (Number.isNaN(d.getTime())) {
-            return null;
+            return "—";
         }
-        return {
-            date: d.toLocaleDateString("ru-RU"),
-            time: d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-        };
+        return d.toLocaleDateString("ru-RU");
     } catch {
-        return null;
+        return "—";
     }
 }
 
-function AdminOrderCreatedAtCell({ createdAt }: { createdAt?: string | null }) {
-    const parts = formatOrderCreatedParts(createdAt);
-    if (!parts) {
-        return "—";
-    }
+function tagContrastText(hex: string): string {
+    const m = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/i);
+    if (!m) return "#fff";
+    const r = parseInt(m[1], 16);
+    const g = parseInt(m[2], 16);
+    const b = parseInt(m[3], 16);
+    const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luma > 0.62 ? "#111827" : "#ffffff";
+}
+
+function AdminOrderClientPhoneCell({
+    name,
+    phone,
+    searchQuery,
+    onShowAction,
+    onHideAction,
+}: {
+    name?: string | null;
+    phone?: string | null;
+    searchQuery: string;
+    onShowAction: (tooltip: AddressTooltipState) => void;
+    onHideAction: () => void;
+}) {
+    const clientName = name?.trim() || "—";
+    const phoneText = phone?.trim() || "—";
+    const hasContent = clientName !== "—" || phoneText !== "—";
+
+    const showTooltip = (element: HTMLElement) => {
+        const truncatedLine = Array.from(
+            element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
+        ).some(isTextOverflowing);
+
+        if (!hasContent || !truncatedLine) {
+            onHideAction();
+            return;
+        }
+
+        onShowAction({
+            lines: [phoneText, clientName],
+            ...getTooltipPosition(element),
+        });
+    };
+
     return (
-        <div className="flex flex-col leading-tight">
-            <span className="whitespace-nowrap">{parts.date}</span>
-            <span className="whitespace-nowrap text-[10px] text-admin-text-secondary">{parts.time}</span>
+        <div
+            className="min-w-0 leading-tight"
+            tabIndex={hasContent ? 0 : undefined}
+            onMouseEnter={(event) => showTooltip(event.currentTarget)}
+            onMouseLeave={onHideAction}
+            onFocus={(event) => showTooltip(event.currentTarget)}
+            onBlur={onHideAction}
+        >
+            <div className="truncate font-semibold text-admin-text" data-truncate-check>
+                {highlightQueryInText(phoneText, searchQuery)}
+            </div>
+            <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
+                {highlightQueryInText(clientName, searchQuery)}
+            </div>
         </div>
     );
 }
@@ -163,7 +207,11 @@ function AdminOrderCellTooltip({
             {tooltip.lines.map((line, index) => (
                 <div
                     key={`${line}-${index}`}
-                    className={index === 0 ? "select-text font-semibold" : "mt-1.5 select-text whitespace-pre-wrap text-admin-text-secondary"}
+                    className={
+                        index === 0
+                            ? "select-text whitespace-pre-wrap font-semibold"
+                            : "mt-1.5 select-text whitespace-pre-wrap text-admin-text-secondary"
+                    }
                 >
                     {line}
                 </div>
@@ -268,46 +316,6 @@ function getTooltipPosition(element: HTMLElement): { x: number; y: number } {
 
 function isTextOverflowing(element: HTMLElement): boolean {
     return element.scrollWidth > element.clientWidth + 1;
-}
-
-function AdminOrderClientCell({
-    name,
-    searchQuery,
-    onShowAction,
-    onHideAction,
-}: {
-    name?: string | null;
-    searchQuery: string;
-    onShowAction: (tooltip: AddressTooltipState) => void;
-    onHideAction: () => void;
-}) {
-    const clientName = name?.trim() || "—";
-    const hasClient = clientName !== "—";
-
-    const showTooltip = (element: HTMLElement) => {
-        if (!hasClient || !isTextOverflowing(element)) {
-            onHideAction();
-            return;
-        }
-
-        onShowAction({
-            lines: [clientName],
-            ...getTooltipPosition(element),
-        });
-    };
-
-    return (
-        <div
-            className="min-w-0 truncate"
-            tabIndex={hasClient ? 0 : undefined}
-            onMouseEnter={(event) => showTooltip(event.currentTarget)}
-            onMouseLeave={onHideAction}
-            onFocus={(event) => showTooltip(event.currentTarget)}
-            onBlur={onHideAction}
-        >
-            {highlightQueryInText(clientName, searchQuery)}
-        </div>
-    );
 }
 
 function AdminOrderAddressCell({
@@ -469,17 +477,23 @@ function AdminOrderManagerCommentButton({
     order,
     onSavedAction,
     onErrorAction,
+    onShowAction,
+    onHideAction,
 }: {
     order: OrderData;
     onSavedAction: (order: OrderData) => void;
     onErrorAction?: (message: string) => void;
+    onShowAction: (tooltip: AddressTooltipState) => void;
+    onHideAction: () => void;
 }) {
-    const hasComment = Boolean(order.manager_comment?.trim());
+    const commentText = order.manager_comment?.trim() || "";
+    const hasComment = Boolean(commentText);
     const [open, setOpen] = useState(false);
     const [draft, setDraft] = useState(order.manager_comment ?? "");
     const [saving, setSaving] = useState(false);
 
     const openEditor = () => {
+        onHideAction();
         setDraft(order.manager_comment ?? "");
         setOpen(true);
     };
@@ -500,11 +514,26 @@ function AdminOrderManagerCommentButton({
         }
     };
 
+    const showTooltip = (element: HTMLElement) => {
+        if (!hasComment) {
+            onHideAction();
+            return;
+        }
+        onShowAction({
+            lines: [commentText],
+            ...getTooltipPosition(element),
+        });
+    };
+
     return (
         <>
             <button
                 type="button"
                 onClick={openEditor}
+                onMouseEnter={(event) => showTooltip(event.currentTarget)}
+                onMouseLeave={onHideAction}
+                onFocus={(event) => showTooltip(event.currentTarget)}
+                onBlur={onHideAction}
                 className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
                     hasComment
                         ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
@@ -515,7 +544,7 @@ function AdminOrderManagerCommentButton({
                         ? `Комментарий менеджера по заказу #${order.id}`
                         : `Добавить комментарий менеджера к заказу #${order.id}`
                 }
-                title={hasComment ? "Комментарий менеджера" : "Добавить комментарий менеджера"}
+                title={hasComment ? undefined : "Добавить комментарий менеджера"}
             >
                 <MessageSquare size={12} />
             </button>
@@ -565,7 +594,6 @@ export default function AdminOrdersTable({
     searchQuery = "",
     onSuccessMessageAction,
     onErrorMessageAction,
-    dateFilterSummary,
     onDateFilterHeaderClickAction,
     selectedOrderIds = [],
     onSelectedOrderIdsChangeAction,
@@ -743,9 +771,21 @@ export default function AdminOrdersTable({
             <div className="overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[60rem] table-fixed border-collapse text-[13px]">
+                    <colgroup>
+                        <col className="w-9" />
+                        <col className="w-[7.25rem]" />
+                        <col className="w-[7.75rem]" />
+                        <col />
+                        <col />
+                        <col className="w-[4.5rem]" />
+                        <col className="w-[8.5rem]" />
+                        <col className="w-[3.25rem]" />
+                        <col className="w-[6.5rem]" />
+                        <col className="w-[8rem]" />
+                    </colgroup>
                     <thead className="bg-admin-muted/80">
                         <tr className="border-b border-admin-border text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
-                            <th className="w-[4%] border-r border-admin-border px-2 py-2">
+                            <th className="border-r border-admin-border px-2 py-2">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -754,31 +794,28 @@ export default function AdminOrdersTable({
                                     className={adminCheckbox}
                                 />
                             </th>
-                            <th className="w-[7.5rem] border-r border-admin-border px-2 py-2">Заказ</th>
-                            <th className="w-[14%] border-r border-admin-border px-2 py-2">Клиент</th>
-                            <th className="w-[11%] border-r border-admin-border px-2 py-2">Телефон</th>
-                            <th className="w-[18%] border-r border-admin-border px-2 py-2">Адрес</th>
-                            <th className="w-[7%] border-r border-admin-border px-2 py-2">Время</th>
-                            <th className="w-[12%] border-r border-admin-border px-2 py-2">Статус</th>
-                            <th className="w-[5%] border-r border-admin-border px-2 py-2">Кол.</th>
-                            <th className="w-[9%] border-r border-admin-border px-2 py-2">Сумма</th>
-                            <th className="w-[10%] px-2 py-2 align-top">
-                                {onDateFilterHeaderClickAction !== undefined && dateFilterSummary !== undefined ? (
+                            <th className="border-r border-admin-border px-1.5 py-2">Заказ</th>
+                            <th className="border-r border-admin-border px-2 py-2">
+                                {onDateFilterHeaderClickAction !== undefined ? (
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="flex max-w-full flex-col items-start rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-surface focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                                        aria-label="Фильтр по дате создания заказа"
+                                        className="cursor-pointer bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary transition hover:font-bold hover:underline hover:underline-offset-2 focus:outline-none"
+                                        aria-label="Фильтр по дате доставки"
                                     >
-                                        <span className="tracking-wide text-admin-text-secondary">Дата</span>
-                                        <span className="max-w-full truncate text-[10px] font-medium normal-case leading-snug text-admin-text">
-                                            {dateFilterSummary}
-                                        </span>
+                                        Дата доставки
                                     </button>
                                 ) : (
-                                    "Дата"
+                                    "Дата доставки"
                                 )}
                             </th>
+                            <th className="border-r border-admin-border px-2 py-2">Клиент</th>
+                            <th className="border-r border-admin-border px-2 py-2">Адрес</th>
+                            <th className="border-r border-admin-border px-2 py-2">Время</th>
+                            <th className="border-r border-admin-border px-2 py-2">Статус</th>
+                            <th className="border-r border-admin-border px-2 py-2">Кол.</th>
+                            <th className="border-r border-admin-border px-2 py-2">Сумма</th>
+                            <th className="px-2 py-2">Теги</th>
                         </tr>
                     </thead>
 
@@ -794,11 +831,11 @@ export default function AdminOrdersTable({
                                         className={adminCheckbox}
                                     />
                                 </td>
-                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2">
-                                    <div className="flex items-center gap-1.5">
+                                <td className="overflow-hidden border-r border-admin-border/70 px-1.5 py-2">
+                                    <div className="flex w-max max-w-full items-center gap-1">
                                         <button
                                             type="button"
-                                            className="shrink-0 text-left font-medium text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
+                                            className="shrink-0 text-left font-medium tabular-nums text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
                                             onClick={() => openOrderDetail(order.id)}
                                         >
                                             #{highlightQueryInText(String(order.id), searchQuery)}
@@ -814,19 +851,22 @@ export default function AdminOrdersTable({
                                             order={order}
                                             onSavedAction={patchOrderInList}
                                             onErrorAction={onErrorMessageAction}
+                                            onShowAction={showAddressTooltip}
+                                            onHideAction={hideAddressTooltipWithDelay}
                                         />
                                     </div>
                                 </td>
+                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 tabular-nums text-admin-text">
+                                    {formatOrderDeliveryDate(order.delivery_date)}
+                                </td>
                                 <td className="border-r border-admin-border/70 px-2 py-2">
-                                    <AdminOrderClientCell
+                                    <AdminOrderClientPhoneCell
                                         name={order.customer_name}
+                                        phone={order.phone}
                                         searchQuery={searchQuery}
                                         onShowAction={showAddressTooltip}
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
-                                </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
-                                    <div className="truncate">{highlightQueryInText(order.phone || "—", searchQuery)}</div>
                                 </td>
                                 <td className="border-r border-admin-border/70 px-2 py-2">
                                     <AdminOrderAddressCell
@@ -863,9 +903,29 @@ export default function AdminOrdersTable({
                                         onHideAction={hideItemsTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2 whitespace-nowrap text-right tabular-nums">{order.total} руб.</td>
-                                <td className="px-2 py-2 text-admin-text-secondary">
-                                    <AdminOrderCreatedAtCell createdAt={order.created_at} />
+                                <td className="border-r border-admin-border/70 px-2 py-2 whitespace-nowrap text-right tabular-nums">
+                                    {order.total} руб.
+                                </td>
+                                <td className="px-2 py-2">
+                                    {(order.tags ?? []).length > 0 ? (
+                                        <div className="flex flex-wrap gap-1">
+                                            {(order.tags ?? []).map((tag) => (
+                                                <span
+                                                    key={tag.id}
+                                                    className="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight"
+                                                    style={{
+                                                        backgroundColor: tag.color,
+                                                        color: tagContrastText(tag.color),
+                                                    }}
+                                                    title={tag.name}
+                                                >
+                                                    {tag.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-admin-text-secondary">—</span>
+                                    )}
                                 </td>
                             </tr>
                         ))}

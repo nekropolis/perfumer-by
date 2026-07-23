@@ -7,6 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
@@ -89,12 +90,20 @@ class OrderResource extends JsonResource
             'delivery_method_label' => $this->deliveryMethodLabel($deliveryMethod),
             'delivery_city' => $deliveryCity,
             'delivery_address' => $this->delivery_address,
+            'delivery_date' => $this->delivery_date?->format('Y-m-d'),
             'delivery_time_from' => $this->formatOrderClockTime($this->delivery_time_from),
             'delivery_time_to' => $this->formatOrderClockTime($this->delivery_time_to),
             'delivery_fee' => number_format((float) ($this->delivery_fee ?? 0), 2, '.', ''),
             'payment_method' => $paymentMethod !== '' ? $paymentMethod : null,
             'payment_method_label' => $this->paymentMethodLabel($paymentMethod),
             'total' => number_format((float) $this->total, 2, '.', ''),
+            'tags' => $this->whenLoaded('tags', function () {
+                return $this->tags->map(static fn ($tag) => [
+                    'id' => (int) $tag->id,
+                    'name' => (string) $tag->name,
+                    'color' => (string) $tag->color,
+                ])->values()->all();
+            }),
             'manager_comment' => $this->when(
                 str_contains($request->path(), 'admin/orders'),
                 $this->manager_comment,
@@ -470,7 +479,7 @@ class OrderResource extends JsonResource
         }
     }
 
-    private function productCountry($item): ?string
+    private function productCountry(OrderItem $item): ?string
     {
         if (! $item->relationLoaded('product') || ! $item->product?->relationLoaded('attributeValues')) {
             return null;

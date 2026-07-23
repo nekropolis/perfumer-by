@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Option = {
     value: string;
@@ -23,6 +24,13 @@ type Props = {
     menuAlign?: "left" | "right" | "auto";
 };
 
+type MenuCoords = {
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+};
+
 export default function AdminStatusDropdown({
     value,
     options,
@@ -35,37 +43,53 @@ export default function AdminStatusDropdown({
     menuAlign = "auto",
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
-    const [resolvedAlign, setResolvedAlign] = useState<"left" | "right">(
-        menuAlign === "right" ? "right" : "left",
-    );
-    const [openUp, setOpenUp] = useState(false);
+    const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
     const rootRef = useRef<HTMLDivElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     const currentLabel = useMemo(
         () => options.find((item) => item.value === value)?.label ?? value,
         [options, value],
     );
 
-    useLayoutEffect(() => {
-        if (!isOpen || !rootRef.current) {
+    const updateMenuPosition = () => {
+        if (!rootRef.current) {
             return;
         }
         const rect = rootRef.current.getBoundingClientRect();
-        const menuWidth = 220;
+        const menuWidth = Math.min(220, Math.max(0, window.innerWidth - 24));
         const menuHeight = Math.min(320, options.length * 40 + 16);
         const pad = 8;
+        const gap = 6;
 
-        if (menuAlign === "left") {
-            setResolvedAlign("left");
-        } else if (menuAlign === "right") {
-            setResolvedAlign("right");
-        } else {
+        let left = rect.left;
+        if (menuAlign === "right") {
+            left = rect.right - menuWidth;
+        } else if (menuAlign === "auto") {
             const spaceRight = window.innerWidth - rect.left;
-            setResolvedAlign(spaceRight < menuWidth + pad ? "right" : "left");
+            if (spaceRight < menuWidth + pad) {
+                left = rect.right - menuWidth;
+            }
         }
+        left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
 
         const spaceBelow = window.innerHeight - rect.bottom;
-        setOpenUp(spaceBelow < menuHeight + pad && rect.top > spaceBelow);
+        const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
+
+        setMenuCoords({
+            top: openUp ? undefined : rect.bottom + gap,
+            bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+            left,
+            width: menuWidth,
+        });
+    };
+
+    useLayoutEffect(() => {
+        if (!isOpen) {
+            setMenuCoords(null);
+            return;
+        }
+        updateMenuPosition();
     }, [isOpen, menuAlign, options.length]);
 
     useEffect(() => {
@@ -73,24 +97,35 @@ export default function AdminStatusDropdown({
             return;
         }
         const onPointerDown = (event: MouseEvent | TouchEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
-                setIsOpen(false);
+            const target = event.target as Node;
+            if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
+                return;
             }
+            setIsOpen(false);
         };
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 setIsOpen(false);
             }
         };
+        const onReposition = () => {
+            updateMenuPosition();
+        };
+
         document.addEventListener("mousedown", onPointerDown);
         document.addEventListener("touchstart", onPointerDown, { passive: true });
         window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("resize", onReposition);
+        window.addEventListener("scroll", onReposition, true);
+
         return () => {
             document.removeEventListener("mousedown", onPointerDown);
             document.removeEventListener("touchstart", onPointerDown);
             window.removeEventListener("keydown", onKeyDown);
+            window.removeEventListener("resize", onReposition);
+            window.removeEventListener("scroll", onReposition, true);
         };
-    }, [isOpen]);
+    }, [isOpen, menuAlign, options.length]);
 
     const rootClassName =
         triggerVariant === "text"
@@ -136,42 +171,49 @@ export default function AdminStatusDropdown({
         </button>
     );
 
-    const menuPositionClass = [
-        resolvedAlign === "right" ? "right-0 left-auto" : "left-0 right-auto",
-        openUp ? "bottom-[calc(100%+0.35rem)] top-auto" : "top-[calc(100%+0.35rem)] bottom-auto",
-    ].join(" ");
+    const menu =
+        isOpen && menuCoords && typeof document !== "undefined"
+            ? createPortal(
+                  <div
+                      ref={menuRef}
+                      className={`fixed z-[9999] max-h-[min(20rem,70vh)] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName}`}
+                      style={{
+                          top: menuCoords.top,
+                          bottom: menuCoords.bottom,
+                          left: menuCoords.left,
+                          width: menuCoords.width,
+                      }}
+                      role="listbox"
+                      aria-label="Выбор статуса"
+                  >
+                      {options.map((item) => {
+                          const isActive = item.value === value;
+                          return (
+                              <button
+                                  key={item.value}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={isActive}
+                                  onClick={() => {
+                                      setIsOpen(false);
+                                      onChangeAction(item.value);
+                                  }}
+                                  className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
+                              >
+                                  <span>{item.label}</span>
+                                  {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
+                              </button>
+                          );
+                      })}
+                  </div>,
+                  document.body,
+              )
+            : null;
 
     return (
         <div className={rootClassName} ref={rootRef}>
             {triggerVariant === "text" ? textTrigger : defaultTrigger}
-
-            {isOpen ? (
-                <div
-                    className={`absolute z-50 max-h-[min(20rem,70vh)] max-w-[min(220px,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName} ${menuPositionClass}`}
-                    role="listbox"
-                    aria-label="Выбор статуса"
-                >
-                    {options.map((item) => {
-                        const isActive = item.value === value;
-                        return (
-                            <button
-                                key={item.value}
-                                type="button"
-                                role="option"
-                                aria-selected={isActive}
-                                onClick={() => {
-                                    setIsOpen(false);
-                                    onChangeAction(item.value);
-                                }}
-                                className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
-                            >
-                                <span>{item.label}</span>
-                                {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
-                            </button>
-                        );
-                    })}
-                </div>
-            ) : null}
+            {menu}
         </div>
     );
 }

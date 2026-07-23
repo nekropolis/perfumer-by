@@ -40,12 +40,15 @@ class OrderController extends Controller
             'delivery_method' => ['nullable', 'string', 'max:40'],
             'delivery_city' => ['nullable', 'string', 'max:255'],
             'delivery_address' => ['nullable', 'string'],
+            'delivery_date' => ['nullable', 'date_format:Y-m-d'],
             'delivery_time_from' => ['nullable', 'date_format:H:i'],
             'delivery_time_to' => ['nullable', 'date_format:H:i'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'max:32'],
             'discount_card_number' => ['nullable', 'string', 'max:64'],
             'gift_certificate_code' => ['nullable', 'string', 'max:64'],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer', 'distinct', 'exists:order_tags,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
@@ -270,6 +273,11 @@ class OrderController extends Controller
             $perPage = 25;
         }
 
+        $hasActiveFilter = $search !== ''
+            || $status !== ''
+            || $period !== ''
+            || $useCustomDateRange;
+
         $orders = Order::query()
             ->with([
                 'items.variant.supplierOffers.supplier',
@@ -279,7 +287,11 @@ class OrderController extends Controller
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
                 'soldGiftCertificates.template',
+                'tags:id,name,color',
             ])
+            ->when(! $hasActiveFilter, function ($query) {
+                $query->whereNotIn('status', ['cancelled', 'done', 'completed']);
+            })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
                     if (is_numeric($search)) {
@@ -296,32 +308,36 @@ class OrderController extends Controller
             })
             ->when($useCustomDateRange, function ($query) use ($fromBoundary, $toBoundary) {
                 if ($fromBoundary !== null && $toBoundary !== null) {
-                    $query->whereBetween('created_at', [$fromBoundary, $toBoundary]);
+                    $query->whereBetween('delivery_date', [
+                        $fromBoundary->toDateString(),
+                        $toBoundary->toDateString(),
+                    ]);
                 } elseif ($fromBoundary !== null) {
-                    $query->where('created_at', '>=', $fromBoundary);
+                    $query->whereDate('delivery_date', '>=', $fromBoundary->toDateString());
                 } elseif ($toBoundary !== null) {
-                    $query->where('created_at', '<=', $toBoundary);
+                    $query->whereDate('delivery_date', '<=', $toBoundary->toDateString());
                 }
             })
             ->when(! $useCustomDateRange && $period === 'today', function ($query) {
-                $query->whereDate('created_at', now()->toDateString());
+                $query->whereDate('delivery_date', now()->toDateString());
             })
             ->when(! $useCustomDateRange && $period === 'week', function ($query) {
-                $query->where('created_at', '>=', now()->copy()->subDays(6)->startOfDay());
+                $query->whereDate('delivery_date', '>=', now()->copy()->subDays(6)->toDateString());
             })
             ->when(! $useCustomDateRange && $period === 'month', function ($query) {
-                $query->whereBetween('created_at', [
-                    now()->copy()->startOfMonth()->startOfDay(),
-                    now()->copy()->endOfMonth()->endOfDay(),
+                $query->whereBetween('delivery_date', [
+                    now()->copy()->startOfMonth()->toDateString(),
+                    now()->copy()->endOfMonth()->toDateString(),
                 ]);
             })
             ->when(! $useCustomDateRange && $period === 'year', function ($query) {
-                $query->whereBetween('created_at', [
-                    now()->copy()->startOfYear()->startOfDay(),
-                    now()->copy()->endOfYear()->endOfDay(),
+                $query->whereBetween('delivery_date', [
+                    now()->copy()->startOfYear()->toDateString(),
+                    now()->copy()->endOfYear()->toDateString(),
                 ]);
             })
-            ->latest('id')
+            ->orderByDesc('delivery_date')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return response()->json([
@@ -346,6 +362,7 @@ class OrderController extends Controller
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',
                 'soldGiftCertificates.template',
+                'tags:id,name,color',
             ])
             ->findOrFail($id);
 
@@ -451,6 +468,7 @@ class OrderController extends Controller
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_date' => $validated['delivery_date'] ?? now()->toDateString(),
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
@@ -462,6 +480,7 @@ class OrderController extends Controller
                 'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
                 'gift_certificate_code' => $giftCertificateCode !== '' ? $giftCertificateCode : null,
             ]);
+            $order->tags()->sync(array_values(array_unique(array_map('intval', $validated['tag_ids'] ?? []))));
             $this->applyStatusTransitionEffects($order, null, (string) $order->status);
 
             return $order;
@@ -474,6 +493,7 @@ class OrderController extends Controller
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
             'soldGiftCertificates.template',
+            'tags:id,name,color',
         ]);
 
         return response()->json([
@@ -525,6 +545,7 @@ class OrderController extends Controller
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_date' => $validated['delivery_date'] ?? $order->delivery_date?->format('Y-m-d') ?? now()->toDateString(),
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
@@ -547,7 +568,7 @@ class OrderController extends Controller
 
                 // Склад → резерв; офер/ожидание → без резерва (reserveOrderItem сам решает по availability_source).
                 if (
-                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'done', 'completed'], true)
+                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'preorder', 'done', 'completed'], true)
                     && $nextStatus !== 'cancelled'
                 ) {
                     $stockService->reserveForOrder($order);
@@ -555,6 +576,7 @@ class OrderController extends Controller
             }
 
             $this->applyStatusTransitionEffects($order, $previousStatus, (string) $order->status);
+            $order->tags()->sync(array_values(array_unique(array_map('intval', $validated['tag_ids'] ?? []))));
         });
 
         $order->refresh()->load([
@@ -564,6 +586,7 @@ class OrderController extends Controller
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
             'soldGiftCertificates.template',
+            'tags:id,name,color',
         ]);
 
         return response()->json([
@@ -685,6 +708,7 @@ class OrderController extends Controller
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
             'soldGiftCertificates.template',
+            'tags:id,name,color',
         ]);
 
         return response()->json([
@@ -717,6 +741,7 @@ class OrderController extends Controller
             'orderGiftCertificates.giftCertificate',
             'giftCertificatePurchases',
             'soldGiftCertificates.template',
+            'tags:id,name,color',
         ]);
 
         return response()->json([

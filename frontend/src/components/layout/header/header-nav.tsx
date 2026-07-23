@@ -23,7 +23,7 @@ export function HeaderNavFallback({ isCompact, links }: HeaderNavProps) {
                     <Link
                         key={item.href}
                         href={item.href}
-                        className="shrink-0 rounded-full border border-admin-border px-3 py-1.5 text-xs font-medium text-[var(--header-text-secondary)] transition sm:px-4 sm:text-sm"
+                        className="shrink-0 rounded-full border border-admin-border px-3 py-1.5 text-xs font-medium text-[var(--header-text-secondary)] transition hover:border-[var(--header-text)]/40 hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] sm:px-4 sm:text-sm"
                     >
                         {item.label}
                     </Link>
@@ -55,7 +55,7 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
                             className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
                                 isActive
                                     ? "border-[var(--header-text)] bg-admin-surface text-[var(--header-text)]"
-                                    : "border-admin-border text-[var(--header-text-secondary)] hover:border-[var(--header-text)]/40 hover:text-[var(--header-text)]"
+                                    : "border-admin-border text-[var(--header-text-secondary)] hover:border-[var(--header-text)]/40 hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)]"
                             }`}
                             aria-current={isActive ? "page" : undefined}
                         >

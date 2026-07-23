@@ -318,6 +318,7 @@ export type SupplierOrderReservationsResponse = {
     current_page: number;
     last_page: number;
     total: number;
+    filter_orders?: number[];
 };
 
 export async function fetchWarehouseSuppliers(): Promise<WarehouseSuppliersResponse> {
@@ -896,10 +897,12 @@ export async function fetchStockSalesReport(params?: {
 export async function fetchSupplierOrderReservationsReport(params?: {
     page?: number;
     product_id?: number;
+    order_id?: number;
 }): Promise<SupplierOrderReservationsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", String(params.page));
     if (params?.product_id) searchParams.set("product_id", String(params.product_id));
+    if (params?.order_id) searchParams.set("order_id", String(params.order_id));
 
     const query = searchParams.toString();
     const res = await fetch(`${API_BASE}/admin/stock/reports/order-reservations${query ? `?${query}` : ""}`, {

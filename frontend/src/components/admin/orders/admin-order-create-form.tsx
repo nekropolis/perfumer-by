@@ -52,6 +52,10 @@ import AdminDeliveryTimeInput, {
   formatDeliveryClockTime,
   snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
+import AdminDatePicker from "@/components/admin/orders/admin-date-picker";
+import AdminOrderTagsPicker from "@/components/admin/orders/admin-order-tags-picker";
+import type { OrderTag } from "@/lib/admin-order-tags-api";
+import { format } from "date-fns";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Минск" },
@@ -489,6 +493,16 @@ export default function AdminOrderCreateForm({
   );
   const [deliveryTimeTo, setDeliveryTimeTo] = useState(
     () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_to),
+  );
+  const [deliveryDate, setDeliveryDate] = useState(
+    () => initialOrder?.delivery_date?.trim() || format(new Date(), "yyyy-MM-dd"),
+  );
+  const [selectedTags, setSelectedTags] = useState<OrderTag[]>(() =>
+    (initialOrder?.tags ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+    })),
   );
   const [deliveryTimeModalOpen, setDeliveryTimeModalOpen] = useState(false);
   const [draftDeliveryTimeFrom, setDraftDeliveryTimeFrom] = useState("");
@@ -1360,6 +1374,7 @@ export default function AdminOrderCreateForm({
       delivery_method: deliveryMethod,
       delivery_city: deliveryMethod === "pickup" ? null : resolvedCity || null,
       delivery_address: addr,
+      delivery_date: deliveryDate.trim() || format(new Date(), "yyyy-MM-dd"),
       delivery_time_from: deliveryTimeFrom.trim()
         ? snapDeliveryClockToTenMinutes(deliveryTimeFrom)
         : null,
@@ -1370,6 +1385,7 @@ export default function AdminOrderCreateForm({
       payment_method: paymentMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
       gift_certificate_code: appliedGiftCertificateCode.trim() || null,
+      tag_ids: selectedTags.map((t) => t.id),
       items: filledLines.map((item) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
@@ -2189,6 +2205,11 @@ export default function AdminOrderCreateForm({
       </SectionCard>
 
       <SectionCard>
+        <h2 className="text-sm font-semibold text-admin-text">Теги</h2>
+        <AdminOrderTagsPicker selected={selectedTags} onChangeAction={setSelectedTags} />
+      </SectionCard>
+
+      <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Доставка и оплата</h2>
 
         <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
@@ -2216,56 +2237,58 @@ export default function AdminOrderCreateForm({
 
             {deliveryMethod !== "pickup" ? (
               <>
-                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-                  {deliveryMethod === "minsk_courier" ? (
-                    <div>
-                      <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
-                      <input
-                        type="text"
-                        readOnly
-                        value={MINSK_COURIER_CITY}
-                        tabIndex={-1}
-                        className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
-                        aria-readonly="true"
-                      />
-                    </div>
-                  ) : showCitySelect ? (
-                    <div className="space-y-2">
-                      <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
-                      <select
-                        value={citySelect}
-                        onChange={(e) => setCitySelect(e.target.value)}
-                        className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
-                      >
-                        <option value="">Выберите город из заказов или другой</option>
-                        {savedCities.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                        <option value="__new__">Другой (ввести вручную)</option>
-                      </select>
-                      {(citySelect === "__new__" || !citySelect) &&
-                        (deliveryMethod === "belarus_courier" ? (
-                          belarusCitySearch
-                        ) : (
-                          <input
-                            value={deliveryCity}
-                            onChange={(e) => setDeliveryCity(e.target.value)}
-                            className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
-                            placeholder="Город (если не из списка)"
-                          />
-                        ))}
-                    </div>
-                  ) : deliveryMethod === "belarus_courier" ? (
-                    <div>
-                      <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
-                      <div className="mt-1">{belarusCitySearch}</div>
-                    </div>
-                  ) : (
-                    <div />
-                  )}
+                {deliveryMethod === "minsk_courier" ? (
+                  <div>
+                    <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={MINSK_COURIER_CITY}
+                      tabIndex={-1}
+                      className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
+                      aria-readonly="true"
+                    />
+                  </div>
+                ) : showCitySelect ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
+                    <select
+                      value={citySelect}
+                      onChange={(e) => setCitySelect(e.target.value)}
+                      className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                    >
+                      <option value="">Выберите город из заказов или другой</option>
+                      {savedCities.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                      <option value="__new__">Другой (ввести вручную)</option>
+                    </select>
+                    {(citySelect === "__new__" || !citySelect) &&
+                      (deliveryMethod === "belarus_courier" ? (
+                        belarusCitySearch
+                      ) : (
+                        <input
+                          value={deliveryCity}
+                          onChange={(e) => setDeliveryCity(e.target.value)}
+                          className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                          placeholder="Город (если не из списка)"
+                        />
+                      ))}
+                  </div>
+                ) : deliveryMethod === "belarus_courier" ? (
+                  <div>
+                    <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
+                    <div className="mt-1">{belarusCitySearch}</div>
+                  </div>
+                ) : null}
 
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                  <div>
+                    <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
+                    <AdminDatePicker value={deliveryDate} onChangeAction={setDeliveryDate} />
+                  </div>
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
                     <button
@@ -2315,36 +2338,42 @@ export default function AdminOrderCreateForm({
                 <p className="text-xs text-admin-text-secondary">
                   Самовывоз — адрес в заказе будет «нет - самовывоз».
                 </p>
-                <div>
-                  <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftDeliveryTimeFrom(
-                        deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
-                      );
-                      setDraftDeliveryTimeTo(
-                        deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
-                      );
-                      setDeliveryTimeModalOpen(true);
-                    }}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
-                    title="Задать время доставки"
-                  >
-                    <span className="tabular-nums">
-                      {formatDeliveryClockTime(deliveryTimeFrom) ||
-                        formatDeliveryClockTime(deliveryTimeTo) ? (
-                        <>
-                          {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
-                          {" – "}
-                          {formatDeliveryClockTime(deliveryTimeTo) || "—"}
-                        </>
-                      ) : (
-                        <span className="text-admin-text-secondary">Не задано</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-admin-primary">Задать</span>
-                  </button>
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                  <div>
+                    <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
+                    <AdminDatePicker value={deliveryDate} onChangeAction={setDeliveryDate} />
+                  </div>
+                  <div>
+                    <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftDeliveryTimeFrom(
+                          deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
+                        );
+                        setDraftDeliveryTimeTo(
+                          deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
+                        );
+                        setDeliveryTimeModalOpen(true);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                      title="Задать время доставки"
+                    >
+                      <span className="tabular-nums">
+                        {formatDeliveryClockTime(deliveryTimeFrom) ||
+                          formatDeliveryClockTime(deliveryTimeTo) ? (
+                          <>
+                            {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
+                            {" – "}
+                            {formatDeliveryClockTime(deliveryTimeTo) || "—"}
+                          </>
+                        ) : (
+                          <span className="text-admin-text-secondary">Не задано</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-admin-primary">Задать</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}

@@ -189,6 +189,7 @@ class CheckoutController extends Controller
                 'delivery_method' => $validated['delivery_method'],
                 'delivery_city' => $validated['delivery_city'] ?? null,
                 'delivery_address' => $validated['delivery_address'],
+                'delivery_date' => now()->toDateString(),
                 'delivery_fee' => 0,
                 'payment_method' => $validated['payment_method'],
                 'discount_card_id' => $quote['discount_card_id'],

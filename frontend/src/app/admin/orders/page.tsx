@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ListOrdered, Printer, FilterX, ShoppingCart } from "lucide-react";
+import { ListOrdered, Printer, FilterX, ShoppingCart, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
-import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
@@ -63,8 +62,8 @@ export default function AdminOrdersPage() {
     const [ordersPage, setOrdersPage] = useState(1);
     const [ordersPerPage, setOrdersPerPage] = useState<(typeof ORDERS_PER_PAGE_OPTIONS)[number]>(25);
     const [orderProducts, setOrderProducts] = useState<SupplierOrderReservationRow[]>([]);
-    const [products, setProducts] = useState<ProductAdminItem[]>([]);
-    const [productFilter, setProductFilter] = useState<number | "">("");
+    const [orderProductsFilterOrders, setOrderProductsFilterOrders] = useState<number[]>([]);
+    const [orderFilter, setOrderFilter] = useState<number | "">("");
     const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
     const [receiptModalOpen, setReceiptModalOpen] = useState(false);
     const [receiptCountryOptions, setReceiptCountryOptions] = useState<string[]>([]);
@@ -89,6 +88,13 @@ export default function AdminOrdersPage() {
         () => getAdminOrdersDateFilterLabel(ORDER_PERIOD_OPTIONS, { period: periodFilter, dateFrom, dateTo }),
         [periodFilter, dateFrom, dateTo],
     );
+    const hasDateFilter = Boolean(periodFilter || dateFrom.trim() || dateTo.trim());
+
+    const clearDateFilter = () => {
+        setPeriodFilter("");
+        setDateFrom("");
+        setDateTo("");
+    };
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -219,9 +225,12 @@ export default function AdminOrdersPage() {
                 setToast(null);
                 const response = await fetchSupplierOrderReservationsReport({
                     page: 1,
-                    product_id: typeof productFilter === "number" ? productFilter : undefined,
+                    order_id: typeof orderFilter === "number" ? orderFilter : undefined,
                 });
                 setOrderProducts(response.data ?? []);
+                if (Array.isArray(response.filter_orders)) {
+                    setOrderProductsFilterOrders(response.filter_orders);
+                }
             } catch (error) {
                 console.error(error);
                 setToast({ type: "error", message: "Не удалось загрузить товары для заказа" });
@@ -231,19 +240,7 @@ export default function AdminOrdersPage() {
         };
 
         void loadOrderProducts();
-    }, [activeTab, productFilter]);
-
-    useEffect(() => {
-        const loadProducts = async () => {
-            try {
-                const response = await fetchProducts({ page: 1 });
-                setProducts(response.data ?? []);
-            } catch (error) {
-                console.error(error);
-            }
-        };
-        void loadProducts();
-    }, []);
+    }, [activeTab, orderFilter]);
 
     const handleReset = () => {
         setSearchInput("");
@@ -251,7 +248,7 @@ export default function AdminOrdersPage() {
         setPeriodFilter("");
         setDateFrom("");
         setDateTo("");
-        setProductFilter("");
+        setOrderFilter("");
         setSelectedOrderIds([]);
         setOrdersPage(1);
         setToast(null);
@@ -260,7 +257,7 @@ export default function AdminOrdersPage() {
     const hasOrdersFilters = Boolean(
         searchInput.trim() || statusFilter || periodFilter || dateFrom.trim() || dateTo.trim(),
     );
-    const hasProductsFilters = Boolean(productFilter !== "" && productFilter != null);
+    const hasProductsFilters = Boolean(orderFilter !== "" && orderFilter != null);
 
     const handleOpenReceiptModal = async () => {
         if (selectedOrders.length === 0) {
@@ -364,14 +361,14 @@ export default function AdminOrdersPage() {
                 ) : (
                     <div className="flex w-full min-w-0 flex-wrap items-end justify-end gap-2">
                         <select
-                            value={productFilter}
-                            onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
+                            value={orderFilter}
+                            onChange={(e) => setOrderFilter(e.target.value ? Number(e.target.value) : "")}
                             className="rounded-lg border border-admin-border bg-white px-3 py-2.5 text-sm"
                         >
-                            <option value="">Все товары</option>
-                            {products.map((product) => (
-                                <option key={product.id} value={product.id}>
-                                    {product.name}
+                            <option value="">Все заказы</option>
+                            {orderProductsFilterOrders.map((id) => (
+                                <option key={id} value={id}>
+                                    #{id}
                                 </option>
                             ))}
                         </select>
@@ -391,6 +388,31 @@ export default function AdminOrdersPage() {
                 )}
             </AdminTableToolbar>
 
+            {activeTab === "orders" && hasDateFilter ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
+                        <button
+                            type="button"
+                            onClick={() => dateFilterRef.current?.open()}
+                            className="inline-flex min-w-0 items-center gap-1.5 text-left transition hover:text-admin-primary"
+                            title="Изменить фильтр по дате доставки"
+                        >
+                            <span className="shrink-0 text-admin-text-secondary">Дата доставки:</span>
+                            <span className="max-w-[16rem] truncate font-medium">{dateFilterSummary}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={clearDateFilter}
+                            className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
+                            aria-label="Сбросить фильтр по дате доставки"
+                            title="Сбросить"
+                        >
+                            <X size={12} strokeWidth={2.5} />
+                        </button>
+                    </span>
+                </div>
+            ) : null}
+
             {loading && (
                 <AdminLoadingState text={activeTab === "orders" ? "Загрузка заказов…" : "Загрузка…"} />
             )}
@@ -398,7 +420,7 @@ export default function AdminOrdersPage() {
             {!loading && activeTab === "orders" && ordersMeta !== null && ordersMeta.total === 0 && (
                 <AdminEmptyState
                     title="Заказы не найдены"
-                    description="Попробуйте изменить поиск, статус или фильтр по дате создания."
+                    description="Попробуйте изменить поиск, статус или фильтр по дате доставки."
                 />
             )}
 
@@ -409,7 +431,6 @@ export default function AdminOrdersPage() {
                         searchQuery={searchInput}
                         onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                         onErrorMessageAction={(message) => setToast({ type: "error", message })}
-                        dateFilterSummary={dateFilterSummary}
                         onDateFilterHeaderClickAction={() => dateFilterRef.current?.open()}
                         selectedOrderIds={selectedOrderIds}
                         onSelectedOrderIdsChangeAction={setSelectedOrderIds}
@@ -475,40 +496,48 @@ export default function AdminOrdersPage() {
                         <tbody>
                             {orderProducts.map((row) => (
                                 <tr key={row.id} className="border-b last:border-b-0">
-                                    <td className="px-4 py-3 font-medium">#{row.order_id}</td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-4 py-3 align-top font-medium">#{row.order_id}</td>
+                                    <td className="px-4 py-3 align-top">
                                         <div>{row.product_name ?? "—"}</div>
                                         <div className="text-xs text-admin-text-secondary">{row.variant_title ?? "—"}</div>
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1">
+                                    <td className="px-4 py-3 align-top">
+                                        <div className="flex flex-col">
                                             {row.suppliers.map((s, i) => (
-                                                <span key={`name-${i}`}>{s.name ?? "—"}</span>
+                                                <span key={`name-${i}`} className="block h-5 truncate leading-5">
+                                                    {s.name ?? "—"}
+                                                </span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1">
+                                    <td className="px-4 py-3 align-top">
+                                        <div className="flex flex-col">
                                             {row.suppliers.map((s, i) => (
-                                                <span key={`prod-${i}`}>{s.product_name ?? "—"}</span>
+                                                <span key={`prod-${i}`} className="block h-5 truncate leading-5" title={s.product_name ?? undefined}>
+                                                    {s.product_name ?? "—"}
+                                                </span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1">
+                                    <td className="px-4 py-3 align-top">
+                                        <div className="flex flex-col">
                                             {row.suppliers.map((s, i) => (
-                                                <span key={`code-${i}`}>{s.code ?? "—"}</span>
+                                                <span key={`code-${i}`} className="block h-5 truncate leading-5">
+                                                    {s.code ?? "—"}
+                                                </span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1">
+                                    <td className="px-4 py-3 align-top">
+                                        <div className="flex flex-col">
                                             {row.suppliers.map((s, i) => (
-                                                <span key={`price-${i}`}>{s.price ?? "—"}</span>
+                                                <span key={`price-${i}`} className="block h-5 truncate leading-5">
+                                                    {s.price ?? "—"}
+                                                </span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">{row.qty}</td>
+                                    <td className="px-4 py-3 align-top">{row.qty}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -17,8 +17,9 @@ import {
     fetchProductBrandOptions,
     type ProductBrandOption,
 } from "@/lib/admin-products-api";
+import OrderTagsManager from "@/components/admin/shop-settings/order-tags-manager";
 
-type ShopTab = "delivery" | "contacts" | "discounts" | "brands";
+type ShopTab = "delivery" | "contacts" | "discounts" | "brands" | "tags";
 
 const HOME_POPULAR_BRANDS_MAX = 5;
 const SEARCH_POPULAR_BRANDS_MAX = 8;
@@ -63,6 +64,7 @@ function tabDescription(tab: ShopTab): string {
     if (tab === "delivery") return "Пороги и тарифы доставки для витрины (Минск / РБ).";
     if (tab === "contacts") return "Телефоны и мессенджеры для шапки и контактов на витрине.";
     if (tab === "discounts") return "Настройки скидки за ожидание доставки.";
+    if (tab === "tags") return "Теги заказов: название и цвет.";
     return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
 }
 
@@ -265,6 +267,9 @@ export default function AdminShopSettingsPage() {
                 <button type="button" className={tabButtonClass(tab === "brands")} onClick={() => setTab("brands")}>
                     Бренды
                 </button>
+                <button type="button" className={tabButtonClass(tab === "tags")} onClick={() => setTab("tags")}>
+                    Теги
+                </button>
             </div>
 
             {message ? <AdminFeedbackMessage type={message.type} message={message.text} onCloseAction={() => setMessage(null)} /> : null}
@@ -402,6 +407,8 @@ export default function AdminShopSettingsPage() {
                                 }
                             />
                         </div>
+                    ) : tab === "tags" ? (
+                        <OrderTagsManager />
                     ) : (
                         <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
                             <div>
@@ -458,16 +465,18 @@ export default function AdminShopSettingsPage() {
                         </div>
                     )}
 
-                    <div className="mt-6">
-                        <button
-                            type="button"
-                            onClick={() => void save()}
-                            disabled={saving}
-                            className={`${adminBtnPrimary} w-full sm:w-auto`}
-                        >
-                            {saving ? "Сохранение..." : "Сохранить"}
-                        </button>
-                    </div>
+                    {tab !== "tags" ? (
+                        <div className="mt-6">
+                            <button
+                                type="button"
+                                onClick={() => void save()}
+                                disabled={saving}
+                                className={`${adminBtnPrimary} w-full sm:w-auto`}
+                            >
+                                {saving ? "Сохранение..." : "Сохранить"}
+                            </button>
+                        </div>
+                    ) : null}
                 </>
             )}
         </AdminPageCard>

@@ -18,20 +18,34 @@ class StockReportController extends Controller
     public function orderReservations(Request $request): JsonResponse
     {
         $productId = (int) $request->input('product_id', 0);
+        $orderId = (int) $request->input('order_id', 0);
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 50;
 
-        $query = OrderItem::query()
+        $baseQuery = OrderItem::query()
             ->select('order_items.*')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('orders.status', ['new', 'processing']);
+
+        $filterOrderIds = (clone $baseQuery)
+            ->reorder()
+            ->select('order_items.order_id')
+            ->distinct()
+            ->pluck('order_items.order_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+
+        $items = $baseQuery
             ->with(['product', 'variant'])
-            ->whereIn('orders.status', ['new', 'processing'])
             ->when($productId > 0, fn ($subQuery) => $subQuery->where('order_items.product_id', $productId))
+            ->when($orderId > 0, fn ($subQuery) => $subQuery->where('order_items.order_id', $orderId))
             ->orderByDesc('orders.id')
             ->orderBy('order_items.product_name')
-            ->orderBy('order_items.variant_title');
-
-        $items = $query->get();
+            ->orderBy('order_items.variant_title')
+            ->get();
 
         $variantIds = $items
             ->pluck('variant_id')
@@ -147,6 +161,7 @@ class StockReportController extends Controller
             'current_page' => $page,
             'last_page' => $lastPage,
             'total' => $total,
+            'filter_orders' => $filterOrderIds,
         ]);
     }
 

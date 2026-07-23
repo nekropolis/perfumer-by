@@ -5,6 +5,7 @@ use Modules\Checkout\Http\Controllers\Api\CheckoutCitiesController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutQuoteController;
 use Modules\Checkout\Http\Controllers\Api\OrderController;
+use Modules\Checkout\Http\Controllers\Api\OrderTagController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
@@ -39,6 +40,13 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::patch('/{id}/admin-fields', [OrderController::class, 'updateAdminFields']);
     Route::delete('/{id}', [OrderController::class, 'destroy']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/order-tags')->group(function () {
+    Route::get('/', [OrderTagController::class, 'index']);
+    Route::post('/', [OrderTagController::class, 'store']);
+    Route::put('/{id}', [OrderTagController::class, 'update']);
+    Route::delete('/{id}', [OrderTagController::class, 'destroy']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->group(function () {

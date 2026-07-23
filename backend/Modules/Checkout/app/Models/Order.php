@@ -4,6 +4,7 @@ namespace Modules\Checkout\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
@@ -27,6 +28,7 @@ class Order extends Model
         'delivery_method',
         'delivery_city',
         'delivery_address',
+        'delivery_date',
         'delivery_time_from',
         'delivery_time_to',
         'delivery_fee',
@@ -38,6 +40,7 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'delivery_date' => 'date',
         'delivery_fee' => 'decimal:2',
     ];
 
@@ -63,6 +66,11 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(OrderTag::class, 'order_order_tag');
     }
 
     public function orderGiftCertificates(): HasMany

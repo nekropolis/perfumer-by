@@ -19,11 +19,11 @@ function getAdminHeaders() {
 export async function fetchOrders(params?: {
   search?: string;
   status?: string;
-  /** today | week | month | year — фильтр по дате создания (игнорируется API, если задан from/to) */
+  /** today | week | month | year — фильтр по дате доставки (игнорируется API, если задан from/to) */
   period?: string;
-  /** YYYY-MM-DD — начало интервала created_at */
+  /** YYYY-MM-DD — начало интервала delivery_date */
   from?: string;
-  /** YYYY-MM-DD — конец интервала created_at (включительно, конец дня) */
+  /** YYYY-MM-DD — конец интервала delivery_date (включительно) */
   to?: string;
   page?: number;
   /** Только 25, 50 или 100 (остальное API приведёт к 25) */
@@ -212,6 +212,8 @@ export type AdminOrderPayload = {
   delivery_method?: string | null;
   delivery_city?: string | null;
   delivery_address?: string | null;
+  /** YYYY-MM-DD */
+  delivery_date?: string | null;
   delivery_time_from?: string | null;
   delivery_time_to?: string | null;
   delivery_fee?: number;
@@ -220,6 +222,8 @@ export type AdminOrderPayload = {
   discount_card_number?: string | null;
   /** Код подарочного сертификата для оплаты; пусто — без сертификата. */
   gift_certificate_code?: string | null;
+  /** ID тегов заказа. */
+  tag_ids?: number[];
   items: AdminOrderPayloadItem[];
 };
 
