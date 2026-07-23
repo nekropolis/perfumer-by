@@ -119,7 +119,16 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {(receipt.items ?? []).map((item) => (
+                                    {(receipt.items ?? []).map((item) => {
+                                        const payload = item.payload && typeof item.payload === "object" ? item.payload : {};
+                                        const supplierProductName = String(
+                                            (payload as { supplier_product_name?: unknown }).supplier_product_name
+                                                ?? (payload as { title?: unknown }).title
+                                                ?? (payload as { name?: unknown }).name
+                                                ?? "",
+                                        ).trim();
+
+                                        return (
                                         <div
                                             key={item.id}
                                             className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
@@ -130,13 +139,19 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                                                 <span>{item.product_name}</span>
                                                 <span className="mx-2 text-slate-300">/</span>
                                                 <span>{item.variant_title}</span>
+                                                {supplierProductName ? (
+                                                    <div className="mt-1 text-xs text-slate-500">
+                                                        У поставщика: {supplierProductName}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                             <div className="flex items-center gap-3 text-sm">
                                                 <span>{item.qty} шт.</span>
                                                 <span>{item.supplier_price}</span>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

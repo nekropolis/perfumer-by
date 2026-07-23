@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
     CHECKOUT_LINE_SELECTION_STORAGE_KEY,
     createOrder,
@@ -78,7 +79,10 @@ const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {
     card: "Оплата при получении (только при доставке по Минску или самовывозе).",
 };
 
-const CARD_PAYMENT_WARNING = "Внимание: при оплате по карте — скидки не предоставляются.";
+const CARD_PAYMENT_WARNING =
+    "Внимание: при оплате по карте — скидки по скидочным картам не предоставляются.";
+const CASH_SAMPLE_GIFT_HINT = "При оплате наличными — пробник в подарок.";
+const CARD_SAMPLE_GIFT_WARNING = "При оплате картой пробник в подарок не предоставляется.";
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -102,6 +106,7 @@ export default function CheckoutPage() {
     const [cityLookupFailed, setCityLookupFailed] = useState(false);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cash");
+    const [cardSampleWarningOpen, setCardSampleWarningOpen] = useState(false);
     const [quote, setQuote] = useState<CheckoutQuote | null>(null);
     const [quoteError, setQuoteError] = useState("");
 
@@ -286,8 +291,22 @@ export default function CheckoutPage() {
         setDeliveryMethod(value);
         if (value === "belarus_courier") {
             setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
+            setCardSampleWarningOpen(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!cardSampleWarningOpen) {
+            return;
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setCardSampleWarningOpen(false);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [cardSampleWarningOpen]);
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
@@ -604,23 +623,41 @@ export default function CheckoutPage() {
                                             value={value}
                                             checked={active}
                                             disabled={disabled}
-                                            onChange={() => setPaymentMethod(value)}
+                                            onChange={() => {
+                                                setPaymentMethod(value);
+                                                if (value === "card") {
+                                                    setCardSampleWarningOpen(true);
+                                                }
+                                            }}
                                             className="accent-admin-primary"
                                         />
-                                        <span>{label}</span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                <span>{label}</span>
+                                                {value === "cash" ? (
+                                                    <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-emerald-700 ring-1 ring-inset ring-emerald-200/80">
+                                                        Пробник в подарок
+                                                    </span>
+                                                ) : null}
+                                            </span>
+                                        </span>
                                     </label>
                                 );
                             })}
                         </div>
                         <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
                             {PAYMENT_HINTS[paymentMethod]}
-                            {paymentMethod === "card" ? (
-                                <>
-                                    {" "}
-                                    <span className="font-semibold text-amber-800">{CARD_PAYMENT_WARNING}</span>
-                                </>
-                            ) : null}
                         </p>
+                        {paymentMethod === "card" ? (
+                            <p className="mt-1.5 text-xs font-semibold leading-relaxed text-amber-800">
+                                {CARD_PAYMENT_WARNING}
+                            </p>
+                        ) : null}
+                        {paymentMethod === "cash" ? (
+                            <p className="mt-1.5 text-xs font-semibold leading-relaxed text-emerald-700">
+                                {CASH_SAMPLE_GIFT_HINT}
+                            </p>
+                        ) : null}
                     </fieldset>
 
                     <div className="mb-5">
@@ -705,6 +742,7 @@ export default function CheckoutPage() {
                             deliveryFee={quote?.delivery_fee}
                             grandTotal={quote?.total}
                             waitingDiscountAmount={waitingDiscountAmount}
+                            sampleGift={paymentMethod === "cash"}
                         />
                     </div>
 
@@ -938,6 +976,44 @@ export default function CheckoutPage() {
                     ) : null}
                 </aside>
             </div>
+
+            {cardSampleWarningOpen && typeof document !== "undefined"
+                ? createPortal(
+                      <div
+                          className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-[1px] sm:items-center sm:p-4"
+                          onClick={() => setCardSampleWarningOpen(false)}
+                          role="presentation"
+                      >
+                          <div
+                              className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
+                              onClick={(e) => e.stopPropagation()}
+                              role="dialog"
+                              aria-modal="true"
+                              aria-labelledby="card-sample-warning-title"
+                          >
+                              <div
+                                  id="card-sample-warning-title"
+                                  className="mb-2 text-lg font-semibold text-admin-text"
+                              >
+                                  Внимание
+                              </div>
+                              <p className="text-sm leading-relaxed text-admin-text-secondary">
+                                  {CARD_SAMPLE_GIFT_WARNING}
+                              </p>
+                              <div className="mt-5 flex justify-end">
+                                  <button
+                                      type="button"
+                                      onClick={() => setCardSampleWarningOpen(false)}
+                                      className={`${siteBtnPrimary} w-full sm:w-auto`}
+                                  >
+                                      Понятно
+                                  </button>
+                              </div>
+                          </div>
+                      </div>,
+                      document.body,
+                  )
+                : null}
         </main>
     );
 }

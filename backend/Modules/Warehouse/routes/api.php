@@ -10,9 +10,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock')->group(fu
     Route::get('/suppliers/options', [StockReceiptController::class, 'suppliers']);
     Route::get('/warehouses/options', [StockReceiptController::class, 'warehouses']);
     Route::get('/balances', [StockBalanceController::class, 'index']);
+    Route::get('/balances/variant-suppliers', [StockBalanceController::class, 'variantSuppliers']);
 
     Route::prefix('receipts')->group(function () {
         Route::get('/', [StockReceiptController::class, 'index']);
+        Route::get('/lookup-by-sku', [StockReceiptController::class, 'lookupBySku']);
         Route::post('/', [StockReceiptController::class, 'store']);
         Route::post('/import-xls/prepare', [StockReceiptController::class, 'importXlsPrepare']);
         Route::post('/import-xls/resolve-batch', [StockReceiptController::class, 'importXlsResolveBatch']);

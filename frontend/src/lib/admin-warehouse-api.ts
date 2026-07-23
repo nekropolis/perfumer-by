@@ -334,6 +334,34 @@ export async function fetchWarehouseSuppliers(): Promise<WarehouseSuppliersRespo
     return res.json();
 }
 
+export type StockReceiptSkuLookup = {
+    supplier_product_name: string | null;
+    supplier_price: string | number | null;
+};
+
+export async function lookupStockReceiptBySku(params: {
+    code: string;
+    supplier_id?: number | null;
+}): Promise<{ data: StockReceiptSkuLookup }> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("code", params.code.trim());
+    if (typeof params.supplier_id === "number" && params.supplier_id > 0) {
+        searchParams.set("supplier_id", String(params.supplier_id));
+    }
+
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/lookup-by-sku?${searchParams.toString()}`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Receipt SKU lookup API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
 export async function fetchWarehouses(): Promise<WarehouseOptionsResponse> {
     const res = await fetch(`${API_BASE}/admin/stock/warehouses/options`, {
         headers: getAdminHeaders(),
@@ -685,13 +713,19 @@ export async function createStockWriteoff(
 
 export async function fetchStockBalances(params?: {
     page?: number;
+    per_page?: number;
     search?: string;
     stock_state?: string;
     warehouse_id?: number;
+    sort?: "brand" | "stock" | "reserved";
+    dir?: "asc" | "desc";
 }): Promise<StockBalancesResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) {
         searchParams.set("page", String(params.page));
+    }
+    if (params?.per_page) {
+        searchParams.set("per_page", String(params.per_page));
     }
     if (params?.search) {
         searchParams.set("search", params.search);
@@ -701,6 +735,12 @@ export async function fetchStockBalances(params?: {
     }
     if (params?.warehouse_id) {
         searchParams.set("warehouse_id", String(params.warehouse_id));
+    }
+    if (params?.sort) {
+        searchParams.set("sort", params.sort);
+    }
+    if (params?.dir) {
+        searchParams.set("dir", params.dir);
     }
 
     const query = searchParams.toString();
@@ -712,6 +752,36 @@ export async function fetchStockBalances(params?: {
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Stock balances API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export type StockBalanceVariantSupplierRow = {
+    source: "receipt" | "offer";
+    supplier_name: string;
+    supplier_sku: string | null;
+    supplier_product_name: string | null;
+    supplier_price: string | number | null;
+};
+
+export async function fetchStockBalanceVariantSuppliers(
+    variantId: number,
+): Promise<{ data: StockBalanceVariantSupplierRow[] }> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("variant_id", String(variantId));
+
+    const res = await fetch(
+        `${API_BASE}/admin/stock/balances/variant-suppliers?${searchParams.toString()}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+        },
+    );
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Stock balance variant suppliers API error: ${res.status}`);
     }
 
     return res.json();

@@ -24,6 +24,8 @@ type Props = {
     deliveryFee?: string | null;
     grandTotal?: string | null;
     waitingDiscountAmount?: string | null;
+    /** Подарок при оплате наличными на чекауте */
+    sampleGift?: boolean;
     className?: string;
 };
 
@@ -41,6 +43,7 @@ export default function CartPricingBreakdown({
     deliveryFee,
     grandTotal,
     waitingDiscountAmount,
+    sampleGift = false,
     className = "",
 }: Props) {
     const sub = parseMoney(subtotal);
@@ -116,6 +119,13 @@ export default function CartPricingBreakdown({
                             <span>{formatMoneyRub(deliveryFee)}</span>
                         )}
                     </span>
+                </div>
+            ) : null}
+
+            {sampleGift ? (
+                <div className="flex items-center justify-between text-emerald-700">
+                    <span>Пробник в подарок</span>
+                    <span className="font-medium">Бесплатно</span>
                 </div>
             ) : null}
 

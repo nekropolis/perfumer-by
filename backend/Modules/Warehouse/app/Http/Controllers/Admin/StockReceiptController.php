@@ -7,8 +7,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Warehouse\Models\StockReceipt;
+use Modules\Warehouse\Models\StockReceiptImportMapping;
 use Modules\Warehouse\Models\StockReceiptImportSessionState;
+use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\StockReceiptService;
 use Modules\Warehouse\Services\StockReceiptXlsImportService;
@@ -276,6 +279,99 @@ class StockReceiptController extends Controller
 
         return response()->json([
             'data' => $items,
+        ]);
+    }
+
+    public function lookupBySku(Request $request): JsonResponse
+    {
+        $code = trim((string) $request->input('code', ''));
+        $supplierId = (int) $request->input('supplier_id', 0);
+
+        if ($code === '') {
+            return response()->json([
+                'data' => [
+                    'supplier_product_name' => null,
+                    'supplier_price' => null,
+                ],
+            ]);
+        }
+
+        $name = null;
+        $price = null;
+
+        $receiptItemQuery = StockReceiptItem::query()
+            ->with(['receipt'])
+            ->where('supplier_sku', $code)
+            ->orderByDesc('id');
+
+        if ($supplierId > 0) {
+            $receiptItemQuery->whereHas('receipt', function ($query) use ($supplierId) {
+                $query->where('supplier_id', $supplierId);
+            });
+        }
+
+        $receiptItem = $receiptItemQuery->first();
+        if ($receiptItem) {
+            $payload = is_array($receiptItem->payload) ? $receiptItem->payload : [];
+            $name = trim((string) (
+                $payload['supplier_product_name']
+                ?? $payload['title']
+                ?? $payload['name']
+                ?? ''
+            ));
+            $name = $name !== '' ? $name : null;
+            $price = $receiptItem->supplier_price;
+        }
+
+        if ($name === null) {
+            $mapping = StockReceiptImportMapping::query()
+                ->where('supplier_sku', $code)
+                ->whereNotNull('source_title')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($mapping) {
+                $mappedTitle = trim((string) ($mapping->source_title ?? ''));
+                $name = $mappedTitle !== '' ? $mappedTitle : null;
+            }
+        }
+
+        if ($name === null || $price === null) {
+            $offerQuery = SupplierVariantOffer::query()
+                ->where(function ($query) use ($code) {
+                    $query->where('external_id', $code)
+                        ->orWhere('sku', $code);
+                })
+                ->orderByDesc('id');
+
+            if ($supplierId > 0) {
+                $offerQuery->where('supplier_id', $supplierId);
+            }
+
+            $offer = $offerQuery->first();
+            if ($offer) {
+                $payload = is_array($offer->payload) ? $offer->payload : [];
+                if ($name === null) {
+                    $offerName = trim((string) (
+                        $payload['supplier_product_name']
+                        ?? $payload['title']
+                        ?? $offer->external_product_name
+                        ?? $offer->external_variant_name
+                        ?? ''
+                    ));
+                    $name = $offerName !== '' ? $offerName : null;
+                }
+                if ($price === null) {
+                    $price = $payload['supplier_price'] ?? $offer->purchase_price;
+                }
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'supplier_product_name' => $name,
+                'supplier_price' => $price,
+            ],
         ]);
     }
 

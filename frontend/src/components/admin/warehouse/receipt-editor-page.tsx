@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
+import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
     createStockReceipt,
     fetchStockReceipt,
     fetchWarehouses,
     fetchWarehouseSuppliers,
+    lookupStockReceiptBySku,
     postStockReceipt,
     updateStockReceipt,
     type StockReceiptPayload,
@@ -19,11 +21,14 @@ import {
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
 import { STOCK_RECEIPT_STATUS, getStockReceiptStatusLabel } from "@/lib/warehouse-document-status";
-import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
 import {
-    fetchVariantDefinitions,
-    type VariantDefinitionItem,
-} from "@/lib/admin-product-variants-api";
+    fetchProductById,
+    flattenProductSmartSearchHits,
+    smartSearchProductsWithFallback,
+    type ProductSmartSearchItem,
+    type ProductSmartSearchVariantPreview,
+} from "@/lib/admin-products-api";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 type ReceiptFormItem = {
     product_id: number | null;
@@ -34,6 +39,7 @@ type ReceiptFormItem = {
     qty: number;
     supplier_price: string;
     supplier_sku: string;
+    supplier_product_name: string;
 };
 
 type ReceiptFormState = {
@@ -48,22 +54,26 @@ type ReceiptFormState = {
 
 type DraftReceiptItem = {
     product_id: number | null;
-    variant_definition_id: number | null;
+    variant_id: number | null;
     product_query: string;
-    variant_query: string;
+    product_name: string;
+    variant_title: string;
     qty: number;
     supplier_price: string;
     supplier_sku: string;
+    supplier_product_name: string;
 };
 
 const emptyDraftItem = (): DraftReceiptItem => ({
     product_id: null,
-    variant_definition_id: null,
+    variant_id: null,
     product_query: "",
-    variant_query: "",
+    product_name: "",
+    variant_title: "",
     qty: 1,
     supplier_price: "",
     supplier_sku: "",
+    supplier_product_name: "",
 });
 
 const emptyForm = (): ReceiptFormState => ({
@@ -88,8 +98,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [draftItem, setDraftItem] = useState<DraftReceiptItem>(emptyDraftItem());
     const [suppliers, setSuppliers] = useState<WarehouseSupplierOption[]>([]);
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-    const [productOptions, setProductOptions] = useState<ProductAdminItem[]>([]);
-    const [variantOptions, setVariantOptions] = useState<VariantDefinitionItem[]>([]);
+    const [productHits, setProductHits] = useState<ProductSmartSearchItem[]>([]);
+    const [productHitsLoading, setProductHitsLoading] = useState(false);
+    const [pickingProduct, setPickingProduct] = useState(false);
     const [loading, setLoading] = useState(isEdit);
     const [saving, setSaving] = useState(false);
     const [posting, setPosting] = useState(false);
@@ -97,29 +108,10 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [receiptStatus, setReceiptStatus] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState("");
-
-    const loadProducts = useCallback(async (query: string) => {
-        try {
-            const response = await fetchProducts({
-                page: 1,
-                search: query.trim() || undefined,
-            });
-            setProductOptions(response.data ?? []);
-        } catch (e) {
-            console.error(e);
-        }
-    }, []);
-
-    const loadVariantDefinitions = useCallback(async (searchQuery = "") => {
-        try {
-            const response = await fetchVariantDefinitions({
-                search: searchQuery.trim() || undefined,
-            });
-            setVariantOptions(response.data ?? []);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Не удалось загрузить варианты");
-        }
-    }, []);
+    const [skuLookupPending, setSkuLookupPending] = useState(false);
+    const supplierProductNameTouchedRef = useRef(false);
+    const debouncedSupplierSku = useDebouncedValue(draftItem.supplier_sku, 350);
+    const debouncedProductQuery = useDebouncedValue(draftItem.product_query, 350);
 
     useEffect(() => {
         const loadSuppliers = async () => {
@@ -146,8 +138,46 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
 
         void loadSuppliers();
         void loadWarehouses();
-        void loadProducts("");
-    }, [loadProducts]);
+    }, []);
+
+    useEffect(() => {
+        if (!isAddModalOpen) {
+            setProductHits([]);
+            setProductHitsLoading(false);
+            return;
+        }
+
+        const query = debouncedProductQuery.trim();
+        if (query.length < 2 || draftItem.product_id != null) {
+            setProductHits([]);
+            setProductHitsLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setProductHitsLoading(true);
+
+        void smartSearchProductsWithFallback({ q: query, limit: 12 })
+            .then((response) => {
+                if (!cancelled) {
+                    setProductHits(response.data ?? []);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setProductHits([]);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setProductHitsLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [debouncedProductQuery, draftItem.product_id, isAddModalOpen]);
 
     useEffect(() => {
         if (!isEdit || !receiptId) {
@@ -168,16 +198,27 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     supplier_name: receipt.supplier_name ?? "",
                     received_at: receipt.received_at ? receipt.received_at.slice(0, 16) : new Date().toISOString().slice(0, 16),
                     comment: receipt.comment ?? "",
-                    items: (receipt.items ?? []).map((item) => ({
-                        product_id: item.product_id,
-                        variant_id: item.variant_id ?? null,
-                        variant_definition_id: (item as { variant?: { definition?: { id?: number | null } | null } }).variant?.definition?.id ?? null,
-                        product_name: item.product_name,
-                        variant_title: item.variant_title,
-                        qty: item.qty,
-                        supplier_price: String(item.supplier_price ?? ""),
-                        supplier_sku: item.supplier_sku ?? "",
-                    })),
+                    items: (receipt.items ?? []).map((item) => {
+                        const payload = item.payload && typeof item.payload === "object" ? item.payload : {};
+                        const supplierProductName = String(
+                            (payload as { supplier_product_name?: unknown }).supplier_product_name
+                                ?? (payload as { title?: unknown }).title
+                                ?? (payload as { name?: unknown }).name
+                                ?? "",
+                        );
+
+                        return {
+                            product_id: item.product_id,
+                            variant_id: item.variant_id ?? null,
+                            variant_definition_id: (item as { variant?: { definition?: { id?: number | null } | null } }).variant?.definition?.id ?? null,
+                            product_name: item.product_name,
+                            variant_title: item.variant_title,
+                            qty: item.qty,
+                            supplier_price: String(item.supplier_price ?? ""),
+                            supplier_sku: item.supplier_sku ?? "",
+                            supplier_product_name: supplierProductName,
+                        };
+                    }),
                 };
 
                 setForm(nextForm);
@@ -191,6 +232,61 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
 
         void loadReceipt();
     }, [isEdit, receiptId]);
+
+    useEffect(() => {
+        const code = debouncedSupplierSku.trim();
+        if (!isAddModalOpen || code === "") {
+            setSkuLookupPending(false);
+            return;
+        }
+
+        let cancelled = false;
+        setSkuLookupPending(true);
+
+        void lookupStockReceiptBySku({
+            code,
+            supplier_id: form.supplier_id,
+        })
+            .then((response) => {
+                if (cancelled) {
+                    return;
+                }
+
+                const foundName = (response.data?.supplier_product_name ?? "").trim();
+                const foundPrice = response.data?.supplier_price;
+
+                setDraftItem((prev) => {
+                    if (prev.supplier_sku.trim() !== code) {
+                        return prev;
+                    }
+
+                    const next = { ...prev };
+                    if (foundName !== "" && !supplierProductNameTouchedRef.current) {
+                        next.supplier_product_name = foundName;
+                    }
+                    if (
+                        (prev.supplier_price.trim() === "" || Number(prev.supplier_price) <= 0)
+                        && foundPrice != null
+                        && String(foundPrice).trim() !== ""
+                    ) {
+                        next.supplier_price = String(foundPrice);
+                    }
+                    return next;
+                });
+            })
+            .catch(() => {
+                // Lookup is best-effort: leave fields for manual input.
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setSkuLookupPending(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [debouncedSupplierSku, form.supplier_id, isAddModalOpen]);
 
     const submit = async () => {
         setSaving(true);
@@ -232,6 +328,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     qty: Number(item.qty),
                     supplier_price: Number(item.supplier_price),
                     supplier_sku: item.supplier_sku.trim(),
+                    payload: item.supplier_product_name.trim()
+                        ? { supplier_product_name: item.supplier_product_name.trim() }
+                        : undefined,
                 })),
             };
 
@@ -270,13 +369,8 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const readOnlyPosted = isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED;
 
     const addDraftItem = () => {
-        if (!draftItem.product_id) {
-            setError("Выберите товар");
-            return;
-        }
-
-        if (!draftItem.variant_definition_id) {
-            setError("Выберите вариант");
+        if (!draftItem.product_id || !draftItem.variant_id) {
+            setError("Выберите товар и вариант из поиска");
             return;
         }
 
@@ -292,20 +386,60 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 ...prev.items.filter((item) => item.product_id !== null),
                 {
                     product_id: draftItem.product_id,
-                    variant_id: null,
-                    variant_definition_id: draftItem.variant_definition_id,
-                    product_name: draftItem.product_query,
-                    variant_title: draftItem.variant_query,
+                    variant_id: draftItem.variant_id,
+                    variant_definition_id: null,
+                    product_name: draftItem.product_name,
+                    variant_title: draftItem.variant_title,
                     qty: draftItem.qty,
                     supplier_price: draftItem.supplier_price,
                     supplier_sku: draftItem.supplier_sku,
+                    supplier_product_name: draftItem.supplier_product_name.trim(),
                 },
             ],
         }));
+        supplierProductNameTouchedRef.current = false;
         setDraftItem(emptyDraftItem());
-        setVariantOptions([]);
-        setProductOptions([]);
+        setProductHits([]);
         setIsAddModalOpen(false);
+    };
+
+    const pickProductVariant = async (
+        hit: ProductSmartSearchItem,
+        variantPreview: ProductSmartSearchVariantPreview,
+    ) => {
+        setPickingProduct(true);
+        setError("");
+        try {
+            const response = await fetchProductById(hit.id);
+            const detail = response.data;
+            const variantId = variantPreview.id;
+            const variant =
+                (variantId != null ? detail.variants?.find((item) => item.id === variantId) : undefined)
+                ?? detail.variants?.find(
+                    (item) => (item.title || item.display_name || "").trim() === variantPreview.title.trim(),
+                );
+
+            if (!variant) {
+                setError("Вариант не найден — попробуйте другой результат поиска");
+                return;
+            }
+
+            const label = `${detail.id} — ${[hit.brand_name, detail.name].filter(Boolean).join(" ")} ${variant.title || variant.display_name || variantPreview.title}`.trim();
+
+            setDraftItem((prev) => ({
+                ...prev,
+                product_id: detail.id,
+                variant_id: variant.id,
+                product_name: detail.name,
+                variant_title: variant.title || variant.display_name || variantPreview.title,
+                product_query: label,
+            }));
+            setProductHits([]);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось выбрать товар");
+        } finally {
+            setPickingProduct(false);
+        }
     };
 
     return (
@@ -461,7 +595,12 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <div className="text-sm font-semibold text-slate-900">Документ</div>
                             <button
                                 type="button"
-                                onClick={() => setIsAddModalOpen(true)}
+                                onClick={() => {
+                                    supplierProductNameTouchedRef.current = false;
+                                    setDraftItem(emptyDraftItem());
+                                    setProductHits([]);
+                                    setIsAddModalOpen(true);
+                                }}
                                 disabled={readOnlyPosted}
                                 className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                             >
@@ -472,13 +611,13 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         <div className="p-3 sm:p-4">
                             {form.items.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                                    Пока нет строк. Добавь товар, вариант, код, количество и цену.
+                                    Пока нет строк. Добавь товар с вариантом, код, название у поставщика, количество и цену.
                                 </div>
                             ) : (
                                 <div className="space-y-2">
                                     {form.items.map((item, index) => (
                                         <div
-                                            key={`${item.product_id}-${item.variant_definition_id}-${index}`}
+                                            key={`${item.product_id}-${item.variant_id ?? item.variant_definition_id}-${index}`}
                                             className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
@@ -487,6 +626,11 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                                 <span>{item.product_name}</span>
                                                 <span className="mx-2 text-slate-300">/</span>
                                                 <span>{item.variant_title}</span>
+                                                {item.supplier_product_name ? (
+                                                    <div className="mt-1 text-xs text-slate-500">
+                                                        У поставщика: {item.supplier_product_name}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                             <div className="flex items-center gap-3 text-sm">
                                                 <span>{item.qty} шт.</span>
@@ -529,7 +673,6 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                             <div>
                                 <h2 className="text-base font-semibold text-slate-900">Добавить товар</h2>
-                                <p className="mt-1 text-sm text-slate-500">Выбери товар, вариант и добавь строку в документ.</p>
                             </div>
                             <button
                                 type="button"
@@ -541,10 +684,10 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         </div>
 
                         <div className="space-y-3 p-4">
-                            <div className="grid gap-3 md:grid-cols-2">
-                                <div className="min-w-0">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <div className="min-w-0 flex-1">
                                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Товар
+                                        Товар и вариант
                                     </label>
                                     <div className="relative">
                                         <input
@@ -555,16 +698,28 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                                     ...prev,
                                                     product_query: nextQuery,
                                                     product_id: null,
+                                                    variant_id: null,
+                                                    product_name: "",
+                                                    variant_title: "",
                                                 }));
-                                                void loadProducts(nextQuery);
                                             }}
                                             className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-slate-300"
-                                            placeholder="Начните вводить название товара"
+                                            placeholder="Название, бренд или артикул"
                                         />
                                         {draftItem.product_query ? (
                                             <button
                                                 type="button"
-                                                onClick={() => setDraftItem((prev) => ({ ...prev, product_query: "", product_id: null }))}
+                                                onClick={() => {
+                                                    setDraftItem((prev) => ({
+                                                        ...prev,
+                                                        product_query: "",
+                                                        product_id: null,
+                                                        variant_id: null,
+                                                        product_name: "",
+                                                        variant_title: "",
+                                                    }));
+                                                    setProductHits([]);
+                                                }}
                                                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                                             >
                                                 ×
@@ -572,109 +727,129 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                         ) : null}
                                     </div>
 
-                                    {draftItem.product_id == null && draftItem.product_query.trim() !== "" ? (
-                                        <div className="mt-2 max-h-44 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                            {productOptions
-                                                .filter((product) => product.name.toLowerCase().includes(draftItem.product_query.toLowerCase()))
-                                                .slice(0, 8)
-                                                .map((product) => (
-                                                    <button
-                                                        key={product.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setDraftItem((prev) => ({
-                                                                ...prev,
-                                                                product_id: product.id,
-                                                                product_query: product.name,
-                                                            }));
-                                                        }}
-                                                        className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 last:border-b-0"
-                                                    >
-                                                        {product.name}
-                                                    </button>
-                                                ))}
+                                    {draftItem.product_id == null
+                                    && (productHitsLoading
+                                        || pickingProduct
+                                        || productHits.length > 0
+                                        || debouncedProductQuery.trim().length >= 2) ? (
+                                        <div className="mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                            {productHitsLoading || pickingProduct ? (
+                                                <div className="px-3 py-2 text-xs text-slate-500">Поиск…</div>
+                                            ) : flattenProductSmartSearchHits(productHits).length === 0 ? (
+                                                <div className="px-3 py-2 text-xs text-slate-500">Ничего не найдено</div>
+                                            ) : (
+                                                flattenProductSmartSearchHits(productHits).map((option) => {
+                                                    const hit = option.hit;
+                                                    const q = draftItem.product_query;
+                                                    const productLabel = [hit.brand_name, hit.name].filter(Boolean).join(" ");
+
+                                                    if (option.kind === "no-variants") {
+                                                        return (
+                                                            <div
+                                                                key={option.key}
+                                                                className="border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-500 last:border-b-0"
+                                                            >
+                                                                <span className="tabular-nums text-slate-400">
+                                                                    {highlightAdminSearchTerms(String(hit.id), q)}
+                                                                </span>
+                                                                <span className="text-slate-300"> — </span>
+                                                                <span>{highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}</span>
+                                                                <span className="text-slate-400"> — нет вариантов</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    const variant = option.variant;
+                                                    return (
+                                                        <button
+                                                            key={option.key}
+                                                            type="button"
+                                                            onMouseDown={(e) => e.preventDefault()}
+                                                            onClick={() => void pickProductVariant(hit, variant)}
+                                                            className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-slate-50"
+                                                        >
+                                                            <span className="tabular-nums text-slate-400">
+                                                                {highlightAdminSearchTerms(String(hit.id), q)}
+                                                            </span>
+                                                            <span className="text-slate-300"> — </span>
+                                                            <span className="font-medium text-slate-900">
+                                                                {highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}
+                                                            </span>
+                                                            <span className="text-slate-300"> </span>
+                                                            <span className="text-slate-700">
+                                                                {highlightAdminSearchTerms(variant.title, q, hit.brand_name)}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })
+                                            )}
                                         </div>
                                     ) : null}
                                 </div>
 
-                                <div className="min-w-0">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Вариант
-                                    </label>
-                                    <input
-                                        value={draftItem.variant_query}
-                                        onChange={(e) => {
-                                            const nextQuery = e.target.value;
-                                            setDraftItem((prev) => ({
-                                                ...prev,
-                                                variant_query: nextQuery,
-                                                variant_definition_id: null,
-                                            }));
-                                            void loadVariantDefinitions(nextQuery);
-                                        }}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
-                                        placeholder="Поиск варианта"
-                                    />
-
-                                    {draftItem.variant_query.trim() !== "" && variantOptions.length > 0 ? (
-                                        <div className="mt-2 max-h-44 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                            {variantOptions.slice(0, 12).map((definition) => (
-                                                <button
-                                                    key={definition.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setDraftItem((prev) => ({
-                                                            ...prev,
-                                                            variant_definition_id: definition.id,
-                                                            variant_query: definition.title,
-                                                        }));
-                                                        setVariantOptions([]);
-                                                    }}
-                                                    className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50"
-                                                >
-                                                    <span className="min-w-0 truncate">{definition.title}</span>
-                                                    <span className="ml-3 shrink-0 text-[11px] text-slate-500">вариант</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    ) : null}
+                                <div className="flex shrink-0 gap-3">
+                                    <div className="w-[88px] min-w-[88px]">
+                                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                            Кол-во
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={draftItem.qty}
+                                            onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
+                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        />
+                                    </div>
+                                    <div className="w-[104px] min-w-[104px]">
+                                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                            Цена
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step="0.01"
+                                            value={draftItem.supplier_price}
+                                            onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_price: e.target.value }))}
+                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex flex-nowrap items-end gap-3">
-                                <div className="min-w-0 flex-1">
+                            <div className="flex items-end gap-3">
+                                <div className="w-[7.25rem] shrink-0 sm:w-32">
                                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Код
+                                        Код поставщика
                                     </label>
                                     <input
                                         value={draftItem.supplier_sku}
-                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_sku: e.target.value }))}
+                                        onChange={(e) => {
+                                            supplierProductNameTouchedRef.current = false;
+                                            setDraftItem((prev) => ({ ...prev, supplier_sku: e.target.value }));
+                                        }}
                                         className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
                                     />
                                 </div>
-                                <div className="w-[110px] min-w-[110px] shrink-0">
+                                <div className="min-w-0 flex-1">
                                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Кол-во
+                                        Название у поставщика
+                                        {skuLookupPending ? (
+                                            <span className="ml-2 font-normal normal-case tracking-normal text-slate-400">
+                                                поиск…
+                                            </span>
+                                        ) : null}
                                     </label>
                                     <input
-                                        type="number"
-                                        min={1}
-                                        value={draftItem.qty}
-                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
+                                        value={draftItem.supplier_product_name}
+                                        onChange={(e) => {
+                                            supplierProductNameTouchedRef.current = true;
+                                            setDraftItem((prev) => ({
+                                                ...prev,
+                                                supplier_product_name: e.target.value,
+                                            }));
+                                        }}
                                         className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
-                                    />
-                                </div>
-                                <div className="w-[120px] min-w-[120px] shrink-0">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Цена
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step="0.01"
-                                        value={draftItem.supplier_price}
-                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_price: e.target.value }))}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        placeholder="Подставится по коду или вручную"
                                     />
                                 </div>
                             </div>
