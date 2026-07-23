@@ -83,7 +83,7 @@ export default function AccountGuestView() {
                             <ul className="mt-6 grid gap-3 sm:grid-cols-3">
                                 {benefits.map(({ icon: Icon, title, text }) => (
                                     <li key={title} className="rounded-xl bg-admin-muted p-4">
-                                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-admin-surface text-admin-primary shadow-sm">
+                                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-admin-surface text-admin-primary shadow-sm">
                                             <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
                                         </span>
                                         <div className="mt-3 text-sm font-semibold text-admin-text">{title}</div>

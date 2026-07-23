@@ -6,7 +6,7 @@ import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 
-import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput } from "@/lib/site-ui-classes";
+import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
 import {
     buildCatalogFacetedFiltersResetPath,
     CATALOG_GENDER_ATTRIBUTE_ID,
@@ -267,9 +267,7 @@ export default function CatalogFilters({
     const sectionTitleClass = isModal
         ? "text-[11px] font-semibold uppercase tracking-[0.14em] text-admin-text-secondary"
         : "text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary";
-    const checkboxClass = isModal
-        ? "h-4 w-4 shrink-0 rounded-sm border-admin-border accent-admin-primary"
-        : "h-4 w-4 rounded border-admin-border accent-admin-primary";
+    const checkboxClass = siteCheckbox;
 
     const renderCheckboxOption = (
         key: string,
@@ -339,7 +337,7 @@ export default function CatalogFilters({
                                     : (
                                         <label
                                             key={`brand-preview-${brand.id}`}
-                                            className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
+                                            className="flex cursor-pointer items-center gap-2.5 rounded-2xl px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
                                         >
                                             <input
                                                 type="checkbox"
@@ -511,7 +509,7 @@ export default function CatalogFilters({
                                     setAttributeOptionQuery("");
                                     setPopupAttributeId(null);
                                 }}
-                                className="rounded-lg px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                             >
                                 Закрыть
                             </button>
@@ -535,7 +533,7 @@ export default function CatalogFilters({
                             {filteredPopupOptions.map((option) => (
                                 <label
                                     key={option.id}
-                                    className="flex cursor-pointer items-center rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
+                                    className="flex cursor-pointer items-center rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                                 >
                                     <span className="inline-flex items-center gap-2">
                                         <input
@@ -571,7 +569,7 @@ export default function CatalogFilters({
                             <button
                                 type="button"
                                 onClick={() => setIsBrandModalOpen(false)}
-                                className="rounded-lg px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                             >
                                 Закрыть
                             </button>
@@ -599,7 +597,7 @@ export default function CatalogFilters({
                                     key={`anchor-${letter}`}
                                     type="button"
                                     onClick={() => scrollToBrandLetter(letter)}
-                                    className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                 >
                                     {letter}
                                 </button>
@@ -616,7 +614,7 @@ export default function CatalogFilters({
                                         {(brandGroups.get(letter) ?? []).map((brand) => (
                                             <label
                                                 key={`brand-modal-${brand.id}`}
-                                                className="flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                                className="flex cursor-pointer items-center rounded-2xl px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                             >
                                                 <span className="inline-flex items-center gap-2">
                                                     <input

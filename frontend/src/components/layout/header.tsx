@@ -125,6 +125,21 @@ export default function Header() {
     }, [setSearchOpen]);
 
     useEffect(() => {
+        if (!isPhoneDropdownOpen) {
+            return;
+        }
+
+        const closeOnScroll = () => {
+            setIsPhoneDropdownOpen(false);
+        };
+
+        window.addEventListener("scroll", closeOnScroll, { passive: true, capture: true });
+        return () => {
+            window.removeEventListener("scroll", closeOnScroll, { capture: true });
+        };
+    }, [isPhoneDropdownOpen]);
+
+    useEffect(() => {
         const el = mainRowRef.current;
         if (!el) {
             return;
@@ -263,20 +278,25 @@ export default function Header() {
             bodyLeft: bodyStyle.left,
             bodyRight: bodyStyle.right,
             bodyWidth: bodyStyle.width,
+            bodyMaxWidth: bodyStyle.maxWidth,
             bodyOverscrollBehavior: bodyStyle.overscrollBehavior,
+            htmlOverflow: htmlStyle.overflow,
             htmlOverflowX: htmlStyle.overflowX,
             bodyOverflowX: bodyStyle.overflowX,
         };
 
+        // left+right+width вместе раздувают layout за край при scrollbar-gutter: stable.
+        htmlStyle.overflow = "hidden";
+        htmlStyle.overflowX = "hidden";
         bodyStyle.overflow = "hidden";
+        bodyStyle.overflowX = "hidden";
         bodyStyle.position = "fixed";
         bodyStyle.top = `-${scrollY}px`;
         bodyStyle.left = "0";
-        bodyStyle.right = "0";
+        bodyStyle.right = "";
         bodyStyle.width = "100%";
+        bodyStyle.maxWidth = "100%";
         bodyStyle.overscrollBehavior = "none";
-        htmlStyle.overflowX = "hidden";
-        bodyStyle.overflowX = "hidden";
 
         return () => {
             bodyStyle.overflow = previous.bodyOverflow;
@@ -285,7 +305,9 @@ export default function Header() {
             bodyStyle.left = previous.bodyLeft;
             bodyStyle.right = previous.bodyRight;
             bodyStyle.width = previous.bodyWidth;
+            bodyStyle.maxWidth = previous.bodyMaxWidth;
             bodyStyle.overscrollBehavior = previous.bodyOverscrollBehavior;
+            htmlStyle.overflow = previous.htmlOverflow;
             htmlStyle.overflowX = previous.htmlOverflowX;
             bodyStyle.overflowX = previous.bodyOverflowX;
             window.scrollTo({ top: scrollY, behavior: "auto" });
@@ -345,7 +367,7 @@ export default function Header() {
 
     return (
         <>
-            <div className="relative z-[140]">
+            <div className={`relative ${isPhoneDropdownOpen ? "z-[160]" : "z-[140]"}`}>
                 <HeaderServiceBar
                     isCompact={false}
                     promoText={promoText}

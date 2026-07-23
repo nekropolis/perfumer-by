@@ -49,7 +49,7 @@ function StarRow({
             aria-pressed={selected}
             title={selected ? "Показать все оценки" : `Показать отзывы: ${starLabel(rating)}`}
             className={`
-                flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs
+                flex w-full items-center gap-2 rounded-2xl px-2 py-1 text-left text-xs
                 transition-all outline-none ring-offset-2 ring-offset-admin-surface
                 focus-visible:ring-2 focus-visible:ring-admin-primary
                 ${selected

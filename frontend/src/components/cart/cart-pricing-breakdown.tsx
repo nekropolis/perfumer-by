@@ -71,7 +71,7 @@ export default function CartPricingBreakdown({
             </div>
 
             {hasCard ? (
-                <div className="flex flex-col gap-0.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
+                <div className="flex flex-col gap-0.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700">
                     <div className="flex items-center justify-between gap-2">
                         <span>
                             Скидка по карте <span className="font-mono font-medium">{discountCard!.number}</span>

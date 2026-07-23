@@ -106,7 +106,7 @@ export default function PhoneInput({
         const digits = normalizePlainByDigitsInput(value);
         return (
             <div className={rootClass}>
-                <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
+                <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-2xl border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
                     <input
                         ref={inputRef}
                         type="text"
@@ -294,7 +294,7 @@ export default function PhoneInput({
 
     return (
         <div className={rootClass}>
-            <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
+            <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-2xl border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
                 <span
                     className="flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary"
                     aria-hidden

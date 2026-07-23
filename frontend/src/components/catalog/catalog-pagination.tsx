@@ -47,14 +47,14 @@ export default function CatalogPagination({
     };
 
     const pageLinkClass = (page: number) =>
-        `rounded-lg border px-3 py-2 text-sm transition ${
+        `rounded-2xl border px-3 py-2 text-sm transition ${
             page === currentPage
                 ? "border-[var(--accent)] bg-[var(--accent)] font-semibold text-[var(--background)]"
                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--accent-soft)] hover:text-[var(--accent)]"
         } ${isNavigating ? "pointer-events-none opacity-60" : ""}`;
 
     const navLinkClass = (disabled: boolean) =>
-        `rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)] ${
+        `rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:text-[var(--accent)] ${
             disabled || isNavigating ? "pointer-events-none opacity-50" : ""
         }`;
 

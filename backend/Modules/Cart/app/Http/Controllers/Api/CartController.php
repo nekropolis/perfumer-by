@@ -111,6 +111,13 @@ class CartController extends Controller
 
         $availabilitySource = $this->resolveAvailabilitySource($variant);
 
+        if ($availabilitySource === 'supplier_only') {
+            $waitingDiscount = true;
+        } elseif ($availabilitySource !== 'main+supplier') {
+            // Только склад / без оферов — скидка за ожидание недоступна.
+            $waitingDiscount = false;
+        }
+
         $existingItem = CartItem::query()
             ->where('cart_id', $cart->id)
             ->where('variant_id', $variant->id)
@@ -150,6 +157,7 @@ class CartController extends Controller
     {
         $validated = $request->validate([
             'qty' => ['required', 'integer', 'min:1'],
+            'waiting_discount' => ['sometimes', 'boolean'],
         ]);
 
         $cart = $this->resolveCart($request);
@@ -159,9 +167,28 @@ class CartController extends Controller
             ->where('id', $id)
             ->firstOrFail();
 
-        $item->update([
+        $updates = [
             'qty' => $validated['qty'],
-        ]);
+        ];
+
+        if (array_key_exists('waiting_discount', $validated)) {
+            $waitingDiscount = (bool) $validated['waiting_discount'];
+            $variant = ProductVariantLink::query()->find($item->variant_id);
+            $availabilitySource = $variant
+                ? $this->resolveAvailabilitySource($variant)
+                : (string) ($item->availability_source ?: 'unavailable');
+
+            if ($availabilitySource === 'supplier_only') {
+                $waitingDiscount = true;
+            } elseif ($availabilitySource !== 'main+supplier') {
+                $waitingDiscount = false;
+            }
+
+            $updates['waiting_discount'] = $waitingDiscount;
+            $updates['availability_source'] = $availabilitySource;
+        }
+
+        $item->update($updates);
 
         $cart->refresh()->load([
             'items.product.brand',

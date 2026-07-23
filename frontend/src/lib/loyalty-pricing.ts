@@ -78,9 +78,17 @@ export function isVariantEligibleForLoyaltyCardDiscount(isPromotion?: boolean | 
     return !isPromotion;
 }
 
-/** Скидка 3% за ожидание доставки не применяется к акционным вариантам. */
-export function isVariantEligibleForWaitingDiscount(isPromotion?: boolean | null): boolean {
-    return !isPromotion;
+/** Скидка 3% за ожидание — только при наличии оферов (не «только склад»). */
+export function isVariantEligibleForWaitingDiscount(
+    isPromotion?: boolean | null,
+    availabilitySource?: string | null,
+): boolean {
+    if (isPromotion) {
+        return false;
+    }
+
+    // supplier_only — принудительно; main+supplier — опциональный чекбокс
+    return availabilitySource === "main+supplier" || availabilitySource === "supplier_only";
 }
 
 /** Применить скидку 3% за ожидание доставки с округлением до десятых BYN. */

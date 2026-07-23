@@ -139,7 +139,8 @@ export default function SimilarProductsCarousel({ products }: Props) {
                     </div>
                 ) : null}
             </div>
-            <nav aria-label="Похожие товары" className="min-w-0 w-full">
+            <nav aria-label="Похожие товары" className="min-w-0 w-full overflow-visible">
+                {/* py: запас под hover:scale карточки; overflow-y-hidden нужен вместе с overflow-x-auto */}
                 <div
                     ref={scrollerRef}
                     id={`${scrollerId}-track`}
@@ -153,9 +154,9 @@ export default function SimilarProductsCarousel({ products }: Props) {
                             scrollByViewport(1);
                         }
                     }}
-                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${slideWidthPx === null ? "invisible" : ""}`}
+                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-3 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${slideWidthPx === null ? "invisible" : ""}`}
                 >
-                    <div className="flex w-max items-start gap-3">
+                    <div className="flex w-max items-stretch gap-3">
                         {products.map((item, index) => (
                             <div
                                 key={item.id}
@@ -165,7 +166,7 @@ export default function SimilarProductsCarousel({ products }: Props) {
                                     }
                                 }}
                                 data-similar-slide
-                                className="shrink-0"
+                                className="relative shrink-0 self-stretch hover:z-20"
                                 style={
                                     slideWidthPx !== null
                                         ? {

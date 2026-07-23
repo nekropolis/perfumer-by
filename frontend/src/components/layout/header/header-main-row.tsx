@@ -223,7 +223,7 @@ export default function HeaderMainRow({
                                                             key={`recent-inline-${item}`}
                                                             type="button"
                                                             onClick={() => onRecentSelectAction(item)}
-                                                            className="block w-full rounded-xl px-3 py-2 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                                            className="block w-full rounded-2xl px-3 py-2 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                                         >
                                                             {renderHighlightedText(item, searchQuery)}
                                                         </button>
@@ -260,7 +260,7 @@ export default function HeaderMainRow({
                                             <button
                                                 type="button"
                                                 onClick={() => onSuggestedQueryAction(suggestedQuery)}
-                                                className="mt-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                                className="mt-2 rounded-2xl border border-[var(--line)] px-2.5 py-1.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                             >
                                                 Возможно, вы имели в виду:{" "}
                                                 <span className="font-medium">{suggestedQuery}</span>
@@ -274,7 +274,7 @@ export default function HeaderMainRow({
                                                 key={`inline-brand-${brand.id}`}
                                                 type="button"
                                                 onClick={() => onBrandSelectAction(brand.slug)}
-                                                className="block w-full rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[var(--background)]"
+                                                className="block w-full rounded-2xl px-3 py-2 text-left text-sm transition hover:bg-[var(--background)]"
                                             >
                                                 {renderHighlightedText(brand.name, searchQuery)}
                                             </button>
@@ -286,7 +286,7 @@ export default function HeaderMainRow({
                                                 key={`inline-product-${item.id}`}
                                                 type="button"
                                                 onClick={() => onProductSelectAction(item.slug)}
-                                                className="block w-full rounded-xl px-3 py-2 text-left transition hover:bg-[var(--background)]"
+                                                className="block w-full rounded-2xl px-3 py-2 text-left transition hover:bg-[var(--background)]"
                                             >
                                                 {item.matched_code ? (
                                                     <div className="truncate text-[11px] font-medium text-[var(--accent)]">

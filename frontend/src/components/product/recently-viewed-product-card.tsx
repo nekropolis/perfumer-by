@@ -13,9 +13,9 @@ export default function RecentlyViewedProductCard({ product }: Props) {
     return (
         <Link
             href={`/${product.slug}`}
-            className="flex h-full min-w-0 w-full items-start gap-2 rounded-lg border border-admin-border bg-admin-surface px-2 py-1.5 transition hover:border-admin-border-strong hover:bg-admin-bg active:scale-[0.99]"
+            className="flex h-full min-w-0 w-full items-start gap-2 rounded-2xl border border-admin-border bg-admin-surface px-2 py-1.5 transition duration-200 ease-out hover:z-10 hover:scale-[1.03] hover:border-admin-border-strong hover:bg-admin-bg hover:shadow-md active:scale-[0.99]"
         >
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-white">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-2xl bg-white">
                 {imagePath ? (
                     <Image
                         src={imagePath}

@@ -304,7 +304,7 @@ export default function StoreReviewsView({
                     : { "aria-labelledby": `${formId}-list-title` })}
             >
                 {hideHero && starsFilter !== null && onClearStarsFilterAction ? (
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-admin-border bg-admin-surface px-4 py-2.5 text-sm">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-admin-border bg-admin-surface px-4 py-2.5 text-sm">
                         <span className="text-admin-text">
                             Показаны отзывы:{" "}
                             <span className="font-semibold">{starsFilterLabel(starsFilter)}</span>

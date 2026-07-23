@@ -77,7 +77,10 @@ export default function ProductBuyBox({
         waitingDiscountActive && waitingDiscountApplicable && selectedVariant?.price && !selectedVariant.is_promotion,
     );
     const showWaitingCheckbox = Boolean(
-        waitingDiscountApplicable && selectedVariant && !selectedVariant.is_promotion && selectedVariant.availability_source !== 'supplier_only',
+        waitingDiscountApplicable &&
+            selectedVariant &&
+            !selectedVariant.is_promotion &&
+            selectedVariant.availability_source === "main+supplier",
     );
 
     const effectivePrice = displayPrice ?? selectedVariant?.price ?? null;
@@ -89,14 +92,19 @@ export default function ProductBuyBox({
             return null;
         }
 
-        if (waitingDiscountApplicable) {
-            if (waitingDiscountActive || waitingDiscountForced) {
-                return {
-                    text: `Доступен к заказу. Отправка с ${deliveryDateText}`,
-                    className: "text-amber-600",
-                };
-            }
+        // Офер / скидка за ожидание — дата отправки (в т.ч. supplier_only с принудительной скидкой).
+        if (waitingDiscountApplicable && (waitingDiscountActive || waitingDiscountForced)) {
+            return {
+                text: `Доступен к заказу. Отправка с ${deliveryDateText}`,
+                className: "text-amber-600",
+            };
+        }
 
+        const hasStoreStock =
+            selectedVariant.availability_source === "main" ||
+            selectedVariant.availability_source === "main+supplier";
+
+        if (hasStoreStock) {
             return { text: "Наличие в магазине", className: "text-emerald-600" };
         }
 

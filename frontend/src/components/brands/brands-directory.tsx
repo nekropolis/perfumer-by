@@ -33,7 +33,7 @@ export default function BrandsDirectory({ brandsByLetter }: Props) {
                         key={`anchor-${letter}`}
                         type="button"
                         onClick={() => scrollToBrandLetter(letter)}
-                        className="rounded-lg border border-admin-border bg-admin-surface px-2.5 py-1.5 text-xs font-medium text-admin-text transition hover:bg-admin-muted"
+                        className="rounded-2xl border border-admin-border bg-admin-surface px-2.5 py-1.5 text-xs font-medium text-admin-text transition hover:bg-admin-muted"
                     >
                         {letter}
                     </button>

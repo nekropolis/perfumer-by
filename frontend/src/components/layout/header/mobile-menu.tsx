@@ -73,22 +73,22 @@ export default function HeaderMobileMenu({
     return (
         <div
             ref={menuRootRef}
-            className="fixed inset-x-0 bottom-0 z-[130] flex flex-col overflow-hidden bg-admin-surface md:hidden"
+            className="fixed left-0 right-0 bottom-0 z-[130] flex w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-admin-surface md:hidden"
             style={{ top: `${anchorBottom || 64}px` }}
         >
-            <div className="flex shrink-0 items-center gap-2 border-b border-admin-border px-4 py-3">
+            <div className="flex min-w-0 shrink-0 items-center gap-2 border-b border-admin-border px-4 py-3">
                 <h2 className="min-w-0 flex-1 text-base font-semibold text-admin-text">Меню</h2>
                 <button
                     type="button"
                     onClick={handleClose}
-                    className="text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
+                    className="shrink-0 text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
                 >
                     Закрыть
                 </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-                <div className="flex flex-col gap-1">
+            <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
+                <div className="flex min-w-0 flex-col gap-1">
                     {ROOT_LINKS.map((item) => {
                         const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 
@@ -165,26 +165,26 @@ export default function HeaderMobileMenu({
                                     <a
                                         key={phone.number}
                                         href={`tel:${phone.number}`}
-                                        className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
+                                        className="flex min-w-0 items-center gap-2 rounded-2xl px-2 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                                     >
                                         <span
-                                            className={`inline-flex min-w-[3rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
+                                            className={`inline-flex min-w-[3rem] shrink-0 items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getOperatorBadgeClass(phone.label)}`}
                                         >
                                             {phone.label}
                                         </span>
-                                        <span className="font-medium">{phone.number}</span>
+                                        <span className="min-w-0 truncate font-medium">{phone.number}</span>
                                     </a>
                                 ))}
                                 {contactLinks.map((item) => (
                                     <a
                                         key={item.href}
                                         href={item.href}
-                                        className="rounded-lg px-2 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                        className="rounded-2xl px-2 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                                     >
                                         {item.label}
                                     </a>
                                 ))}
-                                <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm text-admin-primary transition hover:bg-admin-muted" />
+                                <CallbackRequestTrigger className="inline-flex items-center gap-1.5 rounded-2xl px-2 py-2 text-sm text-admin-primary transition hover:bg-admin-muted" />
                             </div>
                         </div>
                     ) : null}

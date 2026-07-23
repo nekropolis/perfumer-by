@@ -54,18 +54,26 @@ function DrawerPanel({
     productsCount: number;
     children: ReactNode;
 }) {
+    const overlayTop = "var(--catalog-toolbar-sticky-top, 4rem)";
+    const sheetTop = "calc(var(--catalog-toolbar-sticky-top, 4rem) + 10px)";
+
     return (
-        <div className="fixed inset-0 isolate z-[150] lg:hidden" role="presentation">
+        <div
+            className="pointer-events-none fixed inset-0 isolate z-[150] lg:hidden"
+            role="presentation"
+        >
             <button
                 type="button"
                 aria-label="Закрыть фильтры"
-                className="catalog-filters-overlay absolute inset-0 z-0 bg-slate-900/40"
+                className="catalog-filters-overlay pointer-events-auto absolute inset-x-0 bottom-0 z-0 bg-slate-900/40"
+                style={{ top: overlayTop }}
                 data-state={sheetState}
                 onClick={onClose}
             />
 
             <div
-                className="catalog-filters-sheet fixed inset-x-0 bottom-0 top-15 z-10 flex flex-col overflow-hidden rounded-t-3xl bg-admin-surface shadow-2xl"
+                className="catalog-filters-sheet pointer-events-auto fixed inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden rounded-t-3xl bg-admin-surface shadow-2xl"
+                style={{ top: sheetTop }}
                 data-state={sheetState}
                 role="dialog"
                 aria-modal="true"
@@ -168,16 +176,31 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
             return;
         }
 
-        const preventBackgroundTouchMove = (event: TouchEvent) => {
+        const isInSheet = (target: EventTarget | null) => {
             const sheet = document.querySelector(".catalog-filters-sheet");
-            if (sheet?.contains(event.target as Node)) {
+            return Boolean(sheet && target instanceof Node && sheet.contains(target));
+        };
+
+        const preventBackgroundTouchMove = (event: TouchEvent) => {
+            if (isInSheet(event.target)) {
+                return;
+            }
+            event.preventDefault();
+        };
+
+        const preventBackgroundWheel = (event: WheelEvent) => {
+            if (isInSheet(event.target)) {
                 return;
             }
             event.preventDefault();
         };
 
         document.addEventListener("touchmove", preventBackgroundTouchMove, { passive: false });
-        return () => document.removeEventListener("touchmove", preventBackgroundTouchMove);
+        document.addEventListener("wheel", preventBackgroundWheel, { passive: false });
+        return () => {
+            document.removeEventListener("touchmove", preventBackgroundTouchMove);
+            document.removeEventListener("wheel", preventBackgroundWheel);
+        };
     }, [mounted]);
 
     useEffect(() => {

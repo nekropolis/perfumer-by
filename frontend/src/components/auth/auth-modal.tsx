@@ -60,7 +60,7 @@ function AuthTabButton({
             aria-selected={active}
             id={id}
             onClick={onClick}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition ${
+            className={`flex-1 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
                 active
                     ? "bg-admin-surface text-admin-text shadow-sm ring-1 ring-admin-border"
                     : "text-admin-text-secondary hover:text-admin-text"
@@ -561,13 +561,13 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                     )}
 
                     {message ? (
-                        <div className={`mt-4 rounded-lg border px-3 py-2.5 text-sm ${messageToneClassName}`}>
+                        <div className={`mt-4 rounded-2xl border px-3 py-2.5 text-sm ${messageToneClassName}`}>
                             {message}
                         </div>
                     ) : null}
 
                     {captchaSecurityNotice ? (
-                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                             Включена дополнительная проверка безопасности.
                         </div>
                     ) : null}

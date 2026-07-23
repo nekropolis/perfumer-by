@@ -136,7 +136,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                 </div>
 
                 {activeCard ? (
-                    <div className="mt-4 rounded-lg border border-white/15 bg-black/10 px-3 py-2.5 text-sm leading-snug text-white/90">
+                    <div className="mt-4 rounded-2xl border border-white/15 bg-black/10 px-3 py-2.5 text-sm leading-snug text-white/90">
                         Карта привязана к профилю. Отвязать или заменить её может только менеджер магазина.
                     </div>
                 ) : null}

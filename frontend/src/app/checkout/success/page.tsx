@@ -28,7 +28,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
                 </p>
 
                 {orderId ? (
-                    <div className="mb-8 inline-flex items-center gap-2 rounded-lg border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text">
+                    <div className="mb-8 inline-flex items-center gap-2 rounded-2xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text">
                         <Package className="h-4 w-4 shrink-0 text-admin-text-secondary" aria-hidden />
                         <span>
                             Номер заказа: <span className="font-semibold">#{orderId}</span>

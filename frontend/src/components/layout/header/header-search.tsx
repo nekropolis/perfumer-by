@@ -131,7 +131,7 @@ export default function HeaderSearch({
                                                     key={`recent-desktop-${item}`}
                                                     type="button"
                                                     onClick={() => onRecentSelectAction(item)}
-                                                    className="block w-full rounded-xl px-3 py-2 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                                    className="block w-full rounded-2xl px-3 py-2 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                                 >
                                                     {renderHighlightedText(item, searchQuery)}
                                                 </button>
@@ -168,7 +168,7 @@ export default function HeaderSearch({
                                     <button
                                         type="button"
                                         onClick={() => onSuggestedQueryAction(suggestedQuery)}
-                                        className="mt-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                        className="mt-2 rounded-2xl border border-[var(--line)] px-2.5 py-1.5 text-left text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                     >
                                         Возможно, вы имели в виду: <span className="font-medium">{suggestedQuery}</span>
                                     </button>
@@ -216,7 +216,7 @@ export default function HeaderSearch({
                                         className="block w-full rounded-2xl px-3 py-3 text-left transition hover:bg-[var(--background)]"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+                                            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                                                 <ProductStatusLabels
                                                     isNew={Boolean(item.is_new)}
                                                     isHit={Boolean(item.is_hit)}

@@ -36,20 +36,26 @@ export default function HeaderServiceBar({
     return (
         <div
             className={`hidden bg-admin-primary text-white transition-[max-height,opacity] duration-250 ease-out md:block ${
-                isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-9 opacity-100"
+                isCompact
+                    ? "max-h-0 overflow-hidden opacity-0"
+                    : isPhoneDropdownOpen
+                      ? "overflow-visible opacity-100"
+                      : "max-h-9 overflow-visible opacity-100"
             }`}
             aria-hidden={isCompact}
         >
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div className="flex h-9 items-center justify-between text-xs">
+                <div className="relative flex h-9 items-center justify-between text-xs">
                     <div className="truncate font-medium">{promoText}</div>
 
                     <div className="flex items-center gap-2 text-white/80">
                         <div className="relative" ref={phoneDropdownRef}>
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition hover:bg-white/10 hover:text-white"
+                                className="inline-flex items-center gap-1.5 rounded-2xl px-2 py-1 transition hover:bg-white/10 hover:text-white"
                                 onClick={onTogglePhoneDropdownAction}
+                                aria-expanded={isPhoneDropdownOpen}
+                                aria-haspopup="menu"
                             >
                                 <span>{phoneShortLabel}</span>
                                 <span className="hidden text-white/60 sm:inline">МТС / A1 / life</span>
@@ -70,12 +76,12 @@ export default function HeaderServiceBar({
                             </button>
 
                             {isPhoneDropdownOpen ? (
-                                <div className="absolute right-0 top-8 z-50 w-64 rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
+                                <div className="absolute right-0 top-full z-[170] mt-1 w-64 rounded-2xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
                                     {phoneDropdownLinks.map((item) => (
                                         <a
                                             key={item.label}
                                             href={item.href}
-                                            className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-xs`}
+                                            className={`${siteBtnGhost} block w-full rounded-2xl px-3 py-2 text-left text-xs`}
                                             onClick={onClosePhoneDropdownAction}
                                         >
                                             {item.label}

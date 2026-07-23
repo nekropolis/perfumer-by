@@ -92,7 +92,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                     {loading && <div className="text-admin-text-secondary">Загрузка заказа...</div>}
 
                     {!loading && errorMessage && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {errorMessage}
                         </div>
                     )}
@@ -157,7 +157,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="flex min-w-0 items-start gap-3">
                                                 {item.image ? (
-                                                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-admin-bg sm:h-14 sm:w-14">
+                                                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-admin-bg sm:h-14 sm:w-14">
                                                         <Image
                                                             src={normalizeProductImageUrl(item.image)}
                                                             loader={productImageLoader}
@@ -168,7 +168,7 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-admin-bg text-[10px] font-semibold text-admin-text-secondary sm:h-14 sm:w-14 sm:text-xs">
+                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-admin-bg text-[10px] font-semibold text-admin-text-secondary sm:h-14 sm:w-14 sm:text-xs">
                                                         Товар
                                                     </div>
                                                 )}

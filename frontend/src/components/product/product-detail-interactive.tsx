@@ -4,13 +4,15 @@ import { Heart } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
-import { addToCart } from "@/lib/cart-api";
+import { addToCart, updateCartItem } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CopyText from "@/components/ui/copy-text";
 import ProductBuyBox from "@/components/product/product-buy-box";
-import ProductServiceInfo from "@/components/product/product-service-info";
+import ProductServiceInfo, {
+    type ProductServiceDeliveryInfo,
+} from "@/components/product/product-service-info";
 import ProductReviewsTab from "@/components/product/product-reviews-tab";
 import ProductDetailGallery from "@/components/product/product-detail-gallery";
 import { productDisplayName } from "@/lib/product-display-name";
@@ -36,6 +38,7 @@ type Props = {
     attributesContent: React.ReactNode;
     descriptionContent: React.ReactNode;
     deliveryDate?: string | null;
+    deliveryInfo?: ProductServiceDeliveryInfo;
     variantFromQuery?: number;
 };
 
@@ -45,6 +48,7 @@ export default function ProductDetailInteractive({
     attributesContent,
     descriptionContent,
     deliveryDate,
+    deliveryInfo,
     variantFromQuery = 0,
 }: Props) {
     const [isPending, startTransition] = useTransition();
@@ -73,9 +77,14 @@ export default function ProductDetailInteractive({
         return variants.find((variant) => variant.id === selectedVariantId) || null;
     }, [variants, selectedVariantId]);
 
-    const isSelectedVariantInCart = Boolean(
-        selectedVariant?.id && cart?.items?.some((item) => item.product_variant_id === selectedVariant.id),
-    );
+    const cartItemForSelected = useMemo(() => {
+        if (!selectedVariant?.id || !cart?.items) {
+            return null;
+        }
+        return cart.items.find((item) => item.product_variant_id === selectedVariant.id) ?? null;
+    }, [cart?.items, selectedVariant?.id]);
+
+    const isSelectedVariantInCart = Boolean(cartItemForSelected);
     const selectedVariantHasPromotion = Boolean(selectedVariant?.is_promotion);
     const loyaltyCard = resolveActiveLoyaltyCard(user?.discount_cards);
     const selectedVariantEligibleForLoyalty = isVariantEligibleForLoyaltyCardDiscount(
@@ -83,12 +92,19 @@ export default function ProductDetailInteractive({
     );
     const selectedVariantEligibleForWaiting = Boolean(
         selectedVariant &&
-            isVariantEligibleForWaitingDiscount(selectedVariant.is_promotion) &&
-            selectedVariant.availability_source !== "unavailable",
+            isVariantEligibleForWaitingDiscount(
+                selectedVariant.is_promotion,
+                selectedVariant.availability_source,
+            ),
     );
     const waitingDiscountForced = selectedVariant?.availability_source === "supplier_only";
-    const waitingDiscountActive = waitingDiscountForced ||
-        (selectedVariant ? (waitingDiscountByVariant[selectedVariant.id] ?? false) : false);
+    const waitingDiscountActive =
+        waitingDiscountForced ||
+        (selectedVariant
+            ? (waitingDiscountByVariant[selectedVariant.id] ??
+                  cartItemForSelected?.waiting_discount ??
+                  false)
+            : false);
 
     const loyaltyPercent = isAuthenticated && selectedVariantEligibleForLoyalty
         ? (loyaltyCard?.discountPercent ?? 0)
@@ -99,6 +115,36 @@ export default function ProductDetailInteractive({
         : selectedVariant?.price ?? null;
 
     const inWishlist = isInWishlist(product.id);
+
+    const handleWaitingDiscountChange = (active: boolean) => {
+        if (!selectedVariant || waitingDiscountForced) {
+            return;
+        }
+
+        setWaitingDiscountByVariant((prev) => ({
+            ...prev,
+            [selectedVariant.id]: active,
+        }));
+
+        if (!cartItemForSelected) {
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const response = await updateCartItem(cartItemForSelected.id, cartItemForSelected.qty, {
+                    waiting_discount: active,
+                });
+                setCartState(response.data);
+            } catch (error) {
+                console.error(error);
+                setWaitingDiscountByVariant((prev) => ({
+                    ...prev,
+                    [selectedVariant.id]: !active,
+                }));
+            }
+        });
+    };
 
     const handleAddToCart = () => {
         if (!selectedVariant?.id) {
@@ -187,7 +233,7 @@ export default function ProductDetailInteractive({
                                                 key={`variant-${variant.id}`}
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
-                                                className={`group flex w-full cursor-pointer flex-col gap-0.5 rounded-xl border px-2.5 py-2 text-left transition-all duration-150 ${
+                                                className={`group flex w-full cursor-pointer flex-col gap-0.5 rounded-2xl border px-2.5 py-2 text-left transition-all duration-150 ${
                                                     isSelected
                                                         ? "border-admin-primary bg-admin-surface shadow-[0_0_0_1px_rgba(36,28,21,0.12)]"
                                                         : "border-admin-border bg-admin-surface hover:border-admin-primary/40 hover:bg-admin-bg active:scale-[0.98]"
@@ -264,15 +310,7 @@ export default function ProductDetailInteractive({
                             waitingDiscountActive={waitingDiscountActive}
                             waitingDiscountForced={waitingDiscountForced}
                             waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
-                            onWaitingDiscountChangeAction={(active) => {
-                                if (!selectedVariant || waitingDiscountForced) {
-                                    return;
-                                }
-                                setWaitingDiscountByVariant((prev) => ({
-                                    ...prev,
-                                    [selectedVariant.id]: active,
-                                }));
-                            }}
+                            onWaitingDiscountChangeAction={handleWaitingDiscountChange}
                             waitingDiscountApplicable={selectedVariantEligibleForWaiting}
                             deliveryDate={deliveryDate}
                             surface="desktop"
@@ -281,7 +319,7 @@ export default function ProductDetailInteractive({
                 </aside>
 
                 <section className="md:col-span-2 xl:[grid-area:service]">
-                    <ProductServiceInfo />
+                    <ProductServiceInfo delivery={deliveryInfo} />
                 </section>
 
                 <section className="min-w-0 md:col-span-2 xl:[grid-area:tabs]">
@@ -372,15 +410,7 @@ export default function ProductDetailInteractive({
                 waitingDiscountActive={waitingDiscountActive}
                 waitingDiscountForced={waitingDiscountForced}
                 waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
-                onWaitingDiscountChangeAction={(active) => {
-                    if (!selectedVariant || waitingDiscountForced) {
-                        return;
-                    }
-                    setWaitingDiscountByVariant((prev) => ({
-                        ...prev,
-                        [selectedVariant.id]: active,
-                    }));
-                }}
+                onWaitingDiscountChangeAction={handleWaitingDiscountChange}
                 waitingDiscountApplicable={selectedVariantEligibleForWaiting}
                 deliveryDate={deliveryDate}
                 surface="mobile"

@@ -1,12 +1,12 @@
 type BodyScrollLockSnapshot = {
-    bodyOverflow: string;
-    htmlOverflow: string;
-    bodyPaddingRight: string;
+    bodyOverscrollBehavior: string;
+    htmlOverscrollBehavior: string;
 };
 
 /**
- * Блокирует скролл страницы без position:fixed на body —
- * иначе ломается position:sticky (тулбар каталога «прыгает»/исчезает).
+ * Блокирует «протягивание» фона без overflow:hidden / position:fixed —
+ * иначе ломается position:sticky (шапка и тулбар каталога исчезают).
+ * Скролл фона дополнительно режется через touchmove/wheel у вызывающего.
  */
 export function lockBodyScroll(): () => void {
     if (typeof window === "undefined") {
@@ -15,24 +15,17 @@ export function lockBodyScroll(): () => void {
 
     const body = document.body;
     const html = document.documentElement;
-    const scrollbarWidth = Math.max(0, window.innerWidth - html.clientWidth);
 
     const previous: BodyScrollLockSnapshot = {
-        bodyOverflow: body.style.overflow,
-        htmlOverflow: html.style.overflow,
-        bodyPaddingRight: body.style.paddingRight,
+        bodyOverscrollBehavior: body.style.overscrollBehavior,
+        htmlOverscrollBehavior: html.style.overscrollBehavior,
     };
 
-    body.style.overflow = "hidden";
-    html.style.overflow = "hidden";
-
-    if (scrollbarWidth > 0) {
-        body.style.paddingRight = `${scrollbarWidth}px`;
-    }
+    body.style.overscrollBehavior = "none";
+    html.style.overscrollBehavior = "none";
 
     return () => {
-        body.style.overflow = previous.bodyOverflow;
-        html.style.overflow = previous.htmlOverflow;
-        body.style.paddingRight = previous.bodyPaddingRight;
+        body.style.overscrollBehavior = previous.bodyOverscrollBehavior;
+        html.style.overscrollBehavior = previous.htmlOverscrollBehavior;
     };
 }

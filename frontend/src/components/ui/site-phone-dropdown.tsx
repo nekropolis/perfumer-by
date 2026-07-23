@@ -7,8 +7,12 @@ import { siteBtnGhost } from "@/lib/site-ui-classes";
 
 type SitePhoneDropdownProps = {
     className?: string;
-    /** Крупнее на карточке товара — номер текстом, без рамки */
-    size?: "sm" | "lg";
+    /**
+     * sm — кнопка с рамкой (как компактный контрол)
+     * lg — крупный номер текстом
+     * plain — как список в блоке «Помощь» на карточке товара
+     */
+    size?: "sm" | "lg" | "plain";
 };
 
 export default function SitePhoneDropdown({ className = "", size = "sm" }: SitePhoneDropdownProps) {
@@ -30,21 +34,33 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
             }
         };
 
+        const closeOnScroll = () => {
+            setOpen(false);
+        };
+
         document.addEventListener("mousedown", handlePointerDown);
-        return () => document.removeEventListener("mousedown", handlePointerDown);
+        window.addEventListener("scroll", closeOnScroll, { passive: true, capture: true });
+        return () => {
+            document.removeEventListener("mousedown", handlePointerDown);
+            window.removeEventListener("scroll", closeOnScroll, { capture: true });
+        };
     }, [open]);
 
     const dropdown = open ? (
         <div
-            className={`absolute z-50 min-w-[16rem] rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl ${
-                size === "lg" ? "left-0 top-full mt-2" : "right-0 top-[calc(100%+0.375rem)]"
+            className={`absolute z-50 min-w-[16rem] rounded-2xl border border-admin-border bg-admin-surface p-1.5 shadow-xl ${
+                size === "plain" || size === "lg"
+                    ? "left-0 top-full mt-2"
+                    : "left-0 top-[calc(100%+0.375rem)] sm:left-auto sm:right-0"
             }`}
+            role="menu"
         >
             {phoneDropdownLinks.map((item) => (
                 <a
                     key={item.label}
                     href={item.href}
-                    className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm`}
+                    role="menuitem"
+                    className={`${siteBtnGhost} block w-full rounded-2xl px-3 py-2 text-left text-sm`}
                     onClick={() => setOpen(false)}
                 >
                     {item.label}
@@ -52,6 +68,28 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
             ))}
         </div>
     ) : null;
+
+    if (size === "plain") {
+        return (
+            <div className={`relative ${className}`.trim()} ref={rootRef}>
+                <ul className="space-y-1 text-sm text-admin-text-secondary">
+                    <li>
+                        <button
+                            type="button"
+                            onClick={() => setOpen((prev) => !prev)}
+                            aria-expanded={open}
+                            aria-haspopup="menu"
+                            className="text-left transition hover:text-admin-text"
+                        >
+                            {phoneShortLabel}
+                        </button>
+                    </li>
+                    <li>МТС / A1 / life</li>
+                </ul>
+                {dropdown}
+            </div>
+        );
+    }
 
     if (size === "lg") {
         return (
@@ -61,9 +99,24 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
                     type="button"
                     onClick={() => setOpen((prev) => !prev)}
                     aria-expanded={open}
-                    className="mt-2 block text-left text-2xl font-semibold tracking-tight text-admin-text transition hover:underline"
+                    aria-haspopup="menu"
+                    className="mt-2 inline-flex items-center gap-2 text-left text-2xl font-semibold tracking-tight text-admin-text transition hover:underline"
                 >
                     {phoneShortLabel}
+                    <svg
+                        aria-hidden
+                        viewBox="0 0 20 20"
+                        className={`h-4 w-4 shrink-0 text-admin-text-secondary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                        fill="none"
+                    >
+                        <path
+                            d="M5.5 7.5L10 12l4.5-4.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
                 </button>
                 {dropdown}
             </div>
@@ -74,9 +127,10 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
         <div className={`relative ${className}`.trim()} ref={rootRef}>
             <button
                 type="button"
-                className="inline-flex items-center gap-1.5 rounded-md border border-admin-border bg-admin-surface px-2.5 py-1.5 text-sm transition hover:border-admin-border-strong hover:bg-admin-muted"
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-admin-border bg-admin-surface px-2.5 py-1.5 text-sm transition hover:border-admin-border-strong hover:bg-admin-muted"
                 onClick={() => setOpen((prev) => !prev)}
                 aria-expanded={open}
+                aria-haspopup="menu"
             >
                 <span className="font-semibold text-admin-text">{phoneShortLabel}</span>
                 <span className="hidden text-admin-text-secondary sm:inline">МТС / A1 / life</span>

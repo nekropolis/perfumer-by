@@ -155,7 +155,7 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
                     </div>
                 ) : null}
             </div>
-            <nav aria-label="Недавно просмотренные товары" className="min-w-0 w-full">
+            <nav aria-label="Недавно просмотренные товары" className="min-w-0 w-full overflow-visible">
                 <div
                     ref={scrollerRef}
                     id={`${headingId}-track`}
@@ -169,11 +169,11 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
                             scrollByViewport(1);
                         }
                     }}
-                    className="grid grid-flow-col gap-2 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 [scrollbar-width:thin] snap-x snap-mandatory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
+                    className="grid grid-flow-col gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-2 [scrollbar-width:thin] snap-x snap-mandatory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
                     style={{ gridAutoColumns: gridColumnWidth(visibleCols) }}
                 >
                     {items.map((item) => (
-                        <div key={item.id} className="min-w-0 snap-start">
+                        <div key={item.id} className="relative min-w-0 snap-start hover:z-20">
                             <RecentlyViewedProductCard product={item} />
                         </div>
                     ))}

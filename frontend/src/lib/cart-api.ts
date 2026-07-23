@@ -115,10 +115,19 @@ export async function addToCart(
     });
 }
 
-export async function updateCartItem(itemId: number, qty: number): Promise<CartResponse> {
+export async function updateCartItem(
+    itemId: number,
+    qty: number,
+    options?: { waiting_discount?: boolean },
+): Promise<CartResponse> {
     return cartFetch<CartResponse>(`/cart/items/${itemId}`, {
         method: "PATCH",
-        body: JSON.stringify({ qty }),
+        body: JSON.stringify({
+            qty,
+            ...(options?.waiting_discount !== undefined
+                ? { waiting_discount: options.waiting_discount }
+                : {}),
+        }),
     });
 }
 

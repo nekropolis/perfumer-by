@@ -9,6 +9,7 @@ import PhoneInput, {
     normalizePlainByDigitsInput,
 } from "@/components/ui/phone-input";
 import { createStockNotificationRequest } from "@/lib/stock-notifications-api";
+import { siteBtnPrimary, siteBtnSecondary, siteTextarea } from "@/lib/site-ui-classes";
 
 type Props = {
     open: boolean;
@@ -217,7 +218,7 @@ export default function StockNotificationModal({
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
+                                className={siteBtnPrimary}
                             >
                                 Закрыть
                             </button>
@@ -257,7 +258,7 @@ export default function StockNotificationModal({
                                         className="peer sr-only"
                                     />
                                     <span
-                                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
+                                        className={`rounded-2xl border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
                                                 ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--background)]"
                                                 : "border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
                                             }`}
@@ -282,7 +283,7 @@ export default function StockNotificationModal({
                                 maxLength={COMMENT_MAX_LENGTH}
                                 rows={3}
                                 placeholder="Например: интересует флакон 100 мл"
-                                className="w-full resize-none rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
+                                className={`${siteTextarea} min-h-[5.5rem] resize-none`}
                             />
                             <div className="mt-1 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                                 <span>
@@ -292,23 +293,23 @@ export default function StockNotificationModal({
                         </div>
 
                         {errorMessage && (
-                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                 {errorMessage}
                             </div>
                         )}
 
-                        <div className="flex items-center justify-end gap-2 pt-1">
+                        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm transition hover:bg-[var(--background)]"
+                                className={`${siteBtnSecondary} w-full sm:w-auto`}
                             >
                                 Отмена
                             </button>
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !phoneIsValid}
-                                className="inline-flex items-center justify-center rounded-xl bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className={`${siteBtnPrimary} w-full sm:w-auto`}
                             >
                                 {isSubmitting ? "Отправка..." : "Отправить"}
                             </button>

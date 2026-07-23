@@ -266,7 +266,7 @@ export default function CatalogGridToolbar({
                                         params.set("sort", item.value);
                                     });
                                 }}
-                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                                className={`flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition ${
                                     isActive
                                         ? "bg-admin-muted text-admin-text"
                                         : "text-admin-text hover:bg-admin-muted/70"

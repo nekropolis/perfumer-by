@@ -21,9 +21,19 @@ export default async function ProductDetailPage({
     variantFromQuery = 0,
 }: Props) {
     let deliveryDate = DEFAULT_SITE_CONTENT.waiting_discount_delivery_date;
+    let deliveryInfo = {
+        minskFreeThreshold: DEFAULT_SITE_CONTENT.delivery_minsk_free_threshold,
+        belarusFee: DEFAULT_SITE_CONTENT.delivery_belarus_fee,
+        belarusFreeMinLines: DEFAULT_SITE_CONTENT.delivery_belarus_free_min_lines,
+    };
     try {
         const siteContent = await fetchSiteContent({ noCache: true });
         deliveryDate = siteContent.data.waiting_discount_delivery_date || deliveryDate;
+        deliveryInfo = {
+            minskFreeThreshold: siteContent.data.delivery_minsk_free_threshold,
+            belarusFee: siteContent.data.delivery_belarus_fee,
+            belarusFreeMinLines: siteContent.data.delivery_belarus_free_min_lines,
+        };
     } catch {
         // fallback к дефолту
     }
@@ -37,6 +47,7 @@ export default async function ProductDetailPage({
                 attributesContent={<ProductDetailAttributes product={product} />}
                 descriptionContent={<ProductDetailDescription description={product.description} />}
                 deliveryDate={deliveryDate}
+                deliveryInfo={deliveryInfo}
                 variantFromQuery={variantFromQuery}
             />
             <ProductSimilarSection slug={product.slug} />

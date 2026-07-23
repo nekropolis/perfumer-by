@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem } from "@/types/catalog";
+import { siteBtnSecondary, siteInput } from "@/lib/site-ui-classes";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -54,12 +55,12 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--foreground)]"
+                className={`${siteBtnSecondary} w-full justify-between`}
             >
                 <span className="truncate">
                     {selectedBrand ? selectedBrand.name : "Выберите бренд"}
                 </span>
-                <span className="ml-3 text-[var(--text-secondary)]">▾</span>
+                <span className="ml-3 text-admin-text-secondary">▾</span>
             </button>
 
             {open && (
@@ -69,14 +70,14 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                         onClick={() => setOpen(false)}
                     />
 
-                    <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-lg lg:min-w-[320px]">
-                        <div className="border-b border-[var(--line)] p-3">
+                    <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-admin-border bg-admin-surface shadow-lg lg:min-w-[320px]">
+                        <div className="border-b border-admin-border p-3">
                             <input
                                 type="text"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Поиск бренда..."
-                                className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--text-secondary)]"
+                                className={siteInput}
                             />
                         </div>
 
@@ -84,7 +85,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                             <button
                                 type="button"
                                 onClick={() => applyBrand()}
-                                className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
+                                className={`mb-1 flex w-full rounded-2xl px-3 py-2 text-left text-sm ${
                                     !selectedBrandId ? "bg-[var(--accent)] font-semibold text-[var(--background)]" : "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                                 }`}
                             >
@@ -100,7 +101,7 @@ export default function CatalogBrandSelect({ brands, selectedBrandId, basePath =
                                             key={brand.id}
                                             type="button"
                                             onClick={() => applyBrand(String(brand.id))}
-                                            className={`mb-1 flex w-full rounded-xl px-3 py-2 text-left text-sm ${
+                                            className={`mb-1 flex w-full rounded-2xl px-3 py-2 text-left text-sm ${
                                                 isActive ? "bg-[var(--accent)] font-semibold text-[var(--background)]" : "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                                             }`}
                                         >

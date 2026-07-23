@@ -22,6 +22,7 @@ import {
 import { ru } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { siteBtnPrimary, siteBtnSecondary } from "@/lib/site-ui-classes";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const WHEEL_ITEM_HEIGHT = 40;
@@ -161,7 +162,7 @@ function WheelColumn({ items, selectedValue, onSelectAction, ariaLabel }: WheelC
     return (
         <div className="relative min-w-0 flex-1" aria-label={ariaLabel}>
             <div
-                className="pointer-events-none absolute inset-x-1 top-1/2 z-10 h-10 -translate-y-1/2 rounded-xl border border-[var(--accent-soft)] bg-[var(--accent)]/10"
+                className="pointer-events-none absolute inset-x-1 top-1/2 z-10 h-10 -translate-y-1/2 rounded-2xl border border-[var(--accent-soft)] bg-[var(--accent)]/10"
                 aria-hidden
             />
 
@@ -344,7 +345,7 @@ export default function SiteDatePicker({
                 aria-haspopup="dialog"
                 aria-controls={`${id}-calendar`}
                 onClick={() => setOpen((prev) => !prev)}
-                className="flex w-full items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-left text-sm text-[var(--foreground)] transition hover:border-[var(--accent-soft)] focus:border-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+                className={`${siteBtnSecondary} w-full justify-start gap-2 px-4 py-3 text-left`}
             >
                 <Calendar className="h-4 w-4 shrink-0 text-[var(--accent)]" strokeWidth={2} aria-hidden />
                 <span className={displayLabel ? "" : "text-[var(--text-secondary)]"}>
@@ -366,7 +367,7 @@ export default function SiteDatePicker({
                                 <button
                                     type="button"
                                     onClick={() => setPanelMode("days")}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                     aria-label="Назад к календарю"
                                 >
                                     <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -412,7 +413,7 @@ export default function SiteDatePicker({
                                 <button
                                     type="button"
                                     onClick={applyWheelSelection}
-                                    className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
+                                    className={siteBtnPrimary}
                                 >
                                     Готово
                                 </button>
@@ -424,7 +425,7 @@ export default function SiteDatePicker({
                                 <button
                                     type="button"
                                     onClick={() => setViewMonth((m) => subMonths(m, 1))}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)]"
                                     aria-label="Предыдущий месяц"
                                 >
                                     <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -434,7 +435,7 @@ export default function SiteDatePicker({
                                     <button
                                         type="button"
                                         onClick={openWheels}
-                                        className="rounded-xl px-2 py-1 text-sm font-semibold capitalize text-[var(--foreground)] underline decoration-[var(--accent-soft)] underline-offset-4 transition hover:bg-[var(--background)]"
+                                        className="rounded-2xl px-2 py-1 text-sm font-semibold capitalize text-[var(--foreground)] underline decoration-[var(--accent-soft)] underline-offset-4 transition hover:bg-[var(--background)]"
                                         aria-label="Выбрать месяц"
                                     >
                                         {format(viewMonth, "LLLL", { locale: ru })}
@@ -442,7 +443,7 @@ export default function SiteDatePicker({
                                     <button
                                         type="button"
                                         onClick={openWheels}
-                                        className="rounded-xl px-2 py-1 text-sm font-semibold text-[var(--foreground)] underline decoration-[var(--accent-soft)] underline-offset-4 transition hover:bg-[var(--background)]"
+                                        className="rounded-2xl px-2 py-1 text-sm font-semibold text-[var(--foreground)] underline decoration-[var(--accent-soft)] underline-offset-4 transition hover:bg-[var(--background)]"
                                         aria-label="Выбрать год"
                                     >
                                         {format(viewMonth, "yyyy", { locale: ru })}
@@ -453,7 +454,7 @@ export default function SiteDatePicker({
                                     type="button"
                                     onClick={() => setViewMonth((m) => addMonths(m, 1))}
                                     disabled={nextMonthDisabled}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-[var(--line)] text-[var(--foreground)] transition hover:bg-[var(--background)] disabled:cursor-not-allowed disabled:opacity-40"
                                     aria-label="Следующий месяц"
                                 >
                                     <ChevronRight className="h-4 w-4" aria-hidden />
@@ -511,7 +512,7 @@ export default function SiteDatePicker({
                                 <button
                                     type="button"
                                     onClick={clearDate}
-                                    className="rounded-xl px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                    className="rounded-2xl px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
                                 >
                                     Очистить
                                 </button>
