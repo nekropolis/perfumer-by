@@ -79,7 +79,7 @@ body.admin-shell-body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-body.admin-shell-body input:focus,
+body.admin-shell-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
 body.admin-shell-body select:focus,
 body.admin-shell-body textarea:focus {
   border-color: var(--admin-primary);

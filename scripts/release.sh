@@ -104,6 +104,27 @@ disable_nginx_maintenance() {
     fi
 }
 
+# Probe Next directly (bypass nginx) so we drop maintenance.on only when
+# upstream is up — otherwise visitors get 502 instead of branded 503.
+wait_for_frontend() {
+    local url="${STOREFRONT_HEALTH_URL:-http://127.0.0.1:3000/}"
+    local attempts="${1:-30}"
+    local i=1
+    local code="000"
+
+    log "Waiting for Next.js ($url, up to ${attempts}s)"
+    while (( i <= attempts )); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
+            log "Next.js ready (HTTP $code)"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    warn "Next.js not ready after ${attempts}s (last HTTP ${code}) — dropping nginx flag anyway"
+}
+
 on_error() {
     local code="$1"
     warn "Release failed (exit $code). New release lives at: $NEW_RELEASE"
@@ -227,9 +248,6 @@ else
 fi
 "$PM2_BIN" save >/dev/null || true
 
-sleep 2
-disable_nginx_maintenance
-
 if command -v supervisorctl >/dev/null 2>&1; then
     log "supervisorctl restart $QUEUE_GROUP"
     sudo supervisorctl restart "$QUEUE_GROUP" || warn "supervisorctl restart не удался"
@@ -240,6 +258,10 @@ fi
 log "artisan up"
 (cd "$CURRENT/backend" && "$PHP_BIN" artisan up)
 MAINT_DIR=""
+
+# Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
+wait_for_frontend
+disable_nginx_maintenance
 
 # --- prune old releases -----------------------------------------------------
 

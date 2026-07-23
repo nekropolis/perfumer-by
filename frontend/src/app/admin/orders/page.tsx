@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ListOrdered, Printer, ShoppingCart } from "lucide-react";
+import { ListOrdered, Printer, FilterX, ShoppingCart } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchOrders } from "@/lib/admin-orders-api";
 import { fetchProducts, type ProductAdminItem } from "@/lib/admin-products-api";
@@ -257,6 +257,11 @@ export default function AdminOrdersPage() {
         setToast(null);
     };
 
+    const hasOrdersFilters = Boolean(
+        searchInput.trim() || statusFilter || periodFilter || dateFrom.trim() || dateTo.trim(),
+    );
+    const hasProductsFilters = Boolean(productFilter !== "" && productFilter != null);
+
     const handleOpenReceiptModal = async () => {
         if (selectedOrders.length === 0) {
             setToast({ type: "error", message: "Выберите заказы для печати" });
@@ -304,41 +309,43 @@ export default function AdminOrdersPage() {
             <AdminTableToolbar>
                 {activeTab === "orders" ? (
                     <div className="flex w-full min-w-0 flex-col gap-4">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
-                            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-                                <AdminSearchInput
-                                    value={searchInput}
-                                    onChangeAction={setSearchInput}
-                                    placeholder="ID, имя, телефон"
-                                />
+                        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                            <button
+                                type="button"
+                                onClick={handleOpenReceiptModal}
+                                disabled={selectedOrders.length === 0 || receiptOptionsLoading}
+                                className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+                                title="Печать товарных чеков"
+                            >
+                                <Printer size={16} />
+                                {receiptOptionsLoading ? "Загрузка..." : "Печать"}
+                            </button>
 
+                            <div className="flex min-w-0 flex-wrap items-end gap-2">
                                 <AdminFilterSelect
                                     value={statusFilter}
                                     onChangeAction={setStatusFilter}
                                     options={ORDER_STATUS_OPTIONS}
                                     placeholder="Все статусы"
                                 />
-                            </div>
 
-                            <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-end">
-                                <button
-                                    type="button"
-                                    onClick={handleOpenReceiptModal}
-                                    disabled={selectedOrders.length === 0 || receiptOptionsLoading}
-                                    className="inline-flex items-center gap-2 rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50"
-                                    title="Печать товарных чеков"
-                                >
-                                    <Printer size={16} />
-                                    {receiptOptionsLoading ? "Загрузка..." : "Печать"}
-                                </button>
+                                <AdminSearchInput
+                                    value={searchInput}
+                                    onChangeAction={setSearchInput}
+                                    placeholder="ID, имя, телефон"
+                                />
 
-                                <button
-                                    type="button"
-                                    onClick={handleReset}
-                                    className="rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted"
-                                >
-                                    Сбросить
-                                </button>
+                                {hasOrdersFilters ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleReset}
+                                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                        title="Сбросить фильтры"
+                                        aria-label="Сбросить фильтры"
+                                    >
+                                        <FilterX size={16} strokeWidth={2} />
+                                    </button>
+                                ) : null}
                             </div>
                         </div>
 
@@ -355,7 +362,7 @@ export default function AdminOrdersPage() {
                         />
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                    <div className="flex w-full min-w-0 flex-wrap items-end justify-end gap-2">
                         <select
                             value={productFilter}
                             onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
@@ -369,13 +376,17 @@ export default function AdminOrdersPage() {
                             ))}
                         </select>
 
-                        <button
-                            type="button"
-                            onClick={handleReset}
-                            className="shrink-0 self-start rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted sm:self-end"
-                        >
-                            Сбросить
-                        </button>
+                        {hasProductsFilters ? (
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                title="Сбросить фильтры"
+                                aria-label="Сбросить фильтры"
+                            >
+                                <FilterX size={16} strokeWidth={2} />
+                            </button>
+                        ) : null}
                     </div>
                 )}
             </AdminTableToolbar>

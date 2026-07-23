@@ -17,6 +17,7 @@ import AdminDeliveryTimeInput, {
     snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     initialOrders: OrderData[];
@@ -750,7 +751,7 @@ export default function AdminOrdersTable({
                                     checked={allVisibleSelected}
                                     onChange={toggleVisibleSelection}
                                     aria-label="Выбрать все заказы на странице"
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className={adminCheckbox}
                                 />
                             </th>
                             <th className="w-[7.5rem] border-r border-admin-border px-2 py-2">Заказ</th>
@@ -790,7 +791,7 @@ export default function AdminOrdersTable({
                                         checked={selectedOrderIdsSet.has(order.id)}
                                         onChange={() => toggleOrderSelection(order.id)}
                                         aria-label={`Выбрать заказ #${order.id}`}
-                                        className="h-4 w-4 rounded border-gray-300"
+                                        className={adminCheckbox}
                                     />
                                 </td>
                                 <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2">

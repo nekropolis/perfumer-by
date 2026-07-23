@@ -51,3 +51,7 @@ export const adminModalPanel =
 
 export const adminModalPanelCentered =
     "w-full max-w-lg flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-2xl";
+
+/** Native checkbox — admin primary accent, без focus-обводки от input:focus */
+export const adminCheckbox =
+    "h-4 w-4 shrink-0 cursor-pointer rounded border border-admin-border bg-transparent accent-admin-primary outline-none ring-0 focus:border-admin-border focus:outline-none focus:ring-0 focus:shadow-none checked:focus:border-admin-primary disabled:cursor-not-allowed disabled:opacity-50";

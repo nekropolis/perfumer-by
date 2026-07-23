@@ -8,7 +8,7 @@
 #   1. Build frontend while the current backend is still live (Next.js SSR
 #      needs reachable API during prerender).
 #   2. Only then put Laravel into maintenance mode, run migrations and caches.
-#   3. Reload services and bring the site back up.
+#   3. Reload services, artisan up, wait until Next answers, then drop nginx 503.
 
 set -Eeuo pipefail
 
@@ -82,6 +82,27 @@ disable_nginx_maintenance() {
         NGINX_MAINT=0
         log "nginx maintenance flag off"
     fi
+}
+
+# Probe Next directly (bypass nginx) so we drop maintenance.on only when
+# upstream is up — otherwise visitors get 502 instead of branded 503.
+wait_for_frontend() {
+    local url="${STOREFRONT_HEALTH_URL:-http://127.0.0.1:3000/}"
+    local attempts="${1:-30}"
+    local i=1
+    local code="000"
+
+    log "Waiting for Next.js ($url, up to ${attempts}s)"
+    while (( i <= attempts )); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
+            log "Next.js ready (HTTP $code)"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    warn "Next.js not ready after ${attempts}s (last HTTP ${code}) — dropping nginx flag anyway"
 }
 
 load_env() {
@@ -255,10 +276,6 @@ else
 fi
 "$PM2_BIN" save >/dev/null || true
 
-# Give Next a moment to listen before dropping the nginx flag
-sleep 3
-disable_nginx_maintenance
-
 log "Restarting queue workers: $QUEUE_GROUP"
 if [[ -n "$SUPERVISORCTL" ]]; then
     sudo "$SUPERVISORCTL" reread || warn "supervisorctl reread failed"
@@ -282,6 +299,10 @@ fi
 log "Leaving maintenance mode"
 (cd "$BACKEND" && "$PHP_BIN" artisan up)
 MAINT_DOWN=0
+
+# Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
+wait_for_frontend
+disable_nginx_maintenance
 
 log "Warming catalog cache"
 (cd "$BACKEND" && "$PHP_BIN" artisan catalog:warm-cache) || warn "catalog:warm-cache failed — site is up, warm manually"
