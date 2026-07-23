@@ -45,6 +45,7 @@ class OrderController extends Controller
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'max:32'],
             'discount_card_number' => ['nullable', 'string', 'max:64'],
+            'gift_certificate_code' => ['nullable', 'string', 'max:64'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['nullable', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
@@ -358,6 +359,8 @@ class OrderController extends Controller
         $validated = $request->validate([
             'payment_method' => ['nullable', 'string', 'max:32'],
             'discount_card_number' => ['nullable', 'string', 'max:64'],
+            'gift_certificate_code' => ['nullable', 'string', 'max:64'],
+            'order_id' => ['nullable', 'integer', 'min:1'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
@@ -372,8 +375,31 @@ class OrderController extends Controller
             ], 422);
         }
 
+        $forOrder = null;
+        $orderId = (int) ($validated['order_id'] ?? 0);
+        if ($orderId > 0) {
+            $forOrder = Order::query()->find($orderId);
+        }
+
+        $giftCertificateCode = trim((string) ($validated['gift_certificate_code'] ?? ''));
+        if ($giftCertificateCode !== '') {
+            $giftError = $pricing->giftCertificateValidationError($giftCertificateCode, $forOrder);
+            if ($giftError !== null) {
+                return response()->json([
+                    'message' => $giftError['message'],
+                    'code' => $giftError['code'],
+                ], 422);
+            }
+        }
+
         $paymentMethod = (string) ($validated['payment_method'] ?? 'cash');
-        $quote = $pricing->quote($validated['items'], $paymentMethod, $discountCardNumber !== '' ? $discountCardNumber : null);
+        $quote = $pricing->quote(
+            $validated['items'],
+            $paymentMethod,
+            $discountCardNumber !== '' ? $discountCardNumber : null,
+            $giftCertificateCode !== '' ? $giftCertificateCode : null,
+            $forOrder,
+        );
         $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
 
         return response()->json([
@@ -382,9 +408,11 @@ class OrderController extends Controller
                 'loyalty_discount_percent' => number_format($quote['loyalty_discount_percent'], 2, '.', ''),
                 'loyalty_discount_amount' => number_format($quote['loyalty_discount_amount'], 2, '.', ''),
                 'discount_card_number' => $quote['discount_card_number'],
+                'gift_certificate_code' => $quote['gift_certificate_code'],
+                'gift_certificate_amount' => number_format($quote['gift_certificate_amount'], 2, '.', ''),
                 'delivery_fee' => number_format($deliveryFee, 2, '.', ''),
                 'merchandise_total' => number_format($quote['merchandise_total'], 2, '.', ''),
-                'total' => number_format($quote['merchandise_total'] + $deliveryFee, 2, '.', ''),
+                'total' => number_format($quote['total_before_delivery'] + $deliveryFee, 2, '.', ''),
             ],
         ]);
     }
@@ -399,8 +427,19 @@ class OrderController extends Controller
             ], 422);
         }
 
+        $giftCertificateCode = trim((string) ($validated['gift_certificate_code'] ?? ''));
+        if ($giftCertificateCode !== '') {
+            $giftError = $pricing->giftCertificateValidationError($giftCertificateCode);
+            if ($giftError !== null) {
+                return response()->json([
+                    'message' => $giftError['message'],
+                    'code' => $giftError['code'],
+                ], 422);
+            }
+        }
+
         /** @var Order $order */
-        $order = DB::transaction(function () use ($validated, $discountCardNumber) {
+        $order = DB::transaction(function () use ($validated, $discountCardNumber, $giftCertificateCode) {
             $phone = Phone::normalize((string) $validated['phone']);
             $order = Order::query()->create([
                 'client_id' => OrderAccountScope::resolveClientIdForPhone($phone),
@@ -421,6 +460,7 @@ class OrderController extends Controller
             $this->syncOrderItemsAndTotals($order, $validated['items'], [
                 'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
                 'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
+                'gift_certificate_code' => $giftCertificateCode !== '' ? $giftCertificateCode : null,
             ]);
             $this->applyStatusTransitionEffects($order, null, (string) $order->status);
 
@@ -456,13 +496,24 @@ class OrderController extends Controller
         $previousStatus = (string) $order->status;
         $isTerminal = in_array($order->status, ['done', 'cancelled'], true);
 
+        $giftCertificateCode = trim((string) ($validated['gift_certificate_code'] ?? ''));
+        if (! $isTerminal && $giftCertificateCode !== '') {
+            $giftError = $pricing->giftCertificateValidationError($giftCertificateCode, $order);
+            if ($giftError !== null) {
+                return response()->json([
+                    'message' => $giftError['message'],
+                    'code' => $giftError['code'],
+                ], 422);
+            }
+        }
+
         if ($isTerminal && ! $this->terminalOrderItemsPayloadMatchesExisting($order, $validated['items'])) {
             return response()->json([
                 'message' => 'По заказам со статусом «Выполнен» или «Отменён» нельзя менять состав товаров, количества и цены строк.',
             ], 422);
         }
 
-        DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber) {
+        DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber, $giftCertificateCode) {
             $phone = Phone::normalize((string) $validated['phone']);
             $nextStatus = (string) ($validated['status'] ?? $previousStatus);
             $order->update([
@@ -489,6 +540,7 @@ class OrderController extends Controller
                 $this->syncOrderItemsAndTotals($order, $validated['items'], [
                     'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
                     'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
+                    'gift_certificate_code' => $giftCertificateCode !== '' ? $giftCertificateCode : null,
                 ]);
                 $order->unsetRelation('items');
                 $order->load('items');
@@ -713,7 +765,7 @@ class OrderController extends Controller
     private function recalculateOrderTotalsFromExistingItems(Order $order): void
     {
         $order->refresh();
-        $order->load('items');
+        $order->load(['items', 'orderGiftCertificates']);
 
         $itemsQty = 0;
         $subtotal = 0.0;
@@ -728,17 +780,18 @@ class OrderController extends Controller
         $subtotal = round($subtotal, 2);
         $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
         $discountAmount = round((float) ($order->discount_amount ?? 0), 2);
+        $giftAmount = $order->resolvedGiftCertificateAmountApplied();
 
         $order->update([
             'items_qty' => $itemsQty,
             'subtotal' => $subtotal,
-            'total' => round(max(0, $subtotal - $discountAmount) + $deliveryFee, 2),
+            'total' => round(max(0, $subtotal - $discountAmount - $giftAmount) + $deliveryFee, 2),
         ]);
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $items
-     * @param  array{payment_method?: string, discount_card_number?: string|null}  $pricingContext
+     * @param  array{payment_method?: string, discount_card_number?: string|null, gift_certificate_code?: string|null}  $pricingContext
      */
     private function syncOrderItemsAndTotals(Order $order, array $items, array $pricingContext = []): void
     {
@@ -778,6 +831,9 @@ class OrderController extends Controller
         $discountCardNumber = array_key_exists('discount_card_number', $pricingContext)
             ? $pricingContext['discount_card_number']
             : $order->discount_card_number;
+        $giftCertificateCode = array_key_exists('gift_certificate_code', $pricingContext)
+            ? $pricingContext['gift_certificate_code']
+            : null;
 
         $pricing = app(AdminOrderPricingService::class)->quote(
             array_map(static fn (array $item): array => [
@@ -789,6 +845,10 @@ class OrderController extends Controller
             $discountCardNumber !== null && trim((string) $discountCardNumber) !== ''
                 ? trim((string) $discountCardNumber)
                 : null,
+            $giftCertificateCode !== null && trim((string) $giftCertificateCode) !== ''
+                ? trim((string) $giftCertificateCode)
+                : null,
+            $order,
         );
 
         $order->update([
@@ -798,8 +858,14 @@ class OrderController extends Controller
             'discount_card_number' => $pricing['discount_card_number'],
             'discount_percent_snapshot' => $pricing['loyalty_discount_percent'],
             'discount_amount' => $pricing['loyalty_discount_amount'],
-            'total' => round($pricing['merchandise_total'] + $deliveryFee, 2),
+            'total' => round($pricing['total_before_delivery'] + $deliveryFee, 2),
         ]);
+
+        app(GiftCertificateLedgerService::class)->syncAdminOrderGiftCertificate(
+            $order,
+            $pricing['gift_certificate'],
+            (float) $pricing['gift_certificate_amount'],
+        );
     }
 
     private function applyStatusTransitionEffects(Order $order, ?string $previousStatus, string $nextStatus): void

@@ -218,6 +218,8 @@ export type AdminOrderPayload = {
   payment_method?: string | null;
   /** Номер активной скидочной карты; пусто — без скидки по карте. */
   discount_card_number?: string | null;
+  /** Код подарочного сертификата для оплаты; пусто — без сертификата. */
+  gift_certificate_code?: string | null;
   items: AdminOrderPayloadItem[];
 };
 
@@ -226,6 +228,8 @@ export type AdminOrderQuote = {
   loyalty_discount_percent: string;
   loyalty_discount_amount: string;
   discount_card_number: string | null;
+  gift_certificate_code?: string | null;
+  gift_certificate_amount?: string;
   delivery_fee: string;
   merchandise_total: string;
   total: string;
@@ -234,6 +238,8 @@ export type AdminOrderQuote = {
 export type AdminOrderQuotePayload = {
   payment_method?: string | null;
   discount_card_number?: string | null;
+  gift_certificate_code?: string | null;
+  order_id?: number | null;
   delivery_fee?: number;
   items: { qty: number; price: number }[];
 };

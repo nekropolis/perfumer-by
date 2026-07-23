@@ -16,7 +16,9 @@ import {
   type AdminOrderQuote,
 } from "@/lib/admin-orders-api";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
+import { normalizeGiftCertificateCodeInput } from "@/lib/cart-api";
 import type { OrderData, OrderItemFulfillmentOption } from "@/types/orders";
 import {
   fetchProductById,
@@ -41,16 +43,18 @@ import {
 import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
 import { applyWaitingDiscount, WAITING_DISCOUNT_PERCENT } from "@/lib/loyalty-pricing";
 import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
-import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import { ORDER_STATUS_OPTIONS, getOrderStatusTableTextClass } from "@/constants/order-statuses";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
 import AdminDeliveryTimeInput, {
+  formatDeliveryClockTime,
   snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
 
 const DELIVERY_OPTIONS = [
-  { value: "minsk_courier", label: "Курьер по Минску" },
+  { value: "minsk_courier", label: "Минск" },
   { value: "belarus_courier", label: "Курьер по РБ" },
   { value: "pickup", label: "Самовывоз" },
 ] as const;
@@ -66,8 +70,14 @@ const PAYMENT_OPTIONS = [
 const clientFieldClass =
   "w-full rounded-lg border border-admin-border bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20";
 
-const orderLineTableGrid =
-  "grid grid-cols-[minmax(0,1fr)_7.5rem_2.75rem_5.75rem_6.5rem_2rem] items-start gap-x-3";
+const orderLineTableRow =
+  "flex min-w-[52rem] items-start gap-x-3";
+const orderLineColName = "min-w-0 flex-1 overflow-hidden";
+const orderLineColFrom = "w-[7.5rem] shrink-0";
+const orderLineColQty = "w-11 shrink-0";
+const orderLineColPrice = "w-[5.75rem] shrink-0";
+const orderLineColTotal = "w-[6.5rem] shrink-0";
+const orderLineColActions = "w-8 shrink-0";
 
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]["value"];
@@ -480,6 +490,9 @@ export default function AdminOrderCreateForm({
   const [deliveryTimeTo, setDeliveryTimeTo] = useState(
     () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_to),
   );
+  const [deliveryTimeModalOpen, setDeliveryTimeModalOpen] = useState(false);
+  const [draftDeliveryTimeFrom, setDraftDeliveryTimeFrom] = useState("");
+  const [draftDeliveryTimeTo, setDraftDeliveryTimeTo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(initialOrder?.delivery_fee ?? 0) || 0));
   const [discountCardInput, setDiscountCardInput] = useState(() => initialOrder?.discount_card_number?.trim() ?? "");
@@ -489,6 +502,13 @@ export default function AdminOrderCreateForm({
   /** Пользователь явно убрал карту — не подставлять снова, пока не сменится телефон. */
   const [discountCardManuallyCleared, setDiscountCardManuallyCleared] = useState(false);
   const [discountCardError, setDiscountCardError] = useState("");
+  const [giftCertificateInput, setGiftCertificateInput] = useState(
+    () => initialOrder?.gift_certificate_code?.trim() ?? "",
+  );
+  const [appliedGiftCertificateCode, setAppliedGiftCertificateCode] = useState(
+    () => initialOrder?.gift_certificate_code?.trim() ?? "",
+  );
+  const [giftCertificateError, setGiftCertificateError] = useState("");
   const [orderQuote, setOrderQuote] = useState<AdminOrderQuote | null>(null);
   const [orderQuoteLoading, setOrderQuoteLoading] = useState(false);
   const [lines, setLines] = useState<OrderLine[]>(() => (initialOrder ? linesFromOrderItems(initialOrder) : [emptyLine()]));
@@ -844,6 +864,8 @@ export default function AdminOrderCreateForm({
     void fetchAdminOrderQuote({
       payment_method: paymentMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
+      gift_certificate_code: appliedGiftCertificateCode.trim() || null,
+      order_id: isEdit && initialOrder ? initialOrder.id : null,
       delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       items: filledLinesForQuote.map((l) => ({
         qty: Math.max(1, l.qty),
@@ -854,14 +876,20 @@ export default function AdminOrderCreateForm({
         if (!cancelled) {
           setOrderQuote(response.data);
           setDiscountCardError("");
+          setGiftCertificateError("");
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setOrderQuote(null);
           const msg = err instanceof Error ? err.message : "Не удалось пересчитать скидки";
-          setDiscountCardError(msg);
-          setAppliedDiscountCardNumber("");
+          if (/сертификат/i.test(msg)) {
+            setGiftCertificateError(msg);
+            setAppliedGiftCertificateCode("");
+          } else {
+            setDiscountCardError(msg);
+            setAppliedDiscountCardNumber("");
+          }
         }
       })
       .finally(() => {
@@ -872,7 +900,16 @@ export default function AdminOrderCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [quoteItemsKey, paymentMethod, appliedDiscountCardNumber, deliveryFee, filledLinesForQuote]);
+  }, [
+    quoteItemsKey,
+    paymentMethod,
+    appliedDiscountCardNumber,
+    appliedGiftCertificateCode,
+    deliveryFee,
+    filledLinesForQuote,
+    isEdit,
+    initialOrder,
+  ]);
 
   const localSubtotal = useMemo(
     () => filledLinesForQuote.reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0),
@@ -886,16 +923,30 @@ export default function AdminOrderCreateForm({
 
   const subtotalStr = orderQuote?.subtotal ?? localSubtotal.toFixed(2);
   const loyaltyDiscountStr = orderQuote?.loyalty_discount_amount ?? "0.00";
+  const giftCertificateAmountStr = orderQuote?.gift_certificate_amount ?? "0.00";
   const merchandiseTotalStr = orderQuote?.merchandise_total ?? localSubtotal.toFixed(2);
+  const deliveryFeeStr = Math.max(0, Number(deliveryFee) || 0).toFixed(2);
   const orderTotalStr =
     orderQuote?.total ?? (localSubtotal + Math.max(0, Number(deliveryFee) || 0)).toFixed(2);
   const loyaltyPercentStr = orderQuote?.loyalty_discount_percent ?? "0.00";
   const hasLoyaltyDiscount = parseQuoteMoney(loyaltyDiscountStr) > 0.004;
+  const hasGiftCertificateDiscount = parseQuoteMoney(giftCertificateAmountStr) > 0.004;
+  const orderItemsQty = filledLinesForQuote.reduce((sum, line) => sum + Math.max(0, line.qty), 0);
+  const deliveryMethodLabel =
+    DELIVERY_OPTIONS.find((opt) => opt.value === deliveryMethod)?.label ?? deliveryMethod;
+  const paymentMethodLabel =
+    PAYMENT_OPTIONS.find((opt) => opt.value === paymentMethod)?.label ?? paymentMethod;
 
   const discountCardConfirmed = Boolean(
     appliedDiscountCardNumber.trim() &&
     orderQuote?.discount_card_number?.trim() &&
     orderQuote.discount_card_number.trim() === appliedDiscountCardNumber.trim(),
+  );
+
+  const giftCertificateConfirmed = Boolean(
+    appliedGiftCertificateCode.trim() &&
+    orderQuote?.gift_certificate_code?.trim() &&
+    orderQuote.gift_certificate_code.trim() === appliedGiftCertificateCode.trim(),
   );
 
   const applyDiscountCardToOrder = useCallback(
@@ -915,6 +966,8 @@ export default function AdminOrderCreateForm({
         const response = await fetchAdminOrderQuote({
           payment_method: paymentMethod,
           discount_card_number: normalized,
+          gift_certificate_code: appliedGiftCertificateCode.trim() || null,
+          order_id: isEdit && initialOrder ? initialOrder.id : null,
           delivery_fee: Math.max(0, Number(deliveryFee) || 0),
           items: filledLinesForQuote.map((l) => ({
             qty: Math.max(1, l.qty),
@@ -942,7 +995,51 @@ export default function AdminOrderCreateForm({
         setOrderQuoteLoading(false);
       }
     },
-    [deliveryFee, filledLinesForQuote, paymentMethod],
+    [appliedGiftCertificateCode, deliveryFee, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
+  );
+
+  const applyGiftCertificateToOrder = useCallback(
+    async (codeRaw: string) => {
+      const normalized = normalizeGiftCertificateCodeInput(codeRaw);
+      if (!normalized) {
+        return;
+      }
+      if (filledLinesForQuote.length === 0) {
+        setGiftCertificateError("Сначала добавьте хотя бы одну позицию в заказ, чтобы применить сертификат.");
+        return;
+      }
+
+      setGiftCertificateError("");
+      setOrderQuoteLoading(true);
+      try {
+        const response = await fetchAdminOrderQuote({
+          payment_method: paymentMethod,
+          discount_card_number: appliedDiscountCardNumber.trim() || null,
+          gift_certificate_code: normalized,
+          order_id: isEdit && initialOrder ? initialOrder.id : null,
+          delivery_fee: Math.max(0, Number(deliveryFee) || 0),
+          items: filledLinesForQuote.map((l) => ({
+            qty: Math.max(1, l.qty),
+            price: Math.max(0, l.price),
+          })),
+        });
+        const confirmed = response.data.gift_certificate_code?.trim() ?? "";
+        if (confirmed === "") {
+          setAppliedGiftCertificateCode("");
+          setGiftCertificateError("Не удалось применить сертификат.");
+          return;
+        }
+        setAppliedGiftCertificateCode(confirmed);
+        setGiftCertificateInput(confirmed);
+        setOrderQuote(response.data);
+      } catch (err) {
+        setAppliedGiftCertificateCode("");
+        setGiftCertificateError(err instanceof Error ? err.message : "Не удалось применить сертификат.");
+      } finally {
+        setOrderQuoteLoading(false);
+      }
+    },
+    [appliedDiscountCardNumber, deliveryFee, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
   );
 
   useEffect(() => {
@@ -1272,6 +1369,7 @@ export default function AdminOrderCreateForm({
       delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       payment_method: paymentMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
+      gift_certificate_code: appliedGiftCertificateCode.trim() || null,
       items: filledLines.map((item) => ({
         product_id: item.product_id,
         variant_id: item.variant_id,
@@ -1437,33 +1535,25 @@ export default function AdminOrderCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {isEdit ? (
-        <SectionCard>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[12rem]">
-              <label className="mb-1 block text-xs font-medium text-admin-text-secondary">Статус заказа</label>
-              <select
-                value={orderStatus}
-                disabled={itemsLocked}
-                onChange={(e) => setOrderStatus(e.target.value)}
-                className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20 disabled:opacity-60"
-              >
-                {ORDER_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {itemsLocked ? (
-              <p className="text-xs text-admin-text-secondary">Статус «Выполнен» / «Отменён» нельзя менять здесь.</p>
-            ) : null}
-          </div>
-        </SectionCard>
-      ) : null}
 
       <SectionCard>
-        <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
+          {isEdit ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-xs font-medium text-admin-text-secondary">Статус заказа</span>
+              <AdminStatusDropdown
+                value={orderStatus}
+                options={ORDER_STATUS_OPTIONS}
+                onChangeAction={setOrderStatus}
+                disabled={itemsLocked}
+                triggerVariant="text"
+                triggerTextClassName={getOrderStatusTableTextClass(orderStatus)}
+                menuAlign="right"
+              />
+            </div>
+          ) : null}
+        </div>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
           <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3.5 sm:max-w-[22rem] lg:max-w-[26rem]">
@@ -1543,22 +1633,22 @@ export default function AdminOrderCreateForm({
               {showPhoneClientPanel ? (
                 <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[16rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
                   {phoneHitsLoading ||
-                  (plainPhoneMode
-                    ? digitsOnly(debouncedPhone).length < PHONE_CLIENT_HINT_MIN_NATIONAL
-                    : nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL) ? (
+                    (plainPhoneMode
+                      ? digitsOnly(debouncedPhone).length < PHONE_CLIENT_HINT_MIN_NATIONAL
+                      : nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL) ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
                   ) : phoneHits.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
                       {hasOrderHistoryByPhone
                         ? (() => {
-                            const guestName =
-                              context?.customer_name?.trim() ||
-                              context?.matched_user?.name?.trim() ||
-                              "";
-                            return guestName
-                              ? `${guestName} · заказов: ${totalOrdersCount(context)}`
-                              : `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`;
-                          })()
+                          const guestName =
+                            context?.customer_name?.trim() ||
+                            context?.matched_user?.name?.trim() ||
+                            "";
+                          return guestName
+                            ? `${guestName} · заказов: ${totalOrdersCount(context)}`
+                            : `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`;
+                        })()
                         : "Клиенты не найдены"}
                     </div>
                   ) : (
@@ -1677,11 +1767,10 @@ export default function AdminOrderCreateForm({
                           disabled={!clickable}
                           onClick={() => setOrdersHistoryModal(stat.kind)}
                           title={clickable ? `Показать: ${stat.label}` : undefined}
-                          className={`inline-flex min-w-[5.5rem] flex-col items-start rounded-lg border px-2.5 py-2 text-left transition ${
-                            clickable
-                              ? "cursor-pointer border-admin-border bg-admin-surface shadow-sm hover:border-admin-primary/40 hover:bg-admin-muted/80"
-                              : "cursor-not-allowed border-transparent bg-transparent opacity-50"
-                          }`}
+                          className={`inline-flex min-w-[5.5rem] flex-col items-start rounded-lg border px-2.5 py-2 text-left transition ${clickable
+                            ? "cursor-pointer border-admin-border bg-admin-surface shadow-sm hover:border-admin-primary/40 hover:bg-admin-muted/80"
+                            : "cursor-not-allowed border-transparent bg-transparent opacity-50"
+                            }`}
                         >
                           <span className="text-[11px] text-admin-text-secondary">{stat.label}</span>
                           <span className="flex w-full items-center justify-between gap-1">
@@ -1744,142 +1833,150 @@ export default function AdminOrderCreateForm({
         <div className="space-y-2">
           {lines.some(isCompleteOrderLine) ? (
             <div className="overflow-x-auto rounded-xl ring-1 ring-inset ring-admin-border/60">
-              <div className="min-w-[28rem]">
-                <div
-                  className={`${orderLineTableGrid} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
-                >
-                  <span>Наименование</span>
-                  <span>Откуда</span>
-                  <span className="text-center">Кол-во</span>
-                  <span className="text-right">Цена</span>
-                  <span className="text-right">Итого</span>
-                  <span className="sr-only">Действия</span>
-                </div>
-                <div className="divide-y divide-admin-border/70">
-                  {lines.map((line, idx) => {
-                    if (!isCompleteOrderLine(line)) return null;
-                    const channel = channelFromSource(line.availability_source);
-                    const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
-                    const selectValue: FulfillmentChannel =
-                      channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
-                        ? "offer"
-                        : "main";
-                    return (
-                      <div key={`line-${idx}`} className={`${orderLineTableGrid} bg-admin-muted/25 px-3 py-2`}>
-                        <div className="min-w-0 space-y-1">
-                          <p className="truncate text-sm leading-snug text-admin-text">
-                            <span className="font-medium">{line.product_id} - {line.product_name}</span>
-                            {line.variant_title ? (
-                              <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
-                            ) : null}
-                          </p>
-                          {line.fulfillment_options.length > 0 ? (
-                            <ul className="space-y-0.5 text-[11px] leading-snug text-admin-text-secondary">
-                              {line.fulfillment_options.map((opt, optIdx) => (
-                                <li key={`${opt.channel}-${opt.code ?? optIdx}-${optIdx}`} className="min-w-0">
-                                  <span className="font-medium text-admin-text">{opt.label}</span>
-                                  {opt.code ? <>{" · "}{opt.code}</> : null}
-                                  {opt.title ? (
-                                    <>
-                                      {" · "}
-                                      <span className="text-admin-text">{opt.title}</span>
-                                    </>
-                                  ) : null}
-                                  {opt.purchase_price != null && opt.purchase_price !== "" ? (
-                                    <>{" · "}{opt.purchase_price}</>
-                                  ) : null}
-                                  <>{" · "}{opt.qty} шт.</>
-                                </li>
-                              ))}
-                            </ul>
+              <div
+                className={`${orderLineTableRow} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
+              >
+                <span className={orderLineColName}>Наименование</span>
+                <span className={orderLineColFrom}>Откуда</span>
+                <span className={`${orderLineColQty} text-center`}>Кол-во</span>
+                <span className={`${orderLineColPrice} text-right`}>Цена</span>
+                <span className={`${orderLineColTotal} text-right`}>Итого</span>
+                <span className={`${orderLineColActions} sr-only`}>Действия</span>
+              </div>
+              <div className="divide-y divide-admin-border/70">
+                {lines.map((line, idx) => {
+                  if (!isCompleteOrderLine(line)) return null;
+                  const channel = channelFromSource(line.availability_source);
+                  const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
+                  const selectValue: FulfillmentChannel =
+                    channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
+                      ? "offer"
+                      : "main";
+                  return (
+                    <div key={`line-${idx}`} className={`${orderLineTableRow} bg-admin-muted/25 px-3 py-2`}>
+                      <div className={`${orderLineColName} space-y-1`}>
+                        <p className="truncate text-sm leading-snug text-admin-text">
+                          <span className="font-medium">
+                            {line.product_id} - {line.product_name}
+                          </span>
+                          {line.variant_title ? (
+                            <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
                           ) : null}
-                        </div>
-                        <div className="min-w-0 self-start pt-0.5">
-                          {!canPickChannel && !channel ? (
-                            <p className="text-xs leading-snug text-admin-text-secondary">
-                              Нет склада и офера — выбирать не из чего
-                            </p>
-                          ) : itemsLocked || !canPickChannel ? (
-                            <p className="text-xs leading-snug text-admin-text">
-                              {channel === "main" ? "Склад" : channel === "offer" ? "Офер" : "—"}
-                            </p>
-                          ) : (
-                            <select
-                              value={selectValue}
-                              onChange={(e) => setLineChannel(idx, e.target.value as FulfillmentChannel)}
-                              className="h-8 w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 text-xs text-admin-text outline-none focus:ring-2 focus:ring-admin-primary/20"
-                              aria-label={`Откуда: ${line.product_name}`}
-                            >
-                              {line.can_fulfill_main ? <option value="main">Склад</option> : null}
-                              {line.can_fulfill_offer ? <option value="offer">Офер</option> : null}
-                            </select>
-                          )}
-                        </div>
-                        <div className="justify-self-center self-start pt-0.5">
-                          {itemsLocked ? (
-                            <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
-                              {line.qty}
-                            </span>
-                          ) : (
-                            <input
-                              type="number"
-                              min={1}
-                              aria-label={`Количество: ${line.product_name}`}
-                              className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
-                              value={line.qty}
-                              onChange={(e) => setLineQty(idx, Number(e.target.value))}
-                            />
-                          )}
-                        </div>
-                        <div className="justify-self-end self-start pt-0.5 text-right">
-                          {itemsLocked ? (
-                            <p className="flex h-8 items-center justify-end text-sm tabular-nums text-admin-text">
-                              {formatMoneyRub(line.price)}
-                            </p>
-                          ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              aria-label={`Цена: ${line.product_name}`}
-                              className="h-8 w-[5.5rem] rounded-lg bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
-                              value={line.price}
-                              onChange={(e) => setLinePrice(idx, Number(e.target.value))}
-                            />
-                          )}
-                          {line.waiting_discount ? (
-                            <div className="mt-0.5 space-y-0.5">
-                              {line.base_price > 0 && line.base_price !== line.price ? (
-                                <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
-                                  {formatMoneyRub(line.base_price)}
-                                </p>
-                              ) : null}
-                              <p className="text-[10px] font-medium leading-tight text-amber-800">
-                                −{WAITING_DISCOUNT_PERCENT}% ожидание
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-                        <p className="self-start pt-0.5 text-right text-sm font-semibold leading-8 tabular-nums text-admin-text">
-                          {formatMoneyRub(orderLineMerchandiseTotal(line))}
                         </p>
-                        <div className="justify-self-end self-start pt-0.5">
-                          {!itemsLocked ? (
-                            <button
-                              type="button"
-                              onClick={() => removeLine(idx)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
-                              aria-label={`Удалить ${line.product_name}`}
-                              title="Удалить"
-                            >
-                              <Trash2 size={16} strokeWidth={1.75} />
-                            </button>
-                          ) : null}
-                        </div>
+                        {line.fulfillment_options.length > 0 ? (
+                          <ul className="min-w-0 space-y-0.5 text-[11px] leading-snug text-admin-text-secondary">
+                            {line.fulfillment_options.map((opt, optIdx) => {
+                              const detailParts = [
+                                opt.code,
+                                opt.title,
+                                opt.purchase_price != null && opt.purchase_price !== ""
+                                  ? Number(opt.purchase_price).toFixed(2)
+                                  : null,
+                                opt.qty !== 0 ? `${opt.qty} шт.` : null,
+                              ].filter(Boolean);
+                              const detailText = detailParts.join(" · ");
+                              const fullText = detailText ? `${opt.label} · ${detailText}` : opt.label;
+                              return (
+                                <li
+                                  key={`${opt.channel}-${opt.code ?? optIdx}-${optIdx}`}
+                                  className="block min-w-0 truncate"
+                                  title={fullText}
+                                >
+                                  <span className="font-medium text-admin-text">{opt.label}</span>
+                                  {detailText ? <>{" · "}{detailText}</> : null}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : null}
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className={`${orderLineColFrom} self-start pt-0.5`}>
+                        {!canPickChannel && !channel ? (
+                          <p className="text-xs leading-snug text-admin-text-secondary">
+                            Нет склада и офера — выбирать не из чего
+                          </p>
+                        ) : itemsLocked || !canPickChannel ? (
+                          <p className="text-xs leading-snug text-admin-text">
+                            {channel === "main" ? "Склад" : channel === "offer" ? "Офер" : "—"}
+                          </p>
+                        ) : (
+                          <select
+                            value={selectValue}
+                            onChange={(e) => setLineChannel(idx, e.target.value as FulfillmentChannel)}
+                            className="h-8 w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 text-xs text-admin-text outline-none focus:ring-2 focus:ring-admin-primary/20"
+                            aria-label={`Откуда: ${line.product_name}`}
+                          >
+                            {line.can_fulfill_main ? <option value="main">Склад</option> : null}
+                            {line.can_fulfill_offer ? <option value="offer">Офер</option> : null}
+                          </select>
+                        )}
+                      </div>
+                      <div className={`${orderLineColQty} self-start pt-0.5`}>
+                        {itemsLocked ? (
+                          <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
+                            {line.qty}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={1}
+                            aria-label={`Количество: ${line.product_name}`}
+                            className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                            value={line.qty}
+                            onChange={(e) => setLineQty(idx, Number(e.target.value))}
+                          />
+                        )}
+                      </div>
+                      <div className={`${orderLineColPrice} self-start pt-0.5 text-right`}>
+                        {itemsLocked ? (
+                          <p className="flex h-8 items-center justify-end text-sm tabular-nums text-admin-text">
+                            {formatMoneyRub(line.price)}
+                          </p>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            aria-label={`Цена: ${line.product_name}`}
+                            className="h-8 w-full rounded-lg bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                            value={line.price}
+                            onChange={(e) => setLinePrice(idx, Number(e.target.value))}
+                          />
+                        )}
+                        {line.waiting_discount ? (
+                          <div className="mt-0.5 space-y-0.5">
+                            {line.base_price > 0 && line.base_price !== line.price ? (
+                              <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
+                                {formatMoneyRub(line.base_price)}
+                              </p>
+                            ) : null}
+                            <p className="text-[10px] font-medium leading-tight text-amber-800">
+                              −{WAITING_DISCOUNT_PERCENT}% ожидание
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <p
+                        className={`${orderLineColTotal} self-start pt-0.5 text-right text-sm font-semibold leading-8 tabular-nums text-admin-text`}
+                      >
+                        {formatMoneyRub(orderLineMerchandiseTotal(line))}
+                      </p>
+                      <div className={`${orderLineColActions} self-start pt-0.5`}>
+                        {!itemsLocked ? (
+                          <button
+                            type="button"
+                            onClick={() => removeLine(idx)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Удалить ${line.product_name}`}
+                            title="Удалить"
+                          >
+                            <Trash2 size={16} strokeWidth={1.75} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -1923,85 +2020,85 @@ export default function AdminOrderCreateForm({
                       />
                       {showProductHitList && productHitsPos && typeof document !== "undefined"
                         ? createPortal(
-                            <div
-                              ref={productHitsListRef}
-                              className="fixed z-[9999] overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg"
-                              style={{
-                                left: productHitsPos.left,
-                                width: productHitsPos.width,
-                                maxHeight: productHitsPos.maxHeight,
-                                top: productHitsPos.top,
-                                transform: productHitsPos.openUp ? "translateY(-100%)" : undefined,
-                              }}
-                            >
-                              {productHitsLoading ? (
-                                <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-                              ) : flatProductHits.length === 0 ? (
-                                <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-                              ) : (
-                                flatProductHits.map((option) => {
-                                  const q = line.product_name.trim();
-                                  const hit = option.hit;
-                                  if (option.kind === "no-variants") {
-                                    return (
-                                      <div
-                                        key={option.key}
-                                        className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
-                                      >
-                                        <span className="tabular-nums text-gray-400">
-                                          {highlightQueryInText(String(hit.id), q)}
-                                        </span>{" "}
-                                        {hit.brand_name ? (
-                                          <span>{highlightQueryInText(hit.brand_name, q)} </span>
-                                        ) : null}
-                                        <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
-                                        <span className="text-admin-text-secondary"> — нет вариантов</span>
-                                      </div>
-                                    );
-                                  }
-                                  const variant = option.variant;
-                                  const availability = productSmartSearchAvailabilityLabel(variant);
+                          <div
+                            ref={productHitsListRef}
+                            className="fixed z-[9999] overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg"
+                            style={{
+                              left: productHitsPos.left,
+                              width: productHitsPos.width,
+                              maxHeight: productHitsPos.maxHeight,
+                              top: productHitsPos.top,
+                              transform: productHitsPos.openUp ? "translateY(-100%)" : undefined,
+                            }}
+                          >
+                            {productHitsLoading ? (
+                              <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
+                            ) : flatProductHits.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
+                            ) : (
+                              flatProductHits.map((option) => {
+                                const q = line.product_name.trim();
+                                const hit = option.hit;
+                                if (option.kind === "no-variants") {
                                   return (
-                                    <button
+                                    <div
                                       key={option.key}
-                                      type="button"
-                                      className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
-                                      onMouseDown={(ev) => ev.preventDefault()}
-                                      onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
+                                      className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
                                     >
                                       <span className="tabular-nums text-gray-400">
                                         {highlightQueryInText(String(hit.id), q)}
                                       </span>{" "}
                                       {hit.brand_name ? (
-                                        <span className="text-admin-text-secondary">
-                                          {highlightQueryInText(hit.brand_name, q)}{" "}
-                                        </span>
+                                        <span>{highlightQueryInText(hit.brand_name, q)} </span>
                                       ) : null}
-                                      <span className="font-medium text-admin-text">
-                                        {highlightQueryInText(hit.name, q)}
-                                      </span>{" "}
-                                      <span className="text-admin-text">
-                                        {highlightQueryInText(variant.title, q)}
-                                      </span>
-                                      <span className="text-admin-text-secondary"> — </span>
-                                      <span className={productSmartSearchAvailabilityClass(variant)}>
-                                        {highlightQueryInText(availability, q)}
-                                      </span>
-                                      {productSmartSearchShowsPrice(variant) ? (
-                                        <>
-                                          <span className="text-admin-text-secondary"> — </span>
-                                          <span className="tabular-nums text-admin-text">
-                                            {productSmartSearchPriceLabel(variant)}
-                                          </span>
-                                        </>
-                                      ) : null}
-                                    </button>
+                                      <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
+                                      <span className="text-admin-text-secondary"> — нет вариантов</span>
+                                    </div>
                                   );
-                                })
-                              )}
-                            </div>,
-                            document.body,
-                          )
+                                }
+                                const variant = option.variant;
+                                const availability = productSmartSearchAvailabilityLabel(variant);
+                                return (
+                                  <button
+                                    key={option.key}
+                                    type="button"
+                                    className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
+                                  >
+                                    <span className="tabular-nums text-gray-400">
+                                      {highlightQueryInText(String(hit.id), q)}
+                                    </span>{" "}
+                                    {hit.brand_name ? (
+                                      <span className="text-admin-text-secondary">
+                                        {highlightQueryInText(hit.brand_name, q)}{" "}
+                                      </span>
+                                    ) : null}
+                                    <span className="font-medium text-admin-text">
+                                      {highlightQueryInText(hit.name, q)}
+                                    </span>{" "}
+                                    <span className="text-admin-text">
+                                      {highlightQueryInText(variant.title, q)}
+                                    </span>
+                                    <span className="text-admin-text-secondary"> — </span>
+                                    <span className={productSmartSearchAvailabilityClass(variant)}>
+                                      {highlightQueryInText(availability, q)}
+                                    </span>
+                                    {productSmartSearchShowsPrice(variant) ? (
+                                      <>
+                                        <span className="text-admin-text-secondary"> — </span>
+                                        <span className="tabular-nums text-admin-text">
+                                          {productSmartSearchPriceLabel(variant)}
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>,
+                          document.body,
+                        )
                         : null}
                     </div>
 
@@ -2094,18 +2191,22 @@ export default function AdminOrderCreateForm({
       <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Доставка и оплата</h2>
 
-        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-          <div className="space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+          <div className="flex h-full flex-col space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
             <fieldset>
               <legend className="mb-2 text-sm font-medium text-admin-text">Способ доставки *</legend>
-              <div className="space-y-2 text-sm">
+              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap">
                 {DELIVERY_OPTIONS.map(({ value, label }) => (
-                  <label key={value} className="flex cursor-pointer items-center gap-2">
+                  <label
+                    key={value}
+                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1"
+                  >
                     <input
                       type="radio"
                       name="delivery_method"
                       checked={deliveryMethod === value}
                       onChange={() => handleDeliveryMethodChange(value)}
+                      className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary"
                     />
                     {label}
                   </label>
@@ -2115,52 +2216,88 @@ export default function AdminOrderCreateForm({
 
             {deliveryMethod !== "pickup" ? (
               <>
-                {deliveryMethod === "minsk_courier" ? (
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                  {deliveryMethod === "minsk_courier" ? (
+                    <div>
+                      <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={MINSK_COURIER_CITY}
+                        tabIndex={-1}
+                        className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
+                        aria-readonly="true"
+                      />
+                    </div>
+                  ) : showCitySelect ? (
+                    <div className="space-y-2">
+                      <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
+                      <select
+                        value={citySelect}
+                        onChange={(e) => setCitySelect(e.target.value)}
+                        className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                      >
+                        <option value="">Выберите город из заказов или другой</option>
+                        {savedCities.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                        <option value="__new__">Другой (ввести вручную)</option>
+                      </select>
+                      {(citySelect === "__new__" || !citySelect) &&
+                        (deliveryMethod === "belarus_courier" ? (
+                          belarusCitySearch
+                        ) : (
+                          <input
+                            value={deliveryCity}
+                            onChange={(e) => setDeliveryCity(e.target.value)}
+                            className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                            placeholder="Город (если не из списка)"
+                          />
+                        ))}
+                    </div>
+                  ) : deliveryMethod === "belarus_courier" ? (
+                    <div>
+                      <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
+                      <div className="mt-1">{belarusCitySearch}</div>
+                    </div>
+                  ) : (
+                    <div />
+                  )}
+
                   <div>
-                    <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={MINSK_COURIER_CITY}
-                      tabIndex={-1}
-                      className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
-                      aria-readonly="true"
-                    />
-                  </div>
-                ) : showCitySelect ? (
-                  <div className="space-y-2">
-                    <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
-                    <select
-                      value={citySelect}
-                      onChange={(e) => setCitySelect(e.target.value)}
-                      className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                    <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftDeliveryTimeFrom(
+                          deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
+                        );
+                        setDraftDeliveryTimeTo(
+                          deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
+                        );
+                        setDeliveryTimeModalOpen(true);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                      title="Задать время доставки"
                     >
-                      <option value="">Выберите город из заказов или другой</option>
-                      {savedCities.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                      <option value="__new__">Другой (ввести вручную)</option>
-                    </select>
-                    {(citySelect === "__new__" || !citySelect) &&
-                      (deliveryMethod === "belarus_courier" ? (
-                        belarusCitySearch
-                      ) : (
-                        <input
-                          value={deliveryCity}
-                          onChange={(e) => setDeliveryCity(e.target.value)}
-                          className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
-                          placeholder="Город (если не из списка)"
-                        />
-                      ))}
+                      <span className="tabular-nums">
+                        {formatDeliveryClockTime(deliveryTimeFrom) ||
+                          formatDeliveryClockTime(deliveryTimeTo) ? (
+                          <>
+                            {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
+                            {" – "}
+                            {formatDeliveryClockTime(deliveryTimeTo) || "—"}
+                          </>
+                        ) : (
+                          <span className="text-admin-text-secondary">Не задано</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-admin-primary">Задать</span>
+                    </button>
                   </div>
-                ) : deliveryMethod === "belarus_courier" ? (
-                  <div>
-                    <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
-                    <div className="mt-1">{belarusCitySearch}</div>
-                  </div>
-                ) : null}
+                </div>
 
                 <label className="block text-sm text-admin-text-secondary">
                   Адрес доставки *
@@ -2174,36 +2311,114 @@ export default function AdminOrderCreateForm({
                 </label>
               </>
             ) : (
-              <p className="text-xs text-admin-text-secondary">Самовывоз — адрес в заказе будет «нет - самовывоз».</p>
+              <>
+                <p className="text-xs text-admin-text-secondary">
+                  Самовывоз — адрес в заказе будет «нет - самовывоз».
+                </p>
+                <div>
+                  <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftDeliveryTimeFrom(
+                        deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
+                      );
+                      setDraftDeliveryTimeTo(
+                        deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
+                      );
+                      setDeliveryTimeModalOpen(true);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                    title="Задать время доставки"
+                  >
+                    <span className="tabular-nums">
+                      {formatDeliveryClockTime(deliveryTimeFrom) ||
+                        formatDeliveryClockTime(deliveryTimeTo) ? (
+                        <>
+                          {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
+                          {" – "}
+                          {formatDeliveryClockTime(deliveryTimeTo) || "—"}
+                        </>
+                      ) : (
+                        <span className="text-admin-text-secondary">Не задано</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-admin-primary">Задать</span>
+                  </button>
+                </div>
+              </>
             )}
 
-            <div>
-              <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-admin-text-secondary">
+            <AdminModalShell
+              open={deliveryTimeModalOpen}
+              onCloseAction={() => setDeliveryTimeModalOpen(false)}
+              title="Время доставки"
+              maxWidthClass="sm:max-w-md"
+              footer={
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryTimeModalOpen(false)}
+                    className="rounded-lg border border-admin-border px-3 py-1.5 text-sm text-admin-text-secondary hover:bg-admin-muted"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryTimeFrom(
+                        draftDeliveryTimeFrom.trim()
+                          ? snapDeliveryClockToTenMinutes(draftDeliveryTimeFrom)
+                          : "",
+                      );
+                      setDeliveryTimeTo(
+                        draftDeliveryTimeTo.trim()
+                          ? snapDeliveryClockToTenMinutes(draftDeliveryTimeTo)
+                          : "",
+                      );
+                      setDeliveryTimeModalOpen(false);
+                    }}
+                    className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                  >
+                    Применить
+                  </button>
+                </div>
+              }
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-admin-text-secondary">
                   С
                   <div className="mt-1">
-                    <AdminDeliveryTimeInput value={deliveryTimeFrom} onChangeAction={setDeliveryTimeFrom} />
+                    <AdminDeliveryTimeInput
+                      value={draftDeliveryTimeFrom}
+                      onChangeAction={setDraftDeliveryTimeFrom}
+                    />
                   </div>
                 </label>
-                <label className="text-xs text-admin-text-secondary">
+                <label className="text-sm text-admin-text-secondary">
                   По
                   <div className="mt-1">
-                    <AdminDeliveryTimeInput value={deliveryTimeTo} onChangeAction={setDeliveryTimeTo} />
+                    <AdminDeliveryTimeInput
+                      value={draftDeliveryTimeTo}
+                      onChangeAction={setDraftDeliveryTimeTo}
+                    />
                   </div>
                 </label>
               </div>
-            </div>
+            </AdminModalShell>
           </div>
 
-          <div className="space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
+          <div className="flex h-full flex-col space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
             <fieldset>
               <legend className="mb-2 text-sm font-medium text-admin-text">Способ оплаты *</legend>
-              <div className="space-y-2 text-sm">
+              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap">
                 {PAYMENT_OPTIONS.map(({ value, label }) => (
                   <label
                     key={value}
-                    className={`flex cursor-pointer items-center gap-2 ${value === "card" && deliveryMethod === "belarus_courier" ? "opacity-40" : ""}`}
+                    className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1 ${value === "card" && deliveryMethod === "belarus_courier"
+                      ? "cursor-not-allowed opacity-40"
+                      : ""
+                      }`}
                   >
                     <input
                       type="radio"
@@ -2212,6 +2427,7 @@ export default function AdminOrderCreateForm({
                       checked={paymentMethod === value}
                       disabled={value === "card" && deliveryMethod === "belarus_courier"}
                       onChange={() => setPaymentMethod(value)}
+                      className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary disabled:cursor-not-allowed"
                     />
                     {label}
                   </label>
@@ -2231,104 +2447,180 @@ export default function AdminOrderCreateForm({
               />
             </label>
 
-            <div className="space-y-3 border-t border-admin-border/80 pt-4">
-              <h3 className="text-sm font-medium text-admin-text">Скидочная карта</h3>
-              {itemsLocked ? (
-                <div className="rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
-                  {initialOrder?.discount_card_number ? (
-                    <>
-                      Карта{" "}
-                      <span className="font-mono font-medium text-admin-text">{initialOrder.discount_card_number}</span>
-                      {parseQuoteMoney(initialOrder.discount_amount) > 0.004 ? (
-                        <>
-                          {" "}
-                          · скидка {initialOrder.discount_percent_snapshot}% (−{initialOrder.discount_amount} руб.)
-                        </>
-                      ) : (
-                        <span className="text-admin-text-secondary"> · скидка не применялась</span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-admin-text-secondary">Карта не применялась</span>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs leading-relaxed text-admin-text-secondary">
-                    Карта клиента подставляется автоматически. При оплате картой скидка по накопительной карте не
-                    начисляется.
-                  </p>
-                  {discountCardConfirmed ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
-                      <span>
-                        Применена{" "}
-                        <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
-                        {hasLoyaltyDiscount ? (
-                          <span className="text-emerald-800">
+            <div className="grid gap-4 border-t border-admin-border/80 pt-4 sm:grid-cols-2 sm:items-start">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-admin-text">Скидочная карта</h3>
+                {itemsLocked ? (
+                  <div className="rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
+                    {initialOrder?.discount_card_number ? (
+                      <>
+                        Карта{" "}
+                        <span className="font-mono font-medium text-admin-text">{initialOrder.discount_card_number}</span>
+                        {parseQuoteMoney(initialOrder.discount_amount) > 0.004 ? (
+                          <>
                             {" "}
-                            · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
-                          </span>
-                        ) : paymentMethod === "card" ? (
-                          <span className="text-admin-text-secondary"> · при оплате картой скидка не действует</span>
-                        ) : null}
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
-                        onClick={() => {
-                          setDiscountCardInput("");
-                          setAppliedDiscountCardNumber("");
-                          setDiscountCardError("");
-                          setDiscountCardManuallyCleared(true);
-                        }}
-                      >
-                        Убрать
-                      </button>
-                    </div>
-                  ) : <div className="flex flex-col gap-2 sm:flex-row">
+                            · скидка {initialOrder.discount_percent_snapshot}% (−{initialOrder.discount_amount} руб.)
+                          </>
+                        ) : (
+                          <span className="text-admin-text-secondary"> · скидка не применялась</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-admin-text-secondary">Карта не применялась</span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {discountCardConfirmed ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
+                        <span>
+                          Применена{" "}
+                          <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
+                          {hasLoyaltyDiscount ? (
+                            <span className="text-emerald-800">
+                              {" "}
+                              · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
+                            </span>
+                          ) : paymentMethod === "card" ? (
+                            <span className="text-admin-text-secondary"> · при оплате картой скидка не действует</span>
+                          ) : null}
+                        </span>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
+                          onClick={() => {
+                            setDiscountCardInput("");
+                            setAppliedDiscountCardNumber("");
+                            setDiscountCardError("");
+                            setDiscountCardManuallyCleared(true);
+                          }}
+                        >
+                          Убрать
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          value={discountCardInput}
+                          onChange={(e) => {
+                            setDiscountCardInput(e.target.value);
+                            setDiscountCardError("");
+                            if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
+                              setAppliedDiscountCardNumber("");
+                            }
+                          }}
+                          placeholder="Номер скидочной карты"
+                          className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          disabled={!discountCardInput.trim() || orderQuoteLoading}
+                          onClick={() => void applyDiscountCardToOrder(discountCardInput)}
+                          className="h-9 shrink-0 rounded-lg border border-admin-border bg-admin-surface px-2.5 text-xs font-medium disabled:opacity-40"
+                        >
+                          {orderQuoteLoading ? "…" : "Ок"}
+                        </button>
+                      </div>
+                    )}
+                    {context?.discount_cards.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {context.discount_cards.map((card) => (
+                          <button
+                            key={card.number}
+                            type="button"
+                            className="rounded-full border border-admin-border bg-admin-surface px-3 py-1 text-xs font-medium text-admin-text hover:bg-admin-muted"
+                            onClick={() => {
+                              setDiscountCardManuallyCleared(false);
+                              void applyDiscountCardToOrder(card.number);
+                            }}
+                          >
+                            {card.number} ({card.discount_percent}%)
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {discountCardError ? <p className="text-xs text-red-600">{discountCardError}</p> : null}
+                    {orderQuoteLoading ? <p className="text-xs text-admin-text-secondary">Пересчёт скидки…</p> : null}
+                    <p className="text-xs leading-relaxed text-admin-text-secondary">
+                      Карта клиента подставляется автоматически. При оплате картой скидка по накопительной карте не
+                      начисляется.
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-3 border-t border-admin-border/80 pt-4 sm:border-t-0 sm:pt-0">
+                <h3 className="text-sm font-medium text-admin-text">Подарочный сертификат</h3>
+                {itemsLocked ? (
+                  <div className="rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
+                    {initialOrder?.gift_certificate_code ? (
+                      <>
+                        Сертификат{" "}
+                        <span className="font-mono font-medium text-admin-text">
+                          {initialOrder.gift_certificate_code}
+                        </span>
+                        {parseQuoteMoney(initialOrder.gift_certificate_amount) > 0.004 ? (
+                          <> · −{initialOrder.gift_certificate_amount} руб.</>
+                        ) : (
+                          <span className="text-admin-text-secondary"> · не списан</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-admin-text-secondary">Сертификат не применялся</span>
+                    )}
+                  </div>
+                ) : giftCertificateConfirmed ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
+                    <span>
+                      Применён{" "}
+                      <span className="font-mono font-medium text-admin-text">{appliedGiftCertificateCode}</span>
+                      {hasGiftCertificateDiscount ? (
+                        <span className="text-emerald-800"> · −{giftCertificateAmountStr} руб.</span>
+                      ) : null}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
+                      onClick={() => {
+                        setGiftCertificateInput("");
+                        setAppliedGiftCertificateCode("");
+                        setGiftCertificateError("");
+                      }}
+                    >
+                      Убрать
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
                     <input
-                      value={discountCardInput}
+                      value={giftCertificateInput}
                       onChange={(e) => {
-                        setDiscountCardInput(e.target.value);
-                        setDiscountCardError("");
-                        if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
-                          setAppliedDiscountCardNumber("");
+                        setGiftCertificateInput(normalizeGiftCertificateCodeInput(e.target.value));
+                        setGiftCertificateError("");
+                        if (
+                          appliedGiftCertificateCode &&
+                          normalizeGiftCertificateCodeInput(e.target.value) !== appliedGiftCertificateCode
+                        ) {
+                          setAppliedGiftCertificateCode("");
                         }
                       }}
-                      placeholder="Номер скидочной карты"
+                      maxLength={64}
+                      autoComplete="off"
+                      placeholder="Код сертификата"
                       className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     />
                     <button
                       type="button"
-                      disabled={!discountCardInput.trim() || orderQuoteLoading}
-                      onClick={() => void applyDiscountCardToOrder(discountCardInput)}
-                      className="shrink-0 rounded-lg border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
+                      disabled={!normalizeGiftCertificateCodeInput(giftCertificateInput) || orderQuoteLoading}
+                      onClick={() => void applyGiftCertificateToOrder(giftCertificateInput)}
+                      className="h-9 shrink-0 rounded-lg border border-admin-border bg-admin-surface px-2.5 text-xs font-medium disabled:opacity-40"
                     >
-                      {orderQuoteLoading ? "Проверка…" : "Применить"}
+                      {orderQuoteLoading ? "…" : "Ок"}
                     </button>
                   </div>
-                  }
-                  {context?.discount_cards.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {context.discount_cards.map((card) => (
-                        <button
-                          key={card.number}
-                          type="button"
-                          className="rounded-full border border-admin-border bg-admin-surface px-3 py-1 text-xs font-medium text-admin-text hover:bg-admin-muted"
-                          onClick={() => {
-                            setDiscountCardManuallyCleared(false);
-                            void applyDiscountCardToOrder(card.number);
-                          }}
-                        >
-                          {card.number} ({card.discount_percent}%)
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {discountCardError ? <p className="text-xs text-red-600">{discountCardError}</p> : null}
-                  {orderQuoteLoading ? <p className="text-xs text-admin-text-secondary">Пересчёт скидки…</p> : null}
-                </>
-              )}
+                )}
+                {giftCertificateError ? <p className="text-xs text-red-600">{giftCertificateError}</p> : null}
+              </div>
             </div>
           </div>
         </div>
@@ -2402,17 +2694,103 @@ export default function AdminOrderCreateForm({
         />
       ) : null}
 
-      <div className="space-y-1 rounded-xl bg-admin-muted px-4 py-3 text-sm text-admin-text">
-        <div>Сумма товаров: {subtotalStr} руб.</div>
-        {hasLoyaltyDiscount ? (
-          <div>
-            Скидка по карте{appliedDiscountCardNumber ? ` ${appliedDiscountCardNumber}` : ""}: −{loyaltyDiscountStr}{" "}
-            руб.
+      <div className="overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-admin-card">
+        <div className="border-b border-admin-border bg-admin-muted/50 px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-admin-text">Итог заказа</h3>
+            {orderQuoteLoading ? (
+              <span className="text-[11px] text-admin-text-secondary">Пересчёт…</span>
+            ) : null}
           </div>
-        ) : null}
-        <div>Товары со скидкой: {merchandiseTotalStr} руб.</div>
-        <div>Доставка: {Math.max(0, Number(deliveryFee) || 0).toFixed(2)} руб.</div>
-        <div className="font-semibold text-admin-text">Итого: {orderTotalStr} руб.</div>
+        </div>
+
+        <div className="space-y-1 px-4 py-2.5 text-sm leading-5">
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>Кол-во товаров</span>
+            <span className="tabular-nums text-admin-text">{orderItemsQty} шт.</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>Сумма товаров</span>
+            <span className="tabular-nums text-admin-text">{formatMoneyRub(subtotalStr)}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>
+              Скидка по карте
+              {appliedDiscountCardNumber ? (
+                <>
+                  {" "}
+                  <span className="font-mono text-admin-text">{appliedDiscountCardNumber}</span>
+                  {hasLoyaltyDiscount ? (
+                    <span className="text-admin-text-secondary"> ({loyaltyPercentStr}%)</span>
+                  ) : null}
+                </>
+              ) : null}
+            </span>
+            <span className="shrink-0 tabular-nums text-admin-text">
+              {hasLoyaltyDiscount ? (
+                <span className="font-medium text-emerald-700">−{formatMoneyRub(loyaltyDiscountStr)}</span>
+              ) : appliedDiscountCardNumber && paymentMethod === "card" ? (
+                <span className="text-admin-text-secondary">не действует</span>
+              ) : (
+                <span className="text-admin-text-secondary">—</span>
+              )}
+            </span>
+          </div>
+
+          {hasLoyaltyDiscount ? (
+            <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+              <span>Товары со скидкой</span>
+              <span className="tabular-nums text-admin-text">{formatMoneyRub(merchandiseTotalStr)}</span>
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>
+              Сертификат
+              {appliedGiftCertificateCode ? (
+                <>
+                  {" "}
+                  <span className="font-mono text-admin-text">{appliedGiftCertificateCode}</span>
+                </>
+              ) : null}
+            </span>
+            <span className="shrink-0 tabular-nums text-admin-text">
+              {hasGiftCertificateDiscount ? (
+                <span className="font-medium text-emerald-700">−{formatMoneyRub(giftCertificateAmountStr)}</span>
+              ) : (
+                <span className="text-admin-text-secondary">—</span>
+              )}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>
+              Доставка
+              <span className="text-admin-text-secondary/80"> · {deliveryMethodLabel}</span>
+            </span>
+            <span className="tabular-nums text-admin-text">
+              {parseQuoteMoney(deliveryFeeStr) < 0.005 ? (
+                <span className="text-emerald-700">Бесплатно</span>
+              ) : (
+                formatMoneyRub(deliveryFeeStr)
+              )}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+            <span>Оплата</span>
+            <span className="text-right text-admin-text">{paymentMethodLabel}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-admin-border bg-admin-muted/40 px-4 py-2.5">
+          <span className="text-sm font-semibold text-admin-text">К оплате</span>
+          <span className="text-base font-semibold tabular-nums text-admin-text">
+            {formatMoneyRub(orderTotalStr)}
+          </span>
+        </div>
       </div>
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}

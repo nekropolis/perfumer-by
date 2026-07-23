@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type Option = {
     value: string;
@@ -19,6 +19,8 @@ type Props = {
     triggerTextClassName?: string;
     widthClassName?: string;
     menuWidthClassName?: string;
+    /** Выравнивание меню относительно триггера. `auto` — не уезжать за край экрана. */
+    menuAlign?: "left" | "right" | "auto";
 };
 
 export default function AdminStatusDropdown({
@@ -30,14 +32,41 @@ export default function AdminStatusDropdown({
     triggerTextClassName,
     widthClassName = "w-[168px]",
     menuWidthClassName = "w-[220px]",
+    menuAlign = "auto",
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
+    const [resolvedAlign, setResolvedAlign] = useState<"left" | "right">(
+        menuAlign === "right" ? "right" : "left",
+    );
+    const [openUp, setOpenUp] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
 
     const currentLabel = useMemo(
         () => options.find((item) => item.value === value)?.label ?? value,
-        [options, value]
+        [options, value],
     );
+
+    useLayoutEffect(() => {
+        if (!isOpen || !rootRef.current) {
+            return;
+        }
+        const rect = rootRef.current.getBoundingClientRect();
+        const menuWidth = 220;
+        const menuHeight = Math.min(320, options.length * 40 + 16);
+        const pad = 8;
+
+        if (menuAlign === "left") {
+            setResolvedAlign("left");
+        } else if (menuAlign === "right") {
+            setResolvedAlign("right");
+        } else {
+            const spaceRight = window.innerWidth - rect.left;
+            setResolvedAlign(spaceRight < menuWidth + pad ? "right" : "left");
+        }
+
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setOpenUp(spaceBelow < menuHeight + pad && rect.top > spaceBelow);
+    }, [isOpen, menuAlign, options.length]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -107,13 +136,18 @@ export default function AdminStatusDropdown({
         </button>
     );
 
+    const menuPositionClass = [
+        resolvedAlign === "right" ? "right-0 left-auto" : "left-0 right-auto",
+        openUp ? "bottom-[calc(100%+0.35rem)] top-auto" : "top-[calc(100%+0.35rem)] bottom-auto",
+    ].join(" ");
+
     return (
         <div className={rootClassName} ref={rootRef}>
             {triggerVariant === "text" ? textTrigger : defaultTrigger}
 
             {isOpen ? (
                 <div
-                    className={`absolute left-0 top-[calc(100%+0.35rem)] z-40 rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName}`}
+                    className={`absolute z-50 max-h-[min(20rem,70vh)] max-w-[min(220px,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName} ${menuPositionClass}`}
                     role="listbox"
                     aria-label="Выбор статуса"
                 >

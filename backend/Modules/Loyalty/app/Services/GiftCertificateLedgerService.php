@@ -190,23 +190,31 @@ class GiftCertificateLedgerService
 
     /**
      * Возврат на баланс при отмене заказа после списания.
+     * Учитывает уже сделанные возвраты по заказу (идемпотентно при повторных sync в админке).
      */
     public function refundOrderCertificates(Order $order): void
     {
         $rows = OrderGiftCertificate::query()->where('order_id', $order->id)->get();
         foreach ($rows as $row) {
             DB::transaction(function () use ($row, $order): void {
-                $exists = GiftCertificateTransaction::query()
-                    ->where('gift_certificate_id', $row->gift_certificate_id)
-                    ->where('order_id', $order->id)
-                    ->where('type', GiftCertificateTransaction::TYPE_REFUND)
-                    ->exists();
-                if ($exists) {
+                $locked = GiftCertificate::query()->whereKey($row->gift_certificate_id)->lockForUpdate()->firstOrFail();
+                $rowAmt = round((float) $row->amount_applied, 2);
+                if ($rowAmt <= 0) {
                     return;
                 }
 
-                $locked = GiftCertificate::query()->whereKey($row->gift_certificate_id)->lockForUpdate()->firstOrFail();
-                $amt = round((float) $row->amount_applied, 2);
+                $debited = (float) GiftCertificateTransaction::query()
+                    ->where('gift_certificate_id', $row->gift_certificate_id)
+                    ->where('order_id', $order->id)
+                    ->where('type', GiftCertificateTransaction::TYPE_DEBIT)
+                    ->sum('amount');
+                $refunded = (float) GiftCertificateTransaction::query()
+                    ->where('gift_certificate_id', $row->gift_certificate_id)
+                    ->where('order_id', $order->id)
+                    ->where('type', GiftCertificateTransaction::TYPE_REFUND)
+                    ->sum('amount');
+                $outstanding = round(max(0, $debited - $refunded), 2);
+                $amt = round(min($rowAmt, $outstanding), 2);
                 if ($amt <= 0) {
                     return;
                 }
@@ -223,6 +231,109 @@ class GiftCertificateLedgerService
                 $locked->save();
             });
         }
+    }
+
+    /**
+     * Сколько можно списать с сертификата в админ-заказе (с учётом уже списанного по этому заказу).
+     */
+    public function availableAmountForAdminOrder(GiftCertificate $cert, ?Order $order = null): float
+    {
+        $avail = $this->availableAmount($cert);
+        if ($order === null || ! $order->exists) {
+            return $avail;
+        }
+
+        $alreadyApplied = (float) OrderGiftCertificate::query()
+            ->where('order_id', $order->id)
+            ->where('gift_certificate_id', $cert->id)
+            ->sum('amount_applied');
+
+        return max(0, round($avail + $alreadyApplied, 2));
+    }
+
+    /**
+     * Можно ли применить сертификат в админке; для уже привязанного к заказу USED — разрешаем.
+     *
+     * @return array{message: string, code: string}|null
+     */
+    public function giftCertificateAdminApplyBlock(?GiftCertificate $cert, ?Order $order = null): ?array
+    {
+        if ($cert && $order && $order->exists && $cert->status === GiftCertificate::STATUS_USED) {
+            $onOrder = OrderGiftCertificate::query()
+                ->where('order_id', $order->id)
+                ->where('gift_certificate_id', $cert->id)
+                ->exists();
+            if ($onOrder) {
+                $rawCode = $cert->getAttributes()['code'] ?? null;
+                if ($rawCode === null || trim((string) $rawCode) === '') {
+                    return [
+                        'message' => 'Сертификат недействителен, свяжитесь с менеджером магазина.',
+                        'code' => 'GIFT_CERTIFICATE_INVALID',
+                    ];
+                }
+
+                return null;
+            }
+        }
+
+        return $this->giftCertificateApplyBlock($cert);
+    }
+
+    /**
+     * Прямое списание сертификата на заказ без корзины (создание/правка в админке).
+     */
+    public function debitForAdminOrder(Order $order, GiftCertificate $cert, float $amount): void
+    {
+        $amount = round(max(0, $amount), 2);
+        if ($amount <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($order, $cert, $amount): void {
+            /** @var GiftCertificate $locked */
+            $locked = GiftCertificate::query()->whereKey($cert->id)->lockForUpdate()->firstOrFail();
+            $apply = round(min($amount, $this->availableAmount($locked)), 2);
+            if ($apply <= 0) {
+                return;
+            }
+
+            $balBefore = (float) $locked->balance_amount;
+            $locked->balance_amount = max(0, round($balBefore - $apply, 2));
+            $balAfter = (float) $locked->balance_amount;
+
+            $this->writeTx($locked, GiftCertificateTransaction::TYPE_DEBIT, $apply, $balBefore, $balAfter, $order->id, null, null);
+
+            if ($locked->balance_amount <= 0) {
+                $locked->status = GiftCertificate::STATUS_USED;
+            }
+
+            $locked->save();
+
+            OrderGiftCertificate::query()->create([
+                'order_id' => $order->id,
+                'gift_certificate_id' => $locked->id,
+                'code_snapshot' => (string) $locked->code,
+                'amount_applied' => $apply,
+                'created_at' => now(),
+            ]);
+        });
+    }
+
+    /**
+     * Заменить списание сертификата по админ-заказу: возврат старых + новое списание (или очистка).
+     */
+    public function syncAdminOrderGiftCertificate(Order $order, ?GiftCertificate $cert, float $amount): void
+    {
+        DB::transaction(function () use ($order, $cert, $amount): void {
+            $this->refundOrderCertificates($order);
+            OrderGiftCertificate::query()->where('order_id', $order->id)->delete();
+
+            if ($cert === null || $amount <= 0) {
+                return;
+            }
+
+            $this->debitForAdminOrder($order, $cert, $amount);
+        });
     }
 
     private function writeTx(

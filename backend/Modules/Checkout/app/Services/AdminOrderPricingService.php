@@ -3,10 +3,17 @@
 namespace Modules\Checkout\Services;
 
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Checkout\Models\Order;
 use Modules\Loyalty\Models\DiscountCard;
+use Modules\Loyalty\Models\GiftCertificate;
+use Modules\Loyalty\Services\GiftCertificateLedgerService;
 
 final class AdminOrderPricingService
 {
+    public function __construct(
+        private readonly GiftCertificateLedgerService $giftLedger,
+    ) {}
+
     /**
      * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
      * @return array{
@@ -15,13 +22,19 @@ final class AdminOrderPricingService
      *     loyalty_discount_amount: float,
      *     discount_card_id: int|null,
      *     discount_card_number: string|null,
-     *     merchandise_total: float
+     *     gift_certificate: GiftCertificate|null,
+     *     gift_certificate_code: string|null,
+     *     gift_certificate_amount: float,
+     *     merchandise_total: float,
+     *     total_before_delivery: float
      * }
      */
     public function quote(
         array $items,
         string $paymentMethod,
         ?string $discountCardNumber,
+        ?string $giftCertificateCode = null,
+        ?Order $forOrder = null,
     ): array {
         $subtotal = $this->itemsSubtotal($items);
         $applyCardDiscount = $paymentMethod !== 'card';
@@ -35,13 +48,24 @@ final class AdminOrderPricingService
             : 0.0;
         $merchandiseTotal = max(0, round($subtotal - $loyaltyAmount, 2));
 
+        $gift = $this->resolveGiftCertificate($giftCertificateCode, $forOrder);
+        $giftAmount = 0.0;
+        if ($gift) {
+            $avail = $this->giftLedger->availableAmountForAdminOrder($gift, $forOrder);
+            $giftAmount = round(min($avail, $merchandiseTotal), 2);
+        }
+
         return [
             'subtotal' => round($subtotal, 2),
             'loyalty_discount_percent' => $percent,
             'loyalty_discount_amount' => $loyaltyAmount,
             'discount_card_id' => $card?->id,
             'discount_card_number' => $card?->card_number,
+            'gift_certificate' => $gift,
+            'gift_certificate_code' => $gift?->code,
+            'gift_certificate_amount' => $giftAmount,
             'merchandise_total' => $merchandiseTotal,
+            'total_before_delivery' => max(0, round($merchandiseTotal - $giftAmount, 2)),
         ];
     }
 
@@ -56,6 +80,36 @@ final class AdminOrderPricingService
             ->where('card_number', $number)
             ->where('status', DiscountCard::STATUS_ACTIVE)
             ->first();
+    }
+
+    /**
+     * @return array{message: string, code: string}|null null если код пустой или сертификат можно применить
+     */
+    public function giftCertificateValidationError(?string $giftCertificateCode, ?Order $forOrder = null): ?array
+    {
+        $code = trim((string) $giftCertificateCode);
+        if ($code === '') {
+            return null;
+        }
+
+        $cert = GiftCertificate::query()->where('code', $code)->first();
+
+        return $this->giftLedger->giftCertificateAdminApplyBlock($cert, $forOrder);
+    }
+
+    public function resolveGiftCertificate(?string $giftCertificateCode, ?Order $forOrder = null): ?GiftCertificate
+    {
+        $code = trim((string) $giftCertificateCode);
+        if ($code === '') {
+            return null;
+        }
+
+        $cert = GiftCertificate::query()->where('code', $code)->first();
+        if ($this->giftLedger->giftCertificateAdminApplyBlock($cert, $forOrder) !== null) {
+            return null;
+        }
+
+        return $cert;
     }
 
     /**
