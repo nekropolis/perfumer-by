@@ -57,9 +57,9 @@ export default function AdminLoyaltyReportsPage() {
         <AdminPageCard>
             <AdminTableToolbar title="Отчеты по лояльности" description="Покупки и суммы по картам за выбранный период">
                 <div className="flex flex-wrap items-center gap-2">
-                    <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-xl border px-3 py-2 text-sm" />
-                    <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-xl border px-3 py-2 text-sm" />
-                    <button type="button" onClick={() => void load()} className="rounded-xl border px-3 py-2 text-sm">
+                    <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+                    <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+                    <button type="button" onClick={() => void load()} className="rounded-lg border px-3 py-2 text-sm">
                         Применить
                     </button>
                 </div>
@@ -67,7 +67,7 @@ export default function AdminLoyaltyReportsPage() {
 
             {error && <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />}
 
-            <div className="mb-4 rounded-xl border bg-admin-muted px-4 py-3 text-sm">
+            <div className="mb-4 rounded-lg border bg-admin-muted px-4 py-3 text-sm">
                 Заказов с примененной картой за период: <span className="font-semibold">{ordersWithCards}</span>
             </div>
 

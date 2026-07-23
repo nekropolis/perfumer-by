@@ -168,19 +168,19 @@ export default function AttributeOptionsManager({
     return (
         <div className="space-y-6">
             {disabled ? (
-                <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
                     Для текстового атрибута список опций не используется.
                 </div>
             ) : null}
 
             {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}
                 </div>
             ) : null}
 
             {success ? (
-                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {success}
                 </div>
             ) : null}
@@ -223,7 +223,7 @@ export default function AttributeOptionsManager({
                                             type="button"
                                             onClick={() => !disabled && openEdit(item)}
                                             disabled={disabled}
-                                            className="rounded-md border px-2.5 py-1 text-xs disabled:opacity-50"
+                                            className="rounded-lg border px-2.5 py-1 text-xs disabled:opacity-50"
                                         >
                                             Редактировать
                                         </button>
@@ -232,7 +232,7 @@ export default function AttributeOptionsManager({
                                             type="button"
                                             onClick={() => setDeleteTarget(item)}
                                             disabled={disabled}
-                                            className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-600 disabled:opacity-50"
+                                            className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 disabled:opacity-50"
                                         >
                                             Удалить
                                         </button>
@@ -278,7 +278,7 @@ export default function AttributeOptionsManager({
                                             name: e.target.value,
                                         })
                                     }
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -295,7 +295,7 @@ export default function AttributeOptionsManager({
                                             sort_order: e.target.value,
                                         })
                                     }
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -318,7 +318,7 @@ export default function AttributeOptionsManager({
                             <button
                                 type="button"
                                 onClick={() => setCreateModalOpen(false)}
-                                className="rounded-xl border px-4 py-2 text-sm"
+                                className="rounded-lg border px-4 py-2 text-sm"
                             >
                                 Отмена
                             </button>
@@ -327,7 +327,7 @@ export default function AttributeOptionsManager({
                                 type="button"
                                 onClick={handleCreate}
                                 disabled={submitting}
-                                className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {submitting ? "Сохранение..." : "Сохранить"}
                             </button>
@@ -356,7 +356,7 @@ export default function AttributeOptionsManager({
                                             name: e.target.value,
                                         })
                                     }
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -373,7 +373,7 @@ export default function AttributeOptionsManager({
                                             sort_order: e.target.value,
                                         })
                                     }
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -396,7 +396,7 @@ export default function AttributeOptionsManager({
                             <button
                                 type="button"
                                 onClick={() => setEditForm(null)}
-                                className="rounded-xl border px-4 py-2 text-sm"
+                                className="rounded-lg border px-4 py-2 text-sm"
                             >
                                 Отмена
                             </button>
@@ -405,7 +405,7 @@ export default function AttributeOptionsManager({
                                 type="button"
                                 onClick={handleUpdate}
                                 disabled={submitting}
-                                className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {submitting ? "Сохранение..." : "Сохранить"}
                             </button>

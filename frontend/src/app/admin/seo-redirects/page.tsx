@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -180,7 +182,7 @@ export default function AdminSeoRedirectsPage() {
                         value={form.from_path}
                         onChange={(e) => setForm((prev) => ({ ...prev, from_path: e.target.value }))}
                         placeholder="/old-path"
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div className="lg:col-span-2">
@@ -190,7 +192,7 @@ export default function AdminSeoRedirectsPage() {
                         value={form.to_path}
                         onChange={(e) => setForm((prev) => ({ ...prev, to_path: e.target.value }))}
                         placeholder="/new-path (для 410 можно пусто)"
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -198,7 +200,7 @@ export default function AdminSeoRedirectsPage() {
                     <select
                         value={form.http_code}
                         onChange={(e) => setForm((prev) => ({ ...prev, http_code: e.target.value as "301" | "302" | "410" }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     >
                         <option value="301">301</option>
                         <option value="302">302</option>
@@ -207,7 +209,7 @@ export default function AdminSeoRedirectsPage() {
                 </div>
                 <div>
                     <label className="mb-1 block text-xs text-admin-text-secondary">Активен</label>
-                    <label className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
+                    <label className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
                         <input
                             type="checkbox"
                             checked={form.is_active}
@@ -222,7 +224,7 @@ export default function AdminSeoRedirectsPage() {
                         type="text"
                         value={form.source}
                         onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div className="lg:col-span-3">
@@ -231,7 +233,7 @@ export default function AdminSeoRedirectsPage() {
                         type="text"
                         value={form.note}
                         onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div className="lg:col-span-1 flex items-end gap-2">
@@ -239,7 +241,7 @@ export default function AdminSeoRedirectsPage() {
                         type="button"
                         onClick={handleSave}
                         disabled={submitting}
-                        className="w-full rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                        className={`${adminBtnPrimary} w-full`}
                     >
                         {submitting ? "Сохранение..." : form.id ? "Обновить" : "Создать"}
                     </button>
@@ -247,7 +249,7 @@ export default function AdminSeoRedirectsPage() {
                         <button
                             type="button"
                             onClick={resetForm}
-                            className="rounded-xl border px-4 py-2 text-sm"
+                            className="rounded-lg border px-4 py-2 text-sm"
                         >
                             Сброс
                         </button>

@@ -154,7 +154,7 @@ function AdminOrderCellTooltip({
 
     return createPortal(
         <div
-            className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
+            className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
             style={{ left: tooltip.x, top: tooltip.y }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
@@ -187,7 +187,7 @@ function AdminOrderItemsTooltip({
 
     return createPortal(
         <div
-            className="fixed z-[9999] max-w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-admin-border bg-admin-surface px-3 py-2.5 text-xs leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
+            className="fixed z-[9999] max-w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2.5 text-xs leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
             style={{ left: tooltip.x, top: tooltip.y }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
@@ -406,7 +406,7 @@ function AdminOrderDeliveryTimeCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="block w-full rounded-md px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted"
+                className="block w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted"
                 aria-label={`Время доставки заказа #${order.id}`}
                 title="Задать время доставки"
             >
@@ -766,7 +766,7 @@ export default function AdminOrdersTable({
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="flex max-w-full flex-col items-start rounded-md border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-surface focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                                        className="flex max-w-full flex-col items-start rounded-lg border border-transparent px-1 py-0.5 text-left transition hover:border-admin-border hover:bg-admin-surface focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200"
                                         aria-label="Фильтр по дате создания заказа"
                                     >
                                         <span className="tracking-wide text-admin-text-secondary">Дата</span>

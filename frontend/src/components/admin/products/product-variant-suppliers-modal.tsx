@@ -165,7 +165,7 @@ export default function ProductVariantSuppliersModal({
                         <button
                             type="button"
                             onClick={() => onCloseAction()}
-                            className="shrink-0 rounded-xl border px-3 py-1.5 text-sm"
+                            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
                         >
                             Закрыть
                         </button>

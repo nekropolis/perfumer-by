@@ -229,7 +229,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                             onClick={onCloseAction}
                             className="
                                 inline-flex h-9 w-9 shrink-0 items-center justify-center
-                                rounded-xl border border-admin-border bg-white text-xl leading-none
+                                rounded-lg border border-admin-border bg-white text-xl leading-none
                                 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text
                             "
                             aria-label="Закрыть"
@@ -395,7 +395,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                         />
                     </div>
 
-                    <div className="mt-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-white">
+                    <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950 px-4 py-3 text-white">
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-300">Итого:</span>
                             <span className="text-xl font-semibold">

@@ -80,7 +80,7 @@ export default function AdminBrandCreatePage() {
 
                 <Link
                     href="/admin/brands"
-                    className="rounded-xl border px-4 py-2 text-sm"
+                    className="rounded-lg border px-4 py-2 text-sm"
                 >
                     Назад
                 </Link>

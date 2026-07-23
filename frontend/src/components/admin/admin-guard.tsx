@@ -45,11 +45,11 @@ export default function AdminGuard({ children }: Props) {
                 </p>
 
                 <div className="flex gap-3">
-                    <Link href="/" className="rounded-xl border px-4 py-2">
+                    <Link href="/" className="rounded-lg border px-4 py-2">
                         На главную
                     </Link>
 
-                    <Link href="/account" className="rounded-full bg-admin-primary px-4 py-2 text-white">
+                    <Link href="/account" className="rounded-lg bg-admin-primary px-4 py-2 text-white">
                         В аккаунт
                     </Link>
                 </div>

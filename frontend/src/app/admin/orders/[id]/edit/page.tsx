@@ -49,7 +49,7 @@ export default function AdminOrderEditPage() {
         <div>
           <h1 className="text-2xl font-semibold">Редактировать заказ #{params.id}</h1>
         </div>
-        <Link href="/admin/orders" className="rounded-xl border px-4 py-2 text-sm">
+        <Link href="/admin/orders" className="rounded-lg border px-4 py-2 text-sm">
           Назад
         </Link>
       </div>

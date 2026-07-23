@@ -133,7 +133,7 @@ function ReportDetailsModal({
                         <h2 className="text-lg font-semibold">{title}</h2>
                         <p className="mt-1 text-sm text-admin-text-secondary">{subtitle}</p>
                     </div>
-                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-admin-text-secondary hover:bg-admin-muted">
+                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
                     </button>
                 </div>
@@ -475,12 +475,12 @@ export default function WarehouseReportsPage() {
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 />
                 <select
                     value={warehouseId}
                     onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 >
                     <option value="">Все склады</option>
                     {warehouses.map((warehouse) => (
@@ -493,7 +493,7 @@ export default function WarehouseReportsPage() {
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 />
 
                 {activeTab === "receipts" ? (
@@ -501,7 +501,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={supplierId}
                             onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="">Все поставщики</option>
                             {suppliers.map((supplier) => (
@@ -513,7 +513,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={receiptProductId}
                             onChange={(e) => setReceiptProductId(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="">Все товары</option>
                             {products.map((product) => (
@@ -530,7 +530,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={writeoffProductId}
                             onChange={(e) => setWriteoffProductId(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="">Все товары</option>
                             {products.map((product) => (
@@ -542,7 +542,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={writeoffType}
                             onChange={(e) => setWriteoffType(e.target.value)}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="">Все типы</option>
                             <option value="order">Заказ</option>
@@ -557,7 +557,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={salesReportBy}
                             onChange={(e) => setSalesReportBy(e.target.value as "orders" | "products")}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="orders">По заказам</option>
                             <option value="products">По товарам</option>
@@ -566,7 +566,7 @@ export default function WarehouseReportsPage() {
                         <select
                             value={groupBy}
                             onChange={(e) => setGroupBy(e.target.value as "day" | "month" | "year")}
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="day">По дням</option>
                             <option value="month">По месяцам</option>
@@ -577,7 +577,7 @@ export default function WarehouseReportsPage() {
                             <button
                                 type="button"
                                 onClick={() => setSalesProductsOpen((prev) => !prev)}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-left text-sm"
+                                className="w-full rounded-lg border bg-white px-3 py-2 text-left text-sm"
                             >
                                 {salesProductIds.length > 0 ? `Товары: ${salesProductIds.length}` : "Все товары"}
                             </button>
@@ -605,7 +605,7 @@ export default function WarehouseReportsPage() {
                                         {selectedSalesProducts.length > 0 ? (
                                             <div className="mb-1 border-b pb-2">
                                                 {selectedSalesProducts.map((product) => (
-                                                    <label key={`selected-${product.id}`} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-admin-muted">
+                                                    <label key={`selected-${product.id}`} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-admin-muted">
                                                         <input
                                                             type="checkbox"
                                                             checked
@@ -619,7 +619,7 @@ export default function WarehouseReportsPage() {
                                         {filteredSalesProducts.map((product) => {
                                             const checked = salesProductIds.includes(product.id);
                                             return (
-                                                <label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-admin-muted">
+                                                <label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-admin-muted">
                                                     <input
                                                         type="checkbox"
                                                         checked={checked}
@@ -651,31 +651,31 @@ export default function WarehouseReportsPage() {
 
             {activeTab === "receipts" && receiptSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{receiptSummary.documents_count}</span></div>
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{receiptSummary.qty_total}</span></div>
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Сумма: <span className="font-semibold">{receiptSummary.amount_total.toFixed(2)}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{receiptSummary.documents_count}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{receiptSummary.qty_total}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Сумма: <span className="font-semibold">{receiptSummary.amount_total.toFixed(2)}</span></div>
                 </div>
             ) : null}
 
             {activeTab === "writeoffs" && writeoffSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{writeoffSummary.documents_count}</span></div>
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{writeoffSummary.qty_total}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Документов: <span className="font-semibold">{writeoffSummary.documents_count}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Всего единиц: <span className="font-semibold">{writeoffSummary.qty_total}</span></div>
                 </div>
             ) : null}
 
             {activeTab === "sales" && salesSummary ? (
                 <div className="mb-4 grid gap-3 md:grid-cols-3">
                     {salesReportBy === "orders" ? (
-                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
+                        <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Заказов: <span className="font-semibold">{salesSummary.orders_count}</span></div>
                     ) : (
-                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Позиций в отчете: <span className="font-semibold">{salesRows.length}</span></div>
+                        <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Позиций в отчете: <span className="font-semibold">{salesRows.length}</span></div>
                     )}
-                    <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Единиц: <span className="font-semibold">{salesSummary.qty_total}</span></div>
+                    <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Единиц: <span className="font-semibold">{salesSummary.qty_total}</span></div>
                     {salesReportBy === "orders" ? (
-                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
+                        <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Выручка: <span className="font-semibold">{salesSummary.revenue_total.toFixed(2)}</span></div>
                     ) : (
-                        <div className="rounded-2xl border bg-admin-muted px-4 py-3 text-sm">Период: <span className="font-semibold">{dateFrom || "—"} - {dateTo || "—"}</span></div>
+                        <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm">Период: <span className="font-semibold">{dateFrom || "—"} - {dateTo || "—"}</span></div>
                     )}
                 </div>
             ) : null}
@@ -902,7 +902,7 @@ export default function WarehouseReportsPage() {
                                                 }
                                             })();
                                         }}
-                                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                                        className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
                                     >
                                         {writeoffReverseBusy ? "Отмена…" : "Отменить списание"}
                                     </button>

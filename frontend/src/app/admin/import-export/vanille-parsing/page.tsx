@@ -86,7 +86,7 @@ function DismissibleSuccessBanner({
     onCloseAction: () => void;
 }) {
     return (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">{message}</div>
 
@@ -110,7 +110,7 @@ function DismissibleAlert({
     onCloseAction: () => void;
 }) {
     return (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">{message}</div>
 
@@ -522,7 +522,7 @@ export default function VanilleProductsPage() {
                             type="button"
                             onClick={handleImportParsedProducts}
                             disabled={importingParsed || hasActiveParse}
-                            className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                            className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                         >
                             {importingParsed
                                 ? "Запуск..."
@@ -539,7 +539,7 @@ export default function VanilleProductsPage() {
                                     type="button"
                                     onClick={handlePipelineNewProducts}
                                     disabled={hasActiveParse}
-                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                                 >
                                     {hasActiveParse && parseJob?.type === "pipeline_new_products"
                                         ? "Выполняется..."
@@ -550,7 +550,7 @@ export default function VanilleProductsPage() {
                                     type="button"
                                     onClick={handlePipelineRefreshAll}
                                     disabled={hasActiveParse}
-                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                                 >
                                     {hasActiveParse && parseJob?.type === "pipeline_refresh_all"
                                         ? "Выполняется..."
@@ -567,7 +567,7 @@ export default function VanilleProductsPage() {
                                         )
                                     }
                                     disabled={hasActiveParse}
-                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                                 >
                                     {hasActiveParse && parseJob?.type === "parse_catalog_images"
                                         ? "Каталог…"
@@ -584,7 +584,7 @@ export default function VanilleProductsPage() {
                                         )
                                     }
                                     disabled={hasActiveParse}
-                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                                 >
                                     {hasActiveParse && parseJob?.type === "parse_product_images"
                                         ? "Галерея…"
@@ -601,7 +601,7 @@ export default function VanilleProductsPage() {
                                         )
                                     }
                                     disabled={hasActiveParse}
-                                    className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                                 >
                                     {hasActiveParse && parseJob?.type === "rewrite_descriptions"
                                         ? "Описания…"
@@ -610,7 +610,7 @@ export default function VanilleProductsPage() {
 
                                 <Link
                                     href="/admin/import-export/retry-queue"
-                                    className="inline-flex items-center rounded-xl border border-dashed border-gray-400 px-4 py-2 text-sm text-admin-text hover:bg-admin-muted"
+                                    className="inline-flex items-center rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-admin-text hover:bg-admin-muted"
                                 >
                                     Очередь ошибок
                                 </Link>
@@ -695,7 +695,7 @@ export default function VanilleProductsPage() {
                             </div>
 
                             {parseStatusLoading ? null : parseJob ? (
-                                <div className="rounded-xl border bg-admin-muted px-4 py-3 text-sm text-admin-text">
+                                <div className="rounded-lg border bg-admin-muted px-4 py-3 text-sm text-admin-text">
                                     <div className="font-medium">
                                         Статус: {parseJob.message || "Задача парсинга"}
                                     </div>

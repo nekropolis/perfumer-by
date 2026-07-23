@@ -206,7 +206,7 @@ export default function AdminIncomingCallDevicesPage() {
             </div>
 
             {managers.length === 0 && !loading ? (
-                <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     Нет пользователей с ролью <strong>Менеджер</strong>, <strong>Админ</strong> или{" "}
                     <strong>CEO</strong>. Откройте{" "}
                     <a href="/admin/users" className="font-medium underline">

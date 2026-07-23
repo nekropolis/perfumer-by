@@ -38,7 +38,7 @@ export default function LoyaltyCardUserSearchPanel({
                     placeholder="Поиск по имени/телефону/email"
                     syncWithUrl={false}
                 />
-                <button type="button" onClick={() => onSearchAction()} className="rounded-xl border px-4 py-2.5 text-sm">
+                <button type="button" onClick={() => onSearchAction()} className="rounded-lg border px-4 py-2.5 text-sm">
                     Найти
                 </button>
             </div>

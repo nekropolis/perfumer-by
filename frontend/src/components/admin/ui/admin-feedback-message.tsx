@@ -29,7 +29,7 @@ export default function AdminFeedbackMessage({
     return (
         <div className="fixed right-4 top-[4.5rem] z-[100]">
             <div
-                className={`min-w-[280px] max-w-md rounded-xl border px-4 py-3 text-sm shadow-lg ${styles}`}
+                className={`min-w-[280px] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg ${styles}`}
             >
                 <div className="flex items-start gap-3">
                     <div className="mt-0.5 shrink-0">

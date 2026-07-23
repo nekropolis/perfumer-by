@@ -351,7 +351,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                             } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""}`}
                                         >
                                             <span
-                                                className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+                                                className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
                                                     isActive
                                                         ? "bg-admin-primary/10 text-admin-primary"
                                                         : "text-admin-text-secondary group-hover:bg-white group-hover:text-admin-text"

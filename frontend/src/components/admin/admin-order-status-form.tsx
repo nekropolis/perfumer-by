@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
@@ -88,7 +90,7 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
                 type="button"
                 onClick={handleSave}
                 disabled={isPending || isTerminal || status === savedStatus}
-                className="w-full rounded-full bg-admin-primary px-4 py-2.5 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                className={`${adminBtnPrimary} w-full`}
             >
                 {isPending ? "Сохранение..." : "Сохранить"}
             </button>

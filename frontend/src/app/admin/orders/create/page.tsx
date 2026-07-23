@@ -26,7 +26,7 @@ export default function AdminOrderCreatePage() {
         <div>
           <h1 className="text-2xl font-semibold">Создать заказ</h1>
         </div>
-        <Link href="/admin/orders" className="rounded-xl border px-4 py-2 text-sm">
+        <Link href="/admin/orders" className="rounded-lg border px-4 py-2 text-sm">
           Назад
         </Link>
       </div>

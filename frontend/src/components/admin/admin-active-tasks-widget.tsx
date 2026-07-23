@@ -223,7 +223,7 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
                     role="status"
                     aria-live="polite"
                     title={task.message ? `${task.title}: ${task.message} · ${task.statusLabel}` : task.title}
-                    className={`inline-flex ${compact ? "h-9 max-w-[220px]" : "h-10 max-w-[260px]"} cursor-default items-center gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-2.5 text-xs shadow-sm`}
+                    className={`inline-flex ${compact ? "h-9 max-w-[220px]" : "h-10 max-w-[260px]"} cursor-default items-center gap-2 rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-2.5 text-xs shadow-sm`}
                 >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-inner">
                         <Loader2 size={13} className="animate-spin" />

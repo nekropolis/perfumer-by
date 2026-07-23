@@ -115,7 +115,7 @@ export default function AdminProductVariantEditPage() {
                     <p className="mt-1 text-sm text-admin-text-secondary">Редактирование варианта справочника</p>
                 </div>
 
-                <Link href={VARIANTS_BASE} className="rounded-xl border px-4 py-2 text-sm">
+                <Link href={VARIANTS_BASE} className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

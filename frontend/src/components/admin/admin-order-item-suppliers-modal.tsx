@@ -97,7 +97,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border text-lg"
                         aria-label="Закрыть"
                     >
                         ×

@@ -35,7 +35,7 @@ export default function ProductVariantDefinitionForm({
                         inputMode="decimal"
                         value={form.volume_ml}
                         onChange={(e) => onChangeAction({ ...form, volume_ml: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                         placeholder="1,3 или 100 (шаг 0,1)"
                     />
                 </div>
@@ -45,7 +45,7 @@ export default function ProductVariantDefinitionForm({
                         type="text"
                         value={form.concentration_code}
                         onChange={(e) => onChangeAction({ ...form, concentration_code: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                         placeholder="edt / edp / extrait de parfum"
                     />
                 </div>
@@ -55,7 +55,7 @@ export default function ProductVariantDefinitionForm({
                         type="text"
                         value={form.concentration_label}
                         onChange={(e) => onChangeAction({ ...form, concentration_label: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                         placeholder="Например: Парфюмерная вода"
                     />
                 </div>
@@ -130,7 +130,7 @@ export default function ProductVariantDefinitionForm({
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

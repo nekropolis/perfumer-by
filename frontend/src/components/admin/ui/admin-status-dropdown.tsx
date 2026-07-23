@@ -73,7 +73,7 @@ export default function AdminStatusDropdown({
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
             disabled={disabled}
-            className="flex h-9 w-full items-center justify-between rounded-lg border border-admin-border bg-admin-surface px-3 text-left text-sm text-admin-text shadow-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted"
+            className="flex min-h-10 w-full items-center justify-between rounded-lg border border-admin-border bg-admin-surface px-3 text-left text-sm text-admin-text shadow-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted"
             aria-haspopup="listbox"
             aria-expanded={isOpen}
             aria-label="Статус"
@@ -129,7 +129,7 @@ export default function AdminStatusDropdown({
                                     setIsOpen(false);
                                     onChangeAction(item.value);
                                 }}
-                                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
+                                className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
                             >
                                 <span>{item.label}</span>
                                 {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}

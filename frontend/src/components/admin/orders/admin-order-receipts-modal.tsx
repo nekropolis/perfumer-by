@@ -231,7 +231,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-admin-border bg-white text-xl leading-none text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-xl leading-none text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                                 aria-label="Закрыть"
                             >
                                 x
@@ -291,14 +291,14 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                         <button
                             type="button"
                             onClick={onCloseAction}
-                            className="rounded-xl border border-admin-border px-4 py-2.5 text-sm transition hover:bg-admin-muted"
+                            className="rounded-lg border border-admin-border px-4 py-2.5 text-sm transition hover:bg-admin-muted"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
                             onClick={handlePrint}
-                            className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
                         >
                             Печать
                         </button>

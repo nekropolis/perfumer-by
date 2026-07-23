@@ -117,7 +117,7 @@ function WriteoffDetailsModal({
                             {typeLabel(doc.type)} · {formatDate(doc.written_off_at)} · {getStockWriteoffStatusLabel(doc.status)}
                         </p>
                     </div>
-                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-admin-text-secondary hover:bg-admin-muted">
+                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
                     </button>
                 </div>
@@ -196,7 +196,7 @@ function WriteoffDetailsModal({
                                         }
                                     })();
                                 }}
-                                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                                className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
                             >
                                 {busy ? "Отмена…" : "Отменить списание"}
                             </button>
@@ -323,41 +323,45 @@ export default function AdminWarehouseWriteoffsPage() {
                         Создать документ
                     </Link>
                 }
-            >
-                <AdminSearchInput
-                    value={search}
-                    onChangeAction={setSearch}
-                    placeholder="Поиск по документу, комментарию или ID заказа"
-                />
-                <select
-                    value={warehouseId}
-                    onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                    className="rounded-xl border px-3 py-2 text-sm"
-                >
-                    <option value="">Все склады</option>
-                    {warehouses.map((warehouse) => (
-                        <option key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                        </option>
-                    ))}
-                </select>
-                <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="rounded-xl border px-3 py-2 text-sm"
-                >
-                    <option value="">Все типы</option>
-                    <option value="order">Заказ</option>
-                    <option value="manual">Ручное</option>
-                    <option value="reserve">Резерв</option>
-                </select>
-            </AdminTableToolbar>
+            />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}
 
             <AdminTableShell
                 total={meta?.total ?? items.length}
+                search={
+                    <>
+                        <select
+                            value={warehouseId}
+                            onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
+                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
+                        >
+                            <option value="">Все склады</option>
+                            {warehouses.map((warehouse) => (
+                                <option key={warehouse.id} value={warehouse.id}>
+                                    {warehouse.name}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value)}
+                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
+                        >
+                            <option value="">Все типы</option>
+                            <option value="order">Заказ</option>
+                            <option value="manual">Ручное</option>
+                            <option value="reserve">Резерв</option>
+                        </select>
+                        <AdminSearchInput
+                            value={search}
+                            onChangeAction={setSearch}
+                            placeholder="Поиск по документу, комментарию или ID заказа"
+                            className="w-full sm:w-auto"
+                        />
+                    </>
+                }
                 footer={
                     <AdminPagination
                         currentPage={meta?.current_page ?? 1}

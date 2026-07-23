@@ -49,7 +49,7 @@ export default function AdminOrderInventorySync({ orderId, canSync }: Props) {
                 type="button"
                 onClick={() => setOpen(true)}
                 disabled={isPending}
-                className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-950 hover:bg-amber-100/60 disabled:opacity-50"
+                className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-950 hover:bg-amber-100/60 disabled:opacity-50"
             >
                 Создать списание по резервам
             </button>

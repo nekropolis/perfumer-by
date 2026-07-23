@@ -287,7 +287,7 @@ export default function AdminLegacyProductsPage() {
                                         value={targetSearchInput}
                                         onChange={(e) => setTargetSearchInput(e.target.value)}
                                         placeholder="Поиск по name/slug (мин. 2 символа)"
-                                        className="mb-2 w-full rounded-xl border px-3 py-2 text-sm"
+                                        className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
                                     />
                                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-2">
                                         {targetCandidates.length === 0 ? (
@@ -319,14 +319,14 @@ export default function AdminLegacyProductsPage() {
                         )}
 
                         <div className="flex items-center justify-end gap-2 border-t pt-4">
-                            <button type="button" onClick={closeLinkModal} className="rounded-xl border px-4 py-2 text-sm">
+                            <button type="button" onClick={closeLinkModal} className="rounded-lg border px-4 py-2 text-sm">
                                 Отмена
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmLink}
                                 disabled={!selectedTargetId || linking}
-                                className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {linking ? "Связывание..." : "Подтвердить связь (перезаписать поля + 301)"}
                             </button>
@@ -347,14 +347,14 @@ export default function AdminLegacyProductsPage() {
                             <textarea
                                 value={skipReason}
                                 onChange={(e) => setSkipReason(e.target.value)}
-                                className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                                className="min-h-[120px] w-full rounded-lg border px-3 py-2 text-sm"
                             />
                         </div>
                         <div className="mt-4 flex justify-end gap-2 border-t pt-4">
                             <button
                                 type="button"
                                 onClick={() => setSkipTarget(null)}
-                                className="rounded-xl border px-4 py-2 text-sm"
+                                className="rounded-lg border px-4 py-2 text-sm"
                             >
                                 Отмена
                             </button>
@@ -362,7 +362,7 @@ export default function AdminLegacyProductsPage() {
                                 type="button"
                                 onClick={confirmSkip}
                                 disabled={skipping}
-                                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 disabled:opacity-50"
+                                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 disabled:opacity-50"
                             >
                                 {skipping ? "Сохранение..." : "Пропустить"}
                             </button>

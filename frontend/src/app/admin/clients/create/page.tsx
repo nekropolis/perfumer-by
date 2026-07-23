@@ -69,7 +69,7 @@ export default function AdminClientsCreatePage() {
                     <h1 className="text-2xl font-semibold">Создать клиента</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Новый клиент в админской CRUD форме</p>
                 </div>
-                <Link href="/admin/clients" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/clients" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

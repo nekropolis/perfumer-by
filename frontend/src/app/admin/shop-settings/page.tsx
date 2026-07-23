@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import { useEffect, useMemo, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
@@ -110,7 +112,7 @@ function BrandPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Начните вводить название…"
-                className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                 autoComplete="off"
             />
             {query.trim() ? (
@@ -283,7 +285,7 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) =>
                                         setForm((f) => ({ ...f, delivery_minsk_free_threshold: Number(e.target.value) }))
                                     }
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
@@ -294,7 +296,7 @@ export default function AdminShopSettingsPage() {
                                     min={0}
                                     value={form.delivery_minsk_fee}
                                     onChange={(e) => setForm((f) => ({ ...f, delivery_minsk_fee: Number(e.target.value) }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
@@ -305,7 +307,7 @@ export default function AdminShopSettingsPage() {
                                     min={0}
                                     value={form.delivery_belarus_fee}
                                     onChange={(e) => setForm((f) => ({ ...f, delivery_belarus_fee: Number(e.target.value) }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                             <div>
@@ -319,7 +321,7 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) =>
                                         setForm((f) => ({ ...f, delivery_belarus_free_min_lines: Number(e.target.value) }))
                                     }
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
                             </div>
                         </div>
@@ -340,7 +342,7 @@ export default function AdminShopSettingsPage() {
                                                 : "",
                                         }))
                                     }
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
                                 <p className="mt-1 text-xs text-admin-text-secondary">
                                     Отображается в карточке товара и корзине для позиций со скидкой за ожидание.
@@ -408,7 +410,7 @@ export default function AdminShopSettingsPage() {
                                     type="text"
                                     value={form.contact_phone_mts}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_mts: e.target.value }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
@@ -418,7 +420,7 @@ export default function AdminShopSettingsPage() {
                                     type="text"
                                     value={form.contact_phone_a1}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_a1: e.target.value }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
@@ -428,7 +430,7 @@ export default function AdminShopSettingsPage() {
                                     type="text"
                                     value={form.contact_phone_life}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_life: e.target.value }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
                                 />
                             </div>
@@ -438,7 +440,7 @@ export default function AdminShopSettingsPage() {
                                     type="url"
                                     value={form.contact_telegram_url}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_telegram_url: e.target.value }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="https://t.me/…"
                                 />
                             </div>
@@ -448,7 +450,7 @@ export default function AdminShopSettingsPage() {
                                     type="text"
                                     value={form.contact_viber_url}
                                     onChange={(e) => setForm((f) => ({ ...f, contact_viber_url: e.target.value }))}
-                                    className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="viber://chat?number=…"
                                 />
                                 <p className="mt-1 text-xs text-admin-text-secondary">Допустимы ссылки вида viber://…</p>
@@ -461,7 +463,7 @@ export default function AdminShopSettingsPage() {
                             type="button"
                             onClick={() => void save()}
                             disabled={saving}
-                            className="rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                            className={`${adminBtnPrimary} w-full sm:w-auto`}
                         >
                             {saving ? "Сохранение..." : "Сохранить"}
                         </button>

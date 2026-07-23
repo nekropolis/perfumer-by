@@ -84,7 +84,7 @@ export default function AdminProductVariantCreatePage() {
                     <p className="mt-1 text-sm text-admin-text-secondary">Создание нового варианта в справочнике</p>
                 </div>
 
-                <Link href={VARIANTS_BASE} className="rounded-xl border px-4 py-2 text-sm">
+                <Link href={VARIANTS_BASE} className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

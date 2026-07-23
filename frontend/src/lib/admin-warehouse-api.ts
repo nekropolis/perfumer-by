@@ -763,13 +763,23 @@ export type StockBalanceVariantSupplierRow = {
     supplier_sku: string | null;
     supplier_product_name: string | null;
     supplier_price: string | number | null;
+    qty?: number;
+    received_at?: string | null;
 };
 
-export async function fetchStockBalanceVariantSuppliers(
-    variantId: number,
-): Promise<{ data: StockBalanceVariantSupplierRow[] }> {
+export async function fetchStockBalanceVariantSuppliers(params: {
+    variant_id: number;
+    warehouse_id?: number | null;
+    stock?: number | null;
+}): Promise<{ data: StockBalanceVariantSupplierRow[] }> {
     const searchParams = new URLSearchParams();
-    searchParams.set("variant_id", String(variantId));
+    searchParams.set("variant_id", String(params.variant_id));
+    if (typeof params.warehouse_id === "number" && params.warehouse_id > 0) {
+        searchParams.set("warehouse_id", String(params.warehouse_id));
+    }
+    if (typeof params.stock === "number" && params.stock >= 0) {
+        searchParams.set("stock", String(params.stock));
+    }
 
     const res = await fetch(
         `${API_BASE}/admin/stock/balances/variant-suppliers?${searchParams.toString()}`,

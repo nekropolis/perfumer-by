@@ -816,7 +816,7 @@ export default function SellerOneImportPage() {
                     </div>
 
                     <div className="flex w-full min-w-0 flex-row items-center gap-2 md:w-auto md:justify-end">
-                        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-admin-text shadow-sm transition hover:border-gray-400 hover:bg-admin-muted focus-within:ring-2 focus-within:ring-blue-200">
+                        <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-admin-text shadow-sm transition hover:border-gray-400 hover:bg-admin-muted focus-within:ring-2 focus-within:ring-blue-200">
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-[11px] text-admin-text-secondary">
                                 +
                             </span>
@@ -839,7 +839,7 @@ export default function SellerOneImportPage() {
                         type="button"
                         onClick={handlePreviewSupplierPrice}
                         disabled={supplierPreviewLoading || cancelParseLoading || !supplierFile}
-                        className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+                        className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                     >
                         {supplierPreviewLoading ? "Парсинг..." : "Новый парсинг"}
                     </button>
@@ -848,18 +848,18 @@ export default function SellerOneImportPage() {
                             type="button"
                             onClick={() => void handleCancelParse()}
                             disabled={cancelParseLoading}
-                            className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 hover:bg-red-100 disabled:opacity-50"
+                            className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 hover:bg-red-100 disabled:opacity-50"
                         >
                             {cancelParseLoading ? "Остановка..." : "Остановить парсинг"}
                         </button>
                     ) : null}
-                    <button type="button" onClick={() => void openRulesModal()} className="rounded-xl border px-4 py-2 text-sm">
+                    <button type="button" onClick={() => void openRulesModal()} className="rounded-lg border px-4 py-2 text-sm">
                         Правила поиска
                     </button>
                     <button
                         type="button"
                         onClick={() => void openDuplicateLinksModal()}
-                        className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 hover:bg-amber-100"
+                        className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 hover:bg-amber-100"
                     >
                         Дубли variant_id
                     </button>
@@ -867,7 +867,7 @@ export default function SellerOneImportPage() {
 
                 {batchProgress ? (
                     <div
-                        className={`rounded-xl border px-3 py-2 text-sm ${supplierPreviewLoading
+                        className={`rounded-lg border px-3 py-2 text-sm ${supplierPreviewLoading
                             ? "border-blue-200 bg-blue-50 text-blue-700"
                             : "border-admin-border bg-admin-muted text-admin-text"
                             }`}
@@ -900,7 +900,7 @@ export default function SellerOneImportPage() {
                             <button
                                 type="button"
                                 onClick={resetFilters}
-                                className="shrink-0 self-end rounded-xl border px-2 py-2 text-xs whitespace-nowrap text-admin-text-secondary hover:bg-admin-muted sm:px-3"
+                                className="shrink-0 self-end rounded-lg border px-2 py-2 text-xs whitespace-nowrap text-admin-text-secondary hover:bg-admin-muted sm:px-3"
                             >
                                 Сбросить
                             </button>
@@ -912,7 +912,7 @@ export default function SellerOneImportPage() {
 
                 {!loading && items.length > 0 ? (
                     <div className="space-y-4">
-                        <div className="w-full rounded-xl border bg-admin-muted px-4 py-3">
+                        <div className="w-full rounded-lg border bg-admin-muted px-4 py-3">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-admin-text-secondary">
                                 <span className="font-medium text-admin-text">
                                     Всего: {meta?.total ?? items.length}

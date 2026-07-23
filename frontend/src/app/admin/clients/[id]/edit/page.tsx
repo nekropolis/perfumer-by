@@ -106,7 +106,7 @@ export default function AdminClientsEditPage() {
                     <h1 className="text-2xl font-semibold">Редактировать клиента</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Изменение полей профиля</p>
                 </div>
-                <Link href="/admin/clients" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/clients" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

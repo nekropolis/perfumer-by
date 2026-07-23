@@ -145,7 +145,7 @@ export default function AdminLoyaltyCardEditPage() {
                     <h1 className="text-2xl font-semibold">Редактировать карту {form?.number ? `- ${form.number}` : ""}</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Редактирование карты лояльности</p>
                 </div>
-                <Link href="/admin/loyalty/cards" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/loyalty/cards" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>
@@ -176,7 +176,7 @@ export default function AdminLoyaltyCardEditPage() {
                                         </div>
                                         <button
                                             type="button"
-                                            className="shrink-0 rounded-xl border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                            className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
                                             disabled={detachingUserId === u.id}
                                             onClick={() => void detachAttachedUser(u.id)}
                                         >
@@ -205,7 +205,7 @@ export default function AdminLoyaltyCardEditPage() {
                             <button
                                 type="button"
                                 onClick={() => void attachSelectedUsers()}
-                                className="rounded-xl border px-4 py-2.5 text-sm"
+                                className="rounded-lg border px-4 py-2.5 text-sm"
                                 disabled={usersToAttach.length === 0}
                             >
                                 Привязать выбранных

@@ -88,7 +88,7 @@ export default function AdminGiftCertificateCreatePage() {
                     <h1 className="text-2xl font-semibold">Создать сертификат</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Создание нового подарочного сертификата</p>
                 </div>
-                <Link href="/admin/loyalty/certificates" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/loyalty/certificates" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

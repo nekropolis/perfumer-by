@@ -513,7 +513,7 @@ export default function StockReceiptsImportSystemPage() {
                     type="button"
                     onClick={() => void ensureMeta()}
                     disabled={loadingMeta}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 >
                     {loadingMeta ? "Загрузка..." : "Загрузить справочники"}
                 </button>
@@ -528,13 +528,13 @@ export default function StockReceiptsImportSystemPage() {
                         setParsedTotalRows(null);
                         setLinkedDraftReceiptId(null);
                     }}
-                    className="block w-full rounded-xl border px-3 py-2 text-sm"
+                    className="block w-full rounded-lg border px-3 py-2 text-sm"
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
                     <select
                         value={warehouseId}
                         onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                        className="rounded-xl border px-3 py-2 text-sm"
+                        className="rounded-lg border px-3 py-2 text-sm"
                     >
                         <option value="">Склад</option>
                         {warehouses.map((item) => (
@@ -546,7 +546,7 @@ export default function StockReceiptsImportSystemPage() {
                     <select
                         value={supplierId}
                         onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
-                        className="rounded-xl border px-3 py-2 text-sm"
+                        className="rounded-lg border px-3 py-2 text-sm"
                     >
                         <option value="">Поставщик</option>
                         {suppliers.map((item) => (
@@ -560,19 +560,19 @@ export default function StockReceiptsImportSystemPage() {
                     type="datetime-local"
                     value={receivedAt}
                     onChange={(e) => setReceivedAt(e.target.value)}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 />
                 <input
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    className="rounded-xl border px-3 py-2 text-sm"
+                    className="rounded-lg border px-3 py-2 text-sm"
                 />
                 <div className="flex flex-wrap gap-2">
                     <button
                         type="button"
                         onClick={() => void handleLoadXls()}
                         disabled={loadingXls || committing}
-                        className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                        className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                     >
                         {loadingXls ? importProgress || "Разбор XLS…" : "Загрузить XLS"}
                     </button>
@@ -580,7 +580,7 @@ export default function StockReceiptsImportSystemPage() {
                         type="button"
                         onClick={() => void handleCommitReceipt()}
                         disabled={!canCommit || committing || loadingXls}
-                        className="rounded-xl border border-black bg-white px-4 py-2 text-sm font-medium disabled:opacity-60"
+                        className="rounded-lg border border-black bg-white px-4 py-2 text-sm font-medium disabled:opacity-60"
                     >
                         {committing ? "Сохранение…" : linkedDraftReceiptId ? "Добавить в приход" : "Создать приход"}
                     </button>
@@ -589,7 +589,7 @@ export default function StockReceiptsImportSystemPage() {
                             type="button"
                             onClick={() => void handleClearReceiptBinding()}
                             disabled={committing || loadingXls}
-                            className="rounded-xl border px-4 py-2 text-sm text-admin-text disabled:opacity-60"
+                            className="rounded-lg border px-4 py-2 text-sm text-admin-text disabled:opacity-60"
                         >
                             Новый документ (сброс привязки)
                         </button>

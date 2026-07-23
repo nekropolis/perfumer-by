@@ -325,7 +325,7 @@ export default function AdminOrdersPage() {
                                     type="button"
                                     onClick={handleOpenReceiptModal}
                                     disabled={selectedOrders.length === 0 || receiptOptionsLoading}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex items-center gap-2 rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50"
                                     title="Печать товарных чеков"
                                 >
                                     <Printer size={16} />
@@ -335,7 +335,7 @@ export default function AdminOrdersPage() {
                                 <button
                                     type="button"
                                     onClick={handleReset}
-                                    className="rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted"
+                                    className="rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted"
                                 >
                                     Сбросить
                                 </button>
@@ -359,7 +359,7 @@ export default function AdminOrdersPage() {
                         <select
                             value={productFilter}
                             onChange={(e) => setProductFilter(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-xl border border-admin-border bg-white px-3 py-2.5 text-sm"
+                            className="rounded-lg border border-admin-border bg-white px-3 py-2.5 text-sm"
                         >
                             <option value="">Все товары</option>
                             {products.map((product) => (
@@ -372,7 +372,7 @@ export default function AdminOrdersPage() {
                         <button
                             type="button"
                             onClick={handleReset}
-                            className="shrink-0 self-start rounded-xl border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted sm:self-end"
+                            className="shrink-0 self-start rounded-lg border border-admin-border bg-white px-4 py-2.5 text-sm transition hover:bg-admin-muted sm:self-end"
                         >
                             Сбросить
                         </button>

@@ -212,7 +212,7 @@ function VariantFormFields({
                         step="0.01"
                         value={form.price}
                         onChange={(e) => setForm((prev) => ({ ...prev, price: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
 
@@ -223,7 +223,7 @@ function VariantFormFields({
                         step="0.01"
                         value={form.old_price}
                         onChange={(e) => setForm((prev) => ({ ...prev, old_price: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
 
@@ -233,7 +233,7 @@ function VariantFormFields({
                         type="number"
                         value={form.stock}
                         onChange={(e) => setForm((prev) => ({ ...prev, stock: e.target.value }))}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
 
@@ -245,7 +245,7 @@ function VariantFormFields({
                         onChange={(e) =>
                             setForm((prev) => ({ ...prev, sort_order: e.target.value }))
                         }
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
             </div>
@@ -483,13 +483,13 @@ export default function ProductVariantsEditor({
     return (
         <div className="space-y-6">
             {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {error}
                 </div>
             ) : null}
 
             {success ? (
-                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {success}
                 </div>
             ) : null}
@@ -518,7 +518,7 @@ export default function ProductVariantsEditor({
                         {sortedItems.map((item) => (
                             <div
                                 key={item.id}
-                                className="rounded-xl border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
+                                className="rounded-lg border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
                             >
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
                                     <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_88px_56px] sm:items-center sm:gap-3">
@@ -567,7 +567,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openInfo(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-700 transition hover:bg-blue-50"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 transition hover:bg-blue-50"
                                                 title="Информация о привязках"
                                                 aria-label="Информация о привязках"
                                             >
@@ -586,7 +586,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-admin-text transition hover:bg-white"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
                                                 title="Редактировать"
                                                 aria-label="Редактировать"
                                             >
@@ -609,7 +609,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => setDeleteTarget(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
                                                 title="Удалить"
                                                 aria-label="Удалить"
                                             >
@@ -634,7 +634,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openInfo(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-700 transition hover:bg-blue-50"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 transition hover:bg-blue-50"
                                                 title="Информация о привязках"
                                                 aria-label="Информация о привязках"
                                             >
@@ -653,7 +653,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-admin-text transition hover:bg-white"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
                                                 title="Редактировать"
                                                 aria-label="Редактировать"
                                             >
@@ -676,7 +676,7 @@ export default function ProductVariantsEditor({
                                             <button
                                                 type="button"
                                                 onClick={() => setDeleteTarget(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
                                                 title="Удалить"
                                                 aria-label="Удалить"
                                             >
@@ -744,7 +744,7 @@ export default function ProductVariantsEditor({
                                             type="text"
                                             value={variantSearch}
                                             onChange={(e) => setVariantSearch(e.target.value)}
-                                            className="w-full max-w-md rounded-xl border px-3 py-2 text-sm"
+                                            className="w-full max-w-md rounded-lg border px-3 py-2 text-sm"
                                             placeholder="Например: 100"
                                         />
                                         <span className="inline-flex items-center text-xs text-admin-text-secondary">
@@ -792,7 +792,7 @@ export default function ProductVariantsEditor({
                                 <button
                                     type="button"
                                     onClick={() => setCreateModalOpen(false)}
-                                    className="rounded-xl border px-4 py-2 text-sm"
+                                    className="rounded-lg border px-4 py-2 text-sm"
                                 >
                                     Отмена
                                 </button>
@@ -801,7 +801,7 @@ export default function ProductVariantsEditor({
                                     type="button"
                                     onClick={handleCreate}
                                     disabled={submitting}
-                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>
@@ -844,7 +844,7 @@ export default function ProductVariantsEditor({
                                 <button
                                     type="button"
                                     onClick={() => setEditForm(null)}
-                                    className="rounded-xl border px-4 py-2 text-sm"
+                                    className="rounded-lg border px-4 py-2 text-sm"
                                 >
                                     Отмена
                                 </button>
@@ -853,7 +853,7 @@ export default function ProductVariantsEditor({
                                     type="button"
                                     onClick={handleUpdate}
                                     disabled={submitting}
-                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>

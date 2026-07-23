@@ -65,7 +65,7 @@ function ReceiptDetailsModal({
                             {row.supplier_name} · {formatDate(row.received_at)}
                         </p>
                     </div>
-                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border text-lg text-admin-text-secondary hover:bg-admin-muted">
+                    <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
                     </button>
                 </div>
@@ -214,30 +214,34 @@ export default function AdminWarehouseReceiptsPage() {
                         </Link>
                     </div>
                 }
-            >
-                <AdminSearchInput
-                    value={search}
-                    onChangeAction={setSearch}
-                    placeholder="Поиск по номеру документа, поставщику или коду"
-                />
-                <select
-                    value={warehouseId}
-                    onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                    className="rounded-xl border px-3 py-2 text-sm"
-                >
-                    <option value="">Все склады</option>
-                    {warehouses.map((warehouse) => (
-                        <option key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
-                        </option>
-                    ))}
-                </select>
-            </AdminTableToolbar>
+            />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
 
             <AdminTableShell
                 total={meta?.total ?? items.length}
+                search={
+                    <>
+                        <select
+                            value={warehouseId}
+                            onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
+                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
+                        >
+                            <option value="">Все склады</option>
+                            {warehouses.map((warehouse) => (
+                                <option key={warehouse.id} value={warehouse.id}>
+                                    {warehouse.name}
+                                </option>
+                            ))}
+                        </select>
+                        <AdminSearchInput
+                            value={search}
+                            onChangeAction={setSearch}
+                            placeholder="Поиск по номеру документа, поставщику или коду"
+                            className="w-full sm:w-auto"
+                        />
+                    </>
+                }
                 footer={
                     <AdminPagination
                         currentPage={meta?.current_page ?? 1}

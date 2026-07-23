@@ -95,7 +95,7 @@ export default function AdminRichTextEditor({
 
     if (!editor) {
         return (
-            <div className="rounded-2xl border bg-white px-4 py-3 text-sm text-admin-text-secondary">
+            <div className="rounded-lg border bg-white px-4 py-3 text-sm text-admin-text-secondary">
                 Загрузка редактора...
             </div>
         );

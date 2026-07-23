@@ -132,7 +132,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-lg leading-none text-admin-text-secondary hover:bg-admin-muted"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-lg leading-none text-admin-text-secondary hover:bg-admin-muted"
                         aria-label="Закрыть"
                     >
                         ×
@@ -153,7 +153,7 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
                     <button
                         type="button"
                         onClick={onCloseAction}
-                        className="rounded-xl border border-admin-border px-4 py-2 text-sm hover:bg-admin-muted"
+                        className="rounded-lg border border-admin-border px-4 py-2 text-sm hover:bg-admin-muted"
                     >
                         Закрыть
                     </button>
@@ -247,7 +247,7 @@ export default function AdminAuditLogPage() {
                                 setEntityFilter(e.target.value);
                                 setPage(1);
                             }}
-                            className="min-w-[200px] rounded-xl border px-3 py-2 text-sm"
+                            className="min-w-[200px] rounded-lg border px-3 py-2 text-sm"
                         >
                             {ENTITY_FILTER_OPTIONS.map((o) => (
                                 <option key={o.value || "all"} value={o.value}>
@@ -265,7 +265,7 @@ export default function AdminAuditLogPage() {
                                 setActionFilter(e.target.value);
                                 setPage(1);
                             }}
-                            className="min-w-[180px] rounded-xl border px-3 py-2 text-sm"
+                            className="min-w-[180px] rounded-lg border px-3 py-2 text-sm"
                         >
                             {ACTION_FILTER_OPTIONS.map((o) => (
                                 <option key={o.value || "all-act"} value={o.value}>
@@ -343,7 +343,7 @@ export default function AdminAuditLogPage() {
                                     type="button"
                                     disabled={meta.current_page <= 1}
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                    className="rounded-xl border px-3 py-1.5 text-sm disabled:opacity-40"
+                                    className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
                                 >
                                     Назад
                                 </button>
@@ -351,7 +351,7 @@ export default function AdminAuditLogPage() {
                                     type="button"
                                     disabled={meta.current_page >= meta.last_page}
                                     onClick={() => setPage((p) => p + 1)}
-                                    className="rounded-xl border px-3 py-1.5 text-sm disabled:opacity-40"
+                                    className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
                                 >
                                     Вперёд
                                 </button>

@@ -295,7 +295,7 @@ export default function AdminPage() {
                                 key={option.id}
                                 type="button"
                                 onClick={() => setPeriod(option.id)}
-                                className={`rounded-md px-3 py-1.5 text-sm transition ${period === option.id ? "bg-admin-primary text-white shadow-sm" : "text-admin-text-secondary hover:bg-admin-surface hover:text-admin-text"}`}
+                                className={`rounded-lg px-3 py-1.5 text-sm transition ${period === option.id ? "bg-admin-primary text-white shadow-sm" : "text-admin-text-secondary hover:bg-admin-surface hover:text-admin-text"}`}
                             >
                                 {option.label}
                             </button>

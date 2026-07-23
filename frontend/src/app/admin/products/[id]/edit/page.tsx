@@ -185,7 +185,7 @@ export default function AdminProductEditPage() {
 
                 <Link
                     href="/admin/products"
-                    className="rounded-xl border px-4 py-2 text-sm"
+                    className="rounded-lg border px-4 py-2 text-sm"
                 >
                     Назад
                 </Link>
@@ -279,7 +279,7 @@ export default function AdminProductEditPage() {
                                             seo_title: e.target.value,
                                         })
                                     }
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -295,7 +295,7 @@ export default function AdminProductEditPage() {
                                             seo_description: e.target.value,
                                         })
                                     }
-                                    className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="min-h-[120px] w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -311,7 +311,7 @@ export default function AdminProductEditPage() {
                                             seo_keyword: e.target.value,
                                         })
                                     }
-                                    className="min-h-[90px] w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="min-h-[90px] w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </div>
 
@@ -320,7 +320,7 @@ export default function AdminProductEditPage() {
                                     type="button"
                                     onClick={handleSubmit}
                                     disabled={submitting}
-                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     {submitting ? "Сохранение..." : "Сохранить"}
                                 </button>

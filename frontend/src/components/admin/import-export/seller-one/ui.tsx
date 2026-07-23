@@ -41,7 +41,7 @@ export function AlertMessage({
     onCloseAction: () => void;
 }) {
     return (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 whitespace-pre-wrap">{message}</div>
                 <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
@@ -60,7 +60,7 @@ export function SuccessMessage({
     onCloseAction: () => void;
 }) {
     return (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">{message}</div>
                 <button type="button" onClick={onCloseAction} className="text-xs opacity-70 hover:opacity-100">
@@ -112,7 +112,7 @@ export function ParseDiagnosticsPanel({
 
     if (!hasDuplicates && !hasVariantSpread) {
         return (
-            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                 <div className="flex items-start justify-between gap-3">
                     <div>
                         <div className="font-medium">Диагностика парсинга</div>
@@ -129,7 +129,7 @@ export function ParseDiagnosticsPanel({
     }
 
     return (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
                     <div className="font-medium">Диагностика парсинга: дубли связок</div>
@@ -263,7 +263,7 @@ export function ListingDiagnosticsPanel({
 
     if (allClear && !hasSamples) {
         return (
-            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                 <div className="flex items-start justify-between gap-3">
                     <div>
                         <div className="font-medium">Диагностика витрины</div>
@@ -281,7 +281,7 @@ export function ListingDiagnosticsPanel({
     }
 
     return (
-        <div className={`rounded-xl border px-4 py-3 text-sm ${unexplained !== 0 ? "border-red-300 bg-red-50 text-red-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+        <div className={`rounded-lg border px-4 py-3 text-sm ${unexplained !== 0 ? "border-red-300 bg-red-50 text-red-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-3">
                     <div className="font-medium">Диагностика витрины после обновления цен</div>
@@ -667,7 +667,7 @@ export function ManualLinkModal({
                                     type="text"
                                     value={manualLink.productSearch}
                                     onChange={(e) => handleProductSearchChange(e.target.value)}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                     placeholder="Бренд, название…"
                                 />
                                 {showProductSearchStatus ? (
@@ -678,7 +678,7 @@ export function ManualLinkModal({
                             </div>
                             <div className="mt-1 min-h-8">
                                 {showProductEmptyState ? (
-                                    <div className="rounded-xl border bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                    <div className="rounded-lg border bg-amber-50 px-3 py-2 text-xs text-amber-700">
                                         Товары не найдены. Попробуй упростить запрос.
                                     </div>
                                 ) : null}
@@ -741,7 +741,7 @@ export function ManualLinkModal({
                                             prev ? { ...prev, definitionSearch: e.target.value } : prev
                                         )
                                     }
-                                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm"
                                     placeholder="Объём, концентрация или часть названия"
                                 />
                                 {manualLink.variantsLoading ? (
@@ -833,7 +833,7 @@ export function ManualLinkModal({
                                     onClick={() =>
                                         void onConfirmAction(manualLink.rowId, manualLink.selectedVariantId!)
                                     }
-                                    className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >
                                     Связать со строкой прайса
                                 </button>
@@ -891,19 +891,19 @@ export function RulesModal({
                                 value={rulePattern}
                                 onChange={(e) => onPatternChangeAction(e.target.value)}
                                 placeholder="pattern, например A.Banderas"
-                                className="rounded-xl border px-3 py-2 text-sm"
+                                className="rounded-lg border px-3 py-2 text-sm"
                             />
                             <input
                                 value={ruleReplacement}
                                 onChange={(e) => onReplacementChangeAction(e.target.value)}
                                 placeholder="replacement, например Antonio Banderas"
-                                className="rounded-xl border px-3 py-2 text-sm"
+                                className="rounded-lg border px-3 py-2 text-sm"
                             />
                             <button
                                 type="button"
                                 onClick={() => void onCreateAction()}
                                 disabled={ruleSaving}
-                                className="rounded-full bg-admin-primary px-3 py-2 text-sm text-white disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-3 py-2 text-sm text-white disabled:opacity-50"
                             >
                                 {ruleSaving ? "..." : "Добавить"}
                             </button>
@@ -912,7 +912,7 @@ export function RulesModal({
                             {rules.map((rule) => (
                                 <div
                                     key={rule.id}
-                                    className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm"
+                                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
                                 >
                                     <div className="min-w-0">
                                         <div className="font-medium">
@@ -926,14 +926,14 @@ export function RulesModal({
                                         <button
                                             type="button"
                                             onClick={() => void onToggleRuleAction(rule)}
-                                            className="rounded-md border px-2 py-1 text-xs"
+                                            className="rounded-lg border px-2 py-1 text-xs"
                                         >
                                             On/Off
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => void onDeleteRuleAction(rule)}
-                                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600"
+                                            className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600"
                                         >
                                             Удалить
                                         </button>
@@ -978,7 +978,7 @@ export function PricingSettingsModal({
                         </button>
                     </div>
                     <div className="space-y-4 overflow-y-auto px-5 py-4">
-                        <div className="rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text-secondary">
+                        <div className="rounded-lg border bg-admin-muted px-3 py-2 text-xs text-admin-text-secondary">
                             C = цена прайса, Цена=ОКРУГЛ((C*1,28+7)*3,15;0)
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -989,7 +989,7 @@ export function PricingSettingsModal({
                                     step="0.01"
                                     value={form.price_markup}
                                     onChange={(e) => onChangeAction("price_markup", Number(e.target.value))}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
@@ -999,7 +999,7 @@ export function PricingSettingsModal({
                                     step="0.01"
                                     value={form.price_rate}
                                     onChange={(e) => onChangeAction("price_rate", Number(e.target.value))}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
@@ -1009,7 +1009,7 @@ export function PricingSettingsModal({
                                     step="0.1"
                                     value={form.price_fixed_fee}
                                     onChange={(e) => onChangeAction("price_fixed_fee", Number(e.target.value))}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
@@ -1020,7 +1020,7 @@ export function PricingSettingsModal({
                                     max={4}
                                     value={form.price_precision}
                                     onChange={(e) => onChangeAction("price_precision", Number(e.target.value))}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
                                 />
                             </label>
                         </div>
@@ -1028,7 +1028,7 @@ export function PricingSettingsModal({
                             type="button"
                             onClick={() => void onSaveAction()}
                             disabled={saving}
-                            className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                         >
                             {saving ? "Сохраняю..." : "Сохранить формулу"}
                         </button>
@@ -1088,7 +1088,7 @@ export function DuplicateVariantLinksModal({
                             <p className="text-sm text-admin-text-secondary">Загрузка…</p>
                         ) : null}
                         {error ? (
-                            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
                         ) : null}
                         {!loading && !error && rows.length === 0 ? (
                             <p className="text-sm text-green-700">Дублей нет: у каждого variant_id не больше одного кода.</p>

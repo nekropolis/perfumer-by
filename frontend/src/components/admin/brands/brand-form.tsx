@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import AdminRichTextEditor from "@/components/admin/ui/admin-rich-text-editor";
 import { slugify } from "@/lib/slugify";
 
@@ -33,7 +35,7 @@ export default function BrandForm({
         <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
             {activeTab === "main" ? (
                 <div className="grid gap-5">
-                    <label className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
+                    <label className="flex items-center gap-3 rounded-lg border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -65,7 +67,7 @@ export default function BrandForm({
                                     seo_title: form.id ? form.seo_title : nextName,
                                 });
                             }}
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             required
                         />
                     </div>
@@ -86,7 +88,7 @@ export default function BrandForm({
                                     slug: form.id ? form.slug : slugify(slug),
                                 });
                             }}
-                            className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary outline-none"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-muted px-3 py-2 text-sm text-admin-text-secondary outline-none"
                             required
                         />
                     </div>
@@ -118,7 +120,7 @@ export default function BrandForm({
                                     seo_title: e.target.value,
                                 })
                             }
-                            className="w-full rounded-xl border px-3 py-2 text-sm"
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
                         />
                     </div>
 
@@ -134,7 +136,7 @@ export default function BrandForm({
                                     seo_description: e.target.value,
                                 })
                             }
-                            className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                            className="min-h-[120px] w-full rounded-lg border px-3 py-2 text-sm"
                         />
                     </div>
 
@@ -150,18 +152,18 @@ export default function BrandForm({
                                     seo_keyword: e.target.value,
                                 })
                             }
-                            className="min-h-[120px] w-full rounded-xl border px-3 py-2 text-sm"
+                            className="min-h-[120px] w-full rounded-lg border px-3 py-2 text-sm"
                         />
                     </div>
                 </div>
             )}
 
-            <div className="flex justify-end border-t border-admin-border pt-4">
+            <div className="flex flex-col-reverse gap-2 border-t border-admin-border pt-4 sm:flex-row sm:justify-end">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`${adminBtnPrimary} w-full sm:w-auto`}
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

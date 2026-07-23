@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import { ADMIN_PHONE_MAX_DIGITS } from "@/lib/admin-phone-search";
 import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
 
@@ -77,7 +79,7 @@ export default function ClientForm({
                     <input
                         value={form.first_name}
                         onChange={(e) => onChangeAction({ ...form, first_name: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -85,7 +87,7 @@ export default function ClientForm({
                     <input
                         value={form.last_name}
                         onChange={(e) => onChangeAction({ ...form, last_name: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -93,7 +95,7 @@ export default function ClientForm({
                     <input
                         value={form.patronymic}
                         onChange={(e) => onChangeAction({ ...form, patronymic: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -102,7 +104,7 @@ export default function ClientForm({
                         type="date"
                         value={form.birth_date}
                         onChange={(e) => onChangeAction({ ...form, birth_date: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -143,7 +145,7 @@ export default function ClientForm({
                                     phone: e.target.value.replace(/\D/g, "").slice(0, ADMIN_PHONE_MAX_DIGITS),
                                 })
                             }
-                            className="w-full rounded-xl border px-3 py-2 font-mono text-sm"
+                            className="w-full rounded-lg border px-3 py-2 font-mono text-sm"
                             placeholder="79001234567"
                             inputMode="numeric"
                             autoComplete="new-password"
@@ -153,7 +155,7 @@ export default function ClientForm({
                             required
                         />
                     ) : (
-                        <div className="flex w-full items-stretch overflow-hidden rounded-xl border bg-white">
+                        <div className="flex min-h-10 w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface">
                             <span className="flex shrink-0 items-center border-r bg-admin-muted px-3 text-sm text-admin-text-secondary">
                                 +375
                             </span>
@@ -191,7 +193,7 @@ export default function ClientForm({
                     <input
                         value={form.email}
                         onChange={(e) => onChangeAction({ ...form, email: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div className={isEdit ? "md:col-span-2 grid gap-4 sm:grid-cols-2" : "md:col-span-2"}>
@@ -203,7 +205,7 @@ export default function ClientForm({
                             type="password"
                             value={form.password}
                             onChange={(e) => onChangeAction({ ...form, password: e.target.value })}
-                            className="w-full rounded-xl border px-3 py-2 text-sm"
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
                             placeholder={isEdit ? "Оставьте пустым, чтобы не менять" : "Минимум 8 символов"}
                             autoComplete="new-password"
                         />
@@ -217,7 +219,7 @@ export default function ClientForm({
                                 onChange={(e) =>
                                     onChangeAction({ ...form, passwordConfirmation: e.target.value })
                                 }
-                                className="w-full rounded-xl border px-3 py-2 text-sm"
+                                className="w-full rounded-lg border px-3 py-2 text-sm"
                                 placeholder="Если меняете пароль"
                                 autoComplete="new-password"
                             />
@@ -231,12 +233,12 @@ export default function ClientForm({
                 </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-60"
+                    className={`${adminBtnPrimary} w-full sm:w-auto`}
                 >
                     {submitting ? "Сохранение..." : submitLabel}
                 </button>

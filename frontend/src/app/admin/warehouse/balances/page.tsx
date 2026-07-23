@@ -194,7 +194,11 @@ export default function AdminWarehouseBalancesPage() {
         setSuppliersLoading(true);
         setSuppliersError("");
 
-        void fetchStockBalanceVariantSuppliers(variantId)
+        void fetchStockBalanceVariantSuppliers({
+            variant_id: variantId,
+            warehouse_id: suppliersTarget.warehouse_id,
+            stock: suppliersTarget.stock,
+        })
             .then((response) => {
                 if (!cancelled) {
                     setSupplierRows(response.data ?? []);
@@ -377,7 +381,7 @@ export default function AdminWarehouseBalancesPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => openSuppliersInfo(item)}
-                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                                         aria-label="Поставщики"
                                                         title="Поставщики"
                                                     >
@@ -391,7 +395,7 @@ export default function AdminWarehouseBalancesPage() {
                                                             )}&variant_title=${encodeURIComponent(item.variant_title)}&price=${encodeURIComponent(
                                                                 item.price != null ? String(item.price) : ""
                                                             )}`}
-                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                                             aria-label="Списать"
                                                             title="Списать"
                                                         >
@@ -442,8 +446,9 @@ export default function AdminWarehouseBalancesPage() {
                                             <th className="min-w-[9rem] px-3 py-2 font-medium">Поставщик</th>
                                             <th className="px-3 py-2 font-medium">Артикул</th>
                                             <th className="min-w-[14rem] px-3 py-2 font-medium">Название у поставщика</th>
-                                            <th className="px-3 py-2 font-medium">Цена поставщика</th>
-                                            <th className="px-3 py-2 font-medium">Источник</th>
+                                            <th className="px-3 py-2 font-medium">Кол-во</th>
+                                            <th className="px-3 py-2 font-medium">Цена</th>
+                                            <th className="px-3 py-2 font-medium">Дата прихода</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -466,10 +471,13 @@ export default function AdminWarehouseBalancesPage() {
                                                     {row.supplier_product_name || "—"}
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                    {row.qty != null ? `${row.qty} шт.` : "—"}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">
                                                     {row.supplier_price != null ? String(row.supplier_price) : "—"}
                                                 </td>
-                                                <td className="px-3 py-2 text-admin-text-secondary">
-                                                    {row.source === "receipt" ? "Приход" : "Прайс"}
+                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                    {row.received_at || "—"}
                                                 </td>
                                             </tr>
                                         ))}

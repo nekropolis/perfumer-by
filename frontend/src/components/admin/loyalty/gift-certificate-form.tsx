@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 export type GiftCertificateFormState = {
     id?: number;
     code: string;
@@ -43,7 +45,7 @@ export default function GiftCertificateForm({
                         maxLength={64}
                         onChange={(e) => onChangeAction({ ...form, code: e.target.value })}
                         placeholder="Введите код сертификата"
-                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                     />
                 </div>
 
@@ -62,7 +64,7 @@ export default function GiftCertificateForm({
                                     balance_amount: selected?.amount ? String(selected.amount) : form.balance_amount,
                                 });
                             }}
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                         >
                             <option value="">Не выбран (ввести номинал вручную)</option>
                             {templateOptions
@@ -92,7 +94,7 @@ export default function GiftCertificateForm({
                                     ...(isCreate ? { balance_amount: e.target.value } : {}),
                                 })
                             }
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200 disabled:bg-admin-muted"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 disabled:bg-admin-muted"
                             required={isCreate}
                         />
                     </div>
@@ -106,7 +108,7 @@ export default function GiftCertificateForm({
                                 step="0.01"
                                 value={form.balance_amount}
                                 onChange={(e) => onChangeAction({ ...form, balance_amount: e.target.value })}
-                                className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                                 required
                             />
                         </div>
@@ -120,7 +122,7 @@ export default function GiftCertificateForm({
                             type="text"
                             readOnly
                             value={form.reserved_amount}
-                            className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary"
+                            className="w-full rounded-lg border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary"
                         />
                     </div>
                 ) : null}
@@ -131,7 +133,7 @@ export default function GiftCertificateForm({
                         <select
                             value={form.status}
                             onChange={(e) => onChangeAction({ ...form, status: e.target.value })}
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                         >
                             <option value="new">Ожидает код</option>
                             <option value="active">Активен</option>
@@ -150,7 +152,7 @@ export default function GiftCertificateForm({
                         value={form.source ?? "manual"}
                         onChange={(e) => onChangeAction({ ...form, source: e.target.value })}
                         placeholder="manual / sold / promo / compensation"
-                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                     />
                 </div>
 
@@ -163,7 +165,7 @@ export default function GiftCertificateForm({
                             value={form.issued_to_user_id ?? ""}
                             onChange={(e) => onChangeAction({ ...form, issued_to_user_id: e.target.value })}
                             placeholder="Опционально"
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                         />
                     </div>
                     <div>
@@ -173,7 +175,7 @@ export default function GiftCertificateForm({
                             value={form.issued_phone ?? ""}
                             onChange={(e) => onChangeAction({ ...form, issued_phone: e.target.value })}
                             placeholder="+375..."
-                            className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                         />
                     </div>
                 </div>
@@ -184,7 +186,7 @@ export default function GiftCertificateForm({
                         type="datetime-local"
                         value={form.expires_at}
                         onChange={(e) => onChangeAction({ ...form, expires_at: e.target.value })}
-                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                     />
                 </div>
 
@@ -194,17 +196,17 @@ export default function GiftCertificateForm({
                         value={form.comment ?? ""}
                         onChange={(e) => onChangeAction({ ...form, comment: e.target.value })}
                         rows={3}
-                        className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                        className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                     />
                 </div>
             </div>
 
-            <div className="flex justify-end border-t border-admin-border pt-4">
+            <div className="flex flex-col-reverse gap-2 border-t border-admin-border pt-4 sm:flex-row sm:justify-end">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`${adminBtnPrimary} w-full sm:w-auto`}
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

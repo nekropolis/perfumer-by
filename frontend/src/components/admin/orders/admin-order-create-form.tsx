@@ -1345,7 +1345,7 @@ export default function AdminOrderCreateForm({
           <input
             value={deliveryCity}
             onChange={(e) => setDeliveryCity(e.target.value)}
-            className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
             placeholder="Город / посёлок"
           />
           <button
@@ -1376,7 +1376,7 @@ export default function AdminOrderCreateForm({
               setBelarusCityLookupFailed(false);
             }}
             onFocus={() => setBelarusCityOpen(true)}
-            className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
             placeholder="Поиск по Беларуси"
           />
           {belarusCityOpen && belarusCityHits.length > 0 ? (
@@ -1626,7 +1626,7 @@ export default function AdminOrderCreateForm({
                 Заказы и скидочная карта
               </span>
               {context?.matched_user ? (
-                <span className="rounded-md bg-admin-primary/12 px-2 py-0.5 text-[11px] font-medium text-admin-primary">
+                <span className="rounded-lg bg-admin-primary/12 px-2 py-0.5 text-[11px] font-medium text-admin-primary">
                   В базе
                 </span>
               ) : context && totalOrdersCount(context) > 0 ? (
@@ -1712,7 +1712,7 @@ export default function AdminOrderCreateForm({
                       {context.discount_cards.map((c) => (
                         <span
                           key={c.number}
-                          className="inline-flex items-center gap-1 rounded-md bg-admin-surface px-2 py-1 font-mono text-xs text-admin-text shadow-sm ring-1 ring-admin-border/80"
+                          className="inline-flex items-center gap-1 rounded-lg bg-admin-surface px-2 py-1 font-mono text-xs text-admin-text shadow-sm ring-1 ring-admin-border/80"
                         >
                           {c.number}
                           <span className="font-sans text-[11px] font-semibold text-admin-primary">−{c.discount_percent}%</span>
@@ -1736,7 +1736,7 @@ export default function AdminOrderCreateForm({
       <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Товары *</h2>
         {itemsLocked ? (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             Заказ в статусе «Выполнен» или «Отменён» — состав строк и цены нельзя менять. Можно править контакты, доставку
             и комментарий.
           </p>
@@ -1899,7 +1899,7 @@ export default function AdminOrderCreateForm({
             return (
               <div
                 key={`line-${idx}`}
-                className="rounded-xl border border-dashed border-admin-border/90 bg-admin-muted/25 px-3 py-2.5"
+                className="rounded-lg border border-dashed border-admin-border/90 bg-admin-muted/25 px-3 py-2.5"
               >
                 {itemsLocked ? (
                   <div className="text-xs text-admin-text-secondary">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
@@ -1918,7 +1918,7 @@ export default function AdminOrderCreateForm({
                             prev.map((row, i) => (i === idx ? { ...row, product_name: v } : row)),
                           );
                         }}
-                        className="w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                         placeholder="Название, артикул или код товара"
                       />
                       {showProductHitList && productHitsPos && typeof document !== "undefined"
@@ -2083,7 +2083,7 @@ export default function AdminOrderCreateForm({
             type="button"
             onClick={addLine}
             disabled={itemsLocked}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-admin-border bg-admin-muted/20 px-3 py-2.5 text-sm font-medium text-admin-text-secondary transition hover:border-admin-primary/35 hover:bg-admin-muted/50 hover:text-admin-text disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-admin-border bg-admin-muted/20 px-3 py-2.5 text-sm font-medium text-admin-text-secondary transition hover:border-admin-primary/35 hover:bg-admin-muted/50 hover:text-admin-text disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus size={16} strokeWidth={2} />
             Добавить позицию
@@ -2123,7 +2123,7 @@ export default function AdminOrderCreateForm({
                       readOnly
                       value={MINSK_COURIER_CITY}
                       tabIndex={-1}
-                      className="mt-1 w-full cursor-not-allowed rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
+                      className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
                       aria-readonly="true"
                     />
                   </div>
@@ -2133,7 +2133,7 @@ export default function AdminOrderCreateForm({
                     <select
                       value={citySelect}
                       onChange={(e) => setCitySelect(e.target.value)}
-                      className="w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     >
                       <option value="">Выберите город из заказов или другой</option>
                       {savedCities.map((c) => (
@@ -2150,7 +2150,7 @@ export default function AdminOrderCreateForm({
                         <input
                           value={deliveryCity}
                           onChange={(e) => setDeliveryCity(e.target.value)}
-                          className="w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                          className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                           placeholder="Город (если не из списка)"
                         />
                       ))}
@@ -2168,7 +2168,7 @@ export default function AdminOrderCreateForm({
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
                     rows={3}
-                    className="mt-1 w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     placeholder="Улица, дом, подъезд…"
                   />
                 </label>
@@ -2227,14 +2227,14 @@ export default function AdminOrderCreateForm({
                 step="0.01"
                 value={deliveryFee}
                 onChange={(e) => setDeliveryFee(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
               />
             </label>
 
             <div className="space-y-3 border-t border-admin-border/80 pt-4">
               <h3 className="text-sm font-medium text-admin-text">Скидочная карта</h3>
               {itemsLocked ? (
-                <div className="rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
+                <div className="rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
                   {initialOrder?.discount_card_number ? (
                     <>
                       Карта{" "}
@@ -2259,7 +2259,7 @@ export default function AdminOrderCreateForm({
                     начисляется.
                   </p>
                   {discountCardConfirmed ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
                       <span>
                         Применена{" "}
                         <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
@@ -2296,13 +2296,13 @@ export default function AdminOrderCreateForm({
                         }
                       }}
                       placeholder="Номер скидочной карты"
-                      className="min-w-0 flex-1 rounded-xl border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                      className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
                     />
                     <button
                       type="button"
                       disabled={!discountCardInput.trim() || orderQuoteLoading}
                       onClick={() => void applyDiscountCardToOrder(discountCardInput)}
-                      className="shrink-0 rounded-xl border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
+                      className="shrink-0 rounded-lg border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium disabled:opacity-40"
                     >
                       {orderQuoteLoading ? "Проверка…" : "Применить"}
                     </button>
@@ -2339,7 +2339,7 @@ export default function AdminOrderCreateForm({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
           />
         </label>
 
@@ -2350,7 +2350,7 @@ export default function AdminOrderCreateForm({
             value={managerComment}
             onChange={(e) => setManagerComment(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-xl border border-admin-border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
             placeholder="Внутренняя заметка для менеджеров…"
           />
         </label>
@@ -2362,7 +2362,7 @@ export default function AdminOrderCreateForm({
           wrapperClassName="space-y-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-4"
           items={initialOrder.gift_certificate_purchases}
           renderItem={(row) => (
-            <li key={row.id} className="rounded-xl border border-violet-100 bg-admin-surface px-3 py-2">
+            <li key={row.id} className="rounded-lg border border-violet-100 bg-admin-surface px-3 py-2">
               <div className="font-medium text-admin-text">{row.template_title}</div>
               <div className="mt-0.5 text-xs text-admin-text-secondary">
                 Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
@@ -2381,7 +2381,7 @@ export default function AdminOrderCreateForm({
           renderItem={(row) => (
             <li
               key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-admin-surface px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-admin-surface px-3 py-2"
             >
               <div>
                 <div className="font-mono text-xs text-admin-text-secondary">ID {row.id}</div>
@@ -2519,14 +2519,14 @@ export default function AdminOrderCreateForm({
         : null}
 
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={saving || deleting} className="rounded-full bg-admin-primary px-5 py-2.5 text-sm text-white disabled:opacity-50">
+        <button type="submit" disabled={saving || deleting} className="rounded-lg bg-admin-primary px-5 py-2.5 text-sm text-white disabled:opacity-50">
           {saving ? (isEdit ? "Сохранение…" : "Создание…") : isEdit ? "Сохранить изменения" : "Создать заказ"}
         </button>
         <button
           type="button"
           disabled={saving || deleting}
           onClick={() => router.push("/admin/orders")}
-          className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
+          className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
         >
           Отмена
         </button>
@@ -2535,7 +2535,7 @@ export default function AdminOrderCreateForm({
             type="button"
             disabled={saving || deleting}
             onClick={() => setConfirmDeleteOpen(true)}
-            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
           >
             Удалить
           </button>

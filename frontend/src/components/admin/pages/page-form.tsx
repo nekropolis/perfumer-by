@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 import AdminRichTextEditor from "@/components/admin/ui/admin-rich-text-editor";
 import { slugify } from "@/lib/slugify";
 import type { AdminPageEditorTab } from "@/components/admin/pages/page-editor-tabs";
@@ -34,7 +36,7 @@ export default function AdminPageForm({
         <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
             <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2">
-                    <label className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
+                    <label className="flex items-center gap-3 rounded-lg border border-admin-border bg-admin-muted px-4 py-3 text-sm font-medium text-admin-text">
                         <input
                             type="checkbox"
                             checked={Boolean(form.is_active)}
@@ -62,7 +64,7 @@ export default function AdminPageForm({
                                         seo_title: form.id ? form.seo_title : name,
                                     });
                                 }}
-                                className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             />
                         </div>
 
@@ -72,7 +74,7 @@ export default function AdminPageForm({
                                 type="text"
                                 value={form.slug}
                                 readOnly
-                                className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary outline-none"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-muted px-3 py-2 text-sm text-admin-text-secondary outline-none"
                             />
                         </div>
 
@@ -82,7 +84,7 @@ export default function AdminPageForm({
                                 type="text"
                                 value={form.h1}
                                 onChange={(e) => onChangeAction({ ...form, h1: e.target.value })}
-                                className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             />
                         </div>
 
@@ -106,7 +108,7 @@ export default function AdminPageForm({
                                 type="text"
                                 value={form.name}
                                 onChange={(e) => onChangeAction({ ...form, name: e.target.value })}
-                                className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             />
                         </div>
                         <div className="md:col-span-2">
@@ -115,7 +117,7 @@ export default function AdminPageForm({
                                 type="text"
                                 value={form.slug}
                                 readOnly
-                                className="w-full rounded-xl border border-admin-border bg-admin-muted px-4 py-2.5 text-sm text-admin-text-secondary outline-none"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-muted px-3 py-2 text-sm text-admin-text-secondary outline-none"
                             />
                         </div>
                         <div>
@@ -124,7 +126,7 @@ export default function AdminPageForm({
                                 type="text"
                                 value={form.seo_title}
                                 onChange={(e) => onChangeAction({ ...form, seo_title: e.target.value })}
-                                className="w-full rounded-xl border border-admin-border px-4 py-2.5 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             />
                         </div>
 
@@ -133,19 +135,19 @@ export default function AdminPageForm({
                             <textarea
                                 value={form.seo_description}
                                 onChange={(e) => onChangeAction({ ...form, seo_description: e.target.value })}
-                                className="min-h-[110px] w-full rounded-xl border border-admin-border px-4 py-3 text-sm outline-none transition focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                                className="min-h-[110px] w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                             />
                         </div>
                     </>
                 ) : null}
             </div>
 
-            <div className="flex justify-end border-t border-admin-border pt-4">
+            <div className="flex flex-col-reverse gap-2 border-t border-admin-border pt-4 sm:flex-row sm:justify-end">
                 <button
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="inline-flex items-center justify-center rounded-full bg-admin-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`${adminBtnPrimary} w-full sm:w-auto`}
                 >
                     {submitting ? "Сохранение..." : "Сохранить"}
                 </button>

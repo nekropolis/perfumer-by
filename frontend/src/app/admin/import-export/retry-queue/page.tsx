@@ -135,7 +135,7 @@ export default function ImportRetryQueuePage() {
                     type="button"
                     disabled={busyId !== null || !taskType}
                     onClick={() => void handleBulk()}
-                    className="rounded-xl border bg-white px-3 py-2 text-xs disabled:opacity-50"
+                    className="rounded-lg border bg-white px-3 py-2 text-xs disabled:opacity-50"
                 >
                     {busyId === "bulk" ? "Запуск…" : "Фон: повторить все (выбранный тип)"}
                 </button>
@@ -159,7 +159,7 @@ export default function ImportRetryQueuePage() {
             </div>
 
             {counts?.pending_total != null ? (
-                <div className="mb-4 rounded-xl border bg-admin-muted px-3 py-2 text-xs text-admin-text">
+                <div className="mb-4 rounded-lg border bg-admin-muted px-3 py-2 text-xs text-admin-text">
                     <span className="font-medium">В очереди (pending):</span> {counts.pending_total}
                     {counts.pending_by_task && Object.keys(counts.pending_by_task).length > 0 ? (
                         <span className="ml-2 font-mono text-[11px]">
@@ -170,7 +170,7 @@ export default function ImportRetryQueuePage() {
             ) : null}
 
             {error ? (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
                 </div>
             ) : null}

@@ -50,7 +50,7 @@ export default function AdminBlockCreatePage() {
                     <h1 className="text-2xl font-semibold">Создать блок</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Переиспользуемый блок для встраивания в страницы</p>
                 </div>
-                <Link href="/admin/blocks" className="rounded-xl border px-4 py-2 text-sm">Назад</Link>
+                <Link href="/admin/blocks" className="rounded-lg border px-4 py-2 text-sm">Назад</Link>
             </div>
 
             {error ? (

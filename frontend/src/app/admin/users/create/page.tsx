@@ -71,7 +71,7 @@ export default function AdminUsersCreatePage() {
                     <h1 className="text-2xl font-semibold">Создать сотрудника</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Новый сотрудник с доступом в админку</p>
                 </div>
-                <Link href="/admin/users" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/users" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

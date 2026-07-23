@@ -41,12 +41,12 @@ export default function AdminConfirmDialog({
 
                 <div className="text-sm text-admin-text-secondary">{message}</div>
 
-                <div className="mt-5 flex justify-end gap-2">
+                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button
                         type="button"
                         onClick={onCloseAction}
                         disabled={loading}
-                        className={`${adminBtnSecondary} disabled:opacity-50`}
+                        className={`${adminBtnSecondary} w-full sm:w-auto disabled:opacity-50`}
                     >
                         {cancelText}
                     </button>
@@ -55,7 +55,7 @@ export default function AdminConfirmDialog({
                         type="button"
                         onClick={onConfirmAction}
                         disabled={loading}
-                        className={`${adminBtnDanger} disabled:opacity-50`}
+                        className={`${adminBtnDanger} w-full sm:w-auto disabled:opacity-50`}
                     >
                         {loading ? (confirmLoadingText ?? "Удаление...") : confirmText}
                     </button>

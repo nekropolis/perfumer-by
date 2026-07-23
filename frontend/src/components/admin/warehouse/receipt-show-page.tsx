@@ -71,7 +71,7 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                 </div>
                 <Link
                     href="/admin/warehouse/receipts"
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                     Назад
                 </Link>
@@ -131,7 +131,7 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                                         return (
                                         <div
                                             key={item.id}
-                                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                            className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
                                                 <span className="font-medium">{item.supplier_sku || "Без кода"}</span>

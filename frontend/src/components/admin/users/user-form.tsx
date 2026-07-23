@@ -1,5 +1,7 @@
 "use client";
 
+import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+
 type UserFormState = {
     name: string;
     phone: string;
@@ -69,7 +71,7 @@ export default function UserForm({
                     <input
                         value={form.name}
                         onChange={(e) => onChangeAction({ ...form, name: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                 </div>
                 <div>
@@ -79,7 +81,7 @@ export default function UserForm({
                     <input
                         value={form.email}
                         onChange={(e) => onChangeAction({ ...form, email: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                         type="email"
                         required
                     />
@@ -111,7 +113,7 @@ export default function UserForm({
                     <select
                         value={ROLES.includes(form.role as (typeof ROLES)[number]) ? form.role : "manager"}
                         onChange={(e) => onChangeAction({ ...form, role: e.target.value })}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     >
                         {ROLES.map((role) => (
                             <option key={role} value={role}>
@@ -129,7 +131,7 @@ export default function UserForm({
                             type="password"
                             value={form.password}
                             onChange={(e) => onChangeAction({ ...form, password: e.target.value })}
-                            className="w-full rounded-xl border px-3 py-2 text-sm"
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
                             placeholder={isEdit ? "Оставьте пустым, чтобы не менять" : "Минимум 8 символов"}
                             autoComplete="new-password"
                         />
@@ -143,7 +145,7 @@ export default function UserForm({
                                 onChange={(e) =>
                                     onChangeAction({ ...form, passwordConfirmation: e.target.value })
                                 }
-                                className="w-full rounded-xl border px-3 py-2 text-sm"
+                                className="w-full rounded-lg border px-3 py-2 text-sm"
                                 placeholder="Если меняете пароль"
                                 autoComplete="new-password"
                             />
@@ -162,7 +164,7 @@ export default function UserForm({
                     type="button"
                     onClick={onSubmitAction}
                     disabled={submitting}
-                    className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-60"
+                    className={`${adminBtnPrimary} w-full sm:w-auto`}
                 >
                     {submitting ? "Сохранение..." : submitLabel}
                 </button>

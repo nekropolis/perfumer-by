@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Catalog\Models\Supplier;
-use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -123,16 +122,36 @@ class StockBalanceController extends Controller
             return response()->json(['message' => 'variant_id is required'], 422);
         }
 
-        $receiptRows = StockReceiptItem::query()
+        $warehouseId = (int) $request->input('warehouse_id', 0);
+        $stock = max(0, (int) $request->input('stock', 0));
+
+        $receiptItems = StockReceiptItem::query()
             ->with(['receipt.supplier'])
             ->where('variant_id', $variantId)
-            ->whereHas('receipt', function ($receiptQuery) {
+            ->whereHas('receipt', function ($receiptQuery) use ($warehouseId) {
                 $receiptQuery->where('status', StockReceipt::STATUS_POSTED);
+                if ($warehouseId > 0) {
+                    $receiptQuery->where('warehouse_id', $warehouseId);
+                }
             })
             ->orderByDesc('id')
             ->get();
 
-        $supplierCodes = $receiptRows
+        // Последние приходы, пока не наберём текущий остаток.
+        if ($stock > 0) {
+            $covered = 0;
+            $limited = collect();
+            foreach ($receiptItems as $item) {
+                $limited->push($item);
+                $covered += max(0, (int) ($item->qty ?? 0));
+                if ($covered >= $stock) {
+                    break;
+                }
+            }
+            $receiptItems = $limited;
+        }
+
+        $supplierCodes = $receiptItems
             ->map(fn (StockReceiptItem $item) => trim((string) ($item->receipt?->supplier_code ?? '')))
             ->filter(fn (string $code) => $code !== '')
             ->unique()
@@ -145,7 +164,7 @@ class StockBalanceController extends Controller
                 ->get(['id', 'code', 'name'])
                 ->keyBy(fn (Supplier $supplier) => (string) $supplier->code);
 
-        $receiptRows = $receiptRows
+        $rows = $receiptItems
             ->map(function (StockReceiptItem $item) use ($suppliersByCode) {
                 $payload = is_array($item->payload) ? $item->payload : [];
                 $code = trim((string) ($item->receipt?->supplier_code ?? ''));
@@ -157,65 +176,36 @@ class StockBalanceController extends Controller
                     ?: ''
                 ));
 
+                $supplierProductName = trim((string) (
+                    $payload['supplier_product_name']
+                    ?? $payload['title']
+                    ?? $payload['name']
+                    ?? ''
+                ));
+
+                // Как в карточке прихода: «название / вариант», если у поставщика имя не сохраняли.
+                if ($supplierProductName === '') {
+                    $productName = trim((string) ($item->product_name ?? ''));
+                    $variantTitle = trim((string) ($item->variant_title ?? ''));
+                    $supplierProductName = $productName !== '' && $variantTitle !== ''
+                        ? "{$productName} / {$variantTitle}"
+                        : ($productName !== '' ? $productName : $variantTitle);
+                }
+
                 return [
                     'source' => 'receipt',
                     'supplier_name' => $supplierName !== '' ? $supplierName : '—',
                     'supplier_sku' => $item->supplier_sku,
-                    'supplier_product_name' => $payload['supplier_product_name']
-                        ?? $payload['title']
-                        ?? $payload['name']
-                        ?? $item->product_name
-                        ?? $item->variant_title,
+                    'supplier_product_name' => $supplierProductName !== '' ? $supplierProductName : null,
                     'supplier_price' => $item->supplier_price,
+                    'qty' => (int) ($item->qty ?? 0),
+                    'received_at' => $item->receipt?->received_at?->toDateString(),
                 ];
-            })
-            ->unique(function (array $row) {
-                return implode('|', [
-                    (string) ($row['supplier_name'] ?? ''),
-                    (string) ($row['supplier_sku'] ?? ''),
-                    (string) ($row['supplier_product_name'] ?? ''),
-                    (string) ($row['supplier_price'] ?? ''),
-                ]);
-            })
-            ->values();
-
-        $offerRows = SupplierVariantOffer::query()
-            ->with(['supplier'])
-            ->where('product_variant_id', $variantId)
-            ->where('is_active', true)
-            ->orderByDesc('id')
-            ->get()
-            ->map(function (SupplierVariantOffer $offer) {
-                $payload = is_array($offer->payload) ? $offer->payload : [];
-                $supplierName = trim((string) ($offer->supplier?->name ?: ''));
-                $productName = trim((string) (
-                    $payload['supplier_product_name']
-                    ?? $payload['title']
-                    ?? $offer->external_product_name
-                    ?? $offer->external_variant_name
-                    ?? ''
-                ));
-
-                return [
-                    'source' => 'offer',
-                    'supplier_name' => $supplierName !== '' ? $supplierName : '—',
-                    'supplier_sku' => $offer->external_id ?: $offer->sku,
-                    'supplier_product_name' => $productName !== '' ? $productName : null,
-                    'supplier_price' => $payload['supplier_price'] ?? $offer->purchase_price,
-                ];
-            })
-            ->unique(function (array $row) {
-                return implode('|', [
-                    (string) ($row['supplier_name'] ?? ''),
-                    (string) ($row['supplier_sku'] ?? ''),
-                    (string) ($row['supplier_product_name'] ?? ''),
-                    (string) ($row['supplier_price'] ?? ''),
-                ]);
             })
             ->values();
 
         return response()->json([
-            'data' => $receiptRows->concat($offerRows)->values(),
+            'data' => $rows,
         ]);
     }
 }

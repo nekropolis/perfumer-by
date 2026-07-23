@@ -343,14 +343,14 @@ export default function AdminReviewsPage() {
                             onChange={(e) => setReplyDraft(e.target.value)}
                             rows={6}
                             maxLength={4000}
-                            className="mb-4 w-full rounded-xl border border-admin-border px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-200"
+                            className="mb-4 w-full rounded-lg border border-admin-border px-3 py-2 text-sm outline-none focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
                         />
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={() => saveReply()}
                                 disabled={replySaving}
-                                className="rounded-full bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                             >
                                 {replySaving ? "Сохранение…" : "Сохранить"}
                             </button>
@@ -372,14 +372,14 @@ export default function AdminReviewsPage() {
                                         setReplySaving(false);
                                     }
                                 }}
-                                className="rounded-xl border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-50"
+                                className="rounded-lg border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-50"
                             >
                                 Удалить ответ
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setReplyModal(null)}
-                                className="rounded-xl border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
+                                className="rounded-lg border border-admin-border px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>

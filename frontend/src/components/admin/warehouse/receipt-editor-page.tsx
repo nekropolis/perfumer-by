@@ -470,10 +470,10 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     </p>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Link
                         href="/admin/warehouse/receipts"
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 text-sm font-medium text-admin-text hover:bg-admin-muted sm:w-auto"
                     >
                         Назад
                     </Link>
@@ -482,7 +482,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             type="button"
                             onClick={() => void postReceipt()}
                             disabled={posting || loading || saving}
-                            className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-700 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
+                            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-emerald-700 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60 sm:w-auto"
                         >
                             {posting ? "Проводим..." : "Провести оприходование"}
                         </button>
@@ -495,7 +495,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             loading ||
                             (isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED)
                         }
-                        className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60 sm:w-auto"
                     >
                         {saving ? "Сохраняем..." : "Сохранить черновик"}
                     </button>
@@ -530,7 +530,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                     value={form.warehouse_id ?? ""}
                                     disabled={readOnlyPosted}
                                     onChange={(e) => setForm((prev) => ({ ...prev, warehouse_id: e.target.value ? Number(e.target.value) : null }))}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
+                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
                                 >
                                     <option value="">Выберите склад</option>
                                     {warehouses.map((item) => (
@@ -555,7 +555,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             supplier_name: supplier?.name ?? "",
                                         }));
                                     }}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
+                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
                                 >
                                     <option value="">Выберите поставщика</option>
                                     {suppliers.map((item) => (
@@ -573,7 +573,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                     value={form.received_at}
                                     disabled={readOnlyPosted}
                                     onChange={(e) => setForm((prev) => ({ ...prev, received_at: e.target.value }))}
-                                    className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
+                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
                                 />
                             </label>
                         </div>
@@ -584,7 +584,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 value={form.comment}
                                 disabled={readOnlyPosted}
                                 onChange={(e) => setForm((prev) => ({ ...prev, comment: e.target.value }))}
-                                className="min-h-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white disabled:opacity-60"
+                                className="min-h-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
                                 placeholder="Комментарий к приходу"
                             />
                         </label>
@@ -602,7 +602,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                     setIsAddModalOpen(true);
                                 }}
                                 disabled={readOnlyPosted}
-                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
+                                className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                             >
                                 Добавить товар
                             </button>
@@ -618,7 +618,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                     {form.items.map((item, index) => (
                                         <div
                                             key={`${item.product_id}-${item.variant_id ?? item.variant_definition_id}-${index}`}
-                                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                            className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
                                                 <span className="font-medium">{item.supplier_sku || "Без кода"}</span>
@@ -677,7 +677,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(false)}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 text-lg text-slate-500 hover:bg-slate-50"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-lg text-slate-500 hover:bg-slate-50"
                             >
                                 ×
                             </button>
@@ -703,7 +703,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                                     variant_title: "",
                                                 }));
                                             }}
-                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                             placeholder="Название, бренд или артикул"
                                         />
                                         {draftItem.product_query ? (
@@ -797,7 +797,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             min={1}
                                             value={draftItem.qty}
                                             onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
-                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                         />
                                     </div>
                                     <div className="w-[104px] min-w-[104px]">
@@ -810,7 +810,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             step="0.01"
                                             value={draftItem.supplier_price}
                                             onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_price: e.target.value }))}
-                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                         />
                                     </div>
                                 </div>
@@ -827,7 +827,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             supplierProductNameTouchedRef.current = false;
                                             setDraftItem((prev) => ({ ...prev, supplier_sku: e.target.value }));
                                         }}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                     />
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -848,7 +848,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                                 supplier_product_name: e.target.value,
                                             }));
                                         }}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                         placeholder="Подставится по коду или вручную"
                                     />
                                 </div>
@@ -859,14 +859,14 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(false)}
-                                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                className="inline-flex h-10 items-center justify-center rounded-lg border border-admin-border px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
                             >
                                 Отмена
                             </button>
                             <button
                                 type="button"
                                 onClick={addDraftItem}
-                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
+                                className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                             >
                                 Добавить
                             </button>

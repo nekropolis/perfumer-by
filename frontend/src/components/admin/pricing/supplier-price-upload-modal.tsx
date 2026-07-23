@@ -63,7 +63,7 @@ export default function SupplierPriceUploadModal({
                 <div className="flex justify-end gap-2">
                     <button
                         type="button"
-                        className="rounded-xl border px-4 py-2 text-sm"
+                        className="rounded-lg border px-4 py-2 text-sm"
                         onClick={onCloseAction}
                         disabled={uploading}
                     >
@@ -71,7 +71,7 @@ export default function SupplierPriceUploadModal({
                     </button>
                     <button
                         type="button"
-                        className="rounded-xl border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        className="rounded-lg border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
                         onClick={() => void handleUpload()}
                         disabled={uploading || !file || supplierId === ""}
                     >
@@ -92,7 +92,7 @@ export default function SupplierPriceUploadModal({
                     <select
                         value={supplierId}
                         onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
-                        className="w-full rounded-xl border px-3 py-2 text-sm"
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
                     >
                         {suppliers.map((item) => (
                             <option key={item.supplier_id} value={item.supplier_id}>
@@ -102,7 +102,7 @@ export default function SupplierPriceUploadModal({
                     </select>
                 </label>
 
-                <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-4 text-sm transition hover:bg-admin-muted/50">
+                <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-4 text-sm transition hover:bg-admin-muted/50">
                     <span className="truncate text-admin-text-secondary">
                         {file ? file.name : "Выбрать файл XLS / XLSX"}
                     </span>

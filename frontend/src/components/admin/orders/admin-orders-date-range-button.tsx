@@ -143,7 +143,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                     key={p.value}
                                     type="button"
                                     onClick={() => pickPreset(p.value)}
-                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                                         value.period === p.value && !value.dateFrom && !value.dateTo
                                             ? "border-gray-900 bg-admin-primary text-white"
                                             : "border-admin-border bg-admin-muted text-admin-text hover:border-gray-300 hover:bg-white"
@@ -155,7 +155,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                             <button
                                 type="button"
                                 onClick={() => pickPreset("")}
-                                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                                     !value.period && !value.dateFrom && !value.dateTo
                                         ? "border-gray-900 bg-admin-primary text-white"
                                         : "border-admin-border bg-admin-muted text-admin-text hover:border-gray-300 hover:bg-white"
@@ -208,21 +208,21 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                className="rounded-md px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
+                                className="rounded-lg px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
                             >
                                 Закрыть
                             </button>
                             <button
                                 type="button"
                                 onClick={clearAllAndClose}
-                                className="rounded-md px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
+                                className="rounded-lg px-3 py-1.5 text-sm text-admin-text hover:bg-admin-muted"
                             >
                                 Сбросить
                             </button>
                             <button
                                 type="button"
                                 onClick={applyDraftDatesAndClose}
-                                className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-admin-primary-hover"
+                                className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-admin-primary-hover"
                             >
                                 Применить
                             </button>

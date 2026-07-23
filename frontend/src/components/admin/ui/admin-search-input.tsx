@@ -49,7 +49,7 @@ export default function AdminSearchInput({
 
     return (
         <div className={className}>
-            <div className="relative md:w-72">
+            <div className="relative w-full md:w-72">
                 <Search
                     size={16}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-admin-text-muted"
@@ -63,7 +63,7 @@ export default function AdminSearchInput({
                         updateUrl(nextValue);
                     }}
                     placeholder={placeholder}
-                    className={`${adminInput} py-2 pl-9 pr-10`}
+                    className={`${adminInput} pl-9 pr-10`}
                 />
                 {value ? (
                     <button
@@ -72,7 +72,7 @@ export default function AdminSearchInput({
                             onChangeAction("");
                             updateUrl("");
                         }}
-                        className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-admin-text-muted transition hover:bg-admin-muted hover:text-admin-text"
+                        className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-admin-text-muted transition hover:bg-admin-muted hover:text-admin-text"
                         aria-label="Очистить поиск"
                         title="Очистить"
                     >

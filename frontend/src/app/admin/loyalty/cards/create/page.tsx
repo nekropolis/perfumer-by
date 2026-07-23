@@ -94,7 +94,7 @@ export default function AdminLoyaltyCardCreatePage() {
                     <h1 className="text-2xl font-semibold">Создать накопительную карту</h1>
                     <p className="mt-1 text-sm text-admin-text-secondary">Создание новой карты лояльности</p>
                 </div>
-                <Link href="/admin/loyalty/cards" className="rounded-xl border px-4 py-2 text-sm">
+                <Link href="/admin/loyalty/cards" className="rounded-lg border px-4 py-2 text-sm">
                     Назад
                 </Link>
             </div>

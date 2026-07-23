@@ -159,7 +159,7 @@ export default function AdminStockNotificationsPage() {
                 <button
                     type="button"
                     onClick={handleReset}
-                    className="rounded-xl border px-4 py-2 text-sm"
+                    className="rounded-lg border px-4 py-2 text-sm"
                 >
                     Сбросить
                 </button>

@@ -346,10 +346,10 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     </p>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Link
                         href="/admin/warehouse/writeoffs"
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 text-sm font-medium text-admin-text hover:bg-admin-muted sm:w-auto"
                     >
                         Назад
                     </Link>
@@ -357,7 +357,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         type="button"
                         onClick={() => void submit()}
                         disabled={saving}
-                        className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
+                        className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60 sm:w-auto"
                     >
                         {saving ? "Сохраняем..." : form.document_kind === "reserve" ? "Сохранить резерв" : "Сохранить списание"}
                     </button>
@@ -372,7 +372,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             <div className="space-y-4">
                 <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-3 shadow-sm sm:p-4">
-                    <div className="mb-3 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                    <div className="mb-3 flex flex-wrap gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
                         <label className="flex cursor-pointer items-center gap-2">
                             <input
                                 type="radio"
@@ -401,7 +401,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             <select
                                 value={form.warehouse_id ?? ""}
                                 onChange={(e) => setForm((prev) => ({ ...prev, warehouse_id: e.target.value ? Number(e.target.value) : null }))}
-                                className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white"
                             >
                                 <option value="">Выберите склад</option>
                                 {warehouses.map((warehouse) => (
@@ -417,7 +417,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                 type="datetime-local"
                                 value={form.written_off_at}
                                 onChange={(e) => setForm((prev) => ({ ...prev, written_off_at: e.target.value }))}
-                                className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                                className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white"
                             />
                         </label>
                     </div>
@@ -427,7 +427,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         <textarea
                             value={form.comment}
                             onChange={(e) => setForm((prev) => ({ ...prev, comment: e.target.value }))}
-                            className="min-h-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:bg-white"
+                            className="min-h-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white"
                             placeholder={form.document_kind === "reserve" ? "Причина резерва" : "Причина списания"}
                         />
                     </label>
@@ -444,7 +444,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         <button
                             type="button"
                             onClick={() => setIsAddModalOpen(true)}
-                            className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
+                            className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                         >
                             Добавить товар
                         </button>
@@ -467,7 +467,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                     return (
                                         <div
                                             key={`${item.product_id}-${item.variant_id}-${index}`}
-                                            className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                            className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
                                                 <span>{item.product_name}</span>
@@ -573,14 +573,14 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(false)}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 text-lg text-slate-500 hover:bg-slate-50"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-lg text-slate-500 hover:bg-slate-50"
                             >
                                 ×
                             </button>
                         </div>
 
                         <div className="space-y-3 p-4">
-                            <div className="flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                            <div className="flex flex-wrap gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
                                 <label className="flex cursor-pointer items-center gap-2">
                                     <input
                                         type="radio"
@@ -647,7 +647,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                 }));
                                                 void searchProducts(nextQuery);
                                             }}
-                                            className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                             placeholder="Начните вводить название товара"
                                         />
                                     </div>
@@ -694,7 +694,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                 void searchVariants(draftItem.product_id, nextQuery, draftItem.stock_source);
                                             }
                                         }}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                         placeholder="Поиск варианта"
                                     />
 
@@ -737,7 +737,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                         step="0.01"
                                         value={draftItem.price}
                                         onChange={(e) => setDraftItem((prev) => ({ ...prev, price: e.target.value }))}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                     />
                                 </div>
                                 <div className="w-[120px] min-w-[120px] shrink-0">
@@ -749,7 +749,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                         min={1}
                                         value={draftItem.qty}
                                         onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
-                                        className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-slate-300"
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                     />
                                 </div>
                             </div>
@@ -759,14 +759,14 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setIsAddModalOpen(false)}
-                                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                className="inline-flex h-10 items-center justify-center rounded-lg border border-admin-border px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
                             >
                                 Отмена
                             </button>
                             <button
                                 type="button"
                                 onClick={addDraftItem}
-                                className="inline-flex h-10 items-center justify-center rounded-full bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
+                                className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                             >
                                 Добавить
                             </button>

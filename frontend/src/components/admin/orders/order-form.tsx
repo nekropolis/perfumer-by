@@ -354,7 +354,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -363,7 +363,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
             required
           />
         </label>
@@ -373,7 +373,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={deliveryMethod}
             onChange={(e) => setDeliveryMethod(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -382,7 +382,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={deliveryCity}
             onChange={(e) => setDeliveryCity(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -391,7 +391,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={deliveryAddress}
             onChange={(e) => setDeliveryAddress(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -400,7 +400,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <input
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -412,7 +412,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
             step="0.01"
             value={deliveryFee}
             onChange={(e) => setDeliveryFee(Number(e.target.value))}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 
@@ -422,7 +422,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
-            className="w-full rounded-xl border px-3 py-2"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
       </div>
@@ -430,7 +430,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
       <div className="space-y-3 rounded-2xl border p-4">
         <div className="text-sm font-medium">Товары заказа *</div>
         {itemsLocked ? (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             Заказ в статусе «Выполнен» или «Отменён» — строки заказа нельзя менять. Можно править только контактные данные,
             доставку и комментарий.
           </p>
@@ -460,7 +460,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
                 }}
                 placeholder="Поиск товара"
                 readOnly={itemsLocked}
-                className={`w-full rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
+                className={`w-full rounded-lg border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
               />
               {activeSearchRow === idx && (searchLoading || searchResults.length > 0) ? (
                 <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border bg-white p-1 shadow-lg">
@@ -518,7 +518,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
                   value={item.variant_id ?? ""}
                   disabled={itemsLocked}
                   onChange={(e) => void handleVariantChange(idx, Number(e.target.value))}
-                  className="w-full rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text"
+                  className="w-full rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text"
                 >
                   {productDetailsById[item.product_id].variants!.map((variant) => (
                     <option key={variant.id} value={variant.id}>
@@ -532,7 +532,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
                   readOnly={itemsLocked}
                   onChange={(e) => setItemField(idx, "variant_title", e.target.value)}
                   placeholder="Вариант"
-                  className={`w-full rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
                 />
               )}
             </div>
@@ -543,7 +543,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
               readOnly={itemsLocked}
               onChange={(e) => setItemField(idx, "qty", Number(e.target.value))}
               placeholder="Кол-во"
-              className={`rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
+              className={`rounded-lg border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
             />
             <input
               type="number"
@@ -553,19 +553,19 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
               readOnly={itemsLocked}
               onChange={(e) => setItemField(idx, "price", Number(e.target.value))}
               placeholder="Цена"
-              className={`rounded-xl border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
+              className={`rounded-lg border px-3 py-2 text-sm ${itemsLocked ? "cursor-not-allowed bg-admin-muted text-admin-text" : ""}`}
             />
             <button
               type="button"
               onClick={() => removeItem(idx)}
               disabled={itemsLocked || items.length === 1}
-              className="rounded-xl border border-red-200 px-3 py-2 text-sm text-red-600 disabled:opacity-50"
+              className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 disabled:opacity-50"
             >
               Удалить
             </button>
           </div>
         ))}
-        <button type="button" onClick={addItem} disabled={itemsLocked} className="rounded-xl border px-3 py-2 text-sm disabled:opacity-50">
+        <button type="button" onClick={addItem} disabled={itemsLocked} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">
           Добавить товар
         </button>
       </div>
@@ -575,7 +575,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
           <div className="text-sm font-medium text-violet-950">Купленные подарочные сертификаты</div>
           <ul className="space-y-2 text-sm">
             {order.gift_certificate_purchases.map((row) => (
-              <li key={row.id} className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+              <li key={row.id} className="rounded-lg border border-violet-100 bg-white px-3 py-2">
                 <div className="font-medium text-admin-text">{row.template_title}</div>
                 <div className="mt-0.5 text-xs text-admin-text-secondary">
                   Номинал {row.amount} руб. × {row.qty} шт. — всего {row.total} руб.
@@ -598,7 +598,7 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
             {order.sold_gift_certificates.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-white px-3 py-2"
               >
                 <div>
                   <div className="font-mono text-xs text-admin-text-secondary">ID {row.id}</div>
@@ -628,13 +628,13 @@ export default function AdminOrderForm({ mode, order, onSubmitAction }: Props) {
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
       <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded-full bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-60">
+        <button type="submit" disabled={saving} className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-60">
           {saving ? "Сохранение..." : mode === "create" ? "Создать заказ" : "Сохранить изменения"}
         </button>
         <button
           type="button"
           onClick={() => router.push("/admin/orders")}
-          className="rounded-xl border px-4 py-2 text-sm"
+          className="rounded-lg border px-4 py-2 text-sm"
         >
           Отмена
         </button>

@@ -158,7 +158,7 @@ export default function AdminPricingRefreshPage() {
                             type="button"
                             onClick={() => setUploadModalOpen(true)}
                             disabled={priceFiles.length === 0}
-                            className="rounded-xl border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                            className="rounded-lg border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
                         >
                             Загрузить прайсы
                         </button>
@@ -180,7 +180,7 @@ export default function AdminPricingRefreshPage() {
                         type="button"
                         onClick={() => void handleStartRefresh()}
                         disabled={refreshing || !hasUploadedPriceFile}
-                        className="rounded-xl border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        className="rounded-lg border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
                     >
                         {refreshing ? "Обновление..." : "Обновить цены"}
                     </button>
