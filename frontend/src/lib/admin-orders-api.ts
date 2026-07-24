@@ -95,7 +95,9 @@ export type OrdersStatsResponse = {
   };
 };
 
-export async function fetchOrdersStats(signal?: AbortSignal): Promise<OrdersStatsResponse> {
+export async function fetchOrdersStats(
+  signal?: AbortSignal,
+): Promise<OrdersStatsResponse> {
   const res = await fetch(`${API_BASE}/admin/orders/stats`, {
     headers: getAdminHeaders(),
     cache: "no-store",
@@ -157,18 +159,26 @@ export async function updateOrderAdminFields(
   });
 
   if (!res.ok) {
-    throw await parseOrderError(res, `Order admin fields API error: ${res.status}`);
+    throw await parseOrderError(
+      res,
+      `Order admin fields API error: ${res.status}`,
+    );
   }
 
   return res.json();
 }
 
-export async function syncOrderInventoryWriteoff(id: number): Promise<OrderResponse> {
-  const res = await fetch(`${API_BASE}/admin/orders/${id}/sync-inventory-writeoff`, {
-    method: "POST",
-    headers: getAdminHeaders(),
-    cache: "no-store",
-  });
+export async function syncOrderInventoryWriteoff(
+  id: number,
+): Promise<OrderResponse> {
+  const res = await fetch(
+    `${API_BASE}/admin/orders/${id}/sync-inventory-writeoff`,
+    {
+      method: "POST",
+      headers: getAdminHeaders(),
+      cache: "no-store",
+    },
+  );
 
   if (!res.ok) {
     const text = await res.text();
@@ -287,7 +297,9 @@ export type AdminOrderCustomerContextOrderRow = {
   }[];
 };
 
-export async function fetchAdminOrderQuote(payload: AdminOrderQuotePayload): Promise<{ data: AdminOrderQuote }> {
+export async function fetchAdminOrderQuote(
+  payload: AdminOrderQuotePayload,
+): Promise<{ data: AdminOrderQuote }> {
   const res = await fetch(`${API_BASE}/admin/orders/quote`, {
     method: "POST",
     headers: getAdminHeaders(),
@@ -295,12 +307,17 @@ export async function fetchAdminOrderQuote(payload: AdminOrderQuotePayload): Pro
     cache: "no-store",
   });
   if (!res.ok) {
-    throw await parseOrderError(res, `Admin order quote API error: ${res.status}`);
+    throw await parseOrderError(
+      res,
+      `Admin order quote API error: ${res.status}`,
+    );
   }
   return res.json();
 }
 
-export async function fetchAdminOrderCustomerContext(phone: string): Promise<{ data: AdminOrderCustomerContext }> {
+export async function fetchAdminOrderCustomerContext(
+  phone: string,
+): Promise<{ data: AdminOrderCustomerContext }> {
   const q = phone.trim() ? `?phone=${encodeURIComponent(phone.trim())}` : "";
   const res = await fetch(`${API_BASE}/admin/orders/customer-context${q}`, {
     headers: getAdminHeaders(),
@@ -312,7 +329,10 @@ export async function fetchAdminOrderCustomerContext(phone: string): Promise<{ d
   return res.json();
 }
 
-async function parseOrderError(res: Response, fallback: string): Promise<Error> {
+async function parseOrderError(
+  res: Response,
+  fallback: string,
+): Promise<Error> {
   const text = await res.text();
   let message = fallback;
   try {
@@ -328,7 +348,9 @@ async function parseOrderError(res: Response, fallback: string): Promise<Error> 
   return new Error(message);
 }
 
-export async function createOrder(payload: AdminOrderPayload): Promise<OrderResponse> {
+export async function createOrder(
+  payload: AdminOrderPayload,
+): Promise<OrderResponse> {
   const res = await fetch(`${API_BASE}/admin/orders`, {
     method: "POST",
     headers: getAdminHeaders(),
@@ -343,7 +365,10 @@ export async function createOrder(payload: AdminOrderPayload): Promise<OrderResp
   return res.json();
 }
 
-export async function updateOrder(id: number, payload: AdminOrderPayload): Promise<OrderResponse> {
+export async function updateOrder(
+  id: number,
+  payload: AdminOrderPayload,
+): Promise<OrderResponse> {
   const res = await fetch(`${API_BASE}/admin/orders/${id}`, {
     method: "PUT",
     headers: getAdminHeaders(),
@@ -409,7 +434,11 @@ export async function sendVeterTickets(
 }
 
 export type VeterStatusSyncResultData = {
-  updated: { order_id: number; shipment_id: string; shipment_status: string | null }[];
+  updated: {
+    order_id: number;
+    shipment_id: string;
+    shipment_status: string | null;
+  }[];
   failed: { order_id: number; shipment_id: string; reason: string }[];
   total: number;
 };
@@ -425,7 +454,10 @@ export async function syncVeterTicketStatuses(): Promise<{
   });
 
   if (!res.ok) {
-    throw await parseOrderError(res, `Veter status sync API error: ${res.status}`);
+    throw await parseOrderError(
+      res,
+      `Veter status sync API error: ${res.status}`,
+    );
   }
 
   return res.json();
