@@ -157,7 +157,7 @@ final class LegacyOrdersImportService
                     'delivery_date' => $deliveryDate,
                     'delivery_fee' => $this->asMoneyString($deliveryFee),
                     'payment_method' => $this->nullableString(mb_substr((string) ($legacyOrder->payment_method ?? ''), 0, 32)),
-                    'status' => 'done',
+                    'status' => 'new',
                     'items_qty' => $itemsQty,
                     'subtotal' => $this->asMoneyString($subtotal),
                     'total' => $this->asMoneyString($total),

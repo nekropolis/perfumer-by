@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -56,6 +57,66 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     },
 ];
 
+const iconBtnClassName =
+    "relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:h-10 md:w-10";
+
+const iconClassName = "h-4 w-4 md:h-[1.125rem] md:w-[1.125rem]";
+
+function OrdersIconActionButton({
+    label,
+    disabled,
+    onClick,
+    badge,
+    children,
+}: {
+    label: string;
+    disabled?: boolean;
+    onClick: () => void;
+    badge?: number;
+    children: ReactNode;
+}) {
+    const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
+
+    const showTip = (el: HTMLElement) => {
+        const rect = el.getBoundingClientRect();
+        setTip({ x: rect.left + rect.width / 2, y: rect.bottom + 6 });
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                disabled={disabled}
+                aria-label={label}
+                onClick={onClick}
+                onMouseEnter={(e) => showTip(e.currentTarget)}
+                onMouseLeave={() => setTip(null)}
+                onFocus={(e) => showTip(e.currentTarget)}
+                onBlur={() => setTip(null)}
+                className={iconBtnClassName}
+            >
+                {children}
+                {badge != null && badge > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-admin-primary px-0.5 text-[9px] font-semibold leading-none text-white md:h-4 md:min-w-4 md:px-1 md:text-[10px]">
+                        {badge > 99 ? "99+" : badge}
+                    </span>
+                ) : null}
+            </button>
+            {tip && typeof document !== "undefined"
+                ? createPortal(
+                      <span
+                          role="tooltip"
+                          className="pointer-events-none fixed z-[9999] -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg"
+                          style={{ left: tip.x, top: tip.y }}
+                      >
+                          {label}
+                      </span>,
+                      document.body,
+                  )
+                : null}
+        </>
+    );
+}
 export default function AdminOrdersPage() {
     const router = useRouter();
     const searchParamsFromUrl = useSearchParams();
@@ -434,7 +495,7 @@ export default function AdminOrdersPage() {
 
     const handleVeterStatusSync = async () => {
         const ok = window.confirm(
-            "Обновить статусы Ветер для всех заказов «В доставке» с ID отправки?",
+            "Обновить статусы курьерской службы для всех заказов «В доставке» с ID отправки?",
         );
         if (!ok) {
             return;
@@ -566,72 +627,83 @@ export default function AdminOrdersPage() {
             <AdminTableToolbar>
                 {activeTab === "orders" ? (
                     <div className="flex w-full min-w-0 flex-col gap-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-                            <div className="flex flex-wrap items-end gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleOpenReceiptModal}
+                        <div className="flex flex-nowrap items-center gap-1.5 md:flex-wrap md:items-end md:justify-between md:gap-3">
+                            <div className="flex shrink-0 items-center gap-1 md:gap-2">
+                                <OrdersIconActionButton
+                                    label={receiptOptionsLoading ? "Загрузка…" : "Печать"}
                                     disabled={selectedOrders.length === 0 || receiptOptionsLoading}
-                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-                                    title="Печать товарных чеков"
+                                    onClick={handleOpenReceiptModal}
+                                    badge={selectedOrders.length}
                                 >
-                                    <Printer size={16} />
-                                    {receiptOptionsLoading ? "Загрузка..." : "Печать"}
-                                </button>
-                                <button
-                                    type="button"
+                                    <Printer className={iconClassName} strokeWidth={2} />
+                                </OrdersIconActionButton>
+                                <OrdersIconActionButton
+                                    label={
+                                        veterSending
+                                            ? "Отправка…"
+                                            : `Отправить в курьерскую службу${
+                                                  veterSendCandidateCount > 0
+                                                      ? ` (${veterSendCandidateCount})`
+                                                      : ""
+                                              }`
+                                    }
+                                    disabled={
+                                        veterSendCandidateCount === 0 ||
+                                        veterSending ||
+                                        veterStatusSyncing ||
+                                        legacySyncing
+                                    }
                                     onClick={() => void handleVeterSend()}
-                                    disabled={veterSendCandidateCount === 0 || veterSending || veterStatusSyncing || legacySyncing}
-                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-                                    title="Отправить выбранные заказы в Ветер (CreateTickets)"
+                                    badge={veterSendCandidateCount}
                                 >
-                                    <Truck size={16} />
-                                    {veterSending
-                                        ? "Отправка…"
-                                        : `Отправить в курьерскую службу${
-                                              veterSendCandidateCount > 0
-                                                  ? ` (${veterSendCandidateCount})`
-                                                  : ""
-                                          }`}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void handleVeterStatusSync()}
+                                    <Truck className={iconClassName} strokeWidth={2} />
+                                </OrdersIconActionButton>
+                                <OrdersIconActionButton
+                                    label={
+                                        veterStatusSyncing
+                                            ? "Обновление…"
+                                            : "Обновить статусы курьерской службы"
+                                    }
                                     disabled={veterStatusSyncing || veterSending || legacySyncing}
-                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-                                    title="Обновить статусы Ветер для всех заказов «В доставке»"
+                                    onClick={() => void handleVeterStatusSync()}
                                 >
-                                    <RefreshCw size={16} className={veterStatusSyncing ? "animate-spin" : undefined} />
-                                    {veterStatusSyncing ? "Обновление…" : "Обновить статусы Ветер"}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void handleLegacySync()}
+                                    <RefreshCw
+                                        className={`${iconClassName}${veterStatusSyncing ? " animate-spin" : ""}`}
+                                        strokeWidth={2}
+                                    />
+                                </OrdersIconActionButton>
+                                <OrdersIconActionButton
+                                    label={
+                                        legacySyncing ? "Синхронизация…" : "Синхронизировать с легаси"
+                                    }
                                     disabled={legacySyncing || veterSending || veterStatusSyncing}
-                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-                                    title="Импорт клиентов и заказов из легаси MySQL (только новые ID)"
+                                    onClick={() => void handleLegacySync()}
                                 >
-                                    <Database size={16} className={legacySyncing ? "animate-pulse" : undefined} />
-                                    {legacySyncing ? "Синхронизация…" : "Синхронизировать с легаси"}
-                                </button>
+                                    <Database
+                                        className={`${iconClassName}${legacySyncing ? " animate-pulse" : ""}`}
+                                        strokeWidth={2}
+                                    />
+                                </OrdersIconActionButton>
                             </div>
 
-                            <div className="flex min-w-0 flex-wrap items-end gap-2">
-                                <AdminSearchInput
-                                    value={searchInput}
-                                    onChangeAction={setSearchInput}
-                                    placeholder="ID, ID отправки, имя, телефон"
-                                />
+                            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 md:flex-none md:flex-wrap md:items-end md:gap-2">
+                                <div className="min-w-0 flex-1 md:flex-none">
+                                    <AdminSearchInput
+                                        value={searchInput}
+                                        onChangeAction={setSearchInput}
+                                        placeholder="ID, ID отправки, имя, телефон"
+                                    />
+                                </div>
 
                                 {hasOrdersFilters ? (
                                     <button
                                         type="button"
                                         onClick={handleReset}
-                                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                        className={iconBtnClassName}
                                         title="Сбросить фильтры"
                                         aria-label="Сбросить фильтры"
                                     >
-                                        <FilterX size={16} strokeWidth={2} />
+                                        <FilterX className={iconClassName} strokeWidth={2} />
                                     </button>
                                 ) : null}
                             </div>
@@ -727,14 +799,7 @@ export default function AdminOrdersPage() {
                 <AdminLoadingState text={activeTab === "orders" ? "Загрузка заказов…" : "Загрузка…"} />
             )}
 
-            {!loading && activeTab === "orders" && ordersMeta !== null && ordersMeta.total === 0 && (
-                <AdminEmptyState
-                    title="Заказы не найдены"
-                    description="Попробуйте изменить поиск, статус или фильтр по дате доставки."
-                />
-            )}
-
-            {!loading && activeTab === "orders" && ordersMeta !== null && ordersMeta.total > 0 && (
+            {!loading && activeTab === "orders" && ordersMeta !== null && (
                 <>
                     <AdminOrdersTable
                         initialOrders={orders}
@@ -747,40 +812,47 @@ export default function AdminOrdersPage() {
                         selectedOrderIds={selectedOrderIds}
                         onSelectedOrderIdsChangeAction={setSelectedOrderIds}
                     />
-                    <div className="mt-4 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                        <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
-                            На странице
-                            <select
-                                value={ordersPerPage}
-                                onChange={(e) => {
-                                    const v = Number(e.target.value);
-                                    if (v === 25 || v === 50 || v === 100) {
-                                        setOrdersPerPage(v as (typeof ORDERS_PER_PAGE_OPTIONS)[number]);
+                    {ordersMeta.total === 0 ? (
+                        <AdminEmptyState
+                            title="Заказы не найдены"
+                            description="Попробуйте изменить поиск, статус или фильтр по дате доставки."
+                        />
+                    ) : (
+                        <div className="mt-4 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                            <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
+                                На странице
+                                <select
+                                    value={ordersPerPage}
+                                    onChange={(e) => {
+                                        const v = Number(e.target.value);
+                                        if (v === 25 || v === 50 || v === 100) {
+                                            setOrdersPerPage(v as (typeof ORDERS_PER_PAGE_OPTIONS)[number]);
+                                        }
+                                    }}
+                                    className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
+                                >
+                                    {ORDERS_PER_PAGE_OPTIONS.map((n) => (
+                                        <option key={n} value={n}>
+                                            {n}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <div className="flex flex-1 justify-center sm:min-w-[12rem]">
+                                <AdminPagination
+                                    currentPage={ordersMeta.current_page}
+                                    lastPage={ordersMeta.last_page}
+                                    onPrevAction={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                                    onNextAction={() =>
+                                        setOrdersPage((p) =>
+                                            ordersMeta.current_page < ordersMeta.last_page ? p + 1 : p,
+                                        )
                                     }
-                                }}
-                                className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
-                            >
-                                {ORDERS_PER_PAGE_OPTIONS.map((n) => (
-                                    <option key={n} value={n}>
-                                        {n}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <div className="flex flex-1 justify-center sm:min-w-[12rem]">
-                            <AdminPagination
-                                currentPage={ordersMeta.current_page}
-                                lastPage={ordersMeta.last_page}
-                                onPrevAction={() => setOrdersPage((p) => Math.max(1, p - 1))}
-                                onNextAction={() =>
-                                    setOrdersPage((p) =>
-                                        ordersMeta.current_page < ordersMeta.last_page ? p + 1 : p,
-                                    )
-                                }
-                            />
+                                />
+                            </div>
+                            <div className="text-sm text-admin-text-secondary sm:text-right">Всего заказов: {ordersMeta.total}</div>
                         </div>
-                        <div className="text-sm text-admin-text-secondary sm:text-right">Всего заказов: {ordersMeta.total}</div>
-                    </div>
+                    )}
                 </>
             )}
 
