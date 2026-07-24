@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ListOrdered, Printer, FilterX, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
+import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { fetchOrders, sendVeterTickets, syncVeterTicketStatuses } from "@/lib/admin-orders-api";
+import {
+    fetchOrders,
+    sendVeterTickets,
+    syncLegacyCustomersAndOrders,
+    syncVeterTicketStatuses,
+} from "@/lib/admin-orders-api";
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
@@ -71,6 +76,7 @@ export default function AdminOrdersPage() {
     const [toast, setToast] = useState<AdminToast | null>(null);
     const [veterSending, setVeterSending] = useState(false);
     const [veterStatusSyncing, setVeterStatusSyncing] = useState(false);
+    const [legacySyncing, setLegacySyncing] = useState(false);
 
     const [searchInput, setSearchInput] = useState(
         () => searchParamsFromUrl.get("search") ?? "",
@@ -368,6 +374,7 @@ export default function AdminOrdersPage() {
                     .slice(0, 3)
                     .map((row) => `#${row.order_id}: ${row.reason}`)
                     .join("; ") + (rows.length > 3 ? "…" : "");
+            const auditHint = failed.length > 0 ? " (см. Аудит)" : "";
 
             if (failCount === 0 && sent.length > 0) {
                 setToast({
@@ -386,7 +393,7 @@ export default function AdminOrdersPage() {
                     message: `Частично: отправлено ${sent.length}, ошибок ${failCount}. ${formatDetails([
                         ...failed,
                         ...invalid,
-                    ])} (см. Аудит)`,
+                    ])}${auditHint}`,
                 });
                 return;
             }
@@ -397,7 +404,7 @@ export default function AdminOrdersPage() {
                     message: `Не удалось отправить (${failCount}). ${formatDetails([
                         ...failed,
                         ...invalid,
-                    ])} (см. Аудит)`,
+                    ])}${auditHint}`,
                 });
                 return;
             }
@@ -494,6 +501,47 @@ export default function AdminOrdersPage() {
         }
     };
 
+    const handleLegacySync = async () => {
+        const ok = window.confirm(
+            "Синхронизировать клиентов и заказы с легаси MySQL?\nБудут импортированы только записи после последнего legacy ID в наших map.",
+        );
+        if (!ok) {
+            return;
+        }
+
+        setLegacySyncing(true);
+        setToast(null);
+        try {
+            const response = await syncLegacyCustomersAndOrders();
+            const manualRange = Boolean(dateFrom.trim()) || Boolean(dateTo.trim());
+            const ordersResponse = await fetchOrders({
+                search: debouncedSearch,
+                status: statusFilter,
+                period: manualRange ? undefined : periodFilter || undefined,
+                from: dateFrom.trim() || undefined,
+                to: dateTo.trim() || undefined,
+                page: 1,
+                per_page: ordersPerPage,
+            });
+            setOrdersPage(1);
+            setOrders(ordersResponse.data);
+            setOrdersMeta(ordersResponse.meta);
+            lastOrdersFetchSigRef.current = `${ordersListKey}|1`;
+            setToast({
+                type: "success",
+                message: response.message || "Синхронизация с легаси завершена",
+            });
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Ошибка синхронизации с легаси",
+            });
+        } finally {
+            setLegacySyncing(false);
+        }
+    };
+
     return (
         <AdminPageCard>
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -533,7 +581,7 @@ export default function AdminOrdersPage() {
                                 <button
                                     type="button"
                                     onClick={() => void handleVeterSend()}
-                                    disabled={veterSendCandidateCount === 0 || veterSending || veterStatusSyncing}
+                                    disabled={veterSendCandidateCount === 0 || veterSending || veterStatusSyncing || legacySyncing}
                                     className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
                                     title="Отправить выбранные заказы в Ветер (CreateTickets)"
                                 >
@@ -549,12 +597,22 @@ export default function AdminOrdersPage() {
                                 <button
                                     type="button"
                                     onClick={() => void handleVeterStatusSync()}
-                                    disabled={veterStatusSyncing || veterSending}
+                                    disabled={veterStatusSyncing || veterSending || legacySyncing}
                                     className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
                                     title="Обновить статусы Ветер для всех заказов «В доставке»"
                                 >
                                     <RefreshCw size={16} className={veterStatusSyncing ? "animate-spin" : undefined} />
                                     {veterStatusSyncing ? "Обновление…" : "Обновить статусы Ветер"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleLegacySync()}
+                                    disabled={legacySyncing || veterSending || veterStatusSyncing}
+                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+                                    title="Импорт клиентов и заказов из легаси MySQL (только новые ID)"
+                                >
+                                    <Database size={16} className={legacySyncing ? "animate-pulse" : undefined} />
+                                    {legacySyncing ? "Синхронизация…" : "Синхронизировать с легаси"}
                                 </button>
                             </div>
 

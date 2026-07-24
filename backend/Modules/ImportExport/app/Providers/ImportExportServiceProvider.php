@@ -7,6 +7,7 @@ use Modules\ImportExport\Console\Commands\ImportLegacyProductImagesCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyPostsCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyCustomersCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyOrdersCommand;
+use Modules\ImportExport\Console\Commands\FixLegacyOrdersDeliveryDateCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
 use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
@@ -32,6 +33,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         ImportLegacyProductImagesCommand::class,
         ImportLegacyCustomersCommand::class,
         ImportLegacyOrdersCommand::class,
+        FixLegacyOrdersDeliveryDateCommand::class,
         NormalizeUserPhonesCommand::class,
         NormalizeOrderPhonesCommand::class,
         ImportLegacyReviewsCommand::class,

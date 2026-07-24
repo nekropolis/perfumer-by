@@ -8,6 +8,7 @@ use Modules\Checkout\Http\Controllers\Api\CheckoutQuoteController;
 use Modules\Checkout\Http\Controllers\Api\OrderController;
 use Modules\Checkout\Http\Controllers\Api\VeterTicketSendController;
 use Modules\Checkout\Http\Controllers\Api\VeterTicketStatusSyncController;
+use Modules\ImportExport\Http\Controllers\Admin\LegacySyncController;
 use Modules\Checkout\Http\Controllers\Api\OrderTagController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
@@ -38,6 +39,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::post('/quote', [OrderController::class, 'quote']);
     Route::post('/veter-send', VeterTicketSendController::class);
     Route::post('/veter-status-sync', VeterTicketStatusSyncController::class);
+    Route::post('/legacy-sync', LegacySyncController::class);
     Route::post('/', [OrderController::class, 'store']);
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);

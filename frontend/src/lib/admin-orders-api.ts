@@ -431,6 +431,43 @@ export async function syncVeterTicketStatuses(): Promise<{
   return res.json();
 }
 
+export type LegacySyncResultData = {
+  customers: {
+    after_customer_id: number;
+    fetched: number;
+    skipped: number;
+    matched: number;
+    created: number;
+    failed: number;
+  };
+  orders: {
+    after_order_id: number;
+    fetched: number;
+    skipped: number;
+    imported: number;
+    failed: number;
+    city_matched: number;
+    city_unmatched: number;
+  };
+};
+
+export async function syncLegacyCustomersAndOrders(): Promise<{
+  data: LegacySyncResultData;
+  message?: string;
+}> {
+  const res = await fetch(`${API_BASE}/admin/orders/legacy-sync`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Legacy sync API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 /** @deprecated Используйте deleteOrder — DELETE теперь удаляет заказ, а не отменяет. */
 export async function cancelOrder(id: number): Promise<{ message?: string }> {
   return deleteOrder(id);

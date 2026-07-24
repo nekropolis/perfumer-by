@@ -36,16 +36,7 @@ class VeterTicketSendService
         $sent = [];
         $failed = [];
 
-        foreach ($invalid as $row) {
-            $this->auditFailure(
-                (int) $row['order_id'],
-                (string) $row['reason'],
-                [
-                    'stage' => 'validation',
-                    'missing' => $row['missing'] ?? [],
-                ],
-            );
-        }
+        // invalid (не заполнены поля) — только в ответе API / toast, без Audit.
 
         if ($tickets === [] || $readyOrderIds === []) {
             return [
