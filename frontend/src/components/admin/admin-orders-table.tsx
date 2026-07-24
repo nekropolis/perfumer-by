@@ -588,7 +588,7 @@ function AdminOrderShipmentIdCell({
         return <span className="text-admin-text-secondary">—</span>;
     }
 
-    const idContent = highlightQueryInText(id, searchQuery);
+    const idContent = highlightQueryInText(id, searchQuery ?? "");
 
     return (
         <div
