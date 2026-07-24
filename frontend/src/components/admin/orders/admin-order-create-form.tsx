@@ -414,31 +414,68 @@ function orderableProductVariants(detail: ProductAdminDetail | undefined) {
   });
 }
 
-/** Подсветка вхождения запроса (без regex по юникоду). */
+/** Подсветка вхождений запроса (по словам; без regex по юникоду). */
 function highlightQueryInText(text: string, query: string): ReactNode {
-  const q = query.trim();
-  if (!q) return text;
+  const tokens = query
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (tokens.length === 0) return text;
+
   const lowerText = text.toLocaleLowerCase("ru-RU");
-  const lowerQ = q.toLocaleLowerCase("ru-RU");
+  type Range = { start: number; end: number };
+  const ranges: Range[] = [];
+
+  for (const token of tokens) {
+    const lowerToken = token.toLocaleLowerCase("ru-RU");
+    let pos = 0;
+    for (let n = 0; n < 80 && pos < text.length; n += 1) {
+      const idx = lowerText.indexOf(lowerToken, pos);
+      if (idx === -1) break;
+      ranges.push({ start: idx, end: idx + token.length });
+      pos = idx + Math.max(1, token.length);
+    }
+  }
+
+  if (ranges.length === 0) return text;
+
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Range[] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) {
+      last.end = Math.max(last.end, range.end);
+      continue;
+    }
+    merged.push({ ...range });
+  }
+
   const parts: ReactNode[] = [];
   let pos = 0;
-  for (let n = 0; n < 80 && pos < text.length; n += 1) {
-    const idx = lowerText.indexOf(lowerQ, pos);
-    if (idx === -1) {
-      parts.push(text.slice(pos));
-      break;
-    }
-    if (idx > pos) parts.push(text.slice(pos, idx));
-    const matched = text.slice(idx, idx + q.length);
+  merged.forEach((range, i) => {
+    if (range.start > pos) parts.push(text.slice(pos, range.start));
     parts.push(
-      <mark key={`h-${idx}-${n}`} className="rounded-sm bg-amber-200 px-0.5 text-admin-text">
-        {matched}
+      <mark key={`h-${range.start}-${i}`} className="rounded-sm bg-amber-200 px-0.5 text-admin-text">
+        {text.slice(range.start, range.end)}
       </mark>,
     );
-    pos = idx + q.length;
-  }
-  if (parts.length === 0) return text;
+    pos = range.end;
+  });
+  if (pos < text.length) parts.push(text.slice(pos));
   return <>{parts}</>;
+}
+
+function formatOrderLineProductLabel(line: {
+  product_id: number | null;
+  brand_name: string | null;
+  product_name: string;
+}): string {
+  const title = [line.brand_name?.trim(), line.product_name.trim()].filter(Boolean).join(" ");
+  if (line.product_id) {
+    return title ? `${line.product_id} - ${title}` : String(line.product_id);
+  }
+  return title;
 }
 
 export type AdminOrderCreateFormProps = {
@@ -2062,7 +2099,7 @@ export default function AdminOrderCreateForm({
                       <div className={`${orderLineColName} space-y-1`}>
                         <p className="truncate text-sm leading-snug text-admin-text">
                           <span className="font-medium">
-                            {line.product_id} - {line.product_name}
+                            {formatOrderLineProductLabel(line)}
                           </span>
                           {line.variant_title ? (
                             <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
@@ -2109,7 +2146,7 @@ export default function AdminOrderCreateForm({
                             value={selectValue}
                             onChange={(e) => setLineChannel(idx, e.target.value as FulfillmentChannel)}
                             className="h-8 w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 text-xs text-admin-text outline-none focus:ring-2 focus:ring-admin-primary/20"
-                            aria-label={`Откуда: ${line.product_name}`}
+                            aria-label={`Откуда: ${formatOrderLineProductLabel(line)}`}
                           >
                             {line.can_fulfill_main ? <option value="main">Склад</option> : null}
                             {line.can_fulfill_offer ? <option value="offer">Офер</option> : null}
@@ -2125,7 +2162,7 @@ export default function AdminOrderCreateForm({
                           <input
                             type="number"
                             min={1}
-                            aria-label={`Количество: ${line.product_name}`}
+                            aria-label={`Количество: ${formatOrderLineProductLabel(line)}`}
                             className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
                             value={line.qty}
                             onChange={(e) => setLineQty(idx, Number(e.target.value))}
@@ -2142,7 +2179,7 @@ export default function AdminOrderCreateForm({
                             type="number"
                             min={0}
                             step="0.01"
-                            aria-label={`Цена: ${line.product_name}`}
+                            aria-label={`Цена: ${formatOrderLineProductLabel(line)}`}
                             className="h-8 w-full rounded-lg bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
                             value={line.price}
                             onChange={(e) => setLinePrice(idx, Number(e.target.value))}
@@ -2172,7 +2209,7 @@ export default function AdminOrderCreateForm({
                             type="button"
                             onClick={() => removeLine(idx)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
-                            aria-label={`Удалить ${line.product_name}`}
+                            aria-label={`Удалить ${formatOrderLineProductLabel(line)}`}
                             title="Удалить"
                           >
                             <Trash2 size={16} strokeWidth={1.75} />
