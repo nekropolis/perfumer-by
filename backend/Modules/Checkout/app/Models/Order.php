@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\OrderGiftCertificate;
+use Modules\Users\Models\Client;
 
 class Order extends Model
 {
@@ -27,7 +28,16 @@ class Order extends Model
         'total',
         'delivery_method',
         'delivery_city',
+        'delivery_city_id',
         'delivery_address',
+        'delivery_street_prefix',
+        'delivery_house',
+        'delivery_korpus',
+        'delivery_apartment',
+        'delivery_comment',
+        'shipment_id',
+        'shipment_status',
+        'shipment_status_at',
         'delivery_date',
         'delivery_time_from',
         'delivery_time_to',
@@ -42,6 +52,7 @@ class Order extends Model
     protected $casts = [
         'delivery_date' => 'date',
         'delivery_fee' => 'decimal:2',
+        'shipment_status_at' => 'datetime',
     ];
 
     /** Списание подарочного сертификата: только `order_gift_certificates` (колонки на `orders` сняты в v2 миграции). */
@@ -61,6 +72,11 @@ class Order extends Model
     public function discountCard(): BelongsTo
     {
         return $this->belongsTo(DiscountCard::class, 'discount_card_id');
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
     }
 
     public function items(): HasMany

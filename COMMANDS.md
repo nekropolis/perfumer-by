@@ -223,7 +223,7 @@ Make/npm — из корня или `frontend/`, как указано.
 
 | Команда | Что делает |
 | --- | --- |
-| `php artisan settlements:import-belarus` | Импорт населённых пунктов РБ из JSON (доставка/чекаут). |
+| `php artisan veter:sync-cities` | Синхронизация городов/районов/зон курьерской службы Ветер. При ошибке — алерт в Telegram. |
 | `php artisan users:migrate-name-to-first-name --dry-run` | Перенос `name` → `first_name`, если пусто. |
 
 ---

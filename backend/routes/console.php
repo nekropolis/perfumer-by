@@ -31,3 +31,17 @@ Schedule::command('catalog:warm-cache --pages=3')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('veter:sync-cities')
+    ->dailyAt('03:10')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
+Schedule::command('veter:sync-ticket-statuses')
+    ->hourly()
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

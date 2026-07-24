@@ -19,6 +19,7 @@ use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Services\CheckoutQuoteService;
 use Modules\Checkout\Services\SoldGiftCertificateFromOrderService;
+use Modules\Checkout\Support\DeliveryCityResolver;
 use Modules\Communications\Services\Notifications\CheckoutTelegramNotificationService;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\GiftCertificate;
@@ -46,7 +47,12 @@ class CheckoutController extends Controller
                 CheckoutDeliveryService::METHOD_PICKUP,
             ])],
             'delivery_city' => ['nullable', 'string', 'max:255'],
+            'delivery_city_id' => ['nullable', 'integer', 'min:1'],
             'delivery_address' => ['required', 'string', 'max:2000'],
+            'delivery_street_prefix' => ['nullable', 'string', 'max:32'],
+            'delivery_house' => ['nullable', 'string', 'max:32'],
+            'delivery_korpus' => ['nullable', 'string', 'max:32'],
+            'delivery_apartment' => ['nullable', 'string', 'max:32'],
             'payment_method' => ['required', Rule::in(['cash', 'card'])],
             'cart_item_ids' => ['sometimes', 'array'],
             'cart_item_ids.*' => ['integer', 'min:1'],
@@ -137,11 +143,10 @@ class CheckoutController extends Controller
         }
 
         if ($validated['delivery_method'] === CheckoutDeliveryService::METHOD_PICKUP) {
-            $validated['delivery_address'] = 'нет - самовывоз';
-            $validated['delivery_city'] = null;
-        } elseif ($validated['delivery_method'] === CheckoutDeliveryService::METHOD_MINSK) {
-            $validated['delivery_city'] = CheckoutDeliveryService::MINSK_CITY;
+            $validated['delivery_address'] = 'Самовывоз';
         }
+
+        $validated = DeliveryCityResolver::apply($validated);
 
         foreach ($cart->items as $cartItem) {
             if ($partialCheckout && !in_array((int) $cartItem->id, $checkoutProductLineIds, true)) {
@@ -188,7 +193,12 @@ class CheckoutController extends Controller
                 'total' => 0,
                 'delivery_method' => $validated['delivery_method'],
                 'delivery_city' => $validated['delivery_city'] ?? null,
+                'delivery_city_id' => $validated['delivery_city_id'] ?? null,
                 'delivery_address' => $validated['delivery_address'],
+                'delivery_street_prefix' => $validated['delivery_street_prefix'] ?? null,
+                'delivery_house' => $validated['delivery_house'] ?? null,
+                'delivery_korpus' => $validated['delivery_korpus'] ?? null,
+                'delivery_apartment' => $validated['delivery_apartment'] ?? null,
                 'delivery_date' => now()->toDateString(),
                 'delivery_fee' => 0,
                 'payment_method' => $validated['payment_method'],

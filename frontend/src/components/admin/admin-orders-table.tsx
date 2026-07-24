@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { MessageSquare, Pencil } from "lucide-react";
+import { MessageSquare, Pencil, ChevronDown, Check, Truck } from "lucide-react";
+import { isVeterInTransitStatus, veterOrderUrl } from "@/constants/veter";
 import type { ReactNode } from "react";
 import type { OrderData, OrderItem } from "@/types/orders";
 import { fetchOrder, updateOrderAdminFields, updateOrderStatus } from "@/lib/admin-orders-api";
-import { getOrderStatusTableTextClass, ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import { getOrderStatusLabel, getOrderStatusTableTextClass, ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
@@ -17,6 +18,7 @@ import AdminDeliveryTimeInput, {
     snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
@@ -26,6 +28,8 @@ type Props = {
     onErrorMessageAction?: (message: string) => void;
     /** Открыть попап фильтра по дате доставки (из заголовка колонки). */
     onDateFilterHeaderClickAction?: () => void;
+    statusFilter?: string;
+    onStatusFilterChangeAction?: (status: string) => void;
     selectedOrderIds?: number[];
     onSelectedOrderIdsChangeAction?: (ids: number[]) => void;
 };
@@ -50,6 +54,174 @@ function orderItemTooltipTitle(item: OrderItem): string {
     const name = item.product_name?.trim() || "Товар";
     const variant = item.variant_title?.trim() || "";
     return variant ? `${name} — ${variant}` : name;
+}
+
+type StatusFilterMenuCoords = {
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+};
+
+function OrdersStatusFilterHeader({
+    value,
+    onChangeAction,
+}: {
+    value: string;
+    onChangeAction: (status: string) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [menuCoords, setMenuCoords] = useState<StatusFilterMenuCoords | null>(null);
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    const hasFilter = value.trim() !== "";
+    const label = hasFilter ? getOrderStatusLabel(value) : "Статус";
+
+    const updateMenuPosition = () => {
+        if (!triggerRef.current) {
+            return;
+        }
+        const rect = triggerRef.current.getBoundingClientRect();
+        const menuWidth = Math.min(200, Math.max(0, window.innerWidth - 24));
+        const menuHeight = Math.min(320, (ORDER_STATUS_OPTIONS.length + 1) * 36 + 12);
+        const pad = 8;
+        const gap = 6;
+        let left = rect.left;
+        if (window.innerWidth - rect.left < menuWidth + pad) {
+            left = rect.right - menuWidth;
+        }
+        left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
+        setMenuCoords({
+            top: openUp ? undefined : rect.bottom + gap,
+            bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+            left,
+            width: menuWidth,
+        });
+    };
+
+    useLayoutEffect(() => {
+        if (!isOpen) {
+            setMenuCoords(null);
+            return;
+        }
+        updateMenuPosition();
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+        const onPointerDown = (event: MouseEvent | TouchEvent) => {
+            const target = event.target as Node;
+            if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) {
+                return;
+            }
+            setIsOpen(false);
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setIsOpen(false);
+            }
+        };
+        const onReposition = () => updateMenuPosition();
+
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("touchstart", onPointerDown, { passive: true });
+        window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("resize", onReposition);
+        window.addEventListener("scroll", onReposition, true);
+
+        return () => {
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("touchstart", onPointerDown);
+            window.removeEventListener("keydown", onKeyDown);
+            window.removeEventListener("resize", onReposition);
+            window.removeEventListener("scroll", onReposition, true);
+        };
+    }, [isOpen]);
+
+    const menu =
+        isOpen && menuCoords && typeof document !== "undefined"
+            ? createPortal(
+                  <div
+                      ref={menuRef}
+                      className="fixed z-[9999] max-h-[min(20rem,70vh)] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg"
+                      style={{
+                          top: menuCoords.top,
+                          bottom: menuCoords.bottom,
+                          left: menuCoords.left,
+                          width: menuCoords.width,
+                      }}
+                      role="listbox"
+                      aria-label="Фильтр по статусу"
+                  >
+                      <button
+                          type="button"
+                          role="option"
+                          aria-selected={!hasFilter}
+                          onClick={() => {
+                              onChangeAction("");
+                              setIsOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-admin-muted ${
+                              !hasFilter ? "font-medium text-admin-text" : "text-admin-text-secondary"
+                          }`}
+                      >
+                          <span>Все статусы</span>
+                          {!hasFilter ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} /> : null}
+                      </button>
+                      {ORDER_STATUS_OPTIONS.map((option) => {
+                          const selected = value === option.value;
+                          return (
+                              <button
+                                  key={option.value}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  onClick={() => {
+                                      onChangeAction(option.value);
+                                      setIsOpen(false);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-admin-muted ${
+                                      selected ? "font-medium text-admin-text" : "text-admin-text-secondary"
+                                  }`}
+                              >
+                                  <span>{option.label}</span>
+                                  {selected ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} /> : null}
+                              </button>
+                          );
+                      })}
+                  </div>,
+                  document.body,
+              )
+            : null;
+
+    return (
+        <>
+            <button
+                ref={triggerRef}
+                type="button"
+                onClick={() => setIsOpen((prev) => !prev)}
+                className={`inline-flex max-w-full cursor-pointer items-center gap-0.5 bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none ${
+                    hasFilter || isOpen ? "text-admin-text" : "text-admin-text-secondary"
+                }`}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-label="Фильтр по статусу"
+                title={hasFilter ? `Статус: ${label}` : "Фильтр по статусу"}
+            >
+                <span className="truncate">{hasFilter ? label : "Статус"}</span>
+                <ChevronDown
+                    aria-hidden
+                    strokeWidth={2.25}
+                    className={`h-3 w-3 shrink-0 opacity-70 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                />
+            </button>
+            {menu}
+        </>
+    );
 }
 
 function highlightQueryInText(text: string, query: string): ReactNode {
@@ -166,11 +338,6 @@ function AdminOrderClientPhoneCell({
     );
 }
 
-function normalizeAddressLine(value?: string | null): string {
-    return value?.trim() || "—";
-}
-
-/** В таблице показываем короткое имя населённого пункта (без области и случайно попавшего адреса). */
 function formatOrderCityDisplay(city?: string | null): string {
     const raw = city?.trim() || "";
     if (!raw) {
@@ -321,17 +488,32 @@ function isTextOverflowing(element: HTMLElement): boolean {
 function AdminOrderAddressCell({
     city,
     address,
+    streetPrefix,
+    house,
+    korpus,
+    apartment,
     onShowAction,
     onHideAction,
 }: {
     city?: string | null;
     address?: string | null;
+    streetPrefix?: string | null;
+    house?: string | null;
+    korpus?: string | null;
+    apartment?: string | null;
     onShowAction: (tooltip: AddressTooltipState) => void;
     onHideAction: () => void;
 }) {
     const cityRaw = city?.trim() || "";
     const cityLine = formatOrderCityDisplay(city);
-    const addressLine = normalizeAddressLine(address);
+    const addressLine =
+        formatDeliveryAddressLine({
+            prefix: streetPrefix,
+            street: address,
+            house,
+            korpus,
+            apartment,
+        }) || "—";
     const hasAddress = cityLine !== "—" || addressLine !== "—";
     const tooltipCity = cityRaw || cityLine;
     const cityWasShortened = cityRaw !== "" && cityRaw !== cityLine;
@@ -367,6 +549,83 @@ function AdminOrderAddressCell({
             <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
                 {addressLine}
             </div>
+        </div>
+    );
+}
+
+function AdminOrderShipmentIdCell({
+    shipmentId,
+    shipmentStatus,
+    deliveryComment,
+    searchQuery,
+    onShowAction,
+    onHideAction,
+}: {
+    shipmentId?: string | null;
+    shipmentStatus?: string | null;
+    deliveryComment?: string | null;
+    searchQuery?: string;
+    onShowAction: (tooltip: AddressTooltipState) => void;
+    onHideAction: () => void;
+}) {
+    const id = shipmentId?.trim() || "";
+    const status = shipmentStatus?.trim() || "";
+    const comment = deliveryComment?.trim() || "";
+    const inTransit = isVeterInTransitStatus(status);
+
+    const showTooltip = (element: HTMLElement) => {
+        if (!comment) {
+            onHideAction();
+            return;
+        }
+        onShowAction({
+            lines: [comment],
+            ...getTooltipPosition(element),
+        });
+    };
+
+    if (!id) {
+        return <span className="text-admin-text-secondary">—</span>;
+    }
+
+    const idContent = highlightQueryInText(id, searchQuery);
+
+    return (
+        <div
+            className={`min-w-0 ${comment ? "cursor-default" : ""}`}
+            tabIndex={comment ? 0 : undefined}
+            onMouseEnter={(event) => showTooltip(event.currentTarget)}
+            onMouseLeave={onHideAction}
+            onFocus={(event) => showTooltip(event.currentTarget)}
+            onBlur={onHideAction}
+        >
+            <div className="flex min-w-0 items-center gap-1 tabular-nums text-admin-text">
+                {inTransit ? (
+                    <Truck
+                        size={12}
+                        className="shrink-0 text-cyan-700"
+                        aria-label="В пути"
+                    />
+                ) : null}
+                {inTransit ? (
+                    <a
+                        href={veterOrderUrl(id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-0 truncate text-cyan-700 underline-offset-2 hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        {idContent}
+                    </a>
+                ) : (
+                    <span className="min-w-0 truncate">{idContent}</span>
+                )}
+            </div>
+            {status ? (
+                <div className="mt-0.5 truncate text-[11px] leading-tight text-admin-text-secondary">
+                    {status}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -595,6 +854,8 @@ export default function AdminOrdersTable({
     onSuccessMessageAction,
     onErrorMessageAction,
     onDateFilterHeaderClickAction,
+    statusFilter = "",
+    onStatusFilterChangeAction,
     selectedOrderIds = [],
     onSelectedOrderIdsChangeAction,
 }: Props) {
@@ -778,6 +1039,7 @@ export default function AdminOrdersTable({
                         <col />
                         <col />
                         <col className="w-[4.5rem]" />
+                        <col className="w-[6.5rem]" />
                         <col className="w-[8.5rem]" />
                         <col className="w-[3.25rem]" />
                         <col className="w-[6.5rem]" />
@@ -800,7 +1062,7 @@ export default function AdminOrdersTable({
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="cursor-pointer bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary transition hover:font-bold hover:underline hover:underline-offset-2 focus:outline-none"
+                                        className="cursor-pointer bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none"
                                         aria-label="Фильтр по дате доставки"
                                     >
                                         Дата доставки
@@ -812,7 +1074,17 @@ export default function AdminOrdersTable({
                             <th className="border-r border-admin-border px-2 py-2">Клиент</th>
                             <th className="border-r border-admin-border px-2 py-2">Адрес</th>
                             <th className="border-r border-admin-border px-2 py-2">Время</th>
-                            <th className="border-r border-admin-border px-2 py-2">Статус</th>
+                            <th className="border-r border-admin-border px-2 py-2">ID отправки</th>
+                            <th className="border-r border-admin-border px-2 py-2">
+                                {onStatusFilterChangeAction !== undefined ? (
+                                    <OrdersStatusFilterHeader
+                                        value={statusFilter}
+                                        onChangeAction={onStatusFilterChangeAction}
+                                    />
+                                ) : (
+                                    "Статус"
+                                )}
+                            </th>
                             <th className="border-r border-admin-border px-2 py-2">Кол.</th>
                             <th className="border-r border-admin-border px-2 py-2">Сумма</th>
                             <th className="px-2 py-2">Теги</th>
@@ -872,6 +1144,10 @@ export default function AdminOrdersTable({
                                     <AdminOrderAddressCell
                                         city={order.delivery_city}
                                         address={order.delivery_address}
+                                        streetPrefix={order.delivery_street_prefix}
+                                        house={order.delivery_house}
+                                        korpus={order.delivery_korpus}
+                                        apartment={order.delivery_apartment}
                                         onShowAction={showAddressTooltip}
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
@@ -881,6 +1157,16 @@ export default function AdminOrdersTable({
                                         order={order}
                                         onSavedAction={patchOrderInList}
                                         onErrorAction={onErrorMessageAction}
+                                    />
+                                </td>
+                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                    <AdminOrderShipmentIdCell
+                                        shipmentId={order.shipment_id}
+                                        shipmentStatus={order.shipment_status}
+                                        deliveryComment={order.delivery_comment}
+                                        searchQuery={searchQuery}
+                                        onShowAction={showAddressTooltip}
+                                        onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
                                 <td className="border-r border-admin-border/70 px-2 py-2">

@@ -12,6 +12,7 @@ use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Services\CheckoutDeliveryService;
+use Modules\Checkout\Support\DeliveryCityResolver;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\DiscountCardTransaction;
 use Modules\Loyalty\Models\ClientDiscountCard;
@@ -39,7 +40,14 @@ class OrderController extends Controller
             'status' => ['sometimes', 'required', 'string', 'max:50'],
             'delivery_method' => ['nullable', 'string', 'max:40'],
             'delivery_city' => ['nullable', 'string', 'max:255'],
+            'delivery_city_id' => ['nullable', 'integer', 'min:1'],
             'delivery_address' => ['nullable', 'string'],
+            'delivery_street_prefix' => ['nullable', 'string', 'max:32'],
+            'delivery_house' => ['nullable', 'string', 'max:32'],
+            'delivery_korpus' => ['nullable', 'string', 'max:32'],
+            'delivery_apartment' => ['nullable', 'string', 'max:32'],
+            'delivery_comment' => ['nullable', 'string', 'max:500'],
+            'shipment_id' => ['nullable', 'string', 'max:64'],
             'delivery_date' => ['nullable', 'date_format:Y-m-d'],
             'delivery_time_from' => ['nullable', 'date_format:H:i'],
             'delivery_time_to' => ['nullable', 'date_format:H:i'],
@@ -75,12 +83,18 @@ class OrderController extends Controller
     private function normalizeDeliveryFields(array $validated): array
     {
         if (($validated['delivery_method'] ?? null) === CheckoutDeliveryService::METHOD_PICKUP) {
-            $validated['delivery_city'] = null;
+            $validated['shipment_id'] = null;
         } elseif (($validated['delivery_method'] ?? null) === CheckoutDeliveryService::METHOD_MINSK) {
-            $validated['delivery_city'] = CheckoutDeliveryService::MINSK_CITY;
+            $shipmentId = trim((string) ($validated['shipment_id'] ?? ''));
+            $validated['shipment_id'] = $shipmentId !== '' ? $shipmentId : null;
+        } elseif (($validated['delivery_method'] ?? null) === CheckoutDeliveryService::METHOD_BELARUS) {
+            $shipmentId = trim((string) ($validated['shipment_id'] ?? ''));
+            $validated['shipment_id'] = $shipmentId !== '' ? $shipmentId : null;
+        } else {
+            $validated['shipment_id'] = null;
         }
 
-        return $validated;
+        return DeliveryCityResolver::apply($validated);
     }
 
     public function stats(): JsonResponse
@@ -300,7 +314,8 @@ class OrderController extends Controller
 
                     $subQuery
                         ->orWhere('customer_name', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%");
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('shipment_id', 'like', "%{$search}%");
                 });
             })
             ->when($status !== '', function ($query) use ($status) {
@@ -371,10 +386,11 @@ class OrderController extends Controller
         ]);
     }
 
-    public function quote(Request $request, AdminOrderPricingService $pricing): JsonResponse
+    public function quote(Request $request, AdminOrderPricingService $pricing, CheckoutDeliveryService $delivery): JsonResponse
     {
         $validated = $request->validate([
             'payment_method' => ['nullable', 'string', 'max:32'],
+            'delivery_method' => ['nullable', 'string', 'in:minsk_courier,belarus_courier,pickup'],
             'discount_card_number' => ['nullable', 'string', 'max:64'],
             'gift_certificate_code' => ['nullable', 'string', 'max:64'],
             'order_id' => ['nullable', 'integer', 'min:1'],
@@ -417,7 +433,22 @@ class OrderController extends Controller
             $giftCertificateCode !== '' ? $giftCertificateCode : null,
             $forOrder,
         );
-        $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
+
+        $deliveryMethod = (string) ($validated['delivery_method'] ?? '');
+        if ($deliveryMethod !== '') {
+            $lineVariantIds = [];
+            foreach ($validated['items'] as $item) {
+                $variantId = (int) ($item['variant_id'] ?? 0);
+                $lineVariantIds[] = $variantId > 0 ? $variantId : null;
+            }
+            $deliveryFee = round($delivery->deliveryFeeForOrderLines(
+                $deliveryMethod,
+                $quote['merchandise_total'],
+                $lineVariantIds,
+            ), 2);
+        } else {
+            $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
+        }
 
         return response()->json([
             'data' => [
@@ -467,7 +498,14 @@ class OrderController extends Controller
                 'status' => (string) ($validated['status'] ?? 'new'),
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
+                'delivery_city_id' => $validated['delivery_city_id'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_street_prefix' => $validated['delivery_street_prefix'] ?? null,
+                'delivery_house' => $validated['delivery_house'] ?? null,
+                'delivery_korpus' => $validated['delivery_korpus'] ?? null,
+                'delivery_apartment' => $validated['delivery_apartment'] ?? null,
+                'delivery_comment' => $validated['delivery_comment'] ?? null,
+                'shipment_id' => $validated['shipment_id'] ?? null,
                 'delivery_date' => $validated['delivery_date'] ?? now()->toDateString(),
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
@@ -544,7 +582,14 @@ class OrderController extends Controller
                 'manager_comment' => $validated['manager_comment'] ?? null,
                 'delivery_method' => $validated['delivery_method'] ?? null,
                 'delivery_city' => $validated['delivery_city'] ?? null,
+                'delivery_city_id' => $validated['delivery_city_id'] ?? null,
                 'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_street_prefix' => $validated['delivery_street_prefix'] ?? null,
+                'delivery_house' => $validated['delivery_house'] ?? null,
+                'delivery_korpus' => $validated['delivery_korpus'] ?? null,
+                'delivery_apartment' => $validated['delivery_apartment'] ?? null,
+                'delivery_comment' => $validated['delivery_comment'] ?? null,
+                'shipment_id' => $validated['shipment_id'] ?? null,
                 'delivery_date' => $validated['delivery_date'] ?? $order->delivery_date?->format('Y-m-d') ?? now()->toDateString(),
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
@@ -568,7 +613,7 @@ class OrderController extends Controller
 
                 // Склад → резерв; офер/ожидание → без резерва (reserveOrderItem сам решает по availability_source).
                 if (
-                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'preorder', 'done', 'completed'], true)
+                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'in_delivery', 'preorder', 'done', 'completed'], true)
                     && $nextStatus !== 'cancelled'
                 ) {
                     $stockService->reserveForOrder($order);
@@ -851,7 +896,6 @@ class OrderController extends Controller
             $subtotal += $lineTotal;
         }
 
-        $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
         $paymentMethod = (string) ($pricingContext['payment_method'] ?? $order->payment_method ?? 'cash');
         $discountCardNumber = array_key_exists('discount_card_number', $pricingContext)
             ? $pricingContext['discount_card_number']
@@ -860,12 +904,14 @@ class OrderController extends Controller
             ? $pricingContext['gift_certificate_code']
             : null;
 
+        $pricingItems = array_map(static fn (array $item): array => [
+            'qty' => (int) $item['qty'],
+            'price' => (float) $item['price'],
+            'variant_id' => isset($item['variant_id']) ? (int) $item['variant_id'] : null,
+        ], $items);
+
         $pricing = app(AdminOrderPricingService::class)->quote(
-            array_map(static fn (array $item): array => [
-                'qty' => (int) $item['qty'],
-                'price' => (float) $item['price'],
-                'variant_id' => isset($item['variant_id']) ? (int) $item['variant_id'] : null,
-            ], $items),
+            $pricingItems,
             $paymentMethod,
             $discountCardNumber !== null && trim((string) $discountCardNumber) !== ''
                 ? trim((string) $discountCardNumber)
@@ -876,9 +922,26 @@ class OrderController extends Controller
             $order,
         );
 
+        $deliveryMethod = (string) ($order->delivery_method ?? '');
+        if ($deliveryMethod !== '') {
+            $lineVariantIds = [];
+            foreach ($pricingItems as $item) {
+                $variantId = (int) ($item['variant_id'] ?? 0);
+                $lineVariantIds[] = $variantId > 0 ? $variantId : null;
+            }
+            $deliveryFee = round(app(CheckoutDeliveryService::class)->deliveryFeeForOrderLines(
+                $deliveryMethod,
+                $pricing['merchandise_total'],
+                $lineVariantIds,
+            ), 2);
+        } else {
+            $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
+        }
+
         $order->update([
             'items_qty' => $itemsQty,
             'subtotal' => round($subtotal, 2),
+            'delivery_fee' => $deliveryFee,
             'discount_card_id' => $pricing['discount_card_id'],
             'discount_card_number' => $pricing['discount_card_number'],
             'discount_percent_snapshot' => $pricing['loyalty_discount_percent'],

@@ -1,10 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Checkout\Http\Controllers\Api\AdminDeliveryCitiesController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutCitiesController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutController;
 use Modules\Checkout\Http\Controllers\Api\CheckoutQuoteController;
 use Modules\Checkout\Http\Controllers\Api\OrderController;
+use Modules\Checkout\Http\Controllers\Api\VeterTicketSendController;
+use Modules\Checkout\Http\Controllers\Api\VeterTicketStatusSyncController;
 use Modules\Checkout\Http\Controllers\Api\OrderTagController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
@@ -33,6 +36,8 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::get('/customer-context', [OrderController::class, 'customerContext']);
     Route::get('/stats', [OrderController::class, 'stats']);
     Route::post('/quote', [OrderController::class, 'quote']);
+    Route::post('/veter-send', VeterTicketSendController::class);
+    Route::post('/veter-status-sync', VeterTicketStatusSyncController::class);
     Route::post('/', [OrderController::class, 'store']);
     Route::post('/{id}/sync-inventory-writeoff', [OrderController::class, 'syncInventoryWriteoff']);
     Route::get('/{id}', [OrderController::class, 'show']);
@@ -61,6 +66,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock-notificatio
     Route::get('/stats', [StockNotificationAdminController::class, 'stats']);
     Route::get('/', [StockNotificationAdminController::class, 'index']);
     Route::patch('/{id}/status', [StockNotificationAdminController::class, 'updateStatus']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/system/delivery-cities')->group(function () {
+    Route::get('/', [AdminDeliveryCitiesController::class, 'index']);
+    Route::post('/sync', [AdminDeliveryCitiesController::class, 'sync']);
 });
 
 Route::middleware(['auth:sanctum', 'ensure_client'])->prefix('orders')->group(function () {

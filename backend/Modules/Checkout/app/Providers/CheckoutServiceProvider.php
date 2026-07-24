@@ -2,8 +2,9 @@
 
 namespace Modules\Checkout\Providers;
 
+use Modules\Checkout\Console\Commands\SyncVeterCitiesCommand;
+use Modules\Checkout\Console\Commands\SyncVeterTicketStatusesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
-use Illuminate\Console\Scheduling\Schedule;
 
 class CheckoutServiceProvider extends ModuleServiceProvider
 {
@@ -22,7 +23,10 @@ class CheckoutServiceProvider extends ModuleServiceProvider
      *
      * @var string[]
      */
-    // protected array $commands = [];
+    protected array $commands = [
+        SyncVeterCitiesCommand::class,
+        SyncVeterTicketStatusesCommand::class,
+    ];
 
     /**
      * Provider classes to register.
@@ -33,14 +37,4 @@ class CheckoutServiceProvider extends ModuleServiceProvider
         EventServiceProvider::class,
         RouteServiceProvider::class,
     ];
-
-    /**
-     * Define module schedules.
-     * 
-     * @param $schedule
-     */
-    // protected function configureSchedules(Schedule $schedule): void
-    // {
-    //     $schedule->command('inspire')->hourly();
-    // }
 }

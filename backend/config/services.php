@@ -40,6 +40,27 @@ return [
         'chat_id' => env('TELEGRAM_CHAT_ID'),
     ],
 
+    'veter' => [
+        // Punycode for ветер.бел — Cyrillic host breaks on some servers.
+        'base_url' => env('VETER_BASE_URL', 'https://xn--b1aga8bi.xn--90ais'),
+        'user_id' => env('VETER_USER_ID'),
+        'api_key' => env('VETER_API_KEY'),
+        'timeout' => env('VETER_TIMEOUT', 60),
+        'profile_name' => env('VETER_PROFILE_NAME', ''),
+        /** ID профиля из селекта кабинета (SelectedProfileID / optionsValue). */
+        'profile_id' => env('VETER_PROFILE_ID', ''),
+        /** CityID Ветер для заказов minsk_courier (у них нет delivery_city_id). */
+        'minsk_city_id' => env('VETER_MINSK_CITY_ID', ''),
+        'sender' => [
+            'city_id' => env('VETER_SENDER_CITY_ID', ''),
+            'street_prefix' => env('VETER_SENDER_STREET_PREFIX', 'ул.'),
+            'street_name' => env('VETER_SENDER_STREET_NAME', ''),
+            'house_number' => env('VETER_SENDER_HOUSE_NUMBER', ''),
+            'korpus' => env('VETER_SENDER_KORPUS', ''),
+            'kvartira' => env('VETER_SENDER_KVARTIRA', ''),
+        ],
+    ],
+
     'catalog_search' => [
         'enabled' => env('CATALOG_SEARCH_ENABLED', false),
         'log_metrics' => env('CATALOG_SEARCH_LOG_METRICS', true),

@@ -211,7 +211,16 @@ export type AdminOrderPayload = {
   status?: string;
   delivery_method?: string | null;
   delivery_city?: string | null;
+  /** ID города Ветер (belarus_courier). */
+  delivery_city_id?: number | null;
   delivery_address?: string | null;
+  delivery_street_prefix?: string | null;
+  delivery_house?: string | null;
+  delivery_korpus?: string | null;
+  delivery_apartment?: string | null;
+  delivery_comment?: string | null;
+  /** ID отправки (курьер Минск / РБ). */
+  shipment_id?: string | null;
   /** YYYY-MM-DD */
   delivery_date?: string | null;
   delivery_time_from?: string | null;
@@ -241,11 +250,13 @@ export type AdminOrderQuote = {
 
 export type AdminOrderQuotePayload = {
   payment_method?: string | null;
+  delivery_method?: string | null;
   discount_card_number?: string | null;
   gift_certificate_code?: string | null;
   order_id?: number | null;
+  /** Используется только если delivery_method не передан. */
   delivery_fee?: number;
-  items: { qty: number; price: number }[];
+  items: { qty: number; price: number; variant_id?: number | null }[];
 };
 
 export type AdminOrderCustomerContext = {
@@ -356,6 +367,65 @@ export async function deleteOrder(id: number): Promise<{ message?: string }> {
 
   if (!res.ok) {
     throw await parseOrderError(res, `Delete order API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export type VeterSendSkipped = {
+  order_id: number;
+  reason: string;
+};
+
+export type VeterSendInvalid = {
+  order_id: number;
+  reason: string;
+  missing: string[];
+};
+
+export type VeterSendResultData = {
+  ready_order_ids: number[];
+  skipped: VeterSendSkipped[];
+  invalid: VeterSendInvalid[];
+  sent: { order_id: number; shipment_id: string; status?: string }[];
+  failed: { order_id: number; reason: string }[];
+};
+
+export async function sendVeterTickets(
+  orderIds: number[],
+): Promise<{ data: VeterSendResultData; message?: string }> {
+  const res = await fetch(`${API_BASE}/admin/orders/veter-send`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    body: JSON.stringify({ order_ids: orderIds }),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Veter send API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export type VeterStatusSyncResultData = {
+  updated: { order_id: number; shipment_id: string; shipment_status: string | null }[];
+  failed: { order_id: number; shipment_id: string; reason: string }[];
+  total: number;
+};
+
+export async function syncVeterTicketStatuses(): Promise<{
+  data: VeterStatusSyncResultData;
+  message?: string;
+}> {
+  const res = await fetch(`${API_BASE}/admin/orders/veter-status-sync`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Veter status sync API error: ${res.status}`);
   }
 
   return res.json();

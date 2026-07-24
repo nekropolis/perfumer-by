@@ -29,6 +29,34 @@ class Phone
     }
 
     /**
+     * Формат Ветер / UI: +375 (29) 657-72-55
+     * Если номер не BY mobile — возвращает исходную строку (trim) или +digits.
+     */
+    public static function formatBelarusDisplay(string $phone): string
+    {
+        $digits = self::normalize($phone);
+        if (strlen($digits) === 12 && str_starts_with($digits, '375')) {
+            $op = substr($digits, 3, 2);
+            $rest = substr($digits, 5);
+
+            return sprintf(
+                '+375 (%s) %s-%s-%s',
+                $op,
+                substr($rest, 0, 3),
+                substr($rest, 3, 2),
+                substr($rest, 5, 2),
+            );
+        }
+
+        $trimmed = trim($phone);
+        if ($trimmed !== '') {
+            return $trimmed;
+        }
+
+        return $digits !== '' ? '+'.$digits : '';
+    }
+
+    /**
      * Мобильный формат (REGEX) или «Международный номер» (8–15 цифр с кодом страны).
      *
      * @throws ValidationException

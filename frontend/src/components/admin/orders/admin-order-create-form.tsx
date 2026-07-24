@@ -42,7 +42,7 @@ import {
 } from "@/lib/admin-phone-search";
 import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
 import { applyWaitingDiscount, WAITING_DISCOUNT_PERCENT } from "@/lib/loyalty-pricing";
-import { searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
+import { fetchCheckoutCityById, searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 import { ORDER_STATUS_OPTIONS, getOrderStatusTableTextClass } from "@/constants/order-statuses";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import { formatMoneyRub } from "@/lib/format-money-display";
@@ -56,6 +56,10 @@ import AdminDatePicker from "@/components/admin/orders/admin-date-picker";
 import AdminOrderTagsPicker from "@/components/admin/orders/admin-order-tags-picker";
 import type { OrderTag } from "@/lib/admin-order-tags-api";
 import { format } from "date-fns";
+import StreetPrefixSelect from "@/components/ui/street-prefix-select";
+import {
+  DEFAULT_VETER_STREET_PREFIX,
+} from "@/constants/veter-street-prefixes";
 
 const DELIVERY_OPTIONS = [
   { value: "minsk_courier", label: "Минск" },
@@ -66,6 +70,40 @@ const DELIVERY_OPTIONS = [
 /** Для «Курьер по Минску» населённый пункт в заказе всегда фиксирован. */
 const MINSK_COURIER_CITY = "Минск";
 
+const DELIVERY_DAY_LABELS: { key: keyof CheckoutCityHit["delivery_days"]; short: string }[] = [
+  { key: "monday", short: "Пн" },
+  { key: "tuesday", short: "Вт" },
+  { key: "wednesday", short: "Ср" },
+  { key: "thursday", short: "Чт" },
+  { key: "friday", short: "Пт" },
+  { key: "saturday", short: "Сб" },
+  { key: "sunday", short: "Вс" },
+];
+
+function DeliveryDaysBadges({ days }: { days: CheckoutCityHit["delivery_days"] | null | undefined }) {
+  if (!days) return null;
+  return (
+    <div className="flex flex-wrap gap-0.5">
+      {DELIVERY_DAY_LABELS.map(({ key, short }) => {
+        const on = days[key] === 1;
+        return (
+          <span
+            key={key}
+            className={`inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded px-1 text-[10px] font-medium ${
+              on
+                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
+                : "bg-admin-muted text-admin-text-secondary/50"
+            }`}
+            title={on ? `${short}: доставка` : `${short}: нет`}
+          >
+            {short}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Наличными" },
   { value: "card", label: "Картой (Visa и MasterCard)" },
@@ -73,6 +111,13 @@ const PAYMENT_OPTIONS = [
 
 const clientFieldClass =
   "w-full rounded-lg border border-admin-border bg-admin-bg px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20";
+
+/** Поля доставки/оплаты: цвет значения ≠ цвет placeholder (label часто secondary). */
+const surfaceFieldClass =
+  "w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";
+
+const surfaceFieldCompactClass =
+  "w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";
 
 const orderLineTableRow =
   "flex min-w-[52rem] items-start gap-x-3";
@@ -413,11 +458,14 @@ type CertificatesPanelProps<T> = {
 
 type SectionCardProps = {
   children: ReactNode;
+  className?: string;
 };
 
-function SectionCard({ children }: SectionCardProps) {
+function SectionCard({ children, className = "" }: SectionCardProps) {
   return (
-    <section className="space-y-4 rounded-2xl border border-admin-border bg-admin-surface p-5 shadow-admin-card">
+    <section
+      className={`space-y-4 rounded-2xl border border-admin-border bg-admin-surface p-5 shadow-admin-card ${className}`.trim()}
+    >
       {children}
     </section>
   );
@@ -484,10 +532,36 @@ export default function AdminOrderCreateForm({
   const [deliveryCity, setDeliveryCity] = useState(() => {
     const method = normalizeDelivery(initialOrder?.delivery_method);
     if (method === "minsk_courier") return MINSK_COURIER_CITY;
+    if (method === "belarus_courier") {
+      const id = initialOrder?.delivery_city_id;
+      if (typeof id === "number" && id > 0) {
+        return initialOrder?.delivery_city ?? "";
+      }
+      return "";
+    }
     return initialOrder?.delivery_city ?? "";
   });
+  const [deliveryCityId, setDeliveryCityId] = useState<number | null>(() => {
+    const method = normalizeDelivery(initialOrder?.delivery_method);
+    if (method !== "belarus_courier") return null;
+    const id = initialOrder?.delivery_city_id;
+    return typeof id === "number" && id > 0 ? id : null;
+  });
+  const [belarusDeliveryDays, setBelarusDeliveryDays] = useState<CheckoutCityHit["delivery_days"] | null>(null);
   const [citySelect, setCitySelect] = useState<string>("");
   const [deliveryAddress, setDeliveryAddress] = useState(() => initialOrder?.delivery_address ?? "");
+  const [deliveryStreetPrefix, setDeliveryStreetPrefix] = useState(
+    () => initialOrder?.delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
+  );
+  const [deliveryHouse, setDeliveryHouse] = useState(() => initialOrder?.delivery_house ?? "");
+  const [deliveryKorpus, setDeliveryKorpus] = useState(() => initialOrder?.delivery_korpus ?? "");
+  const [deliveryApartment, setDeliveryApartment] = useState(
+    () => initialOrder?.delivery_apartment ?? "",
+  );
+  const [deliveryComment, setDeliveryComment] = useState(
+    () => initialOrder?.delivery_comment ?? "",
+  );
+  const [shipmentId, setShipmentId] = useState(() => initialOrder?.shipment_id ?? "");
   const [deliveryTimeFrom, setDeliveryTimeFrom] = useState(
     () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_from),
   );
@@ -506,6 +580,15 @@ export default function AdminOrderCreateForm({
   );
   const [deliveryTimeModalOpen, setDeliveryTimeModalOpen] = useState(false);
   const [draftDeliveryTimeFrom, setDraftDeliveryTimeFrom] = useState("");
+  const [belarusCityQuery, setBelarusCityQuery] = useState(() => {
+    const method = normalizeDelivery(initialOrder?.delivery_method);
+    if (method !== "belarus_courier") return "";
+    const id = initialOrder?.delivery_city_id;
+    if (typeof id === "number" && id > 0) return "";
+    const city = (initialOrder?.delivery_city ?? "").trim();
+    if (!city) return "";
+    return city.includes(",") ? city.slice(0, city.indexOf(",")).trim() : city;
+  });
   const [draftDeliveryTimeTo, setDraftDeliveryTimeTo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(initialOrder?.delivery_fee ?? 0) || 0));
@@ -530,6 +613,24 @@ export default function AdminOrderCreateForm({
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState("");
+
+  /** Снимок полей РБ — чтобы при Минск/самовывоз → обратно на РБ не терять город/адрес. */
+  const belarusDeliverySnapRef = useRef<{
+    deliveryCity: string;
+    deliveryCityId: number | null;
+    belarusCityQuery: string;
+    belarusDeliveryDays: CheckoutCityHit["delivery_days"] | null;
+    deliveryAddress: string;
+    deliveryStreetPrefix: string;
+    deliveryHouse: string;
+    deliveryKorpus: string;
+    deliveryApartment: string;
+    deliveryComment: string;
+    shipmentId: string;
+  } | null>(null);
+
+  /** Сохранённый ID отправки блокирует смену на Минск / самовывоз. */
+  const shipmentBlocksNonRbDelivery = (initialOrder?.shipment_id ?? "").trim() !== "";
 
   const [phoneHits, setPhoneHits] = useState<AdminClient[]>([]);
   const [phoneHitsOpen, setPhoneHitsOpen] = useState(false);
@@ -570,11 +671,9 @@ export default function AdminOrderCreateForm({
   /** Не перезаписывать имя повторно для того же телефона после ручного ввода. */
   const autoCustomerNamePhoneRef = useRef<string>("");
 
-  const [belarusCityQuery, setBelarusCityQuery] = useState("");
   const debouncedBelarusCityQuery = useDebouncedValue(belarusCityQuery, 350);
   const [belarusCityHits, setBelarusCityHits] = useState<CheckoutCityHit[]>([]);
   const [belarusCityOpen, setBelarusCityOpen] = useState(false);
-  const [belarusManualCity, setBelarusManualCity] = useState(false);
   const [belarusCityLookupFailed, setBelarusCityLookupFailed] = useState(false);
 
   useEffect(() => {
@@ -583,6 +682,23 @@ export default function AdminOrderCreateForm({
     window.addEventListener("scroll", hide, true);
     return () => window.removeEventListener("scroll", hide, true);
   }, [variantTooltip]);
+
+  useEffect(() => {
+    if (deliveryMethod !== "belarus_courier" || !deliveryCityId || belarusDeliveryDays) return;
+    let cancelled = false;
+    void fetchCheckoutCityById(deliveryCityId)
+      .then((hit) => {
+        if (cancelled || !hit?.delivery_days) return;
+        setBelarusDeliveryDays(hit.delivery_days);
+        if (!deliveryCity.trim() && hit.full_name?.trim()) {
+          setDeliveryCity(hit.full_name.trim());
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [belarusDeliveryDays, deliveryCity, deliveryCityId, deliveryMethod]);
 
   useEffect(() => {
     if (!pickerProductId) setVariantTooltip(null);
@@ -625,33 +741,117 @@ export default function AdminOrderCreateForm({
     };
   }, [initialOrder?.id, initialOrder?.items]);
 
-  const handleDeliveryMethodChange = useCallback((value: DeliveryValue) => {
-    setDeliveryMethod(value);
-    if (value === "minsk_courier") {
-      setDeliveryCity(MINSK_COURIER_CITY);
-      setCitySelect("");
-      setBelarusCityQuery("");
-      setBelarusCityHits([]);
-      setBelarusCityOpen(false);
-      setBelarusManualCity(false);
-    } else if (value === "belarus_courier") {
-      setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
-      setCitySelect("");
-      setDeliveryCity((prev) => (prev.trim() === MINSK_COURIER_CITY ? "" : prev));
-      setBelarusCityQuery("");
-      setBelarusCityHits([]);
-      setBelarusCityOpen(false);
-      setBelarusManualCity(false);
-    } else if (value === "pickup") {
-      setDeliveryAddress("");
-      setDeliveryCity("");
-      setCitySelect("");
-      setBelarusCityQuery("");
-      setBelarusCityHits([]);
-      setBelarusCityOpen(false);
-      setBelarusManualCity(false);
-    }
-  }, []);
+  useEffect(() => {
+    if (deliveryMethod !== "belarus_courier") return;
+    belarusDeliverySnapRef.current = {
+      deliveryCity,
+      deliveryCityId,
+      belarusCityQuery,
+      belarusDeliveryDays,
+      deliveryAddress,
+      deliveryStreetPrefix,
+      deliveryHouse,
+      deliveryKorpus,
+      deliveryApartment,
+      deliveryComment,
+      shipmentId,
+    };
+  }, [
+    deliveryMethod,
+    deliveryCity,
+    deliveryCityId,
+    belarusCityQuery,
+    belarusDeliveryDays,
+    deliveryAddress,
+    deliveryStreetPrefix,
+    deliveryHouse,
+    deliveryKorpus,
+    deliveryApartment,
+    deliveryComment,
+    shipmentId,
+  ]);
+
+  const handleDeliveryMethodChange = useCallback(
+    (value: DeliveryValue) => {
+      if (
+        (value === "minsk_courier" || value === "pickup") &&
+        (initialOrder?.shipment_id ?? "").trim() !== ""
+      ) {
+        setError(
+          "Нельзя переключить на «Минск» или «Самовывоз» при заполненном ID отправки. Удалите ID отправки, сохраните заказ, затем смените способ доставки.",
+        );
+        return;
+      }
+
+      setError("");
+      setDeliveryMethod(value);
+
+      if (value === "pickup") {
+        setDeliveryFee(0);
+      } else if (value === "minsk_courier") {
+        const fromQuote = Number.parseFloat(String(orderQuote?.merchandise_total ?? "").replace(",", "."));
+        const merchandise = Number.isFinite(fromQuote)
+          ? fromQuote
+          : lines
+              .filter(isCompleteOrderLine)
+              .reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0);
+        setDeliveryFee(merchandise + 0.0001 >= 50 ? 0 : 3);
+        setDeliveryCity(MINSK_COURIER_CITY);
+        setCitySelect("");
+        setBelarusCityHits([]);
+        setBelarusCityOpen(false);
+      } else if (value === "belarus_courier") {
+        setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
+        setCitySelect("");
+        setBelarusCityHits([]);
+        setBelarusCityOpen(false);
+
+        const snap = belarusDeliverySnapRef.current;
+        if (snap) {
+          setDeliveryCity(snap.deliveryCity);
+          setDeliveryCityId(snap.deliveryCityId);
+          setBelarusCityQuery(snap.belarusCityQuery);
+          setBelarusDeliveryDays(snap.belarusDeliveryDays);
+          setDeliveryAddress(snap.deliveryAddress);
+          setDeliveryStreetPrefix(snap.deliveryStreetPrefix);
+          setDeliveryHouse(snap.deliveryHouse);
+          setDeliveryKorpus(snap.deliveryKorpus);
+          setDeliveryApartment(snap.deliveryApartment);
+          setDeliveryComment(snap.deliveryComment);
+          setShipmentId(snap.shipmentId);
+        } else if (initialOrder && normalizeDelivery(initialOrder.delivery_method) === "belarus_courier") {
+          const id = initialOrder.delivery_city_id;
+          const cityId = typeof id === "number" && id > 0 ? id : null;
+          setDeliveryCity(cityId != null ? (initialOrder.delivery_city ?? "") : "");
+          setDeliveryCityId(cityId);
+          setBelarusDeliveryDays(null);
+          setBelarusCityQuery(
+            cityId != null
+              ? ""
+              : (() => {
+                  const city = (initialOrder.delivery_city ?? "").trim();
+                  if (!city) return "";
+                  return city.includes(",") ? city.slice(0, city.indexOf(",")).trim() : city;
+                })(),
+          );
+          setDeliveryAddress(initialOrder.delivery_address ?? "");
+          setDeliveryStreetPrefix(
+            initialOrder.delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
+          );
+          setDeliveryHouse(initialOrder.delivery_house ?? "");
+          setDeliveryKorpus(initialOrder.delivery_korpus ?? "");
+          setDeliveryApartment(initialOrder.delivery_apartment ?? "");
+          setDeliveryComment(initialOrder.delivery_comment ?? "");
+          setShipmentId(initialOrder.shipment_id ?? "");
+        } else {
+          setDeliveryCity((prev) => (prev.trim() === MINSK_COURIER_CITY ? "" : prev));
+          setDeliveryCityId(null);
+          setBelarusDeliveryDays(null);
+        }
+      }
+    },
+    [initialOrder, lines, orderQuote?.merchandise_total],
+  );
 
   useEffect(() => {
     const searchKey = plainPhoneMode
@@ -784,7 +984,6 @@ export default function AdminOrderCreateForm({
         setBelarusCityQuery("");
         setBelarusCityHits([]);
         setBelarusCityOpen(false);
-        setBelarusManualCity(false);
         setBelarusCityLookupFailed(false);
       });
     }
@@ -792,14 +991,7 @@ export default function AdminOrderCreateForm({
 
   useEffect(() => {
     if (deliveryMethod !== "belarus_courier") return;
-    if (belarusManualCity) {
-      queueMicrotask(() => {
-        setBelarusCityHits([]);
-        setBelarusCityLookupFailed(false);
-      });
-      return;
-    }
-    if (deliveryCity.trim()) {
+    if (deliveryCityId) {
       queueMicrotask(() => {
         setBelarusCityHits([]);
         setBelarusCityLookupFailed(false);
@@ -830,7 +1022,7 @@ export default function AdminOrderCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [belarusManualCity, debouncedBelarusCityQuery, deliveryCity, deliveryMethod]);
+  }, [debouncedBelarusCityQuery, deliveryCityId, deliveryMethod]);
 
   useEffect(() => {
     if (activeLine === null || debouncedProductQ.trim().length < 2) {
@@ -858,7 +1050,14 @@ export default function AdminOrderCreateForm({
   const filledLinesForQuote = useMemo(() => lines.filter(isCompleteOrderLine), [lines]);
 
   const quoteItemsKey = useMemo(
-    () => JSON.stringify(filledLinesForQuote.map((l) => ({ qty: l.qty, price: l.price }))),
+    () =>
+      JSON.stringify(
+        filledLinesForQuote.map((l) => ({
+          variant_id: l.variant_id,
+          qty: l.qty,
+          price: l.price,
+        })),
+      ),
     [filledLinesForQuote],
   );
 
@@ -877,18 +1076,23 @@ export default function AdminOrderCreateForm({
     });
     void fetchAdminOrderQuote({
       payment_method: paymentMethod,
+      delivery_method: deliveryMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
       gift_certificate_code: appliedGiftCertificateCode.trim() || null,
       order_id: isEdit && initialOrder ? initialOrder.id : null,
-      delivery_fee: Math.max(0, Number(deliveryFee) || 0),
       items: filledLinesForQuote.map((l) => ({
         qty: Math.max(1, l.qty),
         price: Math.max(0, l.price),
+        variant_id: l.variant_id,
       })),
     })
       .then((response) => {
         if (!cancelled) {
           setOrderQuote(response.data);
+          const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+          if (Number.isFinite(fee)) {
+            setDeliveryFee(Math.max(0, fee));
+          }
           setDiscountCardError("");
           setGiftCertificateError("");
         }
@@ -917,12 +1121,12 @@ export default function AdminOrderCreateForm({
   }, [
     quoteItemsKey,
     paymentMethod,
+    deliveryMethod,
     appliedDiscountCardNumber,
     appliedGiftCertificateCode,
-    deliveryFee,
     filledLinesForQuote,
     isEdit,
-    initialOrder,
+    initialOrder?.id,
   ]);
 
   const localSubtotal = useMemo(
@@ -940,8 +1144,10 @@ export default function AdminOrderCreateForm({
   const giftCertificateAmountStr = orderQuote?.gift_certificate_amount ?? "0.00";
   const merchandiseTotalStr = orderQuote?.merchandise_total ?? localSubtotal.toFixed(2);
   const deliveryFeeStr = Math.max(0, Number(deliveryFee) || 0).toFixed(2);
-  const orderTotalStr =
-    orderQuote?.total ?? (localSubtotal + Math.max(0, Number(deliveryFee) || 0)).toFixed(2);
+  const orderTotalStr = (
+    Math.max(0, parseQuoteMoney(merchandiseTotalStr) - parseQuoteMoney(giftCertificateAmountStr)) +
+    Math.max(0, Number(deliveryFee) || 0)
+  ).toFixed(2);
   const loyaltyPercentStr = orderQuote?.loyalty_discount_percent ?? "0.00";
   const hasLoyaltyDiscount = parseQuoteMoney(loyaltyDiscountStr) > 0.004;
   const hasGiftCertificateDiscount = parseQuoteMoney(giftCertificateAmountStr) > 0.004;
@@ -979,13 +1185,14 @@ export default function AdminOrderCreateForm({
       try {
         const response = await fetchAdminOrderQuote({
           payment_method: paymentMethod,
+          delivery_method: deliveryMethod,
           discount_card_number: normalized,
           gift_certificate_code: appliedGiftCertificateCode.trim() || null,
           order_id: isEdit && initialOrder ? initialOrder.id : null,
-          delivery_fee: Math.max(0, Number(deliveryFee) || 0),
           items: filledLinesForQuote.map((l) => ({
             qty: Math.max(1, l.qty),
             price: Math.max(0, l.price),
+            variant_id: l.variant_id,
           })),
         });
         const confirmed = response.data.discount_card_number?.trim() ?? "";
@@ -998,6 +1205,10 @@ export default function AdminOrderCreateForm({
         setAppliedDiscountCardNumber(confirmed);
         setDiscountCardInput(confirmed);
         setOrderQuote(response.data);
+        const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+        if (Number.isFinite(fee)) {
+          setDeliveryFee(Math.max(0, fee));
+        }
         setDiscountCardManuallyCleared(false);
       } catch (err) {
         setAppliedDiscountCardNumber("");
@@ -1009,7 +1220,7 @@ export default function AdminOrderCreateForm({
         setOrderQuoteLoading(false);
       }
     },
-    [appliedGiftCertificateCode, deliveryFee, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
+    [appliedGiftCertificateCode, deliveryMethod, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
   );
 
   const applyGiftCertificateToOrder = useCallback(
@@ -1028,13 +1239,14 @@ export default function AdminOrderCreateForm({
       try {
         const response = await fetchAdminOrderQuote({
           payment_method: paymentMethod,
+          delivery_method: deliveryMethod,
           discount_card_number: appliedDiscountCardNumber.trim() || null,
           gift_certificate_code: normalized,
           order_id: isEdit && initialOrder ? initialOrder.id : null,
-          delivery_fee: Math.max(0, Number(deliveryFee) || 0),
           items: filledLinesForQuote.map((l) => ({
             qty: Math.max(1, l.qty),
             price: Math.max(0, l.price),
+            variant_id: l.variant_id,
           })),
         });
         const confirmed = response.data.gift_certificate_code?.trim() ?? "";
@@ -1046,6 +1258,10 @@ export default function AdminOrderCreateForm({
         setAppliedGiftCertificateCode(confirmed);
         setGiftCertificateInput(confirmed);
         setOrderQuote(response.data);
+        const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+        if (Number.isFinite(fee)) {
+          setDeliveryFee(Math.max(0, fee));
+        }
       } catch (err) {
         setAppliedGiftCertificateCode("");
         setGiftCertificateError(err instanceof Error ? err.message : "Не удалось применить сертификат.");
@@ -1053,7 +1269,7 @@ export default function AdminOrderCreateForm({
         setOrderQuoteLoading(false);
       }
     },
-    [appliedDiscountCardNumber, deliveryFee, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
+    [appliedDiscountCardNumber, deliveryMethod, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
   );
 
   useEffect(() => {
@@ -1312,13 +1528,11 @@ export default function AdminOrderCreateForm({
 
   const resolvedCity = useMemo(() => {
     if (deliveryMethod === "minsk_courier") return MINSK_COURIER_CITY;
+    if (deliveryMethod === "belarus_courier") return deliveryCity.trim();
     let city = "";
     if (citySelect === "__new__") city = deliveryCity.trim();
     else if (citySelect) city = citySelect.trim();
     else city = deliveryCity.trim();
-    if (deliveryMethod === "belarus_courier" && city.includes(",")) {
-      return city.slice(0, city.indexOf(",")).trim();
-    }
     return city;
   }, [deliveryMethod, citySelect, deliveryCity]);
 
@@ -1351,14 +1565,14 @@ export default function AdminOrderCreateForm({
         setError("Укажите адрес доставки");
         return;
       }
-      if (deliveryMethod === "belarus_courier" && !resolvedCity) {
-        setError("Укажите населённый пункт");
+      if (deliveryMethod === "belarus_courier" && !deliveryCityId) {
+        setError("Выберите населённый пункт из списка");
         return;
       }
     }
 
     const addr =
-      deliveryMethod === "pickup" ? "нет - самовывоз" : deliveryAddress.trim();
+      deliveryMethod === "pickup" ? "Самовывоз" : deliveryAddress.trim();
 
     const payload: AdminOrderPayload = {
       customer_name:
@@ -1373,7 +1587,20 @@ export default function AdminOrderCreateForm({
       status: orderStatus,
       delivery_method: deliveryMethod,
       delivery_city: deliveryMethod === "pickup" ? null : resolvedCity || null,
+      delivery_city_id: deliveryMethod === "belarus_courier" ? deliveryCityId : null,
       delivery_address: addr,
+      delivery_street_prefix:
+        deliveryMethod === "pickup" ? null : deliveryStreetPrefix.trim() || null,
+      delivery_house: deliveryMethod === "pickup" ? null : deliveryHouse.trim() || null,
+      delivery_korpus: deliveryMethod === "pickup" ? null : deliveryKorpus.trim() || null,
+      delivery_apartment:
+        deliveryMethod === "pickup" ? null : deliveryApartment.trim() || null,
+      delivery_comment:
+        deliveryMethod === "pickup" ? null : deliveryComment.trim() || null,
+      shipment_id:
+        deliveryMethod === "minsk_courier" || deliveryMethod === "belarus_courier"
+          ? shipmentId.trim() || null
+          : null,
       delivery_date: deliveryDate.trim() || format(new Date(), "yyyy-MM-dd"),
       delivery_time_from: deliveryTimeFrom.trim()
         ? snapDeliveryClockToTenMinutes(deliveryTimeFrom)
@@ -1454,122 +1681,84 @@ export default function AdminOrderCreateForm({
 
   const belarusCitySearch = (
     <div className="relative">
-      {belarusManualCity ? (
-        <div className="space-y-2">
-          <input
-            value={deliveryCity}
-            onChange={(e) => setDeliveryCity(e.target.value)}
-            className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
-            placeholder="Город / посёлок"
-          />
-          <button
-            type="button"
-            className="text-xs text-admin-text-secondary underline"
-            onClick={() => {
-              setBelarusManualCity(false);
-              const t = deliveryCity.trim();
-              setDeliveryCity("");
-              setBelarusCityQuery(t.includes(",") ? t.slice(0, t.indexOf(",")).trim() : t);
-              setBelarusCityOpen(true);
-            }}
-          >
-            Вернуться к поиску
-          </button>
-        </div>
-      ) : (
-        <>
-          <input
-            value={deliveryCity.trim() || belarusCityQuery}
-            onChange={(e) => {
-              const v = e.target.value;
-              setBelarusCityQuery(v);
-              if (deliveryCity.trim()) {
-                setDeliveryCity("");
-              }
-              setBelarusCityOpen(true);
-              setBelarusCityLookupFailed(false);
-            }}
-            onFocus={() => setBelarusCityOpen(true)}
-            className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
-            placeholder="Поиск по Беларуси"
-          />
-          {belarusCityOpen && belarusCityHits.length > 0 ? (
-            <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface text-sm shadow-lg">
-              {belarusCityHits.map((h) => (
-                <li key={h.id}>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 text-left hover:bg-admin-muted"
-                    onClick={() => {
-                      const cityName = (h.name_ru || h.name || h.full_name).trim();
-                      setDeliveryCity(cityName);
-                      setBelarusCityQuery("");
-                      setBelarusCityOpen(false);
-                    }}
-                  >
-                    <div className="font-medium text-admin-text">{h.full_name}</div>
-                    {h.type ? (
-                      <div className="text-xs text-admin-text-secondary">
-                        {h.type}
-                        {h.region_name ? ` · ${h.region_name}` : ""}
-                      </div>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {!deliveryCity.trim() &&
-            belarusCityQuery.trim().length >= 2 &&
-            belarusCityHits.length === 0 ? (
-            <div className="mt-2">
-              <p className="mb-1 text-xs text-admin-text-secondary">
-                {belarusCityLookupFailed
-                  ? "Поиск временно недоступен."
-                  : "Населённый пункт не найден в списке."}
-              </p>
+      <input
+        value={deliveryCity.trim() || belarusCityQuery}
+        onChange={(e) => {
+          const v = e.target.value;
+          setBelarusCityQuery(v);
+          if (deliveryCity.trim() || deliveryCityId) {
+            setDeliveryCity("");
+            setDeliveryCityId(null);
+            setBelarusDeliveryDays(null);
+          }
+          setBelarusCityOpen(true);
+          setBelarusCityLookupFailed(false);
+        }}
+        onFocus={() => setBelarusCityOpen(true)}
+        className={surfaceFieldClass}
+        placeholder="Поиск по Беларуси"
+      />
+      {belarusCityOpen && belarusCityHits.length > 0 ? (
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-admin-border bg-admin-surface text-sm shadow-lg">
+          {belarusCityHits.map((h) => (
+            <li key={h.id}>
               <button
                 type="button"
-                className="text-xs text-admin-text-secondary underline"
+                className="w-full px-3 py-2 text-left hover:bg-admin-muted"
                 onClick={() => {
-                  setBelarusManualCity(true);
-                  setDeliveryCity(
-                    (belarusCityQuery.trim() || deliveryCity.trim()).trim(),
-                  );
+                  setDeliveryCity(h.full_name.trim());
+                  setDeliveryCityId(h.id);
+                  setBelarusDeliveryDays(h.delivery_days);
                   setBelarusCityQuery("");
                   setBelarusCityOpen(false);
                 }}
               >
-                Ввести вручную
+                <div className="font-medium text-admin-text">{h.full_name}</div>
+                <div className="mt-1">
+                  <DeliveryDaysBadges days={h.delivery_days} />
+                </div>
               </button>
-            </div>
-          ) : null}
-        </>
-      )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {deliveryCityId && belarusDeliveryDays ? (
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="text-[11px] text-admin-text-secondary">Дни доставки:</span>
+          <DeliveryDaysBadges days={belarusDeliveryDays} />
+        </div>
+      ) : null}
+      {!deliveryCityId &&
+        belarusCityQuery.trim().length >= 2 &&
+        belarusCityHits.length === 0 ? (
+        <p className="mt-2 text-xs text-admin-text-secondary">
+          {belarusCityLookupFailed
+            ? "Поиск временно недоступен."
+            : "Населённый пункт не найден в списке — выберите из подсказок."}
+        </p>
+      ) : null}
+      {deliveryMethod === "belarus_courier" && !deliveryCityId && initialOrder?.delivery_city ? (
+        <p className="mt-2 text-xs text-amber-700">
+          Старый заказ без ID Ветер — выберите населённый пункт из списка заново.
+        </p>
+      ) : null}
     </div>
   );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
 
-      <SectionCard>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
-          {isEdit ? (
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 text-xs font-medium text-admin-text-secondary">Статус заказа</span>
-              <AdminStatusDropdown
-                value={orderStatus}
-                options={ORDER_STATUS_OPTIONS}
-                onChangeAction={setOrderStatus}
-                disabled={itemsLocked}
-                triggerVariant="text"
-                triggerTextClassName={getOrderStatusTableTextClass(orderStatus)}
-                menuAlign="right"
-              />
-            </div>
-          ) : null}
+      <SectionCard className="!space-y-2 !p-3 sm:!p-3.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="shrink-0 text-sm font-semibold text-admin-text">Теги</h2>
+          <div className="min-w-0 flex-1">
+            <AdminOrderTagsPicker selected={selectedTags} onChangeAction={setSelectedTags} compact />
+          </div>
         </div>
+      </SectionCard>
+
+      <SectionCard>
+        <h2 className="text-sm font-semibold text-admin-text">Клиент</h2>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
           <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3.5 sm:max-w-[22rem] lg:max-w-[26rem]">
@@ -2018,7 +2207,20 @@ export default function AdminOrderCreateForm({
                   <div className="text-xs text-admin-text-secondary">Позиция {idx + 1} — данные строки недоступны для редактирования.</div>
                 ) : (
                   <div className="space-y-2" ref={isPickerHost ? productPickerRef : undefined}>
-                    <div className="text-xs font-medium text-admin-text-secondary">Позиция {idx + 1}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-medium text-admin-text-secondary">Позиция {idx + 1}</div>
+                      {!itemsLocked && lines.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeLine(idx)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Удалить позицию ${idx + 1}`}
+                          title="Удалить"
+                        >
+                          <Trash2 size={15} strokeWidth={1.75} />
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="relative">
                       <input
                         ref={showPicker ? productSearchInputRef : undefined}
@@ -2031,7 +2233,7 @@ export default function AdminOrderCreateForm({
                             prev.map((row, i) => (i === idx ? { ...row, product_name: v } : row)),
                           );
                         }}
-                        className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+                        className={surfaceFieldClass}
                         placeholder="Название, артикул или код товара"
                       />
                       {showProductHitList && productHitsPos && typeof document !== "undefined"
@@ -2205,49 +2407,87 @@ export default function AdminOrderCreateForm({
       </SectionCard>
 
       <SectionCard>
-        <h2 className="text-sm font-semibold text-admin-text">Теги</h2>
-        <AdminOrderTagsPicker selected={selectedTags} onChangeAction={setSelectedTags} />
-      </SectionCard>
-
-      <SectionCard>
-        <h2 className="text-sm font-semibold text-admin-text">Доставка и оплата</h2>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <h2 className="text-sm font-semibold text-admin-text">Доставка и оплата</h2>
+          {isEdit ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-xs font-medium text-admin-text-secondary">Статус заказа</span>
+              <AdminStatusDropdown
+                value={orderStatus}
+                options={ORDER_STATUS_OPTIONS}
+                onChangeAction={setOrderStatus}
+                disabled={itemsLocked}
+                triggerVariant="text"
+                triggerTextClassName={getOrderStatusTableTextClass(orderStatus)}
+                menuAlign="right"
+              />
+            </div>
+          ) : null}
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
           <div className="flex h-full flex-col space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
             <fieldset>
               <legend className="mb-2 text-sm font-medium text-admin-text">Способ доставки *</legend>
               <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap">
-                {DELIVERY_OPTIONS.map(({ value, label }) => (
-                  <label
-                    key={value}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1"
-                  >
-                    <input
-                      type="radio"
-                      name="delivery_method"
-                      checked={deliveryMethod === value}
-                      onChange={() => handleDeliveryMethodChange(value)}
-                      className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary"
-                    />
-                    {label}
-                  </label>
-                ))}
+                {DELIVERY_OPTIONS.map(({ value, label }) => {
+                  const blockedByShipment =
+                    shipmentBlocksNonRbDelivery &&
+                    (value === "minsk_courier" || value === "pickup");
+                  return (
+                    <label
+                      key={value}
+                      className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1 ${
+                        blockedByShipment ? "cursor-not-allowed opacity-40" : ""
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="delivery_method"
+                        checked={deliveryMethod === value}
+                        disabled={blockedByShipment}
+                        onChange={() => handleDeliveryMethodChange(value)}
+                        className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary disabled:cursor-not-allowed"
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
               </div>
+              {shipmentBlocksNonRbDelivery ? (
+                <p className="mt-2 text-xs text-admin-text-secondary">
+                  Есть ID отправки — доступен только «Курьер по РБ». Чтобы выбрать Минск или самовывоз,
+                  удалите ID отправки и сохраните заказ.
+                </p>
+              ) : null}
             </fieldset>
 
             {deliveryMethod !== "pickup" ? (
               <>
                 {deliveryMethod === "minsk_courier" ? (
-                  <div>
-                    <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={MINSK_COURIER_CITY}
-                      tabIndex={-1}
-                      className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
-                      aria-readonly="true"
-                    />
+                  <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                    <div>
+                      <label className="block text-sm text-admin-text-secondary">Населённый пункт</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={MINSK_COURIER_CITY}
+                        tabIndex={-1}
+                        className="mt-1 w-full cursor-not-allowed rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
+                        aria-readonly="true"
+                      />
+                    </div>
+                    <label className="block text-sm text-admin-text-secondary">
+                      ID отправки
+                      <input
+                        type="text"
+                        value={shipmentId}
+                        onChange={(e) => setShipmentId(e.target.value)}
+                        className={`mt-1 ${surfaceFieldClass}`}
+                        placeholder="Номер отправки"
+                        autoComplete="off"
+                      />
+                    </label>
                   </div>
                 ) : showCitySelect ? (
                   <div className="space-y-2">
@@ -2255,7 +2495,7 @@ export default function AdminOrderCreateForm({
                     <select
                       value={citySelect}
                       onChange={(e) => setCitySelect(e.target.value)}
-                      className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                      className={surfaceFieldClass}
                     >
                       <option value="">Выберите город из заказов или другой</option>
                       {savedCities.map((c) => (
@@ -2272,17 +2512,86 @@ export default function AdminOrderCreateForm({
                         <input
                           value={deliveryCity}
                           onChange={(e) => setDeliveryCity(e.target.value)}
-                          className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                          className={surfaceFieldClass}
                           placeholder="Город (если не из списка)"
                         />
                       ))}
                   </div>
                 ) : deliveryMethod === "belarus_courier" ? (
-                  <div>
-                    <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
-                    <div className="mt-1">{belarusCitySearch}</div>
+                  <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                    <div>
+                      <div className="text-sm text-admin-text-secondary">Населённый пункт</div>
+                      <div className="mt-1">{belarusCitySearch}</div>
+                    </div>
+                    <label className="block text-sm text-admin-text-secondary">
+                      ID отправки
+                      <input
+                        type="text"
+                        value={shipmentId}
+                        onChange={(e) => setShipmentId(e.target.value)}
+                        className={`mt-1 ${surfaceFieldClass}`}
+                        placeholder="Номер отправки"
+                        autoComplete="off"
+                      />
+                    </label>
                   </div>
                 ) : null}
+
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] sm:items-end">
+                  <label className="col-span-1 block text-sm text-admin-text-secondary">
+                    Тип
+                    <div className="mt-1">
+                      <StreetPrefixSelect
+                        value={deliveryStreetPrefix}
+                        onChange={setDeliveryStreetPrefix}
+                        variant="admin"
+                      />
+                    </div>
+                  </label>
+                  <label className="col-span-2 block text-sm text-admin-text-secondary sm:col-span-1">
+                    Адрес *
+                    <input
+                      type="text"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      className={`mt-1 ${surfaceFieldClass}`}
+                      placeholder="Улица"
+                    />
+                  </label>
+                  <label className="block text-sm text-admin-text-secondary">
+                    Дом
+                    <input
+                      type="text"
+                      value={deliveryHouse}
+                      onChange={(e) => setDeliveryHouse(e.target.value)}
+                      className={`mt-1 ${surfaceFieldCompactClass}`}
+                      placeholder="№"
+                      maxLength={4}
+                    />
+                  </label>
+                  <label className="block text-sm text-admin-text-secondary">
+                    Корп.
+                    <input
+                      type="text"
+                      value={deliveryKorpus}
+                      onChange={(e) => setDeliveryKorpus(e.target.value)}
+                      className={`mt-1 ${surfaceFieldCompactClass}`}
+                      placeholder="№"
+                      maxLength={4}
+                    />
+                  </label>
+                  <label className="block text-sm text-admin-text-secondary">
+                    Кв.
+                    <input
+                      type="text"
+                      value={deliveryApartment}
+                      onChange={(e) => setDeliveryApartment(e.target.value)}
+                      className={`mt-1 ${surfaceFieldCompactClass}`}
+                      placeholder="№"
+                      maxLength={4}
+                    />
+                  </label>
+                </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <div>
@@ -2323,21 +2632,18 @@ export default function AdminOrderCreateForm({
                 </div>
 
                 <label className="block text-sm text-admin-text-secondary">
-                  Адрес доставки *
+                  Комментарий доставки
                   <textarea
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    rows={3}
-                    className="mt-1 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
-                    placeholder="Улица, дом, подъезд…"
+                    value={deliveryComment}
+                    onChange={(e) => setDeliveryComment(e.target.value)}
+                    rows={2}
+                    className={`mt-1 ${surfaceFieldClass}`}
+                    placeholder="Комментарий для курьера…"
                   />
                 </label>
               </>
             ) : (
               <>
-                <p className="text-xs text-admin-text-secondary">
-                  Самовывоз — адрес в заказе будет «нет - самовывоз».
-                </p>
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
@@ -2472,7 +2778,7 @@ export default function AdminOrderCreateForm({
                 step="0.01"
                 value={deliveryFee}
                 onChange={(e) => setDeliveryFee(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                className={`mt-1 ${surfaceFieldClass}`}
               />
             </label>
 
@@ -2539,7 +2845,7 @@ export default function AdminOrderCreateForm({
                             }
                           }}
                           placeholder="Номер скидочной карты"
-                          className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                          className={`min-w-0 flex-1 ${surfaceFieldClass}`}
                         />
                         <button
                           type="button"
@@ -2636,7 +2942,7 @@ export default function AdminOrderCreateForm({
                       maxLength={64}
                       autoComplete="off"
                       placeholder="Код сертификата"
-                      className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm"
+                      className={`min-w-0 flex-1 ${surfaceFieldClass}`}
                     />
                     <button
                       type="button"
@@ -2660,7 +2966,7 @@ export default function AdminOrderCreateForm({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+            className={`mt-1 ${surfaceFieldClass}`}
           />
         </label>
 
@@ -2671,7 +2977,7 @@ export default function AdminOrderCreateForm({
             value={managerComment}
             onChange={(e) => setManagerComment(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+            className={`mt-1 ${surfaceFieldClass}`}
             placeholder="Внутренняя заметка для менеджеров…"
           />
         </label>

@@ -37,6 +37,8 @@ class AuditLogService
 
     public const ENTITY_CMS_PAGE = 'cms_page';
 
+    public const ENTITY_VETER_TICKET = 'veter_ticket';
+
     public function record(
         string $entityType,
         ?int $entityId,

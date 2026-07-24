@@ -32,8 +32,13 @@ export const siteBtnIconPrimary =
 export const siteInput =
     "w-full min-h-10 rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-muted outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";
 
+/** Native `<select>` styled like siteInput (hides OS chrome, custom chevron). */
 export const siteSelect =
-    "min-h-10 rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";
+    "w-full min-h-10 cursor-pointer appearance-none rounded-2xl border border-admin-border bg-admin-surface bg-[length:1rem] bg-[right_0.6rem_center] bg-no-repeat px-3 py-2 pr-8 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 [background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 20 20%27 fill=%27none%27%3E%3Cpath d=%27M6 8l4 4 4-4%27 stroke=%27%236b7280%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E')]";
+
+/** Compact admin `<select>` (rounded-lg, same chevron). */
+export const adminSelect =
+    "w-full cursor-pointer appearance-none rounded-lg border border-admin-border bg-admin-surface bg-[length:0.9rem] bg-[right_0.4rem_center] bg-no-repeat px-1.5 py-2 pr-6 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 [background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 20 20%27 fill=%27none%27%3E%3Cpath d=%27M6 8l4 4 4-4%27 stroke=%27%236b7280%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E')]";
 
 export const siteTextarea =
     "w-full rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text placeholder:text-admin-text-muted outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";

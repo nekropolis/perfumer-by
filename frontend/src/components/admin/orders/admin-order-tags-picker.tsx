@@ -8,6 +8,7 @@ import { fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
 type Props = {
   selected: OrderTag[];
   onChangeAction: (tags: OrderTag[]) => void;
+  compact?: boolean;
 };
 
 function contrastText(hex: string): string {
@@ -20,7 +21,7 @@ function contrastText(hex: string): string {
   return luma > 0.62 ? "#111827" : "#ffffff";
 }
 
-export default function AdminOrderTagsPicker({ selected, onChangeAction }: Props) {
+export default function AdminOrderTagsPicker({ selected, onChangeAction, compact = false }: Props) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
   const [hits, setHits] = useState<OrderTag[]>([]);
@@ -85,13 +86,15 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction }: Props
   };
 
   return (
-    <div ref={rootRef} className="space-y-2">
+    <div ref={rootRef} className={compact ? "space-y-1.5" : "space-y-2"}>
       {selected.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className={`flex flex-wrap ${compact ? "gap-1" : "gap-1.5"}`}>
           {selected.map((tag) => (
             <span
               key={tag.id}
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
+              className={`inline-flex items-center gap-1 rounded-full font-medium ${
+                compact ? "px-2 py-0 text-[11px]" : "px-2.5 py-0.5 text-xs"
+              }`}
               style={{ backgroundColor: tag.color, color: contrastText(tag.color) }}
             >
               {tag.name}
@@ -101,7 +104,7 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction }: Props
                 className="rounded-full p-0.5 opacity-80 hover:bg-black/10 hover:opacity-100"
                 aria-label={`Убрать тег ${tag.name}`}
               >
-                <X size={12} strokeWidth={2.5} />
+                <X size={compact ? 11 : 12} strokeWidth={2.5} />
               </button>
             </span>
           ))}
@@ -117,7 +120,9 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction }: Props
           }}
           onFocus={() => setOpen(true)}
           placeholder="Поиск тега (от 2 букв)…"
-          className="w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text"
+          className={`w-full rounded-lg border border-admin-border bg-admin-surface text-sm text-admin-text ${
+            compact ? "px-2.5 py-1.5" : "px-3 py-2"
+          }`}
         />
 
         {open && query.trim().length >= 2 ? (
@@ -133,7 +138,9 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction }: Props
                     <button
                       type="button"
                       onClick={() => addTag(tag)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-admin-muted"
+                      className={`flex w-full items-center gap-2 text-left text-sm hover:bg-admin-muted ${
+                        compact ? "px-2.5 py-1.5" : "px-3 py-2"
+                      }`}
                     >
                       <span
                         className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"

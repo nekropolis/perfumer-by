@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ListOrdered, Printer, FilterX, ShoppingCart, X } from "lucide-react";
+import { ListOrdered, Printer, FilterX, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { fetchOrders } from "@/lib/admin-orders-api";
+import { fetchOrders, sendVeterTickets, syncVeterTicketStatuses } from "@/lib/admin-orders-api";
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
-import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import { getOrderStatusLabel, isVeterSendAllowedStatus } from "@/constants/order-statuses";
 import AdminOrdersTable from "@/components/admin/admin-orders-table";
 import AdminOrdersDateRangeButton, {
     type AdminOrdersDateRangeButtonHandle,
@@ -15,7 +15,6 @@ import AdminOrdersDateRangeButton, {
 } from "@/components/admin/orders/admin-orders-date-range-button";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -70,6 +69,8 @@ export default function AdminOrdersPage() {
     const [receiptOptionsLoading, setReceiptOptionsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<AdminToast | null>(null);
+    const [veterSending, setVeterSending] = useState(false);
+    const [veterStatusSyncing, setVeterStatusSyncing] = useState(false);
 
     const [searchInput, setSearchInput] = useState(
         () => searchParamsFromUrl.get("search") ?? "",
@@ -89,6 +90,8 @@ export default function AdminOrdersPage() {
         [periodFilter, dateFrom, dateTo],
     );
     const hasDateFilter = Boolean(periodFilter || dateFrom.trim() || dateTo.trim());
+    const hasStatusFilter = Boolean(statusFilter.trim());
+    const statusFilterLabel = hasStatusFilter ? getOrderStatusLabel(statusFilter) : "";
 
     const clearDateFilter = () => {
         setPeriodFilter("");
@@ -96,11 +99,30 @@ export default function AdminOrdersPage() {
         setDateTo("");
     };
 
+    const clearStatusFilter = () => {
+        setStatusFilter("");
+    };
+
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
     const selectedOrders = useMemo(
         () => orders.filter((order) => selectedOrderIds.includes(order.id)),
         [orders, selectedOrderIds],
+    );
+
+    const veterSendCandidateCount = useMemo(
+        () =>
+            selectedOrders.filter((order) => {
+                if (order.shipment_id?.trim()) {
+                    return false;
+                }
+                if (!isVeterSendAllowedStatus(order.status)) {
+                    return false;
+                }
+                const method = order.delivery_method ?? "";
+                return method === "minsk_courier" || method === "belarus_courier";
+            }).length,
+        [selectedOrders],
     );
 
     const ordersListKey = useMemo(
@@ -282,6 +304,196 @@ export default function AdminOrdersPage() {
         }
     };
 
+    const handleVeterSend = async () => {
+        const candidateIds = selectedOrders
+            .filter((order) => {
+                if (order.shipment_id?.trim()) {
+                    return false;
+                }
+                if (!isVeterSendAllowedStatus(order.status)) {
+                    return false;
+                }
+                const method = order.delivery_method ?? "";
+                return method === "minsk_courier" || method === "belarus_courier";
+            })
+            .map((order) => order.id);
+
+        if (candidateIds.length === 0) {
+            setToast({
+                type: "error",
+                message:
+                    "Нет заказов для отправки (курьер Минск/РБ, без ID отправки, статус: новый / подтверждён / в обработке / предзаказ)",
+            });
+            return;
+        }
+
+        const ok = window.confirm(
+            `Отправить в курьерскую службу Ветер ${candidateIds.length} заказ(ов)?\n#${candidateIds.join(", #")}`,
+        );
+        if (!ok) {
+            return;
+        }
+
+        setVeterSending(true);
+        setToast(null);
+        try {
+            const response = await sendVeterTickets(candidateIds);
+            const data = response.data;
+            const sent = data.sent ?? [];
+            const failed = data.failed ?? [];
+            const invalid = data.invalid ?? [];
+            const skipped = data.skipped ?? [];
+
+            if (sent.length > 0) {
+                const byId = new Map(
+                    sent.map((row) => [
+                        row.order_id,
+                        { shipment_id: row.shipment_id, status: row.status || "in_delivery" },
+                    ]),
+                );
+                setOrders((prev) =>
+                    prev.map((order) => {
+                        const hit = byId.get(order.id);
+                        return hit
+                            ? { ...order, shipment_id: hit.shipment_id, status: hit.status }
+                            : order;
+                    }),
+                );
+                setSelectedOrderIds((prev) => prev.filter((id) => !byId.has(id)));
+            }
+
+            const failCount = failed.length + invalid.length;
+            const formatDetails = (rows: { order_id: number; reason: string }[]) =>
+                rows
+                    .slice(0, 3)
+                    .map((row) => `#${row.order_id}: ${row.reason}`)
+                    .join("; ") + (rows.length > 3 ? "…" : "");
+
+            if (failCount === 0 && sent.length > 0) {
+                setToast({
+                    type: "success",
+                    message:
+                        response.message ||
+                        `Отправлено в Ветер: ${sent.length}` +
+                            (skipped.length > 0 ? `, пропущено: ${skipped.length}` : ""),
+                });
+                return;
+            }
+
+            if (sent.length > 0 && failCount > 0) {
+                setToast({
+                    type: "error",
+                    message: `Частично: отправлено ${sent.length}, ошибок ${failCount}. ${formatDetails([
+                        ...failed,
+                        ...invalid,
+                    ])} (см. Аудит)`,
+                });
+                return;
+            }
+
+            if (failCount > 0) {
+                setToast({
+                    type: "error",
+                    message: `Не удалось отправить (${failCount}). ${formatDetails([
+                        ...failed,
+                        ...invalid,
+                    ])} (см. Аудит)`,
+                });
+                return;
+            }
+
+            if (skipped.length > 0) {
+                setToast({
+                    type: "error",
+                    message: `Пропущено (${skipped.length}). ${formatDetails(skipped)}`,
+                });
+                return;
+            }
+
+            setToast({
+                type: "error",
+                message: response.message || "Нечего отправлять",
+            });
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Ошибка отправки в Ветер",
+            });
+        } finally {
+            setVeterSending(false);
+        }
+    };
+
+    const handleVeterStatusSync = async () => {
+        const ok = window.confirm(
+            "Обновить статусы Ветер для всех заказов «В доставке» с ID отправки?",
+        );
+        if (!ok) {
+            return;
+        }
+
+        setVeterStatusSyncing(true);
+        setToast(null);
+        try {
+            const response = await syncVeterTicketStatuses();
+            const failed = response.data.failed ?? [];
+            const updated = response.data.updated ?? [];
+
+            if (failed.length === 0) {
+                setToast({
+                    type: "success",
+                    message:
+                        response.message ||
+                        `Статусы Ветер обновлены: ${updated.length}`,
+                });
+            } else if (updated.length > 0) {
+                setToast({
+                    type: "error",
+                    message: `Частично: обновлено ${updated.length}, ошибок ${failed.length}. ${failed
+                        .slice(0, 2)
+                        .map((row) => `#${row.order_id}: ${row.reason}`)
+                        .join("; ")}${failed.length > 2 ? "…" : ""} (см. Аудит)`,
+                });
+            } else {
+                setToast({
+                    type: "error",
+                    message: `Не удалось обновить статусы (${failed.length}). ${failed
+                        .slice(0, 2)
+                        .map((row) => `#${row.order_id}: ${row.reason}`)
+                        .join("; ")}${failed.length > 2 ? "…" : ""} (см. Аудит)`,
+                });
+            }
+
+            if (updated.length > 0) {
+                const byId = new Map(
+                    updated.map((row) => [row.order_id, row.shipment_status]),
+                );
+                setOrders((prev) =>
+                    prev.map((order) => {
+                        if (!byId.has(order.id)) {
+                            return order;
+                        }
+                        return {
+                            ...order,
+                            shipment_status: byId.get(order.id) ?? order.shipment_status,
+                            shipment_status_at: new Date().toISOString(),
+                        };
+                    }),
+                );
+            }
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message:
+                    error instanceof Error ? error.message : "Ошибка обновления статусов Ветер",
+            });
+        } finally {
+            setVeterStatusSyncing(false);
+        }
+    };
+
     return (
         <AdminPageCard>
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -291,7 +503,7 @@ export default function AdminOrdersPage() {
                     </h2>
                     <p className="mt-0.5 text-sm text-admin-text-secondary">
                         {activeTab === "orders"
-                            ? "Поиск по номеру заказа, имени клиента или телефону"
+                            ? "Поиск по номеру заказа, ID отправки, имени или телефону"
                             : "Все товары из новых заказов и заказов в обработке"}
                     </p>
                 </div>
@@ -307,29 +519,50 @@ export default function AdminOrdersPage() {
                 {activeTab === "orders" ? (
                     <div className="flex w-full min-w-0 flex-col gap-4">
                         <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:justify-between">
-                            <button
-                                type="button"
-                                onClick={handleOpenReceiptModal}
-                                disabled={selectedOrders.length === 0 || receiptOptionsLoading}
-                                className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-                                title="Печать товарных чеков"
-                            >
-                                <Printer size={16} />
-                                {receiptOptionsLoading ? "Загрузка..." : "Печать"}
-                            </button>
+                            <div className="flex flex-wrap items-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenReceiptModal}
+                                    disabled={selectedOrders.length === 0 || receiptOptionsLoading}
+                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+                                    title="Печать товарных чеков"
+                                >
+                                    <Printer size={16} />
+                                    {receiptOptionsLoading ? "Загрузка..." : "Печать"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleVeterSend()}
+                                    disabled={veterSendCandidateCount === 0 || veterSending || veterStatusSyncing}
+                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+                                    title="Отправить выбранные заказы в Ветер (CreateTickets)"
+                                >
+                                    <Truck size={16} />
+                                    {veterSending
+                                        ? "Отправка…"
+                                        : `Отправить в курьерскую службу${
+                                              veterSendCandidateCount > 0
+                                                  ? ` (${veterSendCandidateCount})`
+                                                  : ""
+                                          }`}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleVeterStatusSync()}
+                                    disabled={veterStatusSyncing || veterSending}
+                                    className="inline-flex h-10 shrink-0 items-center gap-2 self-start rounded-lg border border-admin-border bg-white px-4 text-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+                                    title="Обновить статусы Ветер для всех заказов «В доставке»"
+                                >
+                                    <RefreshCw size={16} className={veterStatusSyncing ? "animate-spin" : undefined} />
+                                    {veterStatusSyncing ? "Обновление…" : "Обновить статусы Ветер"}
+                                </button>
+                            </div>
 
                             <div className="flex min-w-0 flex-wrap items-end gap-2">
-                                <AdminFilterSelect
-                                    value={statusFilter}
-                                    onChangeAction={setStatusFilter}
-                                    options={ORDER_STATUS_OPTIONS}
-                                    placeholder="Все статусы"
-                                />
-
                                 <AdminSearchInput
                                     value={searchInput}
                                     onChangeAction={setSearchInput}
-                                    placeholder="ID, имя, телефон"
+                                    placeholder="ID, ID отправки, имя, телефон"
                                 />
 
                                 {hasOrdersFilters ? (
@@ -388,28 +621,47 @@ export default function AdminOrdersPage() {
                 )}
             </AdminTableToolbar>
 
-            {activeTab === "orders" && hasDateFilter ? (
+            {activeTab === "orders" && (hasDateFilter || hasStatusFilter) ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
-                        <button
-                            type="button"
-                            onClick={() => dateFilterRef.current?.open()}
-                            className="inline-flex min-w-0 items-center gap-1.5 text-left transition hover:text-admin-primary"
-                            title="Изменить фильтр по дате доставки"
-                        >
-                            <span className="shrink-0 text-admin-text-secondary">Дата доставки:</span>
-                            <span className="max-w-[16rem] truncate font-medium">{dateFilterSummary}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={clearDateFilter}
-                            className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
-                            aria-label="Сбросить фильтр по дате доставки"
-                            title="Сбросить"
-                        >
-                            <X size={12} strokeWidth={2.5} />
-                        </button>
-                    </span>
+                    {hasStatusFilter ? (
+                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
+                            <span className="inline-flex min-w-0 items-center gap-1.5">
+                                <span className="shrink-0 text-admin-text-secondary">Статус:</span>
+                                <span className="max-w-[16rem] truncate font-medium">{statusFilterLabel}</span>
+                            </span>
+                            <button
+                                type="button"
+                                onClick={clearStatusFilter}
+                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
+                                aria-label="Сбросить фильтр по статусу"
+                                title="Сбросить"
+                            >
+                                <X size={12} strokeWidth={2.5} />
+                            </button>
+                        </span>
+                    ) : null}
+                    {hasDateFilter ? (
+                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
+                            <button
+                                type="button"
+                                onClick={() => dateFilterRef.current?.open()}
+                                className="inline-flex min-w-0 items-center gap-1.5 text-left transition hover:text-admin-primary"
+                                title="Изменить фильтр по дате доставки"
+                            >
+                                <span className="shrink-0 text-admin-text-secondary">Дата доставки:</span>
+                                <span className="max-w-[16rem] truncate font-medium">{dateFilterSummary}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearDateFilter}
+                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
+                                aria-label="Сбросить фильтр по дате доставки"
+                                title="Сбросить"
+                            >
+                                <X size={12} strokeWidth={2.5} />
+                            </button>
+                        </span>
+                    ) : null}
                 </div>
             ) : null}
 
@@ -432,6 +684,8 @@ export default function AdminOrdersPage() {
                         onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                         onErrorMessageAction={(message) => setToast({ type: "error", message })}
                         onDateFilterHeaderClickAction={() => dateFilterRef.current?.open()}
+                        statusFilter={statusFilter}
+                        onStatusFilterChangeAction={setStatusFilter}
                         selectedOrderIds={selectedOrderIds}
                         onSelectedOrderIdsChangeAction={setSelectedOrderIds}
                     />

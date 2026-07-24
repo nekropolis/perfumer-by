@@ -25,8 +25,9 @@ class CheckoutTelegramMessageFormatter
         if ($order->delivery_city) {
             $lines[] = 'Город: ' . (string) $order->delivery_city;
         }
-        if ($order->delivery_address) {
-            $lines[] = 'Адрес: ' . mb_substr((string) $order->delivery_address, 0, 200);
+        $addressLine = $this->formatDeliveryAddressLine($order);
+        if ($addressLine !== '') {
+            $lines[] = 'Адрес: ' . mb_substr($addressLine, 0, 200);
         }
         if ($order->payment_method) {
             $lines[] = 'Оплата: ' . (string) $order->payment_method;
@@ -117,6 +118,33 @@ class CheckoutTelegramMessageFormatter
         }
 
         return $this->trimForTelegram(implode("\n", $lines));
+    }
+
+    private function formatDeliveryAddressLine(Order $order): string
+    {
+        $prefix = trim((string) ($order->delivery_street_prefix ?? ''));
+        $street = trim((string) ($order->delivery_address ?? ''));
+        $house = trim((string) ($order->delivery_house ?? ''));
+        $korpus = trim((string) ($order->delivery_korpus ?? ''));
+        $apartment = trim((string) ($order->delivery_apartment ?? ''));
+
+        $streetPart = trim(implode(' ', array_filter([$prefix, $street], static fn (string $v): bool => $v !== '')));
+
+        $parts = [];
+        if ($streetPart !== '') {
+            $parts[] = $streetPart;
+        }
+        if ($house !== '') {
+            $parts[] = 'д. '.$house;
+        }
+        if ($korpus !== '') {
+            $parts[] = 'корп. '.$korpus;
+        }
+        if ($apartment !== '') {
+            $parts[] = 'кв. '.$apartment;
+        }
+
+        return implode(', ', $parts);
     }
 
     private function trimForTelegram(string $text): string

@@ -123,7 +123,9 @@ export default function AdminDatePicker({
                 className="flex w-full items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <Calendar className="h-4 w-4 shrink-0 text-admin-text-secondary" strokeWidth={2} aria-hidden />
-                <span className={displayLabel ? "" : "text-admin-text-secondary"}>{displayLabel || placeholder}</span>
+                <span className={displayLabel ? "font-medium text-admin-text" : "text-admin-text-secondary"}>
+                    {displayLabel || placeholder}
+                </span>
             </button>
 
             {open ? (

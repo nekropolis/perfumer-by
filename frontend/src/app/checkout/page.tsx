@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
     CHECKOUT_LINE_SELECTION_STORAGE_KEY,
@@ -53,6 +53,44 @@ import {
     waitingDiscountAmountForLines,
 } from "@/lib/checkout-line-selection";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
+import StreetPrefixSelect from "@/components/ui/street-prefix-select";
+import {
+    DEFAULT_VETER_STREET_PREFIX,
+} from "@/constants/veter-street-prefixes";
+
+const DELIVERY_DAY_LABELS: { key: keyof CheckoutCityHit["delivery_days"]; short: string }[] = [
+    { key: "monday", short: "Пн" },
+    { key: "tuesday", short: "Вт" },
+    { key: "wednesday", short: "Ср" },
+    { key: "thursday", short: "Чт" },
+    { key: "friday", short: "Пт" },
+    { key: "saturday", short: "Сб" },
+    { key: "sunday", short: "Вс" },
+];
+
+function CheckoutDeliveryDays({ days }: { days: CheckoutCityHit["delivery_days"] | null | undefined }) {
+    if (!days) return null;
+    return (
+        <div className="flex flex-wrap gap-1">
+            {DELIVERY_DAY_LABELS.map(({ key, short }) => {
+                const on = days[key] === 1;
+                return (
+                    <span
+                        key={key}
+                        className={`inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tracking-wide ${
+                            on
+                                ? "bg-[var(--accent)] text-[var(--background)]"
+                                : "border border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)]"
+                        }`}
+                        title={on ? `${short}: доставка` : `${short}: нет`}
+                    >
+                        {short}
+                    </span>
+                );
+            })}
+        </div>
+    );
+}
 
 const PICKUP_HINT =
     "Самовывоз: В связи с переходом на удалённый режим работы, забрать самостоятельно ваш заказ можно по домашнему адресу менеджера (ул. Чичурина). Обязательно предварительное согласование времени, чтобы курьер успел переместить ваш заказ со склада к менеджеру.";
@@ -99,12 +137,19 @@ export default function CheckoutPage() {
     const [shopSettings, setShopSettings] = useState<CheckoutShopSettings | null>(null);
     const [deliveryMethod, setDeliveryMethod] = useState<CheckoutDeliveryMethod>("minsk_courier");
     const [deliveryCity, setDeliveryCity] = useState("");
+    const [deliveryCityId, setDeliveryCityId] = useState<number | null>(null);
+    const [deliveryDays, setDeliveryDays] = useState<CheckoutCityHit["delivery_days"] | null>(null);
     const [cityQuery, setCityQuery] = useState("");
     const debouncedCityQuery = useDebouncedValue(cityQuery, 350);
     const [cityHits, setCityHits] = useState<CheckoutCityHit[]>([]);
     const [cityOpen, setCityOpen] = useState(false);
     const [cityLookupFailed, setCityLookupFailed] = useState(false);
+    const cityPickerRef = useRef<HTMLDivElement>(null);
     const [deliveryAddress, setDeliveryAddress] = useState("");
+    const [deliveryStreetPrefix, setDeliveryStreetPrefix] = useState<string>(DEFAULT_VETER_STREET_PREFIX);
+    const [deliveryHouse, setDeliveryHouse] = useState("");
+    const [deliveryKorpus, setDeliveryKorpus] = useState("");
+    const [deliveryApartment, setDeliveryApartment] = useState("");
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cash");
     const [cardSampleWarningOpen, setCardSampleWarningOpen] = useState(false);
     const [quote, setQuote] = useState<CheckoutQuote | null>(null);
@@ -292,8 +337,39 @@ export default function CheckoutPage() {
         if (value === "belarus_courier") {
             setPaymentMethod((pm) => (pm === "card" ? "cash" : pm));
             setCardSampleWarningOpen(false);
+        } else {
+            setDeliveryCity("");
+            setDeliveryCityId(null);
+            setDeliveryDays(null);
+            setCityQuery("");
+            setCityHits([]);
+            setCityOpen(false);
+        }
+        if (value === "pickup") {
+            setDeliveryStreetPrefix(DEFAULT_VETER_STREET_PREFIX);
+            setDeliveryHouse("");
+            setDeliveryKorpus("");
+            setDeliveryApartment("");
         }
     }, []);
+
+    useEffect(() => {
+        if (!cityOpen) return;
+        const onPointerDown = (e: MouseEvent | TouchEvent) => {
+            const root = cityPickerRef.current;
+            if (!root) return;
+            const target = e.target;
+            if (target instanceof Node && !root.contains(target)) {
+                setCityOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("touchstart", onPointerDown);
+        return () => {
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("touchstart", onPointerDown);
+        };
+    }, [cityOpen]);
 
     useEffect(() => {
         if (!cardSampleWarningOpen) {
@@ -331,8 +407,13 @@ export default function CheckoutPage() {
             return;
         }
 
+        if (deliveryMethod === "belarus_courier" && !deliveryCityId) {
+            setErrorMessage("Выберите населённый пункт из списка");
+            return;
+        }
+
         const orderDeliveryAddress = deliveryMethod === "pickup"
-            ? "нет - самовывоз"
+            ? "Самовывоз"
             : deliveryAddress.trim();
 
         startTransition(async () => {
@@ -344,8 +425,15 @@ export default function CheckoutPage() {
                     phone_plain_digits: allowPlainPhone,
                     comment,
                     delivery_method: deliveryMethod,
-                    delivery_city: deliveryCity.trim() || cityQuery.trim() || null,
+                    delivery_city: deliveryMethod === "belarus_courier" ? deliveryCity.trim() || null : null,
+                    delivery_city_id: deliveryMethod === "belarus_courier" ? deliveryCityId : null,
                     delivery_address: orderDeliveryAddress,
+                    delivery_street_prefix:
+                        deliveryMethod === "pickup" ? null : deliveryStreetPrefix.trim() || null,
+                    delivery_house: deliveryMethod === "pickup" ? null : deliveryHouse.trim() || null,
+                    delivery_korpus: deliveryMethod === "pickup" ? null : deliveryKorpus.trim() || null,
+                    delivery_apartment:
+                        deliveryMethod === "pickup" ? null : deliveryApartment.trim() || null,
                     payment_method: paymentMethod,
                     ...(lineSelection
                         ? {
@@ -519,81 +607,195 @@ export default function CheckoutPage() {
 
                     {deliveryMethod === "belarus_courier" ? (
                         <div className="mb-5">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                                <label className="text-sm font-medium">Населённый пункт</label>
-                            </div>
-                            <div className="relative">
-                                <input
-                                    value={deliveryCity.trim() || cityQuery}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        setCityQuery(v);
-                                        if (deliveryCity.trim()) {
-                                            setDeliveryCity("");
-                                        }
-                                        setCityOpen(true);
-                                        setCityLookupFailed(false);
-                                    }}
-                                    onFocus={() => setCityOpen(true)}
-                                    className={siteInput}
-                                    placeholder="Поиск по Беларуси"
-                                />
-                                {cityOpen && cityHits.length > 0 ? (
-                                    <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm shadow-lg">
-                                        {cityHits.map((h) => (
-                                            <li key={h.id}>
-                                                <button
-                                                    type="button"
-                                                    className="w-full px-3 py-2 text-left hover:bg-[var(--background)]"
-                                                    onClick={() => {
-                                                        setDeliveryCity(h.full_name.trim());
-                                                        setCityQuery("");
-                                                        setCityOpen(false);
-                                                    }}
-                                                >
-                                                    <div className="font-medium text-[var(--foreground)]">
-                                                        {h.full_name}
-                                                    </div>
-                                                    {h.type ? (
-                                                        <div className="text-xs text-[var(--text-secondary)]">
-                                                            {h.type}
-                                                            {h.region_name ? ` · ${h.region_name}` : ""}
+                            <div className="mb-2 text-sm font-medium">Адрес доставки</div>
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-2">
+                                <div className="relative min-w-0 flex-[1.8]" ref={cityPickerRef}>
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                        Населённый пункт *
+                                    </label>
+                                    <input
+                                        value={deliveryCity.trim() || cityQuery}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            setCityQuery(v);
+                                            if (deliveryCity.trim() || deliveryCityId) {
+                                                setDeliveryCity("");
+                                                setDeliveryCityId(null);
+                                                setDeliveryDays(null);
+                                            }
+                                            setCityOpen(true);
+                                            setCityLookupFailed(false);
+                                        }}
+                                        onFocus={() => setCityOpen(true)}
+                                        className={siteInput}
+                                        placeholder="Поиск по Беларуси"
+                                    />
+                                    {cityOpen && cityHits.length > 0 ? (
+                                        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm shadow-lg">
+                                            {cityHits.map((h) => (
+                                                <li key={h.id}>
+                                                    <button
+                                                        type="button"
+                                                        className="w-full px-3 py-2 text-left hover:bg-[var(--background)]"
+                                                        onClick={() => {
+                                                            setDeliveryCity(h.full_name.trim());
+                                                            setDeliveryCityId(h.id);
+                                                            setDeliveryDays(h.delivery_days);
+                                                            setCityQuery("");
+                                                            setCityOpen(false);
+                                                        }}
+                                                    >
+                                                        <div className="font-medium text-[var(--foreground)]">
+                                                            {h.full_name}
                                                         </div>
-                                                    ) : null}
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : null}
-                                {!deliveryCity.trim() &&
-                                cityQuery.trim().length >= 2 &&
-                                cityHits.length === 0 ? (
-                                    <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                                        {cityLookupFailed
-                                            ? "Поиск временно недоступен."
-                                            : "Населённый пункт не найден в списке — в заказ уйдёт введённое название."}
-                                    </p>
-                                ) : null}
+                                                        <div className="mt-1.5">
+                                                            <CheckoutDeliveryDays days={h.delivery_days} />
+                                                        </div>
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : null}
+                                    {deliveryCityId && deliveryDays ? (
+                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            <span className="text-xs text-[var(--text-secondary)]">
+                                                Дни доставки:
+                                            </span>
+                                            <CheckoutDeliveryDays days={deliveryDays} />
+                                        </div>
+                                    ) : null}
+                                    {!deliveryCityId &&
+                                    cityQuery.trim().length >= 2 &&
+                                    cityHits.length === 0 ? (
+                                        <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                                            {cityLookupFailed
+                                                ? "Поиск временно недоступен."
+                                                : "Населённый пункт не найден в списке — выберите из подсказок."}
+                                        </p>
+                                    ) : null}
+                                </div>
+
+                                <div className="w-full shrink-0 lg:w-[6rem]">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</label>
+                                    <StreetPrefixSelect
+                                        value={deliveryStreetPrefix}
+                                        onChange={setDeliveryStreetPrefix}
+                                        variant="site"
+                                    />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                        Адрес *
+                                    </label>
+                                    <input
+                                        value={deliveryAddress}
+                                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                                        onBlur={() => setAddressTouched(true)}
+                                        className={siteInput}
+                                        placeholder="Улица"
+                                        required
+                                    />
+                                    {showAddressError ? (
+                                        <p className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                    ) : null}
+                                </div>
+
+                                <div className="w-full shrink-0 lg:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                    <input
+                                        value={deliveryHouse}
+                                        onChange={(e) => setDeliveryHouse(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
+                                <div className="w-full shrink-0 lg:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                    <input
+                                        value={deliveryKorpus}
+                                        onChange={(e) => setDeliveryKorpus(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
+                                <div className="w-full shrink-0 lg:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                    <input
+                                        value={deliveryApartment}
+                                        onChange={(e) => setDeliveryApartment(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
                             </div>
                         </div>
                     ) : null}
 
-                    {deliveryMethod === "pickup" ? null : (
+                    {deliveryMethod === "minsk_courier" ? (
                         <div className="mb-5">
-                            <label className="mb-2 block text-sm font-medium">Адрес доставки *</label>
-                            <textarea
-                                value={deliveryAddress}
-                                onChange={(e) => setDeliveryAddress(e.target.value)}
-                                onBlur={() => setAddressTouched(true)}
-                                className={`${siteInput} min-h-24`}
-                                placeholder="Улица, дом, подъезд, этаж, домофон…"
-                                required={addressRequired}
-                            />
-                            {showAddressError ? (
-                                <p className="mt-2 text-xs text-red-600">Укажите адрес доставки</p>
-                            ) : null}
+                            <div className="mb-2 text-sm font-medium">Адрес доставки</div>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
+                                <div className="w-full shrink-0 sm:w-[6rem]">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</label>
+                                    <StreetPrefixSelect
+                                        value={deliveryStreetPrefix}
+                                        onChange={setDeliveryStreetPrefix}
+                                        variant="site"
+                                    />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                        Адрес *
+                                    </label>
+                                    <input
+                                        value={deliveryAddress}
+                                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                                        onBlur={() => setAddressTouched(true)}
+                                        className={siteInput}
+                                        placeholder="Улица"
+                                        required
+                                    />
+                                    {showAddressError ? (
+                                        <p className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                    ) : null}
+                                </div>
+                                <div className="w-full shrink-0 sm:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                    <input
+                                        value={deliveryHouse}
+                                        onChange={(e) => setDeliveryHouse(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
+                                <div className="w-full shrink-0 sm:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                    <input
+                                        value={deliveryKorpus}
+                                        onChange={(e) => setDeliveryKorpus(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
+                                <div className="w-full shrink-0 sm:w-14">
+                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                    <input
+                                        value={deliveryApartment}
+                                        onChange={(e) => setDeliveryApartment(e.target.value)}
+                                        className={`${siteInput} px-1.5`}
+                                        placeholder="№"
+                                        maxLength={4}
+                                    />
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    ) : null}
 
                     <fieldset className="mb-5">
                         <legend className="mb-2 text-sm font-medium text-admin-text">Способ оплаты *</legend>

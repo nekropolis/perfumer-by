@@ -20,7 +20,12 @@ export type CheckoutPayload = {
     comment?: string;
     delivery_method: CheckoutDeliveryMethod;
     delivery_city?: string | null;
+    delivery_city_id?: number | null;
     delivery_address: string;
+    delivery_street_prefix?: string | null;
+    delivery_house?: string | null;
+    delivery_korpus?: string | null;
+    delivery_apartment?: string | null;
     payment_method: CheckoutPaymentMethod;
     /** Частичное оформление: id строк `cart_items` в корзине; вместе с `gift_certificate_cart_item_ids` заменяет полную корзину. */
     cart_item_ids?: number[];
@@ -42,23 +47,25 @@ export type CheckoutShopSettings = {
     delivery_belarus_free_min_lines: number;
 };
 
-/** Ответ `GET /checkout/cities` (справочник `Settlement` на бэкенде). */
+/** Ответ `GET /checkout/cities` (справочник городов Ветер). */
 export type CheckoutCityHit = {
     id: number;
     name: string;
-    name_ru: string | null;
-    name_be: string | null;
-    name_en: string | null;
     full_name: string;
-    type: string;
-    place: string | null;
-    name_prefix: string | null;
+    village_council_name: string | null;
+    /** Зона/маршрут доставки Ветер (не адм. область). */
+    zone_name: string | null;
     region_name: string | null;
     district_name: string | null;
-    subdistrict_name: string | null;
-    postcode: string | null;
-    latitude: number | null;
-    longitude: number | null;
+    delivery_days: {
+        monday: number;
+        tuesday: number;
+        wednesday: number;
+        thursday: number;
+        friday: number;
+        saturday: number;
+        sunday: number;
+    };
 };
 
 export type CheckoutQuote = {
@@ -129,6 +136,17 @@ export async function searchCheckoutCities(query: string): Promise<{ data: Check
     if (!res.ok) throw new Error(`Checkout cities error: ${res.status}`);
     const body = (await res.json()) as { data?: CheckoutCityHit[] };
     return { data: Array.isArray(body.data) ? body.data : [] };
+}
+
+export async function fetchCheckoutCityById(id: number): Promise<CheckoutCityHit | null> {
+    if (!Number.isFinite(id) || id <= 0) return null;
+    const res = await fetch(`${API_BASE}/checkout/cities?id=${encodeURIComponent(String(id))}`, {
+        cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Checkout city by id error: ${res.status}`);
+    const body = (await res.json()) as { data?: CheckoutCityHit[] };
+    const hit = Array.isArray(body.data) ? body.data[0] : undefined;
+    return hit ?? null;
 }
 
 export async function fetchCheckoutQuote(payload: {

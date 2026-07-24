@@ -12,6 +12,7 @@ import OrderDiscountSummary from "@/components/account/order-discount-summary";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 
 type Props = {
     orderId: number | null;
@@ -137,7 +138,13 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                                         <dd className="mt-0.5 font-medium text-admin-text">
                                             {[
                                                 order.delivery_city?.trim(),
-                                                order.delivery_address?.trim(),
+                                                formatDeliveryAddressLine({
+                                                    prefix: order.delivery_street_prefix,
+                                                    street: order.delivery_address,
+                                                    house: order.delivery_house,
+                                                    korpus: order.delivery_korpus,
+                                                    apartment: order.delivery_apartment,
+                                                }),
                                             ]
                                                 .filter(Boolean)
                                                 .join(", ") || "—"}

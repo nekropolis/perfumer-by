@@ -16,6 +16,7 @@ import type { AdminToast } from "@/types/admin";
 const ENTITY_LABELS: Record<string, string> = {
     vanille_import: "Импорт Vanille",
     brand_sync: "Синхронизация брендов",
+    veter_ticket: "Ветер (курьер)",
 };
 
 const ACTION_LABELS: Record<string, string> = {
