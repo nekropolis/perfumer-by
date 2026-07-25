@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Support\Phone;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\ImportExport\Services\Legacy\LegacyOrderImportExtras;
 
 class ImportLegacyOrdersCommand extends Command
 {
@@ -35,6 +36,7 @@ class ImportLegacyOrdersCommand extends Command
         }
         $orderProducts = $this->extractRowsFromInsertTable($dumpPath, 'oc_order_product');
         $orderTotals = $this->extractRowsFromInsertTable($dumpPath, 'oc_order_total');
+        $orderOptions = $this->extractRowsFromInsertTable($dumpPath, 'oc_order_option');
 
         if (! $dryRun && $truncateMap) {
             DB::table('legacy_map_orders')->truncate();
@@ -63,14 +65,39 @@ class ImportLegacyOrdersCommand extends Command
             $productsByOrder[$orderId][] = $item;
         }
 
+        /** @var array<int, list<array<string, mixed>>> $totalsRowsByOrder */
+        $totalsRowsByOrder = [];
         $totalsByOrder = [];
         foreach ($orderTotals as $row) {
             $orderId = (int) ($row['order_id'] ?? 0);
+            if ($orderId <= 0) {
+                continue;
+            }
+            $totalsRowsByOrder[$orderId][] = $row;
             $code = trim((string) ($row['code'] ?? ''));
-            if ($orderId <= 0 || $code === '') {
+            if ($code === '') {
                 continue;
             }
             $totalsByOrder[$orderId][$code] = (string) ($row['value'] ?? '0');
+        }
+
+        /** @var array<int, array<int, list<array{name: string, value: string}>>> $optionsByOrderProduct */
+        $optionsByOrderProduct = [];
+        foreach ($orderOptions as $opt) {
+            $orderProductId = (int) ($opt['order_product_id'] ?? 0);
+            $orderId = (int) ($opt['order_id'] ?? 0);
+            if ($orderProductId <= 0 || $orderId <= 0) {
+                continue;
+            }
+            $name = trim((string) ($opt['name'] ?? ''));
+            $value = trim((string) ($opt['value'] ?? ''));
+            if ($name === '' && $value === '') {
+                continue;
+            }
+            $optionsByOrderProduct[$orderId][$orderProductId][] = [
+                'name' => $name,
+                'value' => $value,
+            ];
         }
 
         $processed = 0;
@@ -79,6 +106,8 @@ class ImportLegacyOrdersCommand extends Command
         $skippedExisting = 0;
         $skippedIncomplete = 0;
         $failed = 0;
+        $cardMatched = 0;
+        $withManagerComment = 0;
 
         foreach ($orders as $legacyOrder) {
             $processed++;
@@ -114,6 +143,7 @@ class ImportLegacyOrdersCommand extends Command
 
             $orderId = null;
             $itemRows = $productsByOrder[$legacyOrderId] ?? [];
+            $totalRows = $totalsRowsByOrder[$legacyOrderId] ?? [];
             $totals = $totalsByOrder[$legacyOrderId] ?? [];
             $subtotal = $totals['sub_total'] ?? (string) ($legacyOrder['total'] ?? '0');
             $deliveryFee = $totals['shipping'] ?? '0';
@@ -121,6 +151,18 @@ class ImportLegacyOrdersCommand extends Command
             $itemsQty = 0;
             foreach ($itemRows as $item) {
                 $itemsQty += max(1, (int) ($item['quantity'] ?? 1));
+            }
+
+            $discount = LegacyOrderImportExtras::resolveDiscountFromTotals($totalRows);
+            if ($discount['discount_card_id'] !== null || $discount['discount_card_number'] !== null) {
+                $cardMatched++;
+            }
+            $managerComment = LegacyOrderImportExtras::buildManagerComment(
+                $itemRows,
+                $optionsByOrderProduct[$legacyOrderId] ?? [],
+            );
+            if ($managerComment !== null) {
+                $withManagerComment++;
             }
 
             if ($dryRun) {
@@ -135,6 +177,7 @@ class ImportLegacyOrdersCommand extends Command
                         'customer_name' => $customerName,
                         'phone' => mb_substr($phone, 0, 32),
                         'comment' => $this->nullableString((string) ($legacyOrder['comment'] ?? '')),
+                        'manager_comment' => $managerComment,
                         'delivery_method' => $this->nullableString(mb_substr((string) ($legacyOrder['shipping_method'] ?? ''), 0, 40)),
                         'delivery_city' => $this->nullableString((string) ($legacyOrder['shipping_city'] ?? '')),
                         'delivery_address' => $this->composeDeliveryAddress($legacyOrder),
@@ -149,6 +192,10 @@ class ImportLegacyOrdersCommand extends Command
                         'items_qty' => $itemsQty,
                         'subtotal' => $this->asMoneyString($subtotal),
                         'total' => $this->asMoneyString($total),
+                        'discount_card_id' => $discount['discount_card_id'],
+                        'discount_card_number' => $discount['discount_card_number'],
+                        'discount_percent_snapshot' => $discount['discount_percent_snapshot'],
+                        'discount_amount' => $discount['discount_amount'],
                         'created_at' => $this->normalizeDateTime((string) ($legacyOrder['date_added'] ?? '')) ?? now(),
                         'updated_at' => $this->normalizeDateTime((string) ($legacyOrder['date_modified'] ?? '')) ?? now(),
                     ]);
@@ -237,6 +284,8 @@ class ImportLegacyOrdersCommand extends Command
         $this->line("Skipped existing map: {$skippedExisting}");
         $this->line("Skipped incomplete (order_status_id=0): {$skippedIncomplete}");
         $this->line("Failed: {$failed}");
+        $this->line("Card matched: {$cardMatched}");
+        $this->line("With manager_comment: {$withManagerComment}");
 
         return self::SUCCESS;
     }

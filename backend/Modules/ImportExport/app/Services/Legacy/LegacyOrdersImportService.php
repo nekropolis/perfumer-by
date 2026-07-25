@@ -2,8 +2,9 @@
 
 namespace Modules\ImportExport\Services\Legacy;
 
-use Illuminate\Support\Facades\DB;
 use App\Support\Phone;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\ProductDisplayName;
 use Throwable;
@@ -23,7 +24,9 @@ final class LegacyOrdersImportService
      *     imported: int,
      *     failed: int,
      *     city_matched: int,
-     *     city_unmatched: int
+     *     city_unmatched: int,
+     *     card_matched: int,
+     *     with_manager_comment: int
      * }
      */
     public function importIncremental(): array
@@ -36,21 +39,71 @@ final class LegacyOrdersImportService
         );
 
         if ($orders->isEmpty()) {
-            return [
-                'after_order_id' => $afterId,
-                'fetched' => 0,
-                'skipped' => 0,
-                'imported' => 0,
-                'failed' => 0,
-                'city_matched' => 0,
-                'city_unmatched' => 0,
-            ];
+            return $this->emptyStats($afterId);
+        }
+
+        return $this->importOrderRows($orders, $afterId);
+    }
+
+    /**
+     * Импорт конкретных legacy order_id (без cursor), только status > 0.
+     *
+     * @param  list<int>  $legacyOrderIds
+     * @return array{
+     *     after_order_id: int,
+     *     fetched: int,
+     *     skipped: int,
+     *     imported: int,
+     *     failed: int,
+     *     city_matched: int,
+     *     city_unmatched: int,
+     *     card_matched: int,
+     *     with_manager_comment: int
+     * }
+     */
+    public function importLegacyOrderIds(array $legacyOrderIds): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn ($id): int => (int) $id, $legacyOrderIds),
+            static fn (int $id): bool => $id > 0
+        )));
+        if ($ids === []) {
+            return $this->emptyStats(0);
+        }
+
+        $in = implode(',', $ids);
+        $orders = $this->legacyMysql->select(
+            "SELECT * FROM `oc_order` WHERE `order_id` IN ({$in}) AND `order_status_id` > 0 ORDER BY `order_id`"
+        );
+
+        return $this->importOrderRows($orders, 0, skipIfMapped: false);
+    }
+
+    /**
+     * @param  Collection<int, object>  $orders
+     * @return array{
+     *     after_order_id: int,
+     *     fetched: int,
+     *     skipped: int,
+     *     imported: int,
+     *     failed: int,
+     *     city_matched: int,
+     *     city_unmatched: int,
+     *     card_matched: int,
+     *     with_manager_comment: int
+     * }
+     */
+    private function importOrderRows(Collection $orders, int $afterId, bool $skipIfMapped = true): array
+    {
+        if ($orders->isEmpty()) {
+            return $this->emptyStats($afterId);
         }
 
         $orderIds = $orders->pluck('order_id')->map(static fn ($id): int => (int) $id)->all();
 
         $orderProducts = $this->legacyMysql->selectWhereIn('oc_order_product', 'order_id', $orderIds);
         $orderTotals = $this->legacyMysql->selectWhereIn('oc_order_total', 'order_id', $orderIds);
+        $orderOptions = $this->legacyMysql->selectWhereIn('oc_order_option', 'order_id', $orderIds);
 
         $productsByOrder = [];
         foreach ($orderProducts as $item) {
@@ -61,14 +114,33 @@ final class LegacyOrdersImportService
             $productsByOrder[$orderId][] = (array) $item;
         }
 
-        $totalsByOrder = [];
+        /** @var array<int, list<array<string, mixed>>> $totalsRowsByOrder */
+        $totalsRowsByOrder = [];
         foreach ($orderTotals as $row) {
             $orderId = (int) ($row->order_id ?? 0);
-            $code = trim((string) ($row->code ?? ''));
-            if ($orderId <= 0 || $code === '') {
+            if ($orderId <= 0) {
                 continue;
             }
-            $totalsByOrder[$orderId][$code] = (string) ($row->value ?? '0');
+            $totalsRowsByOrder[$orderId][] = (array) $row;
+        }
+
+        /** @var array<int, array<int, list<array{name: string, value: string}>>> $optionsByOrderProduct */
+        $optionsByOrderProduct = [];
+        foreach ($orderOptions as $opt) {
+            $orderProductId = (int) ($opt->order_product_id ?? 0);
+            $orderId = (int) ($opt->order_id ?? 0);
+            if ($orderProductId <= 0 || $orderId <= 0) {
+                continue;
+            }
+            $name = trim((string) ($opt->name ?? ''));
+            $value = trim((string) ($opt->value ?? ''));
+            if ($name === '' && $value === '') {
+                continue;
+            }
+            $optionsByOrderProduct[$orderId][$orderProductId][] = [
+                'name' => $name,
+                'value' => $value,
+            ];
         }
 
         $productMap = DB::table('legacy_map_products')
@@ -90,6 +162,8 @@ final class LegacyOrdersImportService
         $failed = 0;
         $cityMatched = 0;
         $cityUnmatched = 0;
+        $cardMatched = 0;
+        $withManagerComment = 0;
 
         foreach ($orders as $legacyOrder) {
             $legacyOrderId = (int) ($legacyOrder->order_id ?? 0);
@@ -97,12 +171,24 @@ final class LegacyOrdersImportService
                 continue;
             }
 
-            $mappedOrderId = DB::table('legacy_map_orders')
-                ->where('legacy_order_id', $legacyOrderId)
-                ->value('order_id');
-            if ($mappedOrderId !== null) {
-                $skipped++;
-                continue;
+            if ($skipIfMapped) {
+                $mappedOrderId = DB::table('legacy_map_orders')
+                    ->where('legacy_order_id', $legacyOrderId)
+                    ->value('order_id');
+                if ($mappedOrderId !== null) {
+                    $skipped++;
+                    continue;
+                }
+            } else {
+                // При принудительном импорте map уже должен быть очищен; на всякий случай пропускаем живой map.
+                $mappedOrderId = DB::table('legacy_map_orders')
+                    ->where('legacy_order_id', $legacyOrderId)
+                    ->whereNotNull('order_id')
+                    ->value('order_id');
+                if ($mappedOrderId !== null) {
+                    $skipped++;
+                    continue;
+                }
             }
 
             $legacyCustomerId = (int) ($legacyOrder->customer_id ?? 0);
@@ -118,10 +204,11 @@ final class LegacyOrdersImportService
             }
 
             $itemRows = $productsByOrder[$legacyOrderId] ?? [];
-            $totals = $totalsByOrder[$legacyOrderId] ?? [];
-            $subtotal = $totals['sub_total'] ?? (string) ($legacyOrder->total ?? '0');
-            $deliveryFee = $totals['shipping'] ?? '0';
-            $total = $totals['total'] ?? (string) ($legacyOrder->total ?? '0');
+            $totalRows = $totalsRowsByOrder[$legacyOrderId] ?? [];
+            $totalsByCode = $this->totalsByCode($totalRows);
+            $subtotal = $totalsByCode['sub_total'] ?? (string) ($legacyOrder->total ?? '0');
+            $deliveryFee = $totalsByCode['shipping'] ?? '0';
+            $total = $totalsByCode['total'] ?? (string) ($legacyOrder->total ?? '0');
             $itemsQty = 0;
             foreach ($itemRows as $item) {
                 $itemsQty += max(1, (int) ($item['quantity'] ?? 1));
@@ -135,6 +222,19 @@ final class LegacyOrdersImportService
                 $cityMatched++;
             } elseif (trim((string) ($legacyOrder->shipping_city ?? '')) !== '') {
                 $cityUnmatched++;
+            }
+
+            $discount = LegacyOrderImportExtras::resolveDiscountFromTotals($totalRows);
+            if ($discount['discount_card_id'] !== null || $discount['discount_card_number'] !== null) {
+                $cardMatched++;
+            }
+
+            $managerComment = LegacyOrderImportExtras::buildManagerComment(
+                $itemRows,
+                $optionsByOrderProduct[$legacyOrderId] ?? [],
+            );
+            if ($managerComment !== null) {
+                $withManagerComment++;
             }
 
             try {
@@ -152,6 +252,7 @@ final class LegacyOrdersImportService
                     'customer_name' => $customerName,
                     'phone' => mb_substr($phone, 0, 32),
                     'comment' => $this->nullableString((string) ($legacyOrder->comment ?? '')),
+                    'manager_comment' => $managerComment,
                     'delivery_method' => $cityResolved['delivery_method'],
                     'delivery_city' => $cityResolved['delivery_city'],
                     'delivery_city_id' => $cityResolved['delivery_city_id'],
@@ -163,6 +264,10 @@ final class LegacyOrdersImportService
                     'items_qty' => $itemsQty,
                     'subtotal' => $this->asMoneyString($subtotal),
                     'total' => $this->asMoneyString($total),
+                    'discount_card_id' => $discount['discount_card_id'],
+                    'discount_card_number' => $discount['discount_card_number'],
+                    'discount_percent_snapshot' => $discount['discount_percent_snapshot'],
+                    'discount_amount' => $discount['discount_amount'],
                     'created_at' => $createdAt,
                     'updated_at' => $updatedAt,
                 ]);
@@ -250,7 +355,55 @@ final class LegacyOrdersImportService
             'failed' => $failed,
             'city_matched' => $cityMatched,
             'city_unmatched' => $cityUnmatched,
+            'card_matched' => $cardMatched,
+            'with_manager_comment' => $withManagerComment,
         ];
+    }
+
+    /**
+     * @return array{
+     *     after_order_id: int,
+     *     fetched: int,
+     *     skipped: int,
+     *     imported: int,
+     *     failed: int,
+     *     city_matched: int,
+     *     city_unmatched: int,
+     *     card_matched: int,
+     *     with_manager_comment: int
+     * }
+     */
+    private function emptyStats(int $afterId): array
+    {
+        return [
+            'after_order_id' => $afterId,
+            'fetched' => 0,
+            'skipped' => 0,
+            'imported' => 0,
+            'failed' => 0,
+            'city_matched' => 0,
+            'city_unmatched' => 0,
+            'card_matched' => 0,
+            'with_manager_comment' => 0,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $totalRows
+     * @return array<string, string>
+     */
+    private function totalsByCode(array $totalRows): array
+    {
+        $out = [];
+        foreach ($totalRows as $row) {
+            $code = trim((string) ($row['code'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+            $out[$code] = (string) ($row['value'] ?? '0');
+        }
+
+        return $out;
     }
 
     /**

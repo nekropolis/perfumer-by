@@ -30,7 +30,7 @@ class LegacySyncController extends Controller
         $customers = $result['customers'];
         $orders = $result['orders'];
         $message = sprintf(
-            'Легаси: клиенты +%d (match %d, skip %d), заказы +%d (skip %d, город ok %d / нет %d)',
+            'Легаси: клиенты +%d (match %d, skip %d), заказы +%d (skip %d, город ok %d / нет %d, карта %d, коммент %d)',
             (int) ($customers['created'] ?? 0),
             (int) ($customers['matched'] ?? 0),
             (int) ($customers['skipped'] ?? 0),
@@ -38,6 +38,8 @@ class LegacySyncController extends Controller
             (int) ($orders['skipped'] ?? 0),
             (int) ($orders['city_matched'] ?? 0),
             (int) ($orders['city_unmatched'] ?? 0),
+            (int) ($orders['card_matched'] ?? 0),
+            (int) ($orders['with_manager_comment'] ?? 0),
         );
 
         return response()->json([
