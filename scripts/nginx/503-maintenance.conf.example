@@ -19,6 +19,12 @@
         add_header Cache-Control "no-store" always;
     }
 
+# 2b) In http {} (e.g. /etc/nginx/conf.d/perfumer-upgrade-map.conf):
+#    map $http_upgrade $connection_upgrade {
+#        default upgrade;
+#        ''      "";
+#    }
+
 # 3) ONLY inside location / (not at server level):
 
     location / {
@@ -31,7 +37,8 @@
         proxy_intercept_errors on;
         proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        # Ordinary HTTP must not force Connection: upgrade.
+        proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -90,23 +90,133 @@ disable_nginx_maintenance() {
 
 # Probe Next directly (bypass nginx) so we drop maintenance.on only when
 # upstream is up — otherwise visitors get 502 instead of branded 503.
+probe_next_url() {
+    local url="$1"
+    local code
+    # New TCP connection each time — avoid keepalive hitting one healthy worker only.
+    code="$(curl -sS --http1.1 -H 'Connection: close' -o /dev/null -w '%{http_code}' \
+        --max-time 3 "$url" 2>/dev/null || echo "000")"
+    [[ "$code" =~ ^(200|301|302|307|308)$ ]]
+}
+
 wait_for_frontend() {
     local url="${STOREFRONT_HEALTH_URL:-http://127.0.0.1:3000/}"
     local attempts="${1:-30}"
     local i=1
-    local code="000"
 
     log "Waiting for Next.js ($url, up to ${attempts}s)"
     while (( i <= attempts )); do
-        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
-        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
-            log "Next.js ready (HTTP $code)"
+        if probe_next_url "$url"; then
+            log "Next.js ready"
             return 0
         fi
         sleep 1
         i=$((i + 1))
     done
-    warn "Next.js not ready after ${attempts}s (last HTTP ${code})"
+    warn "Next.js not ready after ${attempts}s"
+    return 1
+}
+
+# After PM2 cluster reload one worker can answer while another is still starting.
+# Require several consecutive OK probes on / and /admin/orders before dropping 503.
+wait_for_frontend_stable() {
+    local attempts="${1:-45}"
+    local need="${FRONTEND_STABLE_SUCCESSES:-5}"
+    local base="${STOREFRONT_HEALTH_URL:-http://127.0.0.1:3000}"
+    base="${base%/}"
+    local home_url="$base/"
+    local admin_url="$base/admin/orders"
+    local ok=0
+    local i=1
+
+    log "Waiting for Next.js stable ($home_url + $admin_url, ${need} consecutive OK, up to ${attempts}s)"
+    while (( i <= attempts )); do
+        if probe_next_url "$home_url" && probe_next_url "$admin_url"; then
+            ok=$((ok + 1))
+            if (( ok >= need )); then
+                log "Next.js stable (${ok} consecutive OK)"
+                return 0
+            fi
+        else
+            ok=0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    warn "Next.js not stable after ${attempts}s (consecutive OK=${ok}/${need})"
+    return 1
+}
+
+pm2_online_count() {
+    FRONT_PROD_NAME="$FRONT_PROD_NAME" "$PM2_BIN" jlist 2>/dev/null | "$PHP_BIN" -r '
+        $apps = json_decode(stream_get_contents(STDIN), true);
+        if (!is_array($apps)) { echo 0; exit; }
+        $name = getenv("FRONT_PROD_NAME") ?: "perfumer-frontend";
+        $n = 0;
+        foreach ($apps as $app) {
+            if (($app["name"] ?? "") !== $name) { continue; }
+            if (($app["pm2_env"]["status"] ?? "") === "online") { $n++; }
+        }
+        echo $n;
+    ' 2>/dev/null || echo 0
+}
+
+pm2_restart_fingerprint() {
+    # One line: id:pid:restarts,... — empty if app missing.
+    FRONT_PROD_NAME="$FRONT_PROD_NAME" "$PM2_BIN" jlist 2>/dev/null | "$PHP_BIN" -r '
+        $apps = json_decode(stream_get_contents(STDIN), true);
+        if (!is_array($apps)) { exit(1); }
+        $name = getenv("FRONT_PROD_NAME") ?: "perfumer-frontend";
+        $rows = [];
+        foreach ($apps as $app) {
+            if (($app["name"] ?? "") !== $name) { continue; }
+            $rows[] = sprintf(
+                "%s:%s:%s",
+                $app["pm_id"] ?? "?",
+                $app["pid"] ?? 0,
+                $app["pm2_env"]["restart_time"] ?? 0
+            );
+        }
+        sort($rows);
+        echo implode(",", $rows);
+    ' 2>/dev/null || true
+}
+
+wait_for_pm2_stable() {
+    local attempts="${1:-20}"
+    local settle_secs="${PM2_STABLE_SECS:-8}"
+    local i=1
+    local before=""
+    local after=""
+    local online_count=0
+
+    log "Waiting for PM2 $FRONT_PROD_NAME online (need 2 instances, up to ${attempts}s)"
+    while (( i <= attempts )); do
+        online_count="$(pm2_online_count)"
+        if [[ "$online_count" -ge 2 ]]; then
+            break
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+
+    if [[ "$online_count" -lt 2 ]]; then
+        warn "PM2 $FRONT_PROD_NAME not online enough after ${attempts}s (online=${online_count})"
+        return 1
+    fi
+
+    before="$(pm2_restart_fingerprint)"
+    log "PM2 online — settling ${settle_secs}s (fingerprint=$before)"
+    sleep "$settle_secs"
+    after="$(pm2_restart_fingerprint)"
+    online_count="$(pm2_online_count)"
+
+    if [[ "$online_count" -ge 2 && -n "$before" && "$before" == "$after" ]]; then
+        log "PM2 stable ($online_count online, fingerprint=$before)"
+        return 0
+    fi
+
+    warn "PM2 $FRONT_PROD_NAME restarted during settle (before=$before after=$after online=${online_count})"
     return 1
 }
 
@@ -368,9 +478,10 @@ log "Leaving maintenance mode"
 (cd "$BACKEND" && "$PHP_BIN" artisan up)
 MAINT_DOWN=0
 
-# Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
+# Keep nginx 503 until API is up and Next is stably answering — avoids 502 after flag drop.
 wait_for_backend 30
-wait_for_frontend 30
+wait_for_pm2_stable 20
+wait_for_frontend_stable 45
 disable_nginx_maintenance
 wait_for_public_storefront 15
 
