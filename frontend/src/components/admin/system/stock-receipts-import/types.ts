@@ -40,10 +40,15 @@ export type StockReceiptImportUnresolvedRow = {
         brand_name?: string | null;
         variants_count?: number;
     } | null;
-    /** Подтверждённая связка (сохраняется в session state вместе с unresolved). */
+    /** Подтверждённая связка. */
     linked_variant?: StockReceiptImportCatalogVariant | null;
     /** Строка сопоставлена автоматически на бэкенде (100% / сохранённый mapping). */
     auto_resolved?: boolean;
+    /** pending | in_receipt */
+    receipt_status?: string | null;
+    resolve_status?: string | null;
+    in_receipt?: boolean;
+    stock_receipt_id?: number | null;
     parsed?: StockReceiptImportParsed | null;
     match_confidence?: number;
     match_confidence_breakdown?: SellerOneSupplierProductItem["match_confidence_breakdown"];

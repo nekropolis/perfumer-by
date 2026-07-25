@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Warehouse\Models\StockReceipt;
+use Modules\Warehouse\Models\StockReceiptImport;
 use Modules\Warehouse\Models\StockReceiptImportMapping;
-use Modules\Warehouse\Models\StockReceiptImportSessionState;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\StockReceiptService;
@@ -74,21 +74,21 @@ class StockReceiptController extends Controller
     public function importXlsResolveBatch(Request $request, StockReceiptXlsImportService $service): JsonResponse
     {
         $validated = $request->validate([
-            'session_id' => ['required', 'uuid'],
-            'offset' => ['required', 'integer', 'min:0'],
+            'import_id' => ['required', 'uuid'],
+            'offset' => ['nullable', 'integer', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:150'],
         ]);
 
         try {
             $result = $service->resolveImportBatch(
-                $validated['session_id'],
-                (int) $validated['offset'],
+                $validated['import_id'],
+                (int) ($validated['offset'] ?? 0),
                 (int) ($validated['limit'] ?? 75)
             );
         } catch (\Throwable $e) {
             Log::error('Stock receipt XLS resolve-batch failed', [
-                'session_id' => $validated['session_id'],
-                'offset' => $validated['offset'],
+                'import_id' => $validated['import_id'],
+                'offset' => $validated['offset'] ?? 0,
                 'limit' => $validated['limit'] ?? 75,
                 'exception' => $e,
             ]);
@@ -102,7 +102,7 @@ class StockReceiptController extends Controller
     public function importXlsCommit(Request $request, StockReceiptXlsImportService $service): JsonResponse
     {
         $validated = $request->validate([
-            'session_id' => ['required', 'uuid'],
+            'import_id' => ['required', 'uuid'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
             'supplier_code' => ['nullable', 'string', 'max:100'],
@@ -117,10 +117,10 @@ class StockReceiptController extends Controller
             'mapping.*.selected_variant_id' => ['nullable', 'integer', 'exists:product_variant_links,id'],
         ]);
 
-        $sessionId = $validated['session_id'];
-        unset($validated['session_id']);
+        $importId = $validated['import_id'];
+        unset($validated['import_id']);
 
-        $result = $service->commitImportSession($sessionId, $validated);
+        $result = $service->commitImportSession($importId, $validated);
         $status = $result['created_new_receipt'] ? 201 : 200;
 
         return response()->json([
@@ -137,65 +137,87 @@ class StockReceiptController extends Controller
     public function importXlsClearReceipt(Request $request, StockReceiptXlsImportService $service): JsonResponse
     {
         $validated = $request->validate([
-            'session_id' => ['required', 'uuid'],
+            'import_id' => ['required', 'uuid'],
         ]);
 
-        $service->clearImportSessionReceiptTarget($validated['session_id']);
+        $service->clearImportSessionReceiptTarget($validated['import_id']);
 
         return response()->json([
             'message' => 'Следующее сохранение создаст новый черновик прихода',
         ]);
     }
 
-    public function importXlsState(Request $request): JsonResponse
+    public function importXlsShow(string $importId, StockReceiptXlsImportService $service): JsonResponse
     {
-        $userId = (int) $request->user()?->id;
-        abort_if($userId <= 0, 401, 'Требуется авторизация');
-
-        $state = StockReceiptImportSessionState::query()
-            ->where('user_id', $userId)
-            ->latest('updated_at')
-            ->first();
-
         return response()->json([
-            'data' => $state,
+            'data' => $service->getImport($importId),
         ]);
     }
 
-    public function importXlsStateSave(Request $request): JsonResponse
+    public function importXlsLink(Request $request, StockReceiptXlsImportService $service): JsonResponse
     {
-        $userId = (int) $request->user()?->id;
-        abort_if($userId <= 0, 401, 'Требуется авторизация');
-
         $validated = $request->validate([
-            'session_id' => ['nullable', 'uuid'],
+            'import_id' => ['required', 'uuid'],
+            'map_key' => ['required', 'string', 'max:255'],
+            'variant_id' => ['required', 'integer', 'exists:product_variant_links,id'],
+        ]);
+
+        $row = $service->linkImportRow($validated['import_id'], $validated);
+
+        return response()->json([
+            'message' => 'Связка сохранена',
+            'data' => $row,
+        ]);
+    }
+
+    public function importXlsClose(Request $request, StockReceiptXlsImportService $service): JsonResponse
+    {
+        $validated = $request->validate([
+            'import_id' => ['required', 'uuid'],
+        ]);
+
+        $service->closeImport($validated['import_id']);
+
+        return response()->json([
+            'message' => 'Импорт закрыт',
+        ]);
+    }
+
+    public function importXlsState(StockReceiptXlsImportService $service): JsonResponse
+    {
+        return response()->json($service->getLatestOpenImportState());
+    }
+
+    public function importXlsStateSave(Request $request, StockReceiptXlsImportService $service): JsonResponse
+    {
+        $validated = $request->validate([
+            'import_id' => ['required', 'uuid'],
             'warehouse_id' => ['nullable', 'integer'],
             'supplier_id' => ['nullable', 'integer'],
             'received_at' => ['nullable', 'string', 'max:40'],
             'comment' => ['nullable', 'string', 'max:500'],
-            'parsed_total_rows' => ['nullable', 'integer', 'min:0'],
-            'linked_draft_receipt_id' => ['nullable', 'integer'],
-            'unresolved' => ['nullable', 'array'],
-            'mapping_by_key' => ['nullable', 'array'],
         ]);
 
-        StockReceiptImportSessionState::query()->updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'session_id' => $validated['session_id'] ?? null,
-                'warehouse_id' => $validated['warehouse_id'] ?? null,
-                'supplier_id' => $validated['supplier_id'] ?? null,
-                'received_at' => $validated['received_at'] ?? null,
-                'comment' => $validated['comment'] ?? null,
-                'parsed_total_rows' => $validated['parsed_total_rows'] ?? null,
-                'linked_draft_receipt_id' => $validated['linked_draft_receipt_id'] ?? null,
-                'unresolved' => $validated['unresolved'] ?? [],
-                'mapping_by_key' => $validated['mapping_by_key'] ?? [],
-            ]
-        );
+        $model = StockReceiptImport::query()
+            ->where('uuid', $validated['import_id'])
+            ->where('status', StockReceiptImport::STATUS_OPEN)
+            ->firstOrFail();
+
+        $model->warehouse_id = $validated['warehouse_id'] ?? $model->warehouse_id;
+        $model->supplier_id = array_key_exists('supplier_id', $validated)
+            ? $validated['supplier_id']
+            : $model->supplier_id;
+        if (!empty($validated['received_at'])) {
+            $model->received_at = $validated['received_at'];
+        }
+        if (array_key_exists('comment', $validated)) {
+            $model->comment = $validated['comment'];
+        }
+        $model->save();
 
         return response()->json([
-            'message' => 'Состояние импорта сохранено',
+            'message' => 'Параметры импорта сохранены',
+            'data' => $service->getImport($validated['import_id']),
         ]);
     }
 

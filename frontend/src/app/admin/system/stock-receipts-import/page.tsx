@@ -7,13 +7,16 @@ import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import {
     clearStockReceiptXlsImportReceiptTarget,
+    closeStockReceiptXlsImport,
     commitStockReceiptXlsImport,
     fetchWarehouses,
     fetchWarehouseSuppliers,
     fetchStockReceiptXlsImportState,
+    linkStockReceiptXlsImportRow,
     prepareStockReceiptXlsImport,
     resolveStockReceiptXlsImportBatch,
     saveStockReceiptXlsImportState,
+    type StockReceiptImportDbState,
     type WarehouseOption,
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
@@ -72,11 +75,31 @@ export default function StockReceiptsImportSystemPage() {
     const [unresolved, setUnresolved] = useState<StockReceiptImportUnresolvedRow[]>([]);
     const [mappingByKey, setMappingByKey] = useState<Record<string, string>>({});
     const [manualLink, setManualLink] = useState<StockReceiptManualLinkState | null>(null);
-    const [importSessionId, setImportSessionId] = useState<string | null>(null);
+    const [importId, setImportId] = useState<string | null>(null);
     const [importProgress, setImportProgress] = useState("");
     const [parsedTotalRows, setParsedTotalRows] = useState<number | null>(null);
     const [linkedDraftReceiptId, setLinkedDraftReceiptId] = useState<number | null>(null);
+    const [inReceiptCount, setInReceiptCount] = useState(0);
     const didHydrateFromServerRef = useRef(false);
+
+    const applyImportState = (saved: StockReceiptImportDbState) => {
+        setImportId(saved.import_id);
+        setUnresolved(Array.isArray(saved.rows) ? (saved.rows as StockReceiptImportUnresolvedRow[]) : []);
+        setMappingByKey(saved.mapping_by_key && typeof saved.mapping_by_key === "object" ? saved.mapping_by_key : {});
+        setParsedTotalRows(typeof saved.total_rows === "number" ? saved.total_rows : null);
+        setLinkedDraftReceiptId(
+            typeof saved.target_stock_receipt_id === "number" ? saved.target_stock_receipt_id : null,
+        );
+        setInReceiptCount(typeof saved.in_receipt === "number" ? saved.in_receipt : 0);
+        setWarehouseId(typeof saved.warehouse_id === "number" ? saved.warehouse_id : "");
+        setSupplierId(typeof saved.supplier_id === "number" ? saved.supplier_id : "");
+        if (typeof saved.received_at === "string" && saved.received_at) {
+            setReceivedAt(saved.received_at);
+        }
+        if (typeof saved.comment === "string") {
+            setComment(saved.comment);
+        }
+    };
 
     useEffect(() => {
         const run = async () => {
@@ -88,18 +111,14 @@ export default function StockReceiptsImportSystemPage() {
                     return;
                 }
 
-                setImportSessionId(saved.session_id ?? null);
-                setUnresolved(Array.isArray(saved.unresolved) ? (saved.unresolved as StockReceiptImportUnresolvedRow[]) : []);
-                setMappingByKey(saved.mapping_by_key && typeof saved.mapping_by_key === "object" ? saved.mapping_by_key : {});
-                setParsedTotalRows(typeof saved.parsed_total_rows === "number" ? saved.parsed_total_rows : null);
-                setLinkedDraftReceiptId(typeof saved.linked_draft_receipt_id === "number" ? saved.linked_draft_receipt_id : null);
-                setWarehouseId(typeof saved.warehouse_id === "number" ? saved.warehouse_id : "");
-                setSupplierId(typeof saved.supplier_id === "number" ? saved.supplier_id : "");
-                setReceivedAt(typeof saved.received_at === "string" ? saved.received_at : new Date().toISOString().slice(0, 16));
-                setComment(typeof saved.comment === "string" ? saved.comment : "Импорт прихода из XLS");
-                setSuccess("Восстановлена сессия импорта XLS из БД.");
+                applyImportState(saved);
+                setSuccess(
+                    saved.in_receipt > 0
+                        ? `Открыт общий импорт: в приходе ${saved.in_receipt} из ${saved.total_rows} строк.`
+                        : "Открыт общий импорт XLS из БД.",
+                );
             } catch (e) {
-                setError(e instanceof Error ? e.message : "Не удалось восстановить состояние импорта");
+                setError(e instanceof Error ? e.message : "Не удалось восстановить импорт");
             } finally {
                 didHydrateFromServerRef.current = true;
             }
@@ -108,36 +127,22 @@ export default function StockReceiptsImportSystemPage() {
     }, []);
 
     useEffect(() => {
-        if (!didHydrateFromServerRef.current) {
+        if (!didHydrateFromServerRef.current || !importId) {
             return;
         }
 
         const timer = window.setTimeout(() => {
             void saveStockReceiptXlsImportState({
-                session_id: importSessionId,
-                unresolved,
-                mapping_by_key: mappingByKey,
-                parsed_total_rows: parsedTotalRows,
-                linked_draft_receipt_id: linkedDraftReceiptId,
+                import_id: importId,
                 warehouse_id: typeof warehouseId === "number" ? warehouseId : null,
                 supplier_id: typeof supplierId === "number" ? supplierId : null,
                 received_at: receivedAt,
                 comment,
             });
-        }, 300);
+        }, 400);
 
         return () => window.clearTimeout(timer);
-    }, [
-        importSessionId,
-        unresolved,
-        mappingByKey,
-        parsedTotalRows,
-        linkedDraftReceiptId,
-        warehouseId,
-        supplierId,
-        receivedAt,
-        comment,
-    ]);
+    }, [importId, warehouseId, supplierId, receivedAt, comment]);
 
     const ensureMeta = async () => {
         setLoadingMeta(true);
@@ -163,7 +168,7 @@ export default function StockReceiptsImportSystemPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const applyRowLink = (mapKey: string, linkedVariant: StockReceiptImportCatalogVariant | null) => {
+    const applyRowLink = async (mapKey: string, linkedVariant: StockReceiptImportCatalogVariant | null) => {
         setMappingByKey((prev) => {
             const next = { ...prev };
             if (linkedVariant?.id) {
@@ -178,6 +183,18 @@ export default function StockReceiptsImportSystemPage() {
                 row.map_key === mapKey ? { ...row, linked_variant: linkedVariant } : row,
             ),
         );
+
+        if (importId && linkedVariant?.id) {
+            try {
+                await linkStockReceiptXlsImportRow({
+                    import_id: importId,
+                    map_key: mapKey,
+                    variant_id: linkedVariant.id,
+                });
+            } catch (e) {
+                setError(e instanceof Error ? e.message : "Не удалось сохранить связку в БД");
+            }
+        }
     };
 
     const buildMappingPayload = () =>
@@ -209,52 +226,92 @@ export default function StockReceiptsImportSystemPage() {
         setLoadingXls(true);
         try {
             const prep = await prepareStockReceiptXlsImport(file);
-            const sessionId = prep.session_id;
-            setImportSessionId(sessionId);
-            setLinkedDraftReceiptId(null);
+            const nextImportId = prep.import_id;
+            setImportId(nextImportId);
             setParsedTotalRows(prep.total_rows);
 
-            let offset = 0;
+            if (prep.reused) {
+                setSuccess("Открыт существующий импорт этого файла (общий для всех админов).");
+            }
+
             const byKey = new Map<string, StockReceiptImportUnresolvedRow>();
 
-            while (offset < prep.total_rows) {
-                const hi = Math.min(offset + RESOLVE_BATCH_SIZE, prep.total_rows);
-                setImportProgress(`Разбор строк ${hi} / ${prep.total_rows}…`);
-                const batch = await resolveStockReceiptXlsImportBatch({
-                    session_id: sessionId,
-                    offset,
-                    limit: RESOLVE_BATCH_SIZE,
-                });
-                for (const row of batch.unresolved as StockReceiptImportUnresolvedRow[]) {
-                    byKey.set(row.map_key, row);
+            if (!prep.reused) {
+                let guard = 0;
+                while (guard < 10_000) {
+                    guard += 1;
+                    setImportProgress(`Разбор строк…`);
+                    const batch = await resolveStockReceiptXlsImportBatch({
+                        import_id: nextImportId,
+                        limit: RESOLVE_BATCH_SIZE,
+                    });
+                    for (const row of batch.unresolved as StockReceiptImportUnresolvedRow[]) {
+                        byKey.set(row.map_key, row);
+                    }
+                    setImportProgress(
+                        `Разбор строк ${batch.next_offset} / ${batch.total_rows}…`,
+                    );
+                    if (batch.done) {
+                        break;
+                    }
                 }
-                offset = batch.next_offset;
-                if (batch.done) {
-                    break;
+            } else {
+                const stateRes = await fetchStockReceiptXlsImportState();
+                if (stateRes.data && stateRes.data.import_id === nextImportId) {
+                    applyImportState(stateRes.data);
+                    setImportProgress("");
+                    return;
+                }
+                let guard = 0;
+                while (guard < 10_000) {
+                    guard += 1;
+                    const batch = await resolveStockReceiptXlsImportBatch({
+                        import_id: nextImportId,
+                        limit: RESOLVE_BATCH_SIZE,
+                    });
+                    for (const row of batch.unresolved as StockReceiptImportUnresolvedRow[]) {
+                        byKey.set(row.map_key, row);
+                    }
+                    if (batch.done || (batch.pending_resolve ?? 0) === 0) {
+                        break;
+                    }
                 }
             }
 
             setImportProgress("");
 
-            const mergedUnresolved = Array.from(byKey.values());
-            const initialMapping = buildInitialMappingFromImportRows(mergedUnresolved);
-            setUnresolved(mergedUnresolved);
-            setMappingByKey(initialMapping);
+            const stateAfter = await fetchStockReceiptXlsImportState();
+            if (stateAfter.data && stateAfter.data.import_id === nextImportId) {
+                applyImportState(stateAfter.data);
+            } else {
+                const mergedUnresolved = Array.from(byKey.values());
+                const initialMapping = buildInitialMappingFromImportRows(mergedUnresolved);
+                setUnresolved(mergedUnresolved);
+                setMappingByKey(initialMapping);
+            }
 
+            const rows = stateAfter.data?.rows as StockReceiptImportUnresolvedRow[] | undefined;
+            const mergedUnresolved = rows ?? Array.from(byKey.values());
+            const initialMapping = buildInitialMappingFromImportRows(
+                mergedUnresolved.filter((r) => !r.in_receipt && r.receipt_status !== "in_receipt"),
+            );
             const autoLinkedCount = Object.keys(initialMapping).length;
-            const manualCount = countImportRowsNeedingManualLink(mergedUnresolved, initialMapping);
+            const manualCount = countImportRowsNeedingManualLink(
+                mergedUnresolved.filter((r) => !r.in_receipt && r.receipt_status !== "in_receipt"),
+                { ...initialMapping, ...(stateAfter.data?.mapping_by_key ?? {}) },
+            );
 
-            if (mergedUnresolved.length === 0) {
+            if (prep.reused) {
                 setSuccess(
-                    `Разбор завершён (${prep.total_rows} строк). Нажмите «Создать приход», чтобы создать черновик документа.`,
+                    `Открыт существующий импорт (${prep.total_rows} строк). В приходе: ${stateAfter.data?.in_receipt ?? 0}.`,
                 );
             } else if (manualCount === 0) {
                 setSuccess(
-                    `Разбор завершён: ${autoLinkedCount} из ${prep.total_rows} строк с галочкой «Связка» (100%). Проверьте таблицу и нажмите «Создать приход».`,
+                    `Разбор завершён: ${autoLinkedCount} автосвязок. Проверьте таблицу и нажмите «Создать приход».`,
                 );
             } else {
                 setSuccess(
-                    `Разбор завершён: ${autoLinkedCount} автосвязок (галочки), ${manualCount} строк требуют ручной связки.`,
+                    `Разбор завершён: ${autoLinkedCount} автосвязок, ${manualCount} строк требуют ручной связки.`,
                 );
             }
         } catch (e) {
@@ -269,14 +326,18 @@ export default function StockReceiptsImportSystemPage() {
     };
 
     const handleCommitReceipt = async () => {
-        if (!importSessionId) {
+        if (!importId) {
             setError("Сначала загрузите XLS");
             return;
         }
 
-        const mappingPayload = buildMappingPayload();
-        if (unresolved.length > 0 && mappingPayload.length === 0) {
-            setError("Отметьте связку хотя бы для одной строки (чекбокс или ручной поиск) или дождитесь автосопоставления.");
+        const mappingPayload = buildMappingPayload().filter((item) => {
+            const row = unresolved.find((r) => r.map_key === item.map_key);
+            return !(row?.in_receipt || row?.receipt_status === "in_receipt");
+        });
+        const pendingRows = unresolved.filter((r) => !r.in_receipt && r.receipt_status !== "in_receipt");
+        if (pendingRows.length > 0 && mappingPayload.length === 0) {
+            setError("Отметьте связку хотя бы для одной новой строки (ещё не в приходе).");
             return;
         }
 
@@ -284,26 +345,30 @@ export default function StockReceiptsImportSystemPage() {
         setError("");
         try {
             const response = await commitStockReceiptXlsImport({
-                session_id: importSessionId,
+                import_id: importId,
                 ...buildCommitPayloadBase(),
                 mapping: mappingPayload,
             });
 
             const keys = new Set(response.committed_map_keys || []);
-            setUnresolved((prev) => prev.filter((row) => !keys.has(row.map_key)));
-            setMappingByKey((prev) => {
-                const next = { ...prev };
-                (response.committed_map_keys || []).forEach((k) => {
-                    delete next[k];
-                });
-                return next;
-            });
-
+            setUnresolved((prev) =>
+                prev.map((row) =>
+                    keys.has(row.map_key)
+                        ? {
+                            ...row,
+                            in_receipt: true,
+                            receipt_status: "in_receipt",
+                            stock_receipt_id: response.data.id,
+                        }
+                        : row,
+                ),
+            );
+            setInReceiptCount((prev) => prev + (response.committed_rows_count || 0));
             setLinkedDraftReceiptId(response.data.id);
             const doc = response.data.document_no ?? String(response.data.id);
             setSuccess(
                 response.created_new_receipt
-                    ? `Создан черновик прихода №${doc}. Добавлено строк: ${response.committed_rows_count}. Проведите документ на странице приходов, когда будете готовы.`
+                    ? `Создан черновик прихода №${doc}. Добавлено строк: ${response.committed_rows_count}.`
                     : `В приход №${doc} добавлено строк: ${response.committed_rows_count}.`,
             );
         } catch (e) {
@@ -322,12 +387,12 @@ export default function StockReceiptsImportSystemPage() {
     };
 
     const handleClearReceiptBinding = async () => {
-        if (!importSessionId) {
+        if (!importId) {
             return;
         }
         setError("");
         try {
-            await clearStockReceiptXlsImportReceiptTarget(importSessionId);
+            await clearStockReceiptXlsImportReceiptTarget(importId);
             setLinkedDraftReceiptId(null);
             setSuccess("Привязка к документу сброшена: следующее сохранение создаст новый черновик прихода.");
         } catch (e) {
@@ -335,7 +400,29 @@ export default function StockReceiptsImportSystemPage() {
         }
     };
 
+    const handleCloseImport = async () => {
+        if (!importId) {
+            return;
+        }
+        setError("");
+        try {
+            await closeStockReceiptXlsImport(importId);
+            setImportId(null);
+            setUnresolved([]);
+            setMappingByKey({});
+            setParsedTotalRows(null);
+            setLinkedDraftReceiptId(null);
+            setInReceiptCount(0);
+            setSuccess("Импорт закрыт.");
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось закрыть импорт");
+        }
+    };
+
     const handleToggleLink = (row: StockReceiptImportUnresolvedRow, checked: boolean) => {
+        if (row.in_receipt || row.receipt_status === "in_receipt") {
+            return;
+        }
         const sellerOneRow = importRowAsSellerOneView(row, mappingByKey);
 
         if (checked) {
@@ -347,14 +434,17 @@ export default function StockReceiptsImportSystemPage() {
                 );
                 return;
             }
-            applyRowLink(row.map_key, row.suggested_variant!);
+            void applyRowLink(row.map_key, row.suggested_variant!);
             return;
         }
 
-        applyRowLink(row.map_key, null);
+        void applyRowLink(row.map_key, null);
     };
 
     const openManualLink = (row: StockReceiptImportUnresolvedRow) => {
+        if (row.in_receipt || row.receipt_status === "in_receipt") {
+            return;
+        }
         const initialSearch = buildInitialSearchFromImportRow(row);
         const parsed = row.parsed;
         const sourceHint = {
@@ -494,15 +584,19 @@ export default function StockReceiptsImportSystemPage() {
         }
     };
 
-    const canCommit =
-        Boolean(importSessionId) &&
-        (unresolved.length === 0 || buildMappingPayload().length > 0);
+    const pendingLinkedCount = unresolved.filter(
+        (row) =>
+            !(row.in_receipt || row.receipt_status === "in_receipt")
+            && Boolean(mappingByKey[row.map_key]),
+    ).length;
+
+    const canCommit = Boolean(importId) && pendingLinkedCount > 0;
 
     return (
         <AdminPageCard>
             <AdminTableToolbar
                 title="Система: импорт приходов XLS"
-                description="Сначала загрузите файл — таблица остаётся на экране. Связывайте строки и периодически нажимайте «Создать приход» / «Добавить в приход»: позиции попадают в один черновик, пока вы не сбросите привязку. Проведите документ на странице приходов, чтобы оприходовать товар на склад."
+                description="Файл хранится в БД как общий импорт. Два админа могут работать параллельно: строки «В приходе» заблокированы. Связывайте оставшиеся и нажимайте «Создать/Добавить в приход». Проведите документ на странице приходов."
             />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
@@ -522,11 +616,6 @@ export default function StockReceiptsImportSystemPage() {
                     accept=".xls,.xlsx"
                     onChange={(e) => {
                         setFile(e.target.files?.[0] ?? null);
-                        setImportSessionId(null);
-                        setUnresolved([]);
-                        setMappingByKey({});
-                        setParsedTotalRows(null);
-                        setLinkedDraftReceiptId(null);
                     }}
                     className="block w-full rounded-lg border px-3 py-2 text-sm"
                 />
@@ -584,7 +673,7 @@ export default function StockReceiptsImportSystemPage() {
                     >
                         {committing ? "Сохранение…" : linkedDraftReceiptId ? "Добавить в приход" : "Создать приход"}
                     </button>
-                    {importSessionId ? (
+                    {importId ? (
                         <button
                             type="button"
                             onClick={() => void handleClearReceiptBinding()}
@@ -594,11 +683,22 @@ export default function StockReceiptsImportSystemPage() {
                             Новый документ (сброс привязки)
                         </button>
                     ) : null}
+                    {importId ? (
+                        <button
+                            type="button"
+                            onClick={() => void handleCloseImport()}
+                            disabled={committing || loadingXls}
+                            className="rounded-lg border px-4 py-2 text-sm text-admin-text disabled:opacity-60"
+                        >
+                            Закрыть импорт
+                        </button>
+                    ) : null}
                 </div>
-                {importSessionId ? (
+                {importId ? (
                     <p className="text-xs text-admin-text-secondary">
-                        Сессия: <span className="font-mono">{importSessionId}</span>
-                        {parsedTotalRows != null ? ` · строк в файле: ${parsedTotalRows}` : null}
+                        Импорт: <span className="font-mono">{importId}</span>
+                        {parsedTotalRows != null ? ` · строк: ${parsedTotalRows}` : null}
+                        {inReceiptCount > 0 ? ` · в приходе: ${inReceiptCount}` : null}
                         {linkedDraftReceiptId ? (
                             <>
                                 {" · "}
@@ -632,7 +732,7 @@ export default function StockReceiptsImportSystemPage() {
                     attachDefinitionFromDictionary={attachDefinitionFromDictionary}
                     onPickVariantAction={pickManualVariant}
                     onConfirmAction={(mapKey, variantId, linkedVariant) => {
-                        applyRowLink(mapKey, linkedVariant);
+                        void applyRowLink(mapKey, linkedVariant);
                         setSuccess(`Связка сохранена для строки ${mapKey}`);
                     }}
                 />

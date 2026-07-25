@@ -20,8 +20,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock')->group(fu
         Route::post('/import-xls/resolve-batch', [StockReceiptController::class, 'importXlsResolveBatch']);
         Route::post('/import-xls/commit', [StockReceiptController::class, 'importXlsCommit']);
         Route::post('/import-xls/clear-receipt', [StockReceiptController::class, 'importXlsClearReceipt']);
+        Route::post('/import-xls/link', [StockReceiptController::class, 'importXlsLink']);
+        Route::post('/import-xls/close', [StockReceiptController::class, 'importXlsClose']);
         Route::get('/import-xls/state', [StockReceiptController::class, 'importXlsState']);
         Route::post('/import-xls/state', [StockReceiptController::class, 'importXlsStateSave']);
+        Route::get('/import-xls/{importId}', [StockReceiptController::class, 'importXlsShow']);
         Route::post('/import-xls', [StockReceiptController::class, 'importXls']);
         Route::post('/{id}/post', [StockReceiptController::class, 'postReceipt']);
         Route::get('/{id}', [StockReceiptController::class, 'show']);

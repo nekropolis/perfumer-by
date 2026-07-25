@@ -6,6 +6,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Brand;
@@ -18,13 +19,15 @@ use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantLinkAutoCreator;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
 use Modules\Warehouse\Models\StockReceipt;
+use Modules\Warehouse\Models\StockReceiptImport;
 use Modules\Warehouse\Models\StockReceiptImportMapping;
+use Modules\Warehouse\Models\StockReceiptImportRow;
 
 class StockReceiptXlsImportService
 {
-    private const IMPORT_SESSION_DISK = 'local';
+    private const IMPORT_FILE_DISK = 'local';
 
-    private const IMPORT_SESSION_PREFIX = 'stock-receipt-xls-import';
+    private const IMPORT_FILE_PREFIX = 'stock-receipt-imports';
 
     private const RESOLVE_BATCH_MAX = 150;
 
@@ -110,9 +113,9 @@ class StockReceiptXlsImportService
     }
 
     /**
-     * Пошаговый импорт: один раз читает XLS, сохраняет агрегированные строки в storage.
+     * Загрузка XLS в БД. Тот же content_hash при open-импорте — reuse.
      *
-     * @return array{session_id: string, total_rows: int}
+     * @return array{import_id: string, total_rows: int, reused: bool}
      */
     public function prepareImportSession(UploadedFile $file): array
     {
@@ -125,65 +128,100 @@ class StockReceiptXlsImportService
             abort(401, 'Требуется авторизация');
         }
 
-        $sessionId = (string) Str::uuid();
-        $dir = self::IMPORT_SESSION_PREFIX . '/' . $sessionId;
-        Storage::disk(self::IMPORT_SESSION_DISK)->makeDirectory($dir);
-
         $ext = strtolower($file->getClientOriginalExtension() ?: 'xlsx');
         if (!in_array($ext, ['xls', 'xlsx'], true)) {
-            Storage::disk(self::IMPORT_SESSION_DISK)->deleteDirectory($dir);
             abort(422, 'Файл должен быть XLS или XLSX');
         }
 
-        $relativePath = $file->storeAs($dir, 'upload.' . $ext, self::IMPORT_SESSION_DISK);
-        if ($relativePath === false) {
-            Storage::disk(self::IMPORT_SESSION_DISK)->deleteDirectory($dir);
-            throw new \RuntimeException('Не удалось сохранить загруженный файл');
+        $realPath = $file->getRealPath();
+        if ($realPath === false || !is_readable($realPath)) {
+            throw new \RuntimeException('Не удалось прочитать загруженный файл');
         }
 
-        $absolutePath = Storage::disk(self::IMPORT_SESSION_DISK)->path($relativePath);
+        $contentHash = hash_file('sha256', $realPath);
+        if ($contentHash === false) {
+            throw new \RuntimeException('Не удалось вычислить hash файла');
+        }
 
-        $rows = $this->readRowsFromAbsolutePath($absolutePath);
+        $existing = StockReceiptImport::query()
+            ->where('content_hash', $contentHash)
+            ->where('status', StockReceiptImport::STATUS_OPEN)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($existing) {
+            return [
+                'import_id' => $existing->uuid,
+                'total_rows' => $existing->rows()->count(),
+                'reused' => true,
+            ];
+        }
+
+        $rows = $this->readRowsFromAbsolutePath($realPath);
         $aggregated = $this->aggregateRows($rows);
-
         if ($aggregated === []) {
-            Storage::disk(self::IMPORT_SESSION_DISK)->deleteDirectory($dir);
             abort(422, 'В XLS нет валидных строк для прихода');
         }
 
-        Storage::disk(self::IMPORT_SESSION_DISK)->put(
-            $dir . '/aggregated.json',
-            json_encode($aggregated, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-        );
-        Storage::disk(self::IMPORT_SESSION_DISK)->put(
-            $dir . '/meta.json',
-            json_encode([
-                'user_id' => $userId,
-                'total' => count($aggregated),
-                'created_at' => now()->toIso8601String(),
-                'committed_map_keys' => [],
-                'target_stock_receipt_id' => null,
-            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-        );
-        Storage::disk(self::IMPORT_SESSION_DISK)->put($dir . '/outcomes.json', '{}');
+        return DB::transaction(function () use ($file, $ext, $contentHash, $aggregated, $userId) {
+            $uuid = (string) Str::uuid();
+            $dir = self::IMPORT_FILE_PREFIX . '/' . $uuid;
+            Storage::disk(self::IMPORT_FILE_DISK)->makeDirectory($dir);
+            $relativePath = $file->storeAs($dir, 'upload.' . $ext, self::IMPORT_FILE_DISK);
+            if ($relativePath === false) {
+                throw new \RuntimeException('Не удалось сохранить загруженный файл');
+            }
 
-        return [
-            'session_id' => $sessionId,
-            'total_rows' => count($aggregated),
-        ];
+            $import = StockReceiptImport::query()->create([
+                'uuid' => $uuid,
+                'content_hash' => $contentHash,
+                'original_filename' => $file->getClientOriginalName(),
+                'file_path' => $relativePath,
+                'status' => StockReceiptImport::STATUS_OPEN,
+                'created_by' => $userId,
+                'comment' => 'Импорт прихода из XLS',
+            ]);
+
+            $now = now();
+            $insert = [];
+            foreach ($aggregated as $row) {
+                $insert[] = [
+                    'import_id' => $import->id,
+                    'map_key' => (string) $row['map_key'],
+                    'supplier_sku' => ($row['code'] ?? '') !== '' ? (string) $row['code'] : null,
+                    'source_title' => ($row['title'] ?? '') !== '' ? (string) $row['title'] : null,
+                    'qty' => (int) ($row['qty'] ?? 0),
+                    'supplier_price' => $row['supplier_price'] ?? null,
+                    'resolve_status' => StockReceiptImportRow::RESOLVE_PENDING,
+                    'receipt_status' => StockReceiptImportRow::RECEIPT_PENDING,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+            foreach (array_chunk($insert, 500) as $chunk) {
+                StockReceiptImportRow::query()->insert($chunk);
+            }
+
+            return [
+                'import_id' => $import->uuid,
+                'total_rows' => count($aggregated),
+                'reused' => false,
+            ];
+        });
     }
 
     /**
-     * Сопоставляет часть строк сессии (короткий запрос — без 504 на прокси).
+     * Сопоставляет пачку ещё не разобранных строк импорта.
      *
      * @return array{
      *     next_offset: int,
      *     total_rows: int,
+     *     pending_resolve: int,
      *     done: bool,
      *     unresolved: list<array<string, mixed>>
      * }
      */
-    public function resolveImportBatch(string $sessionId, int $offset, int $limit): array
+    public function resolveImportBatch(string $importUuid, int $offset, int $limit): array
     {
         if (function_exists('set_time_limit')) {
             @set_time_limit(180);
@@ -197,75 +235,55 @@ class StockReceiptXlsImportService
             abort(401, 'Требуется авторизация');
         }
 
-        $dir = $this->sessionDir($sessionId);
-        $this->assertSessionOwned($dir, (int) $userId);
+        $import = $this->findOpenImportOrFail($importUuid);
+        $total = $import->rows()->count();
+        $limit = max(1, min($limit, self::RESOLVE_BATCH_MAX));
 
         $this->productsIndex = null;
 
         try {
-            $aggregated = $this->readSessionJson($dir . '/aggregated.json');
-            $outcomes = $this->readSessionJson($dir . '/outcomes.json');
-            if (!is_array($outcomes)) {
-                $outcomes = [];
-            }
-
-            $total = count($aggregated);
-            $offset = max(0, $offset);
-            $limit = max(1, min($limit, self::RESOLVE_BATCH_MAX));
-            $slice = array_slice($aggregated, $offset, $limit);
+            $pendingRows = StockReceiptImportRow::query()
+                ->where('import_id', $import->id)
+                ->where('resolve_status', StockReceiptImportRow::RESOLVE_PENDING)
+                ->orderBy('id')
+                ->limit($limit)
+                ->get();
 
             $batchUnresolved = [];
             $mappingIndex = [];
 
-            foreach ($slice as $row) {
-                $key = trim((string) ($row['map_key'] ?? ''));
-                if ($key === '') {
-                    continue;
-                }
-
-                if (array_key_exists($key, $outcomes)) {
-                    continue;
-                }
-
+            foreach ($pendingRows as $dbRow) {
+                $row = $this->dbRowToAggregate($dbRow);
                 $processed = $this->processAggregatedRow($row, $mappingIndex);
+                $unresolved = $processed['unresolved'] ?? [];
+
                 if ($processed['resolved']) {
-                    $outcomes[$key] = [
-                        'resolved' => true,
-                        'product_id' => $processed['product_id'],
-                        'variant_id' => $processed['variant_id'],
-                        'qty' => (int) ($row['qty'] ?? 0),
-                        'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                        'code' => $row['code'] ?? '',
-                        'title' => $row['title'] ?? '',
-                    ];
-                    if (!empty($processed['unresolved'])) {
-                        $batchUnresolved[] = $processed['unresolved'];
-                    }
+                    $dbRow->variant_id = (int) $processed['variant_id'];
+                    $dbRow->product_id = (int) $processed['product_id'];
+                    $dbRow->resolve_status = StockReceiptImportRow::RESOLVE_MATCHED;
+                    $dbRow->suggestion = $unresolved;
+                    $dbRow->save();
                 } else {
-                    $unresolvedRow = $processed['unresolved'];
-                    $outcomes[$key] = [
-                        'resolved' => false,
-                        'qty' => (int) ($row['qty'] ?? 0),
-                        'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                        'code' => $row['code'] ?? '',
-                        'title' => $row['title'] ?? '',
-                        'unresolved' => $unresolvedRow,
-                    ];
-                    $batchUnresolved[] = $unresolvedRow;
+                    $dbRow->resolve_status = StockReceiptImportRow::RESOLVE_UNMATCHED;
+                    $dbRow->suggestion = $unresolved;
+                    $dbRow->save();
                 }
+
+                $batchUnresolved[] = $this->rowToUiPayload($dbRow->fresh());
             }
 
-            Storage::disk(self::IMPORT_SESSION_DISK)->put(
-                $dir . '/outcomes.json',
-                json_encode($outcomes, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-            );
+            $pendingResolve = StockReceiptImportRow::query()
+                ->where('import_id', $import->id)
+                ->where('resolve_status', StockReceiptImportRow::RESOLVE_PENDING)
+                ->count();
 
-            $nextOffset = $offset + $limit;
+            $resolvedCount = $total - $pendingResolve;
 
             return [
-                'next_offset' => $nextOffset,
+                'next_offset' => $resolvedCount,
                 'total_rows' => $total,
-                'done' => $nextOffset >= $total,
+                'pending_resolve' => $pendingResolve,
+                'done' => $pendingResolve === 0,
                 'unresolved' => $batchUnresolved,
             ];
         } finally {
@@ -279,8 +297,7 @@ class StockReceiptXlsImportService
     }
 
     /**
-     * Добавляет в черновик прихода только вновь сопоставленные строки (остальные остаются в сессии).
-     * Повторные вызовы добавляют строки в тот же черновик, пока не сброена привязка в meta.
+     * Добавляет в черновик прихода только pending-строки с variant_id (row locks).
      *
      * @return array{
      *     receipt: StockReceipt,
@@ -289,7 +306,7 @@ class StockReceiptXlsImportService
      *     created_new_receipt: bool
      * }
      */
-    public function commitImportSession(string $sessionId, array $payload): array
+    public function commitImportSession(string $importUuid, array $payload): array
     {
         if (function_exists('set_time_limit')) {
             @set_time_limit(300);
@@ -300,221 +317,460 @@ class StockReceiptXlsImportService
             abort(401, 'Требуется авторизация');
         }
 
-        $dir = $this->sessionDir($sessionId);
-        $this->assertSessionOwned($dir, (int) $userId);
+        $import = $this->findOpenImportOrFail($importUuid);
 
-        $aggregated = $this->readSessionJson($dir . '/aggregated.json');
-        $outcomes = $this->readSessionJson($dir . '/outcomes.json');
-        if (!is_array($outcomes)) {
-            $outcomes = [];
+        $pendingResolve = StockReceiptImportRow::query()
+            ->where('import_id', $import->id)
+            ->where('resolve_status', StockReceiptImportRow::RESOLVE_PENDING)
+            ->exists();
+        if ($pendingResolve) {
+            throw new HttpResponseException(
+                response()->json([
+                    'message' => 'Импорт неполный: сначала дождись окончания разбора по пакетам.',
+                    'unresolved' => [],
+                    'unresolved_count' => 0,
+                    'mapping_required' => false,
+                ], 422)
+            );
         }
 
-        $expectedKeys = [];
-        foreach ($aggregated as $row) {
-            $k = trim((string) ($row['map_key'] ?? ''));
-            if ($k !== '') {
-                $expectedKeys[$k] = true;
-            }
-        }
+        return DB::transaction(function () use ($import, $payload, $userId) {
+            $import = StockReceiptImport::query()->lockForUpdate()->findOrFail($import->id);
 
-        foreach (array_keys($expectedKeys) as $mapKey) {
-            if (!array_key_exists($mapKey, $outcomes)) {
-                throw new HttpResponseException(
-                    response()->json([
-                        'message' => 'Сессия импорта неполная: сначала дождись окончания разбора по пакетам.',
-                        'unresolved' => [],
-                        'unresolved_count' => 0,
-                        'mapping_required' => false,
-                    ], 422)
-                );
-            }
-        }
+            $mappingIndex = $this->buildMappingIndex($payload['mapping'] ?? []);
+            $restrictToMappedKeysOnly = $this->mappingPayloadHasVariants($payload['mapping'] ?? []);
 
-        $meta = $this->readSessionMeta($dir);
-        $committedKeys = $meta['committed_map_keys'] ?? [];
-        if (!is_array($committedKeys)) {
-            $committedKeys = [];
-        }
-        $committedKeys = array_values(array_unique(array_map('strval', $committedKeys)));
-        $committedSet = array_fill_keys($committedKeys, true);
-
-        $mappingIndex = $this->buildMappingIndex($payload['mapping'] ?? []);
-        $restrictToMappedKeysOnly = $this->mappingPayloadHasVariants($payload['mapping'] ?? []);
-
-        $items = [];
-        $rowsForMappings = [];
-        $newlyCommittedKeys = [];
-
-        foreach ($aggregated as $row) {
-            $key = trim((string) ($row['map_key'] ?? ''));
-            if ($key === '' || isset($committedSet[$key])) {
-                continue;
-            }
-
-            $o = $outcomes[$key];
-
-            if ($restrictToMappedKeysOnly && !array_key_exists($key, $mappingIndex)) {
-                continue;
-            }
-
-            $variantId = (int) ($mappingIndex[$key] ?? 0);
-            if ($variantId <= 0 && !$restrictToMappedKeysOnly) {
-                if (!empty($o['resolved'])) {
-                    $variantId = (int) ($o['variant_id'] ?? 0);
+            if ($mappingIndex !== []) {
+                foreach ($mappingIndex as $mapKey => $variantId) {
+                    if (!is_string($mapKey) || !str_contains((string) $mapKey, ':')) {
+                        continue;
+                    }
+                    $variantId = (int) $variantId;
+                    if ($variantId <= 0) {
+                        continue;
+                    }
+                    $variant = ProductVariantLink::query()->find($variantId);
+                    if (!$variant) {
+                        continue;
+                    }
+                    $row = StockReceiptImportRow::query()
+                        ->where('import_id', $import->id)
+                        ->where('map_key', $mapKey)
+                        ->lockForUpdate()
+                        ->first();
+                    if (!$row || $row->receipt_status === StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+                        continue;
+                    }
+                    $row->variant_id = $variantId;
+                    $row->product_id = (int) $variant->product_id;
+                    $row->resolve_status = StockReceiptImportRow::RESOLVE_MATCHED;
+                    $row->linked_by = $userId;
+                    $suggestion = is_array($row->suggestion) ? $row->suggestion : [];
+                    $catalog = $this->formatCatalogVariantForUi($variantId, null);
+                    if ($catalog) {
+                        $suggestion['linked_variant'] = $catalog;
+                        if (empty($suggestion['suggested_variant'])) {
+                            $suggestion['suggested_variant'] = $catalog;
+                        }
+                    }
+                    $row->suggestion = $suggestion;
+                    $row->save();
                 }
             }
 
-            if ($variantId <= 0) {
-                continue;
+            $query = StockReceiptImportRow::query()
+                ->where('import_id', $import->id)
+                ->where('receipt_status', StockReceiptImportRow::RECEIPT_PENDING)
+                ->whereNotNull('variant_id')
+                ->where('variant_id', '>', 0)
+                ->orderBy('id')
+                ->lockForUpdate();
+
+            if ($restrictToMappedKeysOnly) {
+                $keys = array_values(array_filter(array_keys($mappingIndex), static fn ($k) => is_string($k)));
+                $query->whereIn('map_key', $keys);
             }
 
-            $variant = ProductVariantLink::query()->find($variantId);
-            if (!$variant) {
-                continue;
+            /** @var \Illuminate\Support\Collection<int, StockReceiptImportRow> $rows */
+            $rows = $query->get();
+
+            $items = [];
+            $rowsForMappings = [];
+            $commitRows = [];
+
+            foreach ($rows as $dbRow) {
+                if ($dbRow->receipt_status === StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+                    continue;
+                }
+                $variantId = (int) $dbRow->variant_id;
+                $variant = ProductVariantLink::query()->find($variantId);
+                if (!$variant) {
+                    continue;
+                }
+
+                $items[] = [
+                    'product_id' => (int) $variant->product_id,
+                    'variant_id' => $variantId,
+                    'qty' => (int) $dbRow->qty,
+                    'supplier_price' => (float) ($dbRow->supplier_price ?? 0),
+                    'supplier_sku' => $dbRow->supplier_sku,
+                ];
+                $rowsForMappings[] = $this->dbRowToAggregate($dbRow);
+                $commitRows[] = $dbRow;
             }
 
-            $items[] = [
-                'product_id' => (int) $variant->product_id,
-                'variant_id' => $variantId,
-                'qty' => (int) ($row['qty'] ?? 0),
-                'supplier_price' => (float) ($row['supplier_price'] ?? 0),
-                'supplier_sku' => ($row['code'] ?? '') !== '' ? (string) $row['code'] : null,
+            if ($items === []) {
+                abort(422, 'Нет строк для добавления: сопоставьте хотя бы одну новую позицию (ещё не попавшую в приход).');
+            }
+
+            $this->storeMappings($rowsForMappings, $this->buildMappingIndex(
+                array_map(static fn (StockReceiptImportRow $r) => [
+                    'map_key' => $r->map_key,
+                    'variant_id' => (int) $r->variant_id,
+                    'code' => $r->supplier_sku,
+                    'title' => $r->source_title,
+                ], $commitRows)
+            ));
+
+            if (!empty($payload['warehouse_id'])) {
+                $import->warehouse_id = (int) $payload['warehouse_id'];
+            }
+            if (array_key_exists('supplier_id', $payload)) {
+                $import->supplier_id = $payload['supplier_id'] !== null ? (int) $payload['supplier_id'] : null;
+            }
+            if (!empty($payload['received_at'])) {
+                $import->received_at = $payload['received_at'];
+            }
+            if (array_key_exists('comment', $payload)) {
+                $import->comment = $payload['comment'];
+            }
+            $import->save();
+
+            $warehouseId = (int) ($payload['warehouse_id'] ?? $import->warehouse_id ?? $this->inventoryService->getDefaultSupplierWarehouseId());
+            $targetReceiptId = (int) ($import->target_stock_receipt_id ?? 0);
+            $createdNew = false;
+            $beforeMaxItemId = 0;
+
+            if ($targetReceiptId > 0) {
+                $receipt = StockReceipt::query()->lockForUpdate()->findOrFail($targetReceiptId);
+                if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
+                    abort(422, 'Документ прихода уже оприходован. Сбрось привязку к документу или закрой импорт.');
+                }
+                $payloadWarehouse = (int) ($payload['warehouse_id'] ?? 0);
+                if ($payloadWarehouse > 0 && $payloadWarehouse !== (int) $receipt->warehouse_id) {
+                    abort(422, 'Склад в форме не совпадает со складом выбранного прихода');
+                }
+                $beforeMaxItemId = (int) $receipt->items()->max('id');
+                $receipt = $this->receiptService->appendDraftItems($receipt, $items);
+            } else {
+                $receipt = $this->receiptService->store([
+                    'warehouse_id' => $warehouseId,
+                    'supplier_id' => $payload['supplier_id'] ?? $import->supplier_id,
+                    'supplier_code' => $payload['supplier_code'] ?? null,
+                    'supplier_name' => trim((string) ($payload['supplier_name'] ?? 'XLS import')),
+                    'received_at' => $payload['received_at'] ?? $import->received_at?->toDateTimeString() ?? now()->toDateTimeString(),
+                    'comment' => $payload['comment'] ?? $import->comment ?? 'Импорт прихода из XLS',
+                    'items' => $items,
+                ]);
+                $createdNew = true;
+                $import->target_stock_receipt_id = $receipt->id;
+                $import->save();
+            }
+
+            $newItems = $receipt->items
+                ->filter(static fn ($item) => (int) $item->id > $beforeMaxItemId)
+                ->values();
+
+            $newlyCommittedKeys = [];
+            foreach ($commitRows as $index => $dbRow) {
+                $item = $newItems->get($index);
+                $dbRow->receipt_status = StockReceiptImportRow::RECEIPT_IN_RECEIPT;
+                $dbRow->stock_receipt_id = $receipt->id;
+                $dbRow->stock_receipt_item_id = $item?->id;
+                $dbRow->committed_by = $userId;
+                $dbRow->committed_at = now();
+                $dbRow->save();
+                $newlyCommittedKeys[] = $dbRow->map_key;
+            }
+
+            return [
+                'receipt' => $receipt->fresh(['supplier', 'items', 'warehouse']),
+                'committed_map_keys' => $newlyCommittedKeys,
+                'committed_rows_count' => count($newlyCommittedKeys),
+                'created_new_receipt' => $createdNew,
             ];
-            $rowsForMappings[] = $row;
-            $newlyCommittedKeys[] = $key;
-        }
-
-        if ($items === []) {
-            abort(422, 'Нет строк для добавления: сопоставьте хотя бы одну новую позицию (ещё не попавшую в текущий приход).');
-        }
-
-        $this->storeMappings($rowsForMappings, $mappingIndex);
-
-        $warehouseId = (int) ($payload['warehouse_id'] ?? $this->inventoryService->getDefaultSupplierWarehouseId());
-        $targetReceiptId = isset($meta['target_stock_receipt_id']) ? (int) $meta['target_stock_receipt_id'] : 0;
-        $createdNew = false;
-
-        if ($targetReceiptId > 0) {
-            $receipt = StockReceipt::query()->findOrFail($targetReceiptId);
-            if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
-                abort(422, 'Документ прихода уже оприходован. Начни новый импорт или сбрось привязку к документу в сессии.');
-            }
-            $payloadWarehouse = (int) ($payload['warehouse_id'] ?? 0);
-            if ($payloadWarehouse > 0 && $payloadWarehouse !== (int) $receipt->warehouse_id) {
-                abort(422, 'Склад в форме не совпадает со складом выбранного прихода');
-            }
-            $receipt = $this->receiptService->appendDraftItems($receipt, $items);
-        } else {
-            $receipt = $this->receiptService->store([
-                'warehouse_id' => $warehouseId,
-                'supplier_id' => $payload['supplier_id'] ?? null,
-                'supplier_code' => $payload['supplier_code'] ?? null,
-                'supplier_name' => trim((string) ($payload['supplier_name'] ?? 'XLS import')),
-                'received_at' => $payload['received_at'] ?? now()->toDateTimeString(),
-                'comment' => $payload['comment'] ?? 'Импорт прихода из XLS',
-                'items' => $items,
-            ]);
-            $createdNew = true;
-            $meta['target_stock_receipt_id'] = $receipt->id;
-        }
-
-        foreach ($newlyCommittedKeys as $k) {
-            $committedSet[$k] = true;
-        }
-        $meta['committed_map_keys'] = array_keys($committedSet);
-        $this->writeSessionMeta($dir, $meta);
-
-        return [
-            'receipt' => $receipt,
-            'committed_map_keys' => $newlyCommittedKeys,
-            'committed_rows_count' => count($newlyCommittedKeys),
-            'created_new_receipt' => $createdNew,
-        ];
+        });
     }
 
-    /**
-     * Сброс привязки сессии к черновику прихода (следующий commit создаст новый документ).
-     */
-    public function clearImportSessionReceiptTarget(string $sessionId): void
+    public function clearImportSessionReceiptTarget(string $importUuid): void
     {
         $userId = Auth::id();
         if (!$userId) {
             abort(401, 'Требуется авторизация');
         }
 
-        $dir = $this->sessionDir($sessionId);
-        $this->assertSessionOwned($dir, (int) $userId);
+        $import = $this->findOpenImportOrFail($importUuid);
+        $import->target_stock_receipt_id = null;
+        $import->save();
+    }
 
-        $meta = $this->readSessionMeta($dir);
-        $meta['target_stock_receipt_id'] = null;
-        $this->writeSessionMeta($dir, $meta);
+    /**
+     * @return array{
+     *     import_id: string,
+     *     status: string,
+     *     total_rows: int,
+     *     pending_resolve: int,
+     *     pending_receipt: int,
+     *     in_receipt: int,
+     *     warehouse_id: int|null,
+     *     supplier_id: int|null,
+     *     received_at: string|null,
+     *     comment: string|null,
+     *     target_stock_receipt_id: int|null,
+     *     original_filename: string|null,
+     *     rows: list<array<string, mixed>>
+     * }
+     */
+    public function getImport(string $importUuid): array
+    {
+        $import = $this->findImportOrFail($importUuid);
+        $rows = $import->rows()->orderBy('id')->get();
+
+        return $this->formatImportState($import, $rows);
+    }
+
+    /**
+     * @return array{data: array<string, mixed>|null}
+     */
+    public function getLatestOpenImportState(): array
+    {
+        $import = StockReceiptImport::query()
+            ->where('status', StockReceiptImport::STATUS_OPEN)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$import) {
+            return ['data' => null];
+        }
+
+        $rows = $import->rows()->orderBy('id')->get();
+
+        return ['data' => $this->formatImportState($import, $rows)];
+    }
+
+    /**
+     * @param  array{map_key: string, variant_id: int}  $payload
+     * @return array<string, mixed>
+     */
+    public function linkImportRow(string $importUuid, array $payload): array
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            abort(401, 'Требуется авторизация');
+        }
+
+        $import = $this->findOpenImportOrFail($importUuid);
+        $mapKey = trim((string) ($payload['map_key'] ?? ''));
+        $variantId = (int) ($payload['variant_id'] ?? 0);
+        if ($mapKey === '' || $variantId <= 0) {
+            abort(422, 'Нужны map_key и variant_id');
+        }
+
+        return DB::transaction(function () use ($import, $mapKey, $variantId, $userId) {
+            $row = StockReceiptImportRow::query()
+                ->where('import_id', $import->id)
+                ->where('map_key', $mapKey)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($row->receipt_status === StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+                abort(422, 'Строка уже добавлена в приход');
+            }
+
+            $variant = ProductVariantLink::query()->findOrFail($variantId);
+            $row->variant_id = (int) $variant->id;
+            $row->product_id = (int) $variant->product_id;
+            $row->resolve_status = StockReceiptImportRow::RESOLVE_MATCHED;
+            $row->linked_by = $userId;
+            $suggestion = is_array($row->suggestion) ? $row->suggestion : [];
+            $catalog = $this->formatCatalogVariantForUi((int) $variant->id, null);
+            if ($catalog) {
+                $suggestion['linked_variant'] = $catalog;
+                $suggestion['suggested_variant'] = $catalog;
+                $suggestion['match_confidence'] = 100;
+                $suggestion['auto_resolved'] = false;
+            }
+            $row->suggestion = $suggestion;
+            $row->save();
+
+            $this->storeMappings(
+                [$this->dbRowToAggregate($row)],
+                [$row->map_key => (int) $variant->id]
+            );
+
+            return $this->rowToUiPayload($row);
+        });
+    }
+
+    public function closeImport(string $importUuid): void
+    {
+        $import = $this->findOpenImportOrFail($importUuid);
+        $import->status = StockReceiptImport::STATUS_CLOSED;
+        $import->save();
+    }
+
+    /**
+     * Сброс строк импорта после purge прихода — снова можно добавить в новый документ.
+     */
+    public function resetRowsForPurgedReceipt(int $stockReceiptId): int
+    {
+        $rows = StockReceiptImportRow::query()
+            ->where('stock_receipt_id', $stockReceiptId)
+            ->get();
+
+        $count = 0;
+        foreach ($rows as $row) {
+            $row->receipt_status = StockReceiptImportRow::RECEIPT_PENDING;
+            $row->stock_receipt_id = null;
+            $row->stock_receipt_item_id = null;
+            $row->committed_by = null;
+            $row->committed_at = null;
+            $row->save();
+            $count++;
+        }
+
+        $importIds = $rows->pluck('import_id')->unique()->filter();
+        foreach ($importIds as $importId) {
+            $import = StockReceiptImport::query()->find($importId);
+            if ($import && (int) $import->target_stock_receipt_id === $stockReceiptId) {
+                $import->target_stock_receipt_id = null;
+                if ($import->status === StockReceiptImport::STATUS_CLOSED) {
+                    $import->status = StockReceiptImport::STATUS_OPEN;
+                }
+                $import->save();
+            }
+        }
+
+        return $count;
+    }
+
+    private function findOpenImportOrFail(string $importUuid): StockReceiptImport
+    {
+        $import = $this->findImportOrFail($importUuid);
+        if ($import->status !== StockReceiptImport::STATUS_OPEN) {
+            abort(422, 'Импорт закрыт');
+        }
+
+        return $import;
+    }
+
+    private function findImportOrFail(string $importUuid): StockReceiptImport
+    {
+        if (!Str::isUuid($importUuid)) {
+            abort(422, 'Некорректный import_id');
+        }
+
+        $import = StockReceiptImport::query()->where('uuid', $importUuid)->first();
+        if (!$import) {
+            abort(404, 'Импорт не найден');
+        }
+
+        return $import;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, StockReceiptImportRow>  $rows
+     * @return array<string, mixed>
+     */
+    private function formatImportState(StockReceiptImport $import, $rows): array
+    {
+        $uiRows = [];
+        $mappingByKey = [];
+        foreach ($rows as $row) {
+            $payload = $this->rowToUiPayload($row);
+            $uiRows[] = $payload;
+            if ($row->variant_id && $row->receipt_status !== StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+                $mappingByKey[$row->map_key] = (string) $row->variant_id;
+            } elseif ($row->variant_id && $row->receipt_status === StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+                $mappingByKey[$row->map_key] = (string) $row->variant_id;
+            }
+        }
+
+        return [
+            'import_id' => $import->uuid,
+            'status' => $import->status,
+            'total_rows' => $rows->count(),
+            'pending_resolve' => $rows->where('resolve_status', StockReceiptImportRow::RESOLVE_PENDING)->count(),
+            'pending_receipt' => $rows->where('receipt_status', StockReceiptImportRow::RECEIPT_PENDING)->count(),
+            'in_receipt' => $rows->where('receipt_status', StockReceiptImportRow::RECEIPT_IN_RECEIPT)->count(),
+            'warehouse_id' => $import->warehouse_id ? (int) $import->warehouse_id : null,
+            'supplier_id' => $import->supplier_id ? (int) $import->supplier_id : null,
+            'received_at' => $import->received_at?->format('Y-m-d\TH:i') ?? null,
+            'comment' => $import->comment,
+            'target_stock_receipt_id' => $import->target_stock_receipt_id ? (int) $import->target_stock_receipt_id : null,
+            'original_filename' => $import->original_filename,
+            'rows' => $uiRows,
+            'mapping_by_key' => $mappingByKey,
+        ];
+    }
+
+    private function dbRowToAggregate(StockReceiptImportRow $row): array
+    {
+        return [
+            'map_key' => $row->map_key,
+            'code' => (string) ($row->supplier_sku ?? ''),
+            'title' => (string) ($row->source_title ?? ''),
+            'qty' => (int) $row->qty,
+            'supplier_price' => $row->supplier_price !== null ? (float) $row->supplier_price : null,
+        ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function readSessionMeta(string $dir): array
+    private function rowToUiPayload(StockReceiptImportRow $row): array
     {
-        $metaPath = $dir . '/meta.json';
-        if (!Storage::disk(self::IMPORT_SESSION_DISK)->exists($metaPath)) {
-            abort(404, 'Сессия импорта не найдена или устарела');
+        $suggestion = is_array($row->suggestion) ? $row->suggestion : [];
+        $base = array_merge([
+            'map_key' => $row->map_key,
+            'code' => (string) ($row->supplier_sku ?? ''),
+            'title' => (string) ($row->source_title ?? ''),
+            'qty' => (int) $row->qty,
+            'supplier_price' => $row->supplier_price !== null ? (float) $row->supplier_price : null,
+            'parsed' => null,
+            'suggested_variant' => null,
+            'suggested_product' => null,
+            'match_confidence' => 0,
+            'match_confidence_breakdown' => null,
+            'linked_variant' => null,
+            'auto_resolved' => false,
+        ], $suggestion);
+
+        $base['map_key'] = $row->map_key;
+        $base['code'] = (string) ($row->supplier_sku ?? '');
+        $base['title'] = (string) ($row->source_title ?? '');
+        $base['qty'] = (int) $row->qty;
+        $base['supplier_price'] = $row->supplier_price !== null ? (float) $row->supplier_price : null;
+        $base['receipt_status'] = $row->receipt_status;
+        $base['resolve_status'] = $row->resolve_status;
+        $base['stock_receipt_id'] = $row->stock_receipt_id ? (int) $row->stock_receipt_id : null;
+
+        if ($row->variant_id && empty($base['linked_variant'])) {
+            $catalog = $this->formatCatalogVariantForUi((int) $row->variant_id, null);
+            if ($catalog) {
+                $base['linked_variant'] = $catalog;
+                if (empty($base['suggested_variant'])) {
+                    $base['suggested_variant'] = $catalog;
+                }
+            }
         }
 
-        $raw = Storage::disk(self::IMPORT_SESSION_DISK)->get($metaPath);
-        $decoded = json_decode($raw, true);
-
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    /**
-     * @param  array<string, mixed>  $meta
-     */
-    private function writeSessionMeta(string $dir, array $meta): void
-    {
-        Storage::disk(self::IMPORT_SESSION_DISK)->put(
-            $dir . '/meta.json',
-            json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
-        );
-    }
-
-    private function sessionDir(string $sessionId): string
-    {
-        if (!Str::isUuid($sessionId)) {
-            abort(422, 'Некорректный session_id');
+        if ($row->receipt_status === StockReceiptImportRow::RECEIPT_IN_RECEIPT) {
+            $base['in_receipt'] = true;
         }
 
-        return self::IMPORT_SESSION_PREFIX . '/' . $sessionId;
-    }
-
-    /**
-     * @return array<mixed>
-     */
-    private function readSessionJson(string $relativePath): array
-    {
-        if (!Storage::disk(self::IMPORT_SESSION_DISK)->exists($relativePath)) {
-            abort(404, 'Файл сессии импорта не найден');
-        }
-
-        $raw = Storage::disk(self::IMPORT_SESSION_DISK)->get($relativePath);
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            abort(422, 'Повреждённые данные сессии импорта');
-        }
-
-        return $decoded;
-    }
-
-    private function assertSessionOwned(string $dir, int $userId): void
-    {
-        $metaPath = $dir . '/meta.json';
-        if (!Storage::disk(self::IMPORT_SESSION_DISK)->exists($metaPath)) {
-            abort(404, 'Сессия импорта не найдена или устарела');
-        }
-
-        $meta = json_decode(Storage::disk(self::IMPORT_SESSION_DISK)->get($metaPath), true);
-        if (!is_array($meta) || (int) ($meta['user_id'] ?? 0) !== $userId) {
-            abort(403, 'Нет доступа к этой сессии импорта');
-        }
+        return $base;
     }
 
     /**

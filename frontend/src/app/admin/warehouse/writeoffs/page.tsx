@@ -164,7 +164,9 @@ function WriteoffDetailsModal({
                 </div>
                 <div className="border-t px-5 py-4">
                     {doc.status === STOCK_WRITEOFF_STATUS.REVERSED ? (
-                        <p className="text-sm text-admin-text-secondary">Списание отменено.</p>
+                        <p className="text-sm text-admin-text-secondary">
+                            {doc.type === "reserve" ? "Резерв отменён." : "Списание отменено."}
+                        </p>
                     ) : null}
                     {canReverse ? (
                         <div className="flex flex-wrap items-center gap-3">
@@ -180,7 +182,11 @@ function WriteoffDetailsModal({
                                             onReversedAction();
                                             onCloseAction();
                                         } catch (e) {
-                                            let msg = e instanceof Error ? e.message : "Не удалось отменить списание";
+                                            let msg = e instanceof Error
+                                                ? e.message
+                                                : (doc.type === "reserve"
+                                                    ? "Не удалось отменить резерв"
+                                                    : "Не удалось отменить списание");
                                             try {
                                                 const parsed = JSON.parse(msg) as {
                                                     message?: string;
@@ -198,15 +204,25 @@ function WriteoffDetailsModal({
                                 }}
                                 className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
                             >
-                                {busy ? "Отмена…" : "Отменить списание"}
+                                {busy
+                                    ? "Отмена…"
+                                    : doc.type === "reserve"
+                                        ? "Отменить резерв"
+                                        : "Отменить списание"}
                             </button>
                             <span className="text-xs text-admin-text-secondary">
-                                Вернёт остаток на физические склады; склад поставщика не меняется.
+                                {doc.type === "reserve"
+                                    ? "Снимет резерв со склада и пометит документ как отменённый."
+                                    : "Вернёт остаток на физические склады; склад поставщика не меняется."}
                             </span>
                         </div>
                     ) : null}
                     {!loading && doc.status === STOCK_WRITEOFF_STATUS.POSTED && !canReverse && !modalError ? (
-                        <p className="text-xs text-admin-text-secondary">Отмена недоступна: нет движений вне склада поставщика.</p>
+                        <p className="text-xs text-admin-text-secondary">
+                            {doc.type === "reserve"
+                                ? "Отмена недоступна для этого резерва."
+                                : "Отмена недоступна: нет движений вне склада поставщика."}
+                        </p>
                     ) : null}
                 </div>
             </div>

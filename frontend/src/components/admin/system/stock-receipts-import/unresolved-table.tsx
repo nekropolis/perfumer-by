@@ -54,18 +54,23 @@ export function StockReceiptUnresolvedTable({
                                 <td className="px-2 py-3 text-center">
                                     <input
                                         type="checkbox"
-                                        checked={isLinked}
-                                        disabled={!canConfirmSuggestedLink({
-                                            ...sellerOneRow,
-                                            is_linked: isLinked,
-                                        })}
-                                        title={
-                                            !canConfirmSuggestedLink({
+                                        checked={isLinked || Boolean(row.in_receipt || row.receipt_status === "in_receipt")}
+                                        disabled={
+                                            Boolean(row.in_receipt || row.receipt_status === "in_receipt")
+                                            || !canConfirmSuggestedLink({
                                                 ...sellerOneRow,
                                                 is_linked: isLinked,
-                                            }) && !isLinked
-                                                ? "Галочка только при 100% и точном имени; иначе — ручная связка"
-                                                : undefined
+                                            })
+                                        }
+                                        title={
+                                            row.in_receipt || row.receipt_status === "in_receipt"
+                                                ? "Уже в приходе"
+                                                : !canConfirmSuggestedLink({
+                                                    ...sellerOneRow,
+                                                    is_linked: isLinked,
+                                                }) && !isLinked
+                                                    ? "Галочка только при 100% и точном имени; иначе — ручная связка"
+                                                    : undefined
                                         }
                                         onChange={(e) => onToggleLinkAction(row, e.target.checked)}
                                         className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed"
@@ -84,7 +89,11 @@ export function StockReceiptUnresolvedTable({
                                 </td>
                                 <td className="whitespace-nowrap px-2 py-3">{row.qty ?? 0}</td>
                                 <td className="whitespace-nowrap px-2 py-3">
-                                    {sellerOneRow.status === "confirmed" ? (
+                                    {row.in_receipt || row.receipt_status === "in_receipt" ? (
+                                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700">
+                                            В приходе
+                                        </span>
+                                    ) : sellerOneRow.status === "confirmed" ? (
                                         <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
                                             Подтверждено
                                         </span>
@@ -102,7 +111,11 @@ export function StockReceiptUnresolvedTable({
                                 <StockReceiptCatalogProductCell
                                     row={row}
                                     mappingByKey={mappingByKey}
-                                    onOpenManualLinkAction={onOpenManualLinkAction}
+                                    onOpenManualLinkAction={
+                                        row.in_receipt || row.receipt_status === "in_receipt"
+                                            ? () => undefined
+                                            : onOpenManualLinkAction
+                                    }
                                 />
                             </tr>
                         );

@@ -263,6 +263,8 @@ class StockInventoryService
             $released++;
         }
 
+        $this->markOrderReserveDocumentReleased($order, $reason);
+
         $this->writeAudit(
             AuditLogService::ENTITY_STOCK_RESERVATION,
             null,
@@ -664,12 +666,25 @@ class StockInventoryService
     }
 
     /**
-     * Есть ли движения списания, которые можно откатить (все кроме виртуального склада поставщика).
+     * Есть ли движения списания/резерва, которые можно откатить.
      */
     public function canReverseWriteoff(StockWriteoff $writeoff): bool
     {
         if ($writeoff->status !== StockWriteoff::STATUS_POSTED) {
             return false;
+        }
+
+        if ($writeoff->type === 'reserve') {
+            // Журнальный авто-резерв по заказу (без движений) тоже можно «снять» статусом.
+            if ($writeoff->order_id) {
+                return true;
+            }
+
+            return StockMovement::query()
+                ->where('document_type', 'stock_writeoff')
+                ->where('document_id', $writeoff->id)
+                ->where('type', self::MOVEMENT_RESERVE)
+                ->exists();
         }
 
         $supplierId = $this->getDefaultSupplierWarehouseId();
@@ -683,8 +698,8 @@ class StockInventoryService
     }
 
     /**
-     * Отмена списания: возврат остатка по движениям на физических складах (не supplier).
-     * Движения на складе поставщика не меняются.
+     * Отмена списания или резерва.
+     * Списание: возврат stock на физ. складах. Резерв: снятие reserved_stock / статус документа.
      */
     public function reverseWriteoff(int $writeoffId): StockWriteoff
     {
@@ -699,8 +714,12 @@ class StockInventoryService
             $writeoff = StockWriteoff::query()->lockForUpdate()->findOrFail($writeoffId);
             if ($writeoff->status !== StockWriteoff::STATUS_POSTED) {
                 throw ValidationException::withMessages([
-                    'writeoff' => 'Отменить можно только проведённое списание',
+                    'writeoff' => 'Отменить можно только проведённый документ',
                 ]);
+            }
+
+            if ($writeoff->type === 'reserve') {
+                return $this->reverseReserveDocumentInternal($writeoff);
             }
 
             $supplierId = $this->getDefaultSupplierWarehouseId();
@@ -794,6 +813,128 @@ class StockInventoryService
 
             return $writeoff->fresh(['warehouse', 'items']);
         });
+    }
+
+    private function reverseReserveDocumentInternal(StockWriteoff $writeoff): StockWriteoff
+    {
+        $movements = StockMovement::query()
+            ->where('document_type', 'stock_writeoff')
+            ->where('document_id', $writeoff->id)
+            ->where('type', self::MOVEMENT_RESERVE)
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($movements as $movement) {
+            $variant = ProductVariantLink::query()->lockForUpdate()->find($movement->variant_id);
+            if (!$variant) {
+                continue;
+            }
+
+            $warehouseId = (int) $movement->warehouse_id;
+            $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+            $beforeStock = (int) $warehouseStock->stock;
+            $beforeReserved = (int) $warehouseStock->reserved_stock;
+            $reservedDelta = (int) $movement->reserved_delta;
+            $afterReserved = max(0, $beforeReserved - $reservedDelta);
+
+            $warehouseStock->update([
+                'reserved_stock' => $afterReserved,
+            ]);
+
+            $this->createMovement(
+                self::MOVEMENT_RELEASE,
+                'stock_writeoff',
+                $writeoff->id,
+                $warehouseId,
+                $variant,
+                0,
+                -$reservedDelta,
+                [
+                    'reversed_movement_id' => $movement->id,
+                    'reserve_document_id' => $writeoff->id,
+                    'reason' => 'reserve_document_reversed',
+                ],
+                $beforeStock,
+                $beforeReserved,
+                (int) $warehouseStock->stock,
+                (int) $warehouseStock->reserved_stock,
+            );
+
+            $this->syncVariantAggregates((int) $variant->id);
+            $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+        }
+
+        if ($writeoff->order_id) {
+            StockReservation::query()
+                ->where('order_id', $writeoff->order_id)
+                ->where('status', 'active')
+                ->get()
+                ->each(function (StockReservation $reservation) {
+                    $reservation->update([
+                        'status' => 'released',
+                        'released_at' => now(),
+                        'payload' => array_merge($reservation->payload ?? [], [
+                            'release_reason' => 'reserve_document_reversed',
+                        ]),
+                    ]);
+                });
+        }
+
+        $writeoff->update([
+            'status' => StockWriteoff::STATUS_REVERSED,
+            'updated_by' => Auth::id(),
+        ]);
+
+        $this->writeAudit(
+            AuditLogService::ENTITY_STOCK_RESERVATION,
+            $writeoff->id,
+            AuditLogService::ACTION_UPDATED,
+            "Отменён резерв #{$writeoff->document_no}",
+            [
+                'reserve_document_id' => $writeoff->id,
+                'movements_reversed' => $movements->count(),
+                'order_id' => $writeoff->order_id,
+            ],
+            (int) $writeoff->warehouse_id
+        );
+
+        return $writeoff->fresh(['warehouse', 'items']);
+    }
+
+    /**
+     * Журнальный документ резерва по заказу: при снятии всех активных резервов — статус «Отменена».
+     */
+    private function markOrderReserveDocumentReleased(Order $order, string $reason): void
+    {
+        $stillActive = StockReservation::query()
+            ->where('order_id', $order->id)
+            ->where('status', 'active')
+            ->exists();
+        if ($stillActive) {
+            return;
+        }
+
+        $docs = StockWriteoff::query()
+            ->where('type', 'reserve')
+            ->where('order_id', $order->id)
+            ->where('status', StockWriteoff::STATUS_POSTED)
+            ->get();
+
+        foreach ($docs as $doc) {
+            $suffix = 'Снят: ' . $reason;
+            $comment = trim((string) ($doc->comment ?? ''));
+            if ($comment === '') {
+                $comment = $suffix;
+            } elseif (!str_contains($comment, $suffix)) {
+                $comment .= ' · ' . $suffix;
+            }
+
+            $doc->update([
+                'status' => StockWriteoff::STATUS_REVERSED,
+                'updated_by' => Auth::id(),
+                'comment' => $comment,
+            ]);
+        }
     }
 
     public function increaseVariantStock(
