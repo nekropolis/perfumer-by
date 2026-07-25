@@ -9,6 +9,10 @@ type Props = {
     plainDigitsMode?: boolean;
     /** Подсказка под полем (текст общий для чекаута, логина и модалок). По умолчанию включена. */
     showHint?: boolean;
+    id?: string;
+    name?: string;
+    autoComplete?: string;
+    disabled?: boolean;
 };
 
 const PHONE_INPUT_HINT_PLAIN = "Номер с кодом страны, только цифры (8–15).";
@@ -93,6 +97,10 @@ export default function PhoneInput({
     className = "",
     plainDigitsMode = false,
     showHint = true,
+    id,
+    name,
+    autoComplete,
+    disabled = false,
 }: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -109,18 +117,21 @@ export default function PhoneInput({
                 <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-2xl border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
                     <input
                         ref={inputRef}
-                        type="text"
+                        id={id}
+                        name={name}
+                        type="tel"
                         inputMode="numeric"
-                        autoComplete="new-password"
+                        autoComplete={autoComplete ?? "tel"}
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck={false}
+                        disabled={disabled}
                         value={digits}
                         placeholder="79001234567"
                         onChange={(e) => {
                             onChangeAction(normalizePlainByDigitsInput(e.target.value));
                         }}
-                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono outline-none ring-0 placeholder:text-admin-text-muted"
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono outline-none ring-0 placeholder:text-admin-text-muted disabled:opacity-60"
                     />
                 </div>
                 {hintEl}
@@ -130,6 +141,7 @@ export default function PhoneInput({
 
     const localDigits = extractLocalDigits(value);
     const displayValue = formatMasked(localDigits);
+    const resolvedAutoComplete = autoComplete ?? "tel-national";
 
     const commitDigits = (digits: string, nextDigitIndex?: number) => {
         const normalizedLocal = normalizeLocalDigits(digits);
@@ -147,6 +159,14 @@ export default function PhoneInput({
             const pos = getCursorFromDigitIndex(index);
             input.setSelectionRange(pos, pos);
         });
+    };
+
+    const applyAutofillOrChange = (raw: string) => {
+        const local = extractLocalDigits(raw);
+        if (local === localDigits) {
+            return;
+        }
+        commitDigits(local, Math.min(local.length, 9));
     };
 
     const handleFocus = () => {
@@ -176,6 +196,22 @@ export default function PhoneInput({
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         const input = inputRef.current;
         if (!input) return;
+
+        if (e.key === "Enter") {
+            if (e.nativeEvent.isComposing) {
+                return;
+            }
+            const form = e.currentTarget.form;
+            if (form) {
+                e.preventDefault();
+                if (typeof form.requestSubmit === "function") {
+                    form.requestSubmit();
+                } else {
+                    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+                }
+            }
+            return;
+        }
 
         const start = input.selectionStart ?? 0;
         const end = input.selectionEnd ?? 0;
@@ -284,39 +320,45 @@ export default function PhoneInput({
         e.preventDefault();
 
         const pasted = e.clipboardData.getData("text");
-        const digits = pasted.replace(/\D/g, "");
-        const local = digits.startsWith(COUNTRY_PREFIX)
-            ? digits.slice(COUNTRY_PREFIX.length)
-            : digits;
-
+        const local = extractLocalDigits(pasted);
         commitDigits(local, Math.min(local.length, 9));
     };
 
     return (
         <div className={rootClass}>
             <div className="flex min-h-[42px] w-full items-stretch overflow-hidden rounded-2xl border border-admin-border bg-admin-surface text-admin-text shadow-sm transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/15">
-                <span
-                    className="flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary"
-                    aria-hidden
-                >
-                    +375
+                <span className="relative flex shrink-0 select-none items-center border-r border-admin-border bg-admin-muted px-3 py-2.5 font-mono text-sm font-medium tabular-nums text-admin-text-secondary">
+                    <span aria-hidden>+375</span>
+                    <input
+                        type="tel"
+                        value="+375"
+                        readOnly
+                        tabIndex={-1}
+                        autoComplete="tel-country-code"
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 h-px w-px opacity-0"
+                    />
                 </span>
                 <input
                     ref={inputRef}
-                    type="text"
+                    id={id}
+                    name={name}
+                    type="tel"
                     inputMode="numeric"
-                    autoComplete="new-password"
+                    autoComplete={resolvedAutoComplete}
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck={false}
+                    disabled={disabled}
                     value={displayValue}
                     placeholder="(29) 777-77-77"
-                    onChange={() => {}}
+                    onChange={(e) => applyAutofillOrChange(e.target.value)}
+                    onInput={(e) => applyAutofillOrChange(e.currentTarget.value)}
                     onFocus={handleFocus}
                     onClick={handleClick}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-admin-text outline-none ring-0 placeholder:text-admin-text-muted"
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-admin-text outline-none ring-0 placeholder:text-admin-text-muted disabled:opacity-60"
                 />
             </div>
             {hintEl}

@@ -412,10 +412,26 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
                     {showForgot ? (
-                        <div className="space-y-4">
+                        <form
+                            className="space-y-4"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleForgotPassword();
+                            }}
+                            noValidate
+                        >
                             <div>
-                                <label className={labelClassName}>Телефон</label>
-                                <PhoneInput value={phone} onChangeAction={setPhone} />
+                                <label htmlFor="auth-forgot-phone" className={labelClassName}>
+                                    Телефон
+                                </label>
+                                <PhoneInput
+                                    id="auth-forgot-phone"
+                                    name="phone"
+                                    value={phone}
+                                    onChangeAction={setPhone}
+                                    autoComplete="tel-national"
+                                    disabled={isPending}
+                                />
                             </div>
                             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
                                 <button
@@ -429,25 +445,59 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                 >
                                     Отмена
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={handleForgotPassword}
-                                    disabled={isPending}
-                                    className={siteBtnPrimary}
-                                >
+                                <button type="submit" disabled={isPending} className={siteBtnPrimary}>
                                     {isPending ? "Отправка…" : "Отправить SMS"}
                                 </button>
                             </div>
-                        </div>
+                        </form>
                     ) : tab === "login" ? (
-                        <div className="space-y-4">
-                            <div>
-                                <label className={labelClassName}>Телефон</label>
-                                <PhoneInput value={phone} onChangeAction={setPhone} />
+                        <form
+                            className="space-y-4"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleLogin();
+                            }}
+                            noValidate
+                        >
+                            <div className="relative">
+                                <label htmlFor="auth-login-phone" className={labelClassName}>
+                                    Телефон
+                                </label>
+                                {/* Полный E.164 для менеджеров паролей; видимое поле — национальная часть после +375. */}
+                                <input
+                                    type="tel"
+                                    name="username"
+                                    autoComplete="username"
+                                    value={phone ? `+${phone}` : ""}
+                                    tabIndex={-1}
+                                    aria-hidden
+                                    className="absolute left-0 top-0 h-px w-px overflow-hidden opacity-0"
+                                    onChange={(e) => {
+                                        const digits = e.target.value.replace(/\D/g, "");
+                                        if (!digits) {
+                                            setPhone("");
+                                            return;
+                                        }
+                                        const normalized = digits.startsWith("375")
+                                            ? digits.slice(0, 12)
+                                            : `375${digits.slice(0, 9)}`;
+                                        setPhone(normalized);
+                                    }}
+                                />
+                                <PhoneInput
+                                    id="auth-login-phone"
+                                    name="phone"
+                                    value={phone}
+                                    onChangeAction={setPhone}
+                                    autoComplete="tel-national"
+                                    disabled={isPending}
+                                />
                             </div>
                             <div>
                                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                                    <label className="text-sm font-medium text-admin-text">Пароль</label>
+                                    <label htmlFor="auth-login-password" className="text-sm font-medium text-admin-text">
+                                        Пароль
+                                    </label>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -461,6 +511,8 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     </button>
                                 </div>
                                 <PasswordInput
+                                    id="auth-login-password"
+                                    name="password"
                                     value={password}
                                     onChangeAction={(next) => {
                                         setPassword(next);
@@ -469,78 +521,113 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                         }
                                     }}
                                     autoComplete="current-password"
+                                    disabled={isPending}
+                                    onEnterAction={handleLogin}
                                 />
                                 <SmsDevHint value={devPassword} label="Новый пароль" />
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleLogin}
-                                disabled={isPending}
-                                className={`${siteBtnPrimary} w-full`}
-                            >
+                            <button type="submit" disabled={isPending} className={`${siteBtnPrimary} w-full`}>
                                 {isPending ? "Вход…" : "Войти"}
                             </button>
-                        </div>
+                        </form>
                     ) : registerStep === "form" ? (
-                        <div className="space-y-4">
+                        <form
+                            className="space-y-4"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleRegister();
+                            }}
+                            noValidate
+                        >
                             <div>
-                                <label className={labelClassName}>Имя</label>
+                                <label htmlFor="auth-register-name" className={labelClassName}>
+                                    Имя
+                                </label>
                                 <input
+                                    id="auth-register-name"
+                                    name="given-name"
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     className={siteInput}
                                     placeholder="Ваше имя"
                                     autoComplete="given-name"
+                                    disabled={isPending}
                                 />
                             </div>
                             <div>
-                                <label className={labelClassName}>Телефон</label>
-                                <PhoneInput value={phone} onChangeAction={setPhone} />
+                                <label htmlFor="auth-register-phone" className={labelClassName}>
+                                    Телефон
+                                </label>
+                                <PhoneInput
+                                    id="auth-register-phone"
+                                    name="phone"
+                                    value={phone}
+                                    onChangeAction={setPhone}
+                                    autoComplete="tel-national"
+                                    disabled={isPending}
+                                />
                             </div>
                             <div>
-                                <label className={labelClassName}>Пароль</label>
+                                <label htmlFor="auth-register-password" className={labelClassName}>
+                                    Пароль
+                                </label>
                                 <PasswordInput
+                                    id="auth-register-password"
+                                    name="new-password"
                                     value={password}
                                     onChangeAction={setPassword}
                                     autoComplete="new-password"
+                                    disabled={isPending}
                                 />
                             </div>
                             <div>
-                                <label className={labelClassName}>Повторите пароль</label>
+                                <label htmlFor="auth-register-password-confirm" className={labelClassName}>
+                                    Повторите пароль
+                                </label>
                                 <PasswordInput
+                                    id="auth-register-password-confirm"
+                                    name="new-password-confirm"
                                     value={passwordConfirmation}
                                     onChangeAction={setPasswordConfirmation}
                                     autoComplete="new-password"
+                                    disabled={isPending}
+                                    onEnterAction={handleRegister}
                                 />
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleRegister}
-                                disabled={isPending}
-                                className={`${siteBtnPrimary} w-full`}
-                            >
+                            <button type="submit" disabled={isPending} className={`${siteBtnPrimary} w-full`}>
                                 {isPending ? "Отправка…" : "Зарегистрироваться"}
                             </button>
-                        </div>
+                        </form>
                     ) : (
-                        <div className="space-y-4">
+                        <form
+                            className="space-y-4"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleRegisterVerify();
+                            }}
+                            noValidate
+                        >
                             <div>
-                                <label className={labelClassName}>Код из SMS</label>
+                                <label htmlFor="auth-register-code" className={labelClassName}>
+                                    Код из SMS
+                                </label>
                                 <input
+                                    id="auth-register-code"
+                                    name="one-time-code"
                                     type="text"
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
                                     className={siteInput}
                                     placeholder="Введите код"
                                     inputMode="numeric"
+                                    autoComplete="one-time-code"
                                     disabled={isPending}
                                 />
                                 <SmsDevHint value={devCode} label="Код подтверждения" />
                             </div>
                             <button
-                                type="button"
-                                onClick={handleRegisterVerify}
+                                type="submit"
                                 disabled={isPending || !code}
                                 className={`${siteBtnPrimary} w-full`}
                             >
@@ -557,7 +644,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                             >
                                 Назад
                             </button>
-                        </div>
+                        </form>
                     )}
 
                     {message ? (

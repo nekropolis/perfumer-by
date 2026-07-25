@@ -125,7 +125,7 @@ export default function AdminShell({ children }: Props) {
                 </div>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-admin-surface">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-admin-surface">
                 <AdminHeader
                     sidebarCollapsed={sidebarCollapsed}
                     onToggleSidebarAction={() => setSidebarCollapsed((prev) => !prev)}

@@ -334,19 +334,19 @@ export default function AdminHeader({
     }, [pathname]);
 
     return (
-        <header className="h-14 flex-none border-b border-admin-border bg-admin-header shadow-admin-header">
-            <div className="flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6">
-                <div className="flex min-w-0 items-center gap-3">
+        <header className="relative z-20 h-14 flex-none border-b border-admin-border bg-admin-header shadow-admin-header">
+            <div className="flex h-full w-full items-center gap-3 px-4 sm:px-6">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                     <button
                         type="button"
-                        className="hidden rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text lg:inline-flex"
+                        className="hidden shrink-0 rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text lg:inline-flex"
                         onClick={onToggleSidebarAction}
                         title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
                     >
                         {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
                     </button>
 
-                    <div className="relative w-[calc(100vw-5rem)] max-w-[24rem] sm:w-[24rem] lg:w-[26rem] lg:max-w-none" ref={quickPhoneRef}>
+                    <div className="relative w-full max-w-[24rem] lg:max-w-[26rem]" ref={quickPhoneRef}>
                         <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
                             <input
                                 value={searchDigits}
@@ -505,7 +505,7 @@ export default function AdminHeader({
                     </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <div className="relative z-40 flex shrink-0 items-center gap-2 sm:gap-3">
                     <div className="hidden sm:block">
                         <AdminActiveTasksWidget />
                     </div>
@@ -541,7 +541,7 @@ export default function AdminHeader({
                         </button>
 
                         {accountOpen && (
-                            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-admin-border bg-admin-surface p-2 shadow-lg">
+                            <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-admin-border bg-admin-surface p-2 shadow-lg">
                                 <div className="px-3 py-2">
                                     <div className="text-sm font-medium text-admin-text">
                                         {user?.name || "Пользователь"} — {roleLabel}

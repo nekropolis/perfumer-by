@@ -2,7 +2,7 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import { siteInput } from "@/lib/site-ui-classes";
-import { useId, useState } from "react";
+import { useId, useState, type KeyboardEvent } from "react";
 
 type PasswordInputProps = {
     value: string;
@@ -11,6 +11,10 @@ type PasswordInputProps = {
     placeholder?: string;
     autoComplete?: string;
     id?: string;
+    name?: string;
+    disabled?: boolean;
+    /** Явный submit по Enter (обход проблем с native form submit). */
+    onEnterAction?: () => void;
 };
 
 export default function PasswordInput({
@@ -20,20 +24,46 @@ export default function PasswordInput({
     placeholder,
     autoComplete,
     id,
+    name,
+    disabled = false,
+    onEnterAction,
 }: PasswordInputProps) {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const [visible, setVisible] = useState(false);
 
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key !== "Enter" || e.nativeEvent.isComposing || disabled) {
+            return;
+        }
+        e.preventDefault();
+        if (onEnterAction) {
+            onEnterAction();
+            return;
+        }
+        const form = e.currentTarget.form;
+        if (!form) {
+            return;
+        }
+        if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+            return;
+        }
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    };
+
     return (
         <div className="relative">
             <input
                 id={inputId}
+                name={name}
                 type={visible ? "text" : "password"}
                 value={value}
                 onChange={(e) => onChangeAction(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
+                disabled={disabled}
                 className={`${siteInput} py-2.5 pl-3 pr-11 ${className}`.trim()}
             />
             <button

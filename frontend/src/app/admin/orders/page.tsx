@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
     fetchOrders,
     sendVeterTickets,
@@ -62,6 +62,54 @@ const iconBtnClassName =
 
 const iconClassName = "h-4 w-4 md:h-[1.125rem] md:w-[1.125rem]";
 
+function parseOrdersPerPage(raw: string | null): (typeof ORDERS_PER_PAGE_OPTIONS)[number] {
+    const value = Number(raw);
+    if (value === 25 || value === 50 || value === 100) {
+        return value;
+    }
+    return 25;
+}
+
+function parseOrdersPage(raw: string | null): number {
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+}
+
+function parseOrdersTab(raw: string | null): OrdersTab {
+    return raw === "order_products" ? "order_products" : "orders";
+}
+
+function parseOrderFilter(raw: string | null): number | "" {
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : "";
+}
+
+/** Стабильный query для фильтров заказов (без one-shot флагов created/updated). */
+function buildOrdersFiltersQuery(input: {
+    search: string;
+    status: string;
+    period: string;
+    from: string;
+    to: string;
+    page: number;
+    perPage: number;
+    tab: OrdersTab;
+    orderId: number | "";
+}): string {
+    const params = new URLSearchParams();
+    const search = input.search.trim();
+    if (search) params.set("search", search);
+    if (input.status.trim()) params.set("status", input.status.trim());
+    if (input.period.trim()) params.set("period", input.period.trim());
+    if (input.from.trim()) params.set("from", input.from.trim());
+    if (input.to.trim()) params.set("to", input.to.trim());
+    if (input.page > 1) params.set("page", String(input.page));
+    if (input.perPage !== 25) params.set("per_page", String(input.perPage));
+    if (input.tab !== "orders") params.set("tab", input.tab);
+    if (typeof input.orderId === "number") params.set("order_id", String(input.orderId));
+    return params.toString();
+}
+
 function OrdersIconActionButton({
     label,
     disabled,
@@ -119,16 +167,23 @@ function OrdersIconActionButton({
 }
 export default function AdminOrdersPage() {
     const router = useRouter();
+    const pathname = usePathname();
     const searchParamsFromUrl = useSearchParams();
-    const [activeTab, setActiveTab] = useState<OrdersTab>("orders");
+    const [activeTab, setActiveTab] = useState<OrdersTab>(() =>
+        parseOrdersTab(searchParamsFromUrl.get("tab")),
+    );
 
     const [orders, setOrders] = useState<OrderData[]>([]);
     const [ordersMeta, setOrdersMeta] = useState<OrdersResponse["meta"] | null>(null);
-    const [ordersPage, setOrdersPage] = useState(1);
-    const [ordersPerPage, setOrdersPerPage] = useState<(typeof ORDERS_PER_PAGE_OPTIONS)[number]>(25);
+    const [ordersPage, setOrdersPage] = useState(() => parseOrdersPage(searchParamsFromUrl.get("page")));
+    const [ordersPerPage, setOrdersPerPage] = useState<(typeof ORDERS_PER_PAGE_OPTIONS)[number]>(() =>
+        parseOrdersPerPage(searchParamsFromUrl.get("per_page")),
+    );
     const [orderProducts, setOrderProducts] = useState<SupplierOrderReservationRow[]>([]);
     const [orderProductsFilterOrders, setOrderProductsFilterOrders] = useState<number[]>([]);
-    const [orderFilter, setOrderFilter] = useState<number | "">("");
+    const [orderFilter, setOrderFilter] = useState<number | "">(() =>
+        parseOrderFilter(searchParamsFromUrl.get("order_id")),
+    );
     const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
     const [receiptModalOpen, setReceiptModalOpen] = useState(false);
     const [receiptCountryOptions, setReceiptCountryOptions] = useState<string[]>([]);
@@ -284,19 +339,79 @@ export default function AdminOrdersPage() {
         setPeriodFilter(searchParamsFromUrl.get("period") ?? "");
         setDateFrom(searchParamsFromUrl.get("from") ?? "");
         setDateTo(searchParamsFromUrl.get("to") ?? "");
+        setOrdersPage(parseOrdersPage(searchParamsFromUrl.get("page")));
+        setOrdersPerPage(parseOrdersPerPage(searchParamsFromUrl.get("per_page")));
+        setActiveTab(parseOrdersTab(searchParamsFromUrl.get("tab")));
+        setOrderFilter(parseOrderFilter(searchParamsFromUrl.get("order_id")));
     }, [searchParamsFromUrl]);
+
+    useEffect(() => {
+        const nextQuery = buildOrdersFiltersQuery({
+            search: searchInput,
+            status: statusFilter,
+            period: periodFilter,
+            from: dateFrom,
+            to: dateTo,
+            page: ordersPage,
+            perPage: ordersPerPage,
+            tab: activeTab,
+            orderId: orderFilter,
+        });
+
+        const currentParams = new URLSearchParams(searchParamsFromUrl.toString());
+        currentParams.delete("created");
+        currentParams.delete("updated");
+        const currentQuery = buildOrdersFiltersQuery({
+            search: currentParams.get("search") ?? "",
+            status: currentParams.get("status") ?? "",
+            period: currentParams.get("period") ?? "",
+            from: currentParams.get("from") ?? "",
+            to: currentParams.get("to") ?? "",
+            page: parseOrdersPage(currentParams.get("page")),
+            perPage: parseOrdersPerPage(currentParams.get("per_page")),
+            tab: parseOrdersTab(currentParams.get("tab")),
+            orderId: parseOrderFilter(currentParams.get("order_id")),
+        });
+
+        if (nextQuery === currentQuery) {
+            return;
+        }
+
+        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    }, [
+        activeTab,
+        dateFrom,
+        dateTo,
+        orderFilter,
+        ordersPage,
+        ordersPerPage,
+        pathname,
+        periodFilter,
+        router,
+        searchInput,
+        searchParamsFromUrl,
+        statusFilter,
+    ]);
 
     useEffect(() => {
         if (searchParamsFromUrl.get("created") === "1") {
             setToast({ type: "success", message: "Заказ создан" });
-            router.replace("/admin/orders");
+            const params = new URLSearchParams(searchParamsFromUrl.toString());
+            params.delete("created");
+            params.delete("updated");
+            const qs = params.toString();
+            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
             return;
         }
         if (searchParamsFromUrl.get("updated") === "1") {
             setToast({ type: "success", message: "Заказ сохранён" });
-            router.replace("/admin/orders");
+            const params = new URLSearchParams(searchParamsFromUrl.toString());
+            params.delete("created");
+            params.delete("updated");
+            const qs = params.toString();
+            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
         }
-    }, [searchParamsFromUrl, router]);
+    }, [searchParamsFromUrl, router, pathname]);
 
     useEffect(() => {
         const visibleOrderIds = new Set(orders.map((order) => order.id));
@@ -692,6 +807,7 @@ export default function AdminOrdersPage() {
                                         value={searchInput}
                                         onChangeAction={setSearchInput}
                                         placeholder="ID, ID отправки, имя, телефон"
+                                        syncWithUrl={false}
                                     />
                                 </div>
 
