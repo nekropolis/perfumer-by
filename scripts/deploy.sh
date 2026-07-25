@@ -110,18 +110,33 @@ wait_for_frontend() {
     return 1
 }
 
-wait_for_backend() {
+backend_health_url() {
+    local url="${BACKEND_HEALTH_URL:-}"
+    if [[ -n "$url" ]]; then
+        printf '%s' "$url"
+        return 0
+    fi
+
     local base_url
     base_url="$(load_env APP_URL 'https://perfumer.by')"
-    base_url="${base_url%/}"
-    local url="${BACKEND_HEALTH_URL:-${base_url}/up}"
+    # http APP_URL часто 301 → https; проверяем сразу по https.
+    if [[ "$base_url" == http://* ]]; then
+        base_url="https://${base_url#http://}"
+    fi
+    printf '%s/up' "${base_url%/}"
+}
+
+wait_for_backend() {
+    local url
+    url="$(backend_health_url)"
     local attempts="${1:-30}"
     local code="000"
     local i
 
     log "Waiting for Laravel ($url, up to ${attempts}s)"
     for ((i = 1; i <= attempts; i++)); do
-        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
+        # -L: follow http→https (и прочие) redirects, как в health-check.sh
+        code="$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo "000")"
         if [[ "$code" == "200" ]]; then
             log "Laravel ready (HTTP 200)"
             return 0
@@ -135,6 +150,9 @@ wait_for_backend() {
 wait_for_public_storefront() {
     local base_url
     base_url="$(load_env APP_URL 'https://perfumer.by')"
+    if [[ "$base_url" == http://* ]]; then
+        base_url="https://${base_url#http://}"
+    fi
     local url="${PUBLIC_STOREFRONT_HEALTH_URL:-${base_url%/}/}"
     local attempts="${1:-15}"
     local code="000"
@@ -142,8 +160,9 @@ wait_for_public_storefront() {
 
     log "Waiting for public storefront ($url, up to ${attempts}s)"
     for ((i = 1; i <= attempts; i++)); do
-        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo "000")"
-        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
+        code="$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo "000")"
+        # 401 на staging с basic auth — сайт жив, просто закрыт паролем
+        if [[ "$code" =~ ^(200|301|302|307|308|401)$ ]]; then
             log "Public storefront ready (HTTP $code)"
             return 0
         fi
