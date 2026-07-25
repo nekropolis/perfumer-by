@@ -5,6 +5,7 @@ namespace Modules\ImportExport\Services\Legacy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use App\Support\Phone;
 use Modules\Users\Models\Client;
 use Throwable;
 
@@ -179,21 +180,7 @@ final class LegacyCustomersImportService
 
     private function normalizePhone(string $phone): string
     {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-        if ($digits === '') {
-            return '';
-        }
-        if (str_starts_with($digits, '80') && strlen($digits) === 11) {
-            $digits = '375'.substr($digits, 2);
-        }
-        if (str_starts_with($digits, '375') && strlen($digits) === 12) {
-            return '+'.$digits;
-        }
-        if (strlen($digits) >= 9) {
-            return '+'.$digits;
-        }
-
-        return '';
+        return Phone::normalizeBelarusDigits($phone);
     }
 
     private function resolveUniqueEmail(string $baseEmail): string

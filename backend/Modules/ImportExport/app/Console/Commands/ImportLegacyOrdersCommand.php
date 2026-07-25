@@ -4,6 +4,7 @@ namespace Modules\ImportExport\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use App\Support\Phone;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\ProductDisplayName;
 
@@ -247,11 +248,7 @@ class ImportLegacyOrdersCommand extends Command
 
     private function normalizePhone(string $phone): string
     {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-        if ($digits === '') {
-            return '';
-        }
-        return mb_substr($digits, 0, 15);
+        return Phone::normalizeBelarusDigits($phone);
     }
 
     private function nullableString(string $value): ?string

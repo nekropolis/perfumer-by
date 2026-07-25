@@ -16,6 +16,29 @@ class Phone
         return preg_replace('/\D+/', '', $phone) ?? '';
     }
 
+    /**
+     * Цифры + BY-эвристики для легаси/бэкфилла:
+     * — 80XXXXXXXXX (11 цифр) → 375XXXXXXXXX
+     * — ровно 9 цифр → 375 + номер
+     */
+    public static function normalizeBelarusDigits(string $phone): string
+    {
+        $digits = self::normalize($phone);
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '80') && strlen($digits) === 11) {
+            $digits = '375'.substr($digits, 2);
+        }
+
+        if (strlen($digits) === 9) {
+            $digits = '375'.$digits;
+        }
+
+        return mb_substr($digits, 0, 15);
+    }
+
     public static function isValid(string $phone): bool
     {
         return (bool) preg_match(self::REGEX, $phone);

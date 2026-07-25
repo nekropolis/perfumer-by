@@ -24,6 +24,10 @@ PM2_BIN="${PM2_BIN:-pm2}"
 FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
 QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
 COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
+DEPLOY_STARTED_AT="$(date +%s)"
+BUILD_STARTED_AT=0
+BUILD_FINISHED_AT=0
+DEPLOY_SHA=""
 
 SHARED_DIR="${SHARED_DIR:-$ROOT/shared}"
 MAINT_FLAG="$SHARED_DIR/maintenance.on"
@@ -102,7 +106,73 @@ wait_for_frontend() {
         sleep 1
         i=$((i + 1))
     done
-    warn "Next.js not ready after ${attempts}s (last HTTP ${code}) — dropping nginx flag anyway"
+    warn "Next.js not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+wait_for_backend() {
+    local base_url
+    base_url="$(load_env APP_URL 'https://perfumer.by')"
+    base_url="${base_url%/}"
+    local url="${BACKEND_HEALTH_URL:-${base_url}/up}"
+    local attempts="${1:-30}"
+    local code="000"
+    local i
+
+    log "Waiting for Laravel ($url, up to ${attempts}s)"
+    for ((i = 1; i <= attempts; i++)); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" == "200" ]]; then
+            log "Laravel ready (HTTP 200)"
+            return 0
+        fi
+        sleep 1
+    done
+    warn "Laravel not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+wait_for_public_storefront() {
+    local base_url
+    base_url="$(load_env APP_URL 'https://perfumer.by')"
+    local url="${PUBLIC_STOREFRONT_HEALTH_URL:-${base_url%/}/}"
+    local attempts="${1:-15}"
+    local code="000"
+    local i
+
+    log "Waiting for public storefront ($url, up to ${attempts}s)"
+    for ((i = 1; i <= attempts; i++)); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
+            log "Public storefront ready (HTTP $code)"
+            return 0
+        fi
+        sleep 1
+    done
+    warn "Public storefront not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+wait_for_queue() {
+    local attempts="${1:-30}"
+    local status=""
+    local i
+
+    for ((i = 1; i <= attempts; i++)); do
+        status="$(sudo "$SUPERVISORCTL" status "$QUEUE_GROUP" 2>/dev/null || true)"
+        if printf '%s\n' "$status" | awk '
+            NF { seen = 1; if ($2 != "RUNNING") bad = 1 }
+            END { exit (!seen || bad) }
+        '; then
+            printf '%s\n' "$status"
+            return 0
+        fi
+        sleep 1
+    done
+
+    warn "Queue workers are not RUNNING after ${attempts}s"
+    printf '%s\n' "$status" >&2
+    return 1
 }
 
 load_env() {
@@ -151,9 +221,8 @@ on_error() {
         send_telegram "🚨 *Deploy failed* on $(hostname) at $(date +'%Y-%m-%d %H:%M')\n\nExit code: ${code}\nBackend is NOT in maintenance mode."
     fi
     if [[ $NGINX_MAINT -eq 1 ]]; then
-        warn "Снимаю nginx maintenance flag"
-        rm -f "$MAINT_FLAG" || true
-        NGINX_MAINT=0
+        warn "nginx maintenance flag remains enabled to avoid exposing an unhealthy storefront."
+        warn "Fix the issue, re-run deploy, or remove manually: $MAINT_FLAG"
     fi
     exit "$code"
 }
@@ -228,6 +297,8 @@ if [[ "$DEPLOY_HASH_BEFORE" != "$DEPLOY_HASH_AFTER" ]]; then
     log "deploy.sh was updated — restarting with the new version"
     exec "$0" "$@"
 fi
+DEPLOY_SHA="$(git rev-parse --short=12 HEAD)"
+log "Deploy commit: $DEPLOY_SHA"
 
 log "composer install --no-dev --optimize-autoloader"
 export COMPOSER_ALLOW_SUPERUSER=1
@@ -245,10 +316,12 @@ sync_503_html
 enable_nginx_maintenance
 
 log "npm ci (frontend)"
+BUILD_STARTED_AT="$(date +%s)"
 (cd "$FRONTEND" && "$NPM_BIN" ci --no-audit --no-fund)
 
 log "next build"
 (cd "$FRONTEND" && rm -rf .next && "$NPM_BIN" run build)
+BUILD_FINISHED_AT="$(date +%s)"
 
 # ---------------------------------------------------------------------------
 # Backend updates while storefront stays on nginx 503.
@@ -268,13 +341,19 @@ log "Rebuilding Laravel caches"
 (cd "$BACKEND" && "$PHP_BIN" artisan view:cache || true)
 
 log "Reloading PM2 process: $FRONT_PROD_NAME"
-if "$PM2_BIN" describe "$FRONT_PROD_NAME" >/dev/null 2>&1; then
-    "$PM2_BIN" reload "$FRONT_PROD_NAME" --update-env
-else
-    (cd "$FRONTEND" && "$PM2_BIN" start ecosystem.config.cjs --only "$FRONT_PROD_NAME")
-    "$PM2_BIN" restart "$FRONT_PROD_NAME" --max-memory-restart 700M
-fi
+(cd "$FRONTEND" && "$PM2_BIN" startOrReload ecosystem.config.cjs \
+    --only "$FRONT_PROD_NAME" --update-env)
 "$PM2_BIN" save >/dev/null || true
+
+log "Leaving maintenance mode"
+(cd "$BACKEND" && "$PHP_BIN" artisan up)
+MAINT_DOWN=0
+
+# Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
+wait_for_backend 30
+wait_for_frontend 30
+disable_nginx_maintenance
+wait_for_public_storefront 15
 
 log "Restarting queue workers: $QUEUE_GROUP"
 if [[ -n "$SUPERVISORCTL" ]]; then
@@ -283,30 +362,20 @@ if [[ -n "$SUPERVISORCTL" ]]; then
 
     # Мягкий перезапуск через queue:restart — worker завершит текущий job и выйдет,
     # supervisor с autorestart=true поднимет его заново с новым кодом.
-    (cd "$BACKEND" && "$PHP_BIN" artisan queue:restart) || warn "queue:restart failed"
+    (cd "$BACKEND" && "$PHP_BIN" artisan queue:restart)
     sleep 5
-
-    # Если worker не RUNNING после queue:restart — стартуем вручную
-    if ! sudo "$SUPERVISORCTL" status "$QUEUE_GROUP" 2>/dev/null | grep -q RUNNING; then
-        sudo "$SUPERVISORCTL" start "$QUEUE_GROUP" || warn "supervisorctl start failed — check manually"
-    fi
-    sleep 2
-    sudo "$SUPERVISORCTL" status "$QUEUE_GROUP" || true
+    wait_for_queue 30
 else
-    warn "supervisorctl not found — skipping queue worker restart"
+    warn "supervisorctl not found — cannot verify queue workers"
+    false
 fi
-
-log "Leaving maintenance mode"
-(cd "$BACKEND" && "$PHP_BIN" artisan up)
-MAINT_DOWN=0
-
-# Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
-wait_for_frontend
-disable_nginx_maintenance
 
 log "Warming catalog cache"
 (cd "$BACKEND" && "$PHP_BIN" artisan catalog:warm-cache) || warn "catalog:warm-cache failed — site is up, warm manually"
 
 log "Done. Current state:"
+echo "Commit         : $DEPLOY_SHA"
+echo "Build duration : $((BUILD_FINISHED_AT - BUILD_STARTED_AT))s"
+echo "Total duration : $(( $(date +%s) - DEPLOY_STARTED_AT ))s"
 "$PM2_BIN" list || true
 (cd "$BACKEND" && "$PHP_BIN" artisan --version)

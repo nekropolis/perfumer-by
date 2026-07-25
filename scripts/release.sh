@@ -43,7 +43,6 @@ COMPOSER_MEMORY_LIMIT="${COMPOSER_MEMORY_LIMIT:-512M}"
 
 FRONT_PROD_NAME="${FRONT_PROD_NAME:-perfumer-frontend}"
 QUEUE_GROUP="${QUEUE_GROUP:-perfumer-queue:*}"
-PM2_MAX_MEMORY="${PM2_MAX_MEMORY:-700M}"
 
 RELEASES_DIR="$PROJECT_ROOT/releases"
 SHARED_DIR="$PROJECT_ROOT/shared"
@@ -51,10 +50,16 @@ CURRENT="$PROJECT_ROOT/current"
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
+DEPLOY_STARTED_AT="$(date +%s)"
+BUILD_STARTED_AT=0
+BUILD_FINISHED_AT=0
+RELEASE_SHA=""
 
 MAINT_DIR=""
 NGINX_MAINT=0
 MAINT_FLAG="$SHARED_DIR/maintenance.on"
+SWITCHED=0
+PREV_TARGET=""
 trap 'on_error $?' ERR
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
@@ -122,21 +127,132 @@ wait_for_frontend() {
         sleep 1
         i=$((i + 1))
     done
-    warn "Next.js not ready after ${attempts}s (last HTTP ${code}) — dropping nginx flag anyway"
+    warn "Next.js not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+load_env() {
+    local key="$1"
+    local default="${2:-}"
+    if [[ -f "$SHARED_DIR/backend/.env" ]]; then
+        grep -E "^${key}=" "$SHARED_DIR/backend/.env" 2>/dev/null | tail -n 1 | sed "s/^${key}=//" | tr -d "'\"" || printf '%s' "$default"
+    else
+        printf '%s' "$default"
+    fi
+}
+
+wait_for_backend() {
+    local base_url
+    base_url="$(load_env APP_URL 'https://perfumer.by')"
+    base_url="${base_url%/}"
+    local url="${BACKEND_HEALTH_URL:-${base_url}/up}"
+    local attempts="${1:-30}"
+    local code="000"
+    local i
+
+    log "Waiting for Laravel ($url, up to ${attempts}s)"
+    for ((i = 1; i <= attempts; i++)); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" == "200" ]]; then
+            log "Laravel ready (HTTP 200)"
+            return 0
+        fi
+        sleep 1
+    done
+    warn "Laravel not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+wait_for_public_storefront() {
+    local base_url
+    base_url="$(load_env APP_URL 'https://perfumer.by')"
+    local url="${PUBLIC_STOREFRONT_HEALTH_URL:-${base_url%/}/}"
+    local attempts="${1:-15}"
+    local code="000"
+    local i
+
+    log "Waiting for public storefront ($url, up to ${attempts}s)"
+    for ((i = 1; i <= attempts; i++)); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || echo "000")"
+        if [[ "$code" =~ ^(200|301|302|307|308)$ ]]; then
+            log "Public storefront ready (HTTP $code)"
+            return 0
+        fi
+        sleep 1
+    done
+    warn "Public storefront not ready after ${attempts}s (last HTTP ${code})"
+    return 1
+}
+
+wait_for_queue() {
+    local attempts="${1:-30}"
+    local status=""
+    local i
+
+    for ((i = 1; i <= attempts; i++)); do
+        status="$(sudo supervisorctl status "$QUEUE_GROUP" 2>/dev/null || true)"
+        if printf '%s\n' "$status" | awk '
+            NF { seen = 1; if ($2 != "RUNNING") bad = 1 }
+            END { exit (!seen || bad) }
+        '; then
+            printf '%s\n' "$status"
+            return 0
+        fi
+        sleep 1
+    done
+
+    warn "Queue workers are not RUNNING after ${attempts}s"
+    printf '%s\n' "$status" >&2
+    return 1
 }
 
 on_error() {
     local code="$1"
+    local rollback_failed=0
+    local keep_maintenance=0
+    trap - ERR
+    set +e
     warn "Release failed (exit $code). New release lives at: $NEW_RELEASE"
-    warn "`current` not switched — старый релиз остаётся активным."
+
+    if [[ $SWITCHED -eq 1 && -n "$PREV_TARGET" && -d "$PREV_TARGET" ]]; then
+        if [[ $NGINX_MAINT -eq 0 ]]; then
+            enable_nginx_maintenance
+        fi
+        warn "Rolling back current -> $PREV_TARGET"
+        ln -snfT "$PREV_TARGET" "$CURRENT" || rollback_failed=1
+        "$PM2_BIN" startOrReload "$CURRENT/frontend/ecosystem.config.cjs" \
+            --only "$FRONT_PROD_NAME" --update-env || rollback_failed=1
+        if command -v supervisorctl >/dev/null 2>&1; then
+            sudo supervisorctl restart "$QUEUE_GROUP" || rollback_failed=1
+        fi
+        (cd "$CURRENT/backend" && "$PHP_BIN" artisan up) || rollback_failed=1
+        wait_for_backend 30 || rollback_failed=1
+        wait_for_frontend 30 || rollback_failed=1
+        if [[ $rollback_failed -eq 0 ]]; then
+            warn "Previous release restored."
+        else
+            keep_maintenance=1
+            warn "Automatic rollback failed; nginx maintenance will remain enabled."
+        fi
+    elif [[ $SWITCHED -eq 0 ]]; then
+        warn "\`current\` not switched — старый релиз остаётся активным."
+    else
+        keep_maintenance=1
+        warn "Previous release is unavailable; automatic rollback skipped."
+    fi
+
     if [[ -n "$MAINT_DIR" ]]; then
         warn "Снимаю maintenance с $MAINT_DIR"
         (cd "$MAINT_DIR/backend" && "$PHP_BIN" artisan up || true) || true
     fi
     if [[ $NGINX_MAINT -eq 1 ]]; then
-        warn "Снимаю nginx maintenance flag"
-        rm -f "$MAINT_FLAG" || true
-        NGINX_MAINT=0
+        if [[ $keep_maintenance -eq 1 ]]; then
+            warn "Fix manually, then remove: $MAINT_FLAG"
+        else
+            warn "Снимаю nginx maintenance flag"
+            rm -f "$MAINT_FLAG" || true
+            NGINX_MAINT=0
+        fi
     fi
     exit "$code"
 }
@@ -179,6 +295,8 @@ log "  path : $NEW_RELEASE"
 
 log "git clone (depth=1, ref=$GIT_REF)"
 git clone --depth 1 --branch "$GIT_REF" "$REPO_URL" "$NEW_RELEASE"
+RELEASE_SHA="$(git -C "$NEW_RELEASE" rev-parse --short=12 HEAD)"
+log "Release commit: $RELEASE_SHA"
 
 # --- symlinks to shared/ ----------------------------------------------------
 
@@ -198,12 +316,26 @@ export COMPOSER_ALLOW_SUPERUSER=1
 # storage:link нужен всего один раз, но для свежего релиза безопасно повторить
 (cd "$NEW_RELEASE/backend" && "$PHP_BIN" artisan storage:link || true)
 
-# --- maintenance on current + migrate ---------------------------------------
+# --- frontend build ---------------------------------------------------------
+
+BUILD_STARTED_AT="$(date +%s)"
+log "npm ci (frontend)"
+(cd "$NEW_RELEASE/frontend" && "$NPM_BIN" ci --no-audit --no-fund)
+
+log "next build"
+(cd "$NEW_RELEASE/frontend" && rm -rf .next && "$NPM_BIN" run build)
+BUILD_FINISHED_AT="$(date +%s)"
+
+sync_503_html "$NEW_RELEASE"
+
+# --- short maintenance window + migrate ------------------------------------
+
+enable_nginx_maintenance
 
 if [[ -L "$CURRENT" ]]; then
     log "artisan down (on current)"
     MAINT_DIR="$CURRENT"
-    (cd "$CURRENT/backend" && "$PHP_BIN" artisan down --render="errors::503" --retry=15 || true)
+    (cd "$CURRENT/backend" && "$PHP_BIN" artisan down --render="errors::503" --retry=15)
 fi
 
 log "artisan migrate --force (from new release)"
@@ -215,53 +347,41 @@ log "Пересобираю кэши Laravel"
 (cd "$NEW_RELEASE/backend" && "$PHP_BIN" artisan route:cache)
 (cd "$NEW_RELEASE/backend" && "$PHP_BIN" artisan view:cache || true)
 
-# --- frontend build ---------------------------------------------------------
-
-log "npm ci (frontend)"
-(cd "$NEW_RELEASE/frontend" && "$NPM_BIN" ci --no-audit --no-fund)
-
-log "next build"
-(cd "$NEW_RELEASE/frontend" && rm -rf .next && "$NPM_BIN" run build)
-
-sync_503_html "$NEW_RELEASE"
-
 # --- atomic switch ----------------------------------------------------------
 
-PREV_TARGET=""
 if [[ -L "$CURRENT" ]]; then
-    PREV_TARGET="$(readlink "$CURRENT")"
+    PREV_TARGET="$(readlink -f "$CURRENT")"
 fi
-
-enable_nginx_maintenance
 
 log "Переключаю symlink: current -> $NEW_RELEASE"
 ln -snfT "$NEW_RELEASE" "$CURRENT"
+SWITCHED=1
 
 # --- pm2 + supervisor -------------------------------------------------------
 
 log "Reload pm2 ($FRONT_PROD_NAME)"
-if "$PM2_BIN" describe "$FRONT_PROD_NAME" >/dev/null 2>&1; then
-    "$PM2_BIN" reload "$FRONT_PROD_NAME" --update-env
-else
-    "$PM2_BIN" start "$CURRENT/frontend/ecosystem.config.cjs" --only "$FRONT_PROD_NAME"
-    "$PM2_BIN" restart "$FRONT_PROD_NAME" --max-memory-restart "$PM2_MAX_MEMORY"
-fi
+"$PM2_BIN" startOrReload "$CURRENT/frontend/ecosystem.config.cjs" \
+    --only "$FRONT_PROD_NAME" --update-env
 "$PM2_BIN" save >/dev/null || true
-
-if command -v supervisorctl >/dev/null 2>&1; then
-    log "supervisorctl restart $QUEUE_GROUP"
-    sudo supervisorctl restart "$QUEUE_GROUP" || warn "supervisorctl restart не удался"
-else
-    warn "supervisorctl не найден — пропускаю рестарт воркера"
-fi
 
 log "artisan up"
 (cd "$CURRENT/backend" && "$PHP_BIN" artisan up)
 MAINT_DIR=""
 
 # Keep nginx 503 until API is up and Next answers — avoids 502 after flag drop.
-wait_for_frontend
+wait_for_backend 30
+wait_for_frontend 30
 disable_nginx_maintenance
+wait_for_public_storefront 15
+
+if command -v supervisorctl >/dev/null 2>&1; then
+    log "supervisorctl restart $QUEUE_GROUP"
+    sudo supervisorctl restart "$QUEUE_GROUP"
+    wait_for_queue 30
+else
+    warn "supervisorctl не найден — невозможно подтвердить queue worker"
+    false
+fi
 
 # --- prune old releases -----------------------------------------------------
 
@@ -286,4 +406,7 @@ CURRENT_TARGET_BASE="$(basename "$(readlink "$CURRENT")")"
 log "Готово."
 echo "Active release : $TIMESTAMP"
 echo "Previous       : ${PREV_TARGET:-<none>}"
+echo "Commit         : $RELEASE_SHA"
+echo "Build duration : $((BUILD_FINISHED_AT - BUILD_STARTED_AT))s"
+echo "Total duration : $(( $(date +%s) - DEPLOY_STARTED_AT ))s"
 "$PM2_BIN" list || true

@@ -14,6 +14,7 @@ use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
 use Modules\ImportExport\Console\Commands\PurgeSellerOneDataCommand;
 use Modules\ImportExport\Console\Commands\ResetSellerOneLinksCommand;
 use Modules\ImportExport\Console\Commands\NormalizeOrderPhonesCommand;
+use Modules\ImportExport\Console\Commands\NormalizeBelarusPhonesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class ImportExportServiceProvider extends ModuleServiceProvider
@@ -36,6 +37,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         FixLegacyOrdersDeliveryDateCommand::class,
         NormalizeUserPhonesCommand::class,
         NormalizeOrderPhonesCommand::class,
+        NormalizeBelarusPhonesCommand::class,
         ImportLegacyReviewsCommand::class,
         ImportLegacyPostsCommand::class,
         ResetSellerOneLinksCommand::class,

@@ -3,6 +3,7 @@
 namespace Modules\ImportExport\Services\Legacy;
 
 use Illuminate\Support\Facades\DB;
+use App\Support\Phone;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\ProductDisplayName;
 use Throwable;
@@ -269,12 +270,9 @@ final class LegacyOrdersImportService
 
     private function normalizePhone(string $phone): string
     {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-        if ($digits === '') {
-            return '';
-        }
+        $digits = Phone::normalizeBelarusDigits($phone);
 
-        return mb_substr($digits, 0, 15);
+        return $digits !== '' ? $digits : '';
     }
 
     private function nullableString(string $value): ?string
