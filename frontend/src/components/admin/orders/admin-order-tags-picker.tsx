@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
@@ -9,6 +10,13 @@ type Props = {
   selected: OrderTag[];
   onChangeAction: (tags: OrderTag[]) => void;
   compact?: boolean;
+};
+
+type MenuCoords = {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
 };
 
 function contrastText(hex: string): string {
@@ -27,9 +35,13 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
   const [hits, setHits] = useState<OrderTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const selectedIds = useMemo(() => new Set(selected.map((t) => t.id)), [selected]);
+  const showMenu = open && query.trim().length >= 2;
 
   useEffect(() => {
     const q = debouncedQuery.trim();
@@ -63,15 +75,67 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
     };
   }, [debouncedQuery, selectedIds]);
 
+  const updateMenuPosition = () => {
+    if (!inputRef.current) {
+      return;
+    }
+    const rect = inputRef.current.getBoundingClientRect();
+    const menuWidth = Math.min(Math.max(rect.width, 220), Math.max(0, window.innerWidth - 24));
+    const menuHeight = Math.min(192, 12 + Math.max(1, hits.length || 1) * 36);
+    const pad = 8;
+    const gap = 4;
+    let left = rect.left;
+    left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
+    setMenuCoords({
+      top: openUp ? undefined : rect.bottom + gap,
+      bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+      left,
+      width: menuWidth,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!showMenu) {
+      setMenuCoords(null);
+      return;
+    }
+    updateMenuPosition();
+  }, [showMenu, hits.length, loading, query]);
+
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) {
+    if (!showMenu) {
+      return;
+    }
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
+    const onReposition = () => updateMenuPosition();
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown, { passive: true });
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [showMenu, hits.length]);
 
   const addTag = (tag: OrderTag) => {
     if (selectedIds.has(tag.id)) return;
@@ -84,6 +148,52 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
   const removeTag = (id: number) => {
     onChangeAction(selected.filter((t) => t.id !== id));
   };
+
+  const menu =
+    showMenu && menuCoords && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-lg border border-admin-border bg-admin-surface shadow-lg"
+            style={{
+              top: menuCoords.top,
+              bottom: menuCoords.bottom,
+              left: menuCoords.left,
+              width: menuCoords.width,
+            }}
+            role="listbox"
+            aria-label="Поиск тегов"
+          >
+            {loading ? (
+              <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
+            ) : hits.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
+            ) : (
+              <ul>
+                {hits.map((tag) => (
+                  <li key={tag.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      onClick={() => addTag(tag)}
+                      className={`flex w-full items-center gap-2 text-left text-sm hover:bg-admin-muted ${
+                        compact ? "px-2.5 py-1.5" : "px-3 py-2"
+                      }`}
+                    >
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      {tag.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div ref={rootRef} className={compact ? "space-y-1.5" : "space-y-2"}>
@@ -113,6 +223,7 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
 
       <div className="relative">
         <input
+          ref={inputRef}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -124,37 +235,8 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
             compact ? "px-2.5 py-1.5" : "px-3 py-2"
           }`}
         />
-
-        {open && query.trim().length >= 2 ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30 max-h-48 overflow-y-auto rounded-lg border border-admin-border bg-admin-surface shadow-lg">
-            {loading ? (
-              <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-            ) : hits.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-            ) : (
-              <ul>
-                {hits.map((tag) => (
-                  <li key={tag.id}>
-                    <button
-                      type="button"
-                      onClick={() => addTag(tag)}
-                      className={`flex w-full items-center gap-2 text-left text-sm hover:bg-admin-muted ${
-                        compact ? "px-2.5 py-1.5" : "px-3 py-2"
-                      }`}
-                    >
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      {tag.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
       </div>
+      {menu}
     </div>
   );
 }

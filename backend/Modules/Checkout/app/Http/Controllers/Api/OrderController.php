@@ -723,7 +723,10 @@ class OrderController extends Controller
         $validated = $request->validate([
             'delivery_time_from' => ['sometimes', 'nullable', 'date_format:H:i'],
             'delivery_time_to' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'delivery_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'manager_comment' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'tag_ids' => ['sometimes', 'nullable', 'array'],
+            'tag_ids.*' => ['integer', 'distinct', 'exists:order_tags,id'],
         ]);
 
         if ($validated === []) {
@@ -740,12 +743,22 @@ class OrderController extends Controller
         if (array_key_exists('delivery_time_to', $validated)) {
             $payload['delivery_time_to'] = $validated['delivery_time_to'];
         }
+        if (array_key_exists('delivery_date', $validated)) {
+            $payload['delivery_date'] = $validated['delivery_date'];
+        }
         if (array_key_exists('manager_comment', $validated)) {
             $raw = $validated['manager_comment'];
             $payload['manager_comment'] = is_string($raw) && trim($raw) !== '' ? trim($raw) : null;
         }
 
-        $order->update($payload);
+        if ($payload !== []) {
+            $order->update($payload);
+        }
+
+        if (array_key_exists('tag_ids', $validated)) {
+            $order->tags()->sync(array_values(array_unique(array_map('intval', $validated['tag_ids'] ?? []))));
+        }
+
         $order->refresh()->load([
             'items.product.attributeValues.productAttribute',
             'items.product.attributeValues.selectedOptions.productAttributeOption',

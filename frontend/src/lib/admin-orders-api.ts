@@ -144,7 +144,9 @@ export async function updateOrderStatus(
 export type AdminOrderFieldsPayload = {
   delivery_time_from?: string | null;
   delivery_time_to?: string | null;
+  delivery_date?: string | null;
   manager_comment?: string | null;
+  tag_ids?: number[];
 };
 
 export async function updateOrderAdminFields(

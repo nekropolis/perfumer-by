@@ -31,7 +31,8 @@ final class LegacyOrdersImportService
         $afterId = (int) (DB::table('legacy_map_orders')->max('legacy_order_id') ?? 0);
 
         $orders = $this->legacyMysql->select(
-            'SELECT * FROM `oc_order` WHERE `order_id` > '.(int) $afterId.' ORDER BY `order_id`'
+            'SELECT * FROM `oc_order` WHERE `order_id` > '.(int) $afterId
+            .' AND `order_status_id` > 0 ORDER BY `order_id`'
         );
 
         if ($orders->isEmpty()) {

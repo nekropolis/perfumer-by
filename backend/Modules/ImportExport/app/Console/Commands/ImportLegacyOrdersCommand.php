@@ -77,12 +77,18 @@ class ImportLegacyOrdersCommand extends Command
         $created = 0;
         $wouldCreate = 0;
         $skippedExisting = 0;
+        $skippedIncomplete = 0;
         $failed = 0;
 
         foreach ($orders as $legacyOrder) {
             $processed++;
             $legacyOrderId = (int) ($legacyOrder['order_id'] ?? 0);
             if ($legacyOrderId <= 0) {
+                continue;
+            }
+
+            if ((int) ($legacyOrder['order_status_id'] ?? 0) <= 0) {
+                $skippedIncomplete++;
                 continue;
             }
 
@@ -229,6 +235,7 @@ class ImportLegacyOrdersCommand extends Command
         $this->line("Imported orders: {$created}");
         $this->line("Would import (dry-run): {$wouldCreate}");
         $this->line("Skipped existing map: {$skippedExisting}");
+        $this->line("Skipped incomplete (order_status_id=0): {$skippedIncomplete}");
         $this->line("Failed: {$failed}");
 
         return self::SUCCESS;

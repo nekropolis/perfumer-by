@@ -30,6 +30,8 @@ type AdminDatePickerProps = {
     className?: string;
     placeholder?: string;
     disabled?: boolean;
+    /** Календарь сразу на месте (без кнопки-триггера), удобно в модалке. */
+    inline?: boolean;
 };
 
 function parseValue(value: string): Date | null {
@@ -54,10 +56,11 @@ export default function AdminDatePicker({
     className = "",
     placeholder = "Выберите дату",
     disabled = false,
+    inline = false,
 }: AdminDatePickerProps) {
     const id = useId();
     const rootRef = useRef<HTMLDivElement>(null);
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(inline);
 
     const selected = parseValue(value);
     const today = new Date();
@@ -70,7 +73,7 @@ export default function AdminDatePicker({
     }, [value]);
 
     useEffect(() => {
-        if (!open) {
+        if (!open || inline) {
             return;
         }
 
@@ -93,7 +96,7 @@ export default function AdminDatePicker({
             document.removeEventListener("mousedown", onPointerDown);
             window.removeEventListener("keydown", onKeyDown);
         };
-    }, [open]);
+    }, [open, inline]);
 
     const monthStart = startOfMonth(viewMonth);
     const monthEnd = endOfMonth(viewMonth);
@@ -105,10 +108,121 @@ export default function AdminDatePicker({
 
     const pickDay = (day: Date) => {
         onChangeAction(toIsoDate(day));
-        setOpen(false);
+        if (!inline) {
+            setOpen(false);
+        }
     };
 
     const yearOptions = Array.from({ length: YEAR_SPAN * 2 + 1 }, (_, offset) => getYear(today) - YEAR_SPAN + offset);
+
+    const calendarPanel = (
+        <div
+            id={`${id}-calendar`}
+            role="dialog"
+            aria-modal="false"
+            aria-label="Выбор даты"
+            className={
+                inline
+                    ? "overflow-hidden rounded-lg border border-admin-border bg-admin-surface p-3"
+                    : "absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-admin-border bg-admin-surface p-3 shadow-xl sm:left-auto sm:right-0 sm:min-w-[17.5rem]"
+            }
+        >
+            <div className="mb-2 flex items-center justify-between gap-2">
+                <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setViewMonth((m) => subMonths(m, 1))}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted disabled:opacity-60"
+                    aria-label="Предыдущий месяц"
+                >
+                    <ChevronLeft className="h-4 w-4" aria-hidden />
+                </button>
+
+                <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
+                    <select
+                        value={getMonth(viewMonth)}
+                        disabled={disabled}
+                        onChange={(e) => setViewMonth((m) => setMonth(m, Number(e.target.value)))}
+                        className="max-w-[7.5rem] rounded-md border border-admin-border bg-admin-surface px-1.5 py-1 text-xs font-medium capitalize text-admin-text disabled:opacity-60"
+                        aria-label="Месяц"
+                    >
+                        {Array.from({ length: 12 }, (_, monthIndex) => (
+                            <option key={monthIndex} value={monthIndex}>
+                                {format(setMonth(new Date(2020, 0, 1), monthIndex), "LLLL", { locale: ru })}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        value={getYear(viewMonth)}
+                        disabled={disabled}
+                        onChange={(e) => setViewMonth((m) => setYear(m, Number(e.target.value)))}
+                        className="rounded-md border border-admin-border bg-admin-surface px-1.5 py-1 text-xs font-medium text-admin-text disabled:opacity-60"
+                        aria-label="Год"
+                    >
+                        {yearOptions.map((year) => (
+                            <option key={year} value={year}>
+                                {year}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setViewMonth((m) => addMonths(m, 1))}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted disabled:opacity-60"
+                    aria-label="Следующий месяц"
+                >
+                    <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+            </div>
+
+            <div className="mb-1 grid grid-cols-7 gap-0.5">
+                {WEEKDAYS.map((label) => (
+                    <div
+                        key={label}
+                        className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-admin-text-secondary"
+                    >
+                        {label}
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5">
+                {calendarDays.map((day) => {
+                    const inMonth = isSameMonth(day, viewMonth);
+                    const isSelected = selected ? isSameDay(day, selected) : false;
+                    const isToday = isSameDay(day, today);
+
+                    return (
+                        <button
+                            key={day.toISOString()}
+                            type="button"
+                            disabled={!inMonth || disabled}
+                            onClick={() => pickDay(day)}
+                            className={[
+                                "flex h-8 w-8 items-center justify-center rounded-md text-sm transition",
+                                !inMonth && "pointer-events-none invisible",
+                                inMonth && !isSelected && "text-admin-text hover:bg-admin-muted",
+                                isSelected && "bg-admin-primary font-semibold text-white",
+                                isToday && !isSelected && "ring-1 ring-admin-primary/40",
+                                disabled && "opacity-60",
+                            ]
+                                .filter(Boolean)
+                                .join(" ")}
+                        >
+                            {format(day, "d")}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    if (inline) {
+        return <div className={className.trim() || undefined}>{calendarPanel}</div>;
+    }
 
     return (
         <div ref={rootRef} className={`relative ${className}`.trim()}>
@@ -128,101 +242,7 @@ export default function AdminDatePicker({
                 </span>
             </button>
 
-            {open ? (
-                <div
-                    id={`${id}-calendar`}
-                    role="dialog"
-                    aria-modal="false"
-                    aria-label="Выбор даты"
-                    className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-admin-border bg-admin-surface p-3 shadow-xl sm:left-auto sm:right-0 sm:min-w-[17.5rem]"
-                >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setViewMonth((m) => subMonths(m, 1))}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted"
-                            aria-label="Предыдущий месяц"
-                        >
-                            <ChevronLeft className="h-4 w-4" aria-hidden />
-                        </button>
-
-                        <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
-                            <select
-                                value={getMonth(viewMonth)}
-                                onChange={(e) => setViewMonth((m) => setMonth(m, Number(e.target.value)))}
-                                className="max-w-[7.5rem] rounded-md border border-admin-border bg-admin-surface px-1.5 py-1 text-xs font-medium capitalize text-admin-text"
-                                aria-label="Месяц"
-                            >
-                                {Array.from({ length: 12 }, (_, monthIndex) => (
-                                    <option key={monthIndex} value={monthIndex}>
-                                        {format(setMonth(new Date(2020, 0, 1), monthIndex), "LLLL", { locale: ru })}
-                                    </option>
-                                ))}
-                            </select>
-                            <select
-                                value={getYear(viewMonth)}
-                                onChange={(e) => setViewMonth((m) => setYear(m, Number(e.target.value)))}
-                                className="rounded-md border border-admin-border bg-admin-surface px-1.5 py-1 text-xs font-medium text-admin-text"
-                                aria-label="Год"
-                            >
-                                {yearOptions.map((year) => (
-                                    <option key={year} value={year}>
-                                        {year}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setViewMonth((m) => addMonths(m, 1))}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-admin-border text-admin-text transition hover:bg-admin-muted"
-                            aria-label="Следующий месяц"
-                        >
-                            <ChevronRight className="h-4 w-4" aria-hidden />
-                        </button>
-                    </div>
-
-                    <div className="mb-1 grid grid-cols-7 gap-0.5">
-                        {WEEKDAYS.map((label) => (
-                            <div
-                                key={label}
-                                className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-admin-text-secondary"
-                            >
-                                {label}
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-0.5">
-                        {calendarDays.map((day) => {
-                            const inMonth = isSameMonth(day, viewMonth);
-                            const isSelected = selected ? isSameDay(day, selected) : false;
-                            const isToday = isSameDay(day, today);
-
-                            return (
-                                <button
-                                    key={day.toISOString()}
-                                    type="button"
-                                    disabled={!inMonth}
-                                    onClick={() => pickDay(day)}
-                                    className={[
-                                        "flex h-8 w-8 items-center justify-center rounded-md text-sm transition",
-                                        !inMonth && "pointer-events-none invisible",
-                                        inMonth && !isSelected && "text-admin-text hover:bg-admin-muted",
-                                        isSelected && "bg-admin-primary font-semibold text-white",
-                                        isToday && !isSelected && "ring-1 ring-admin-primary/40",
-                                    ]
-                                        .filter(Boolean)
-                                        .join(" ")}
-                                >
-                                    {format(day, "d")}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ) : null}
+            {open ? calendarPanel : null}
         </div>
     );
 }

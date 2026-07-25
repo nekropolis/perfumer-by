@@ -17,9 +17,14 @@ import AdminDeliveryTimeInput, {
     formatDeliveryClockTime,
     snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
+import AdminDatePicker from "@/components/admin/orders/admin-date-picker";
+import AdminOrderTagsPicker from "@/components/admin/orders/admin-order-tags-picker";
+import type { OrderTag } from "@/lib/admin-order-tags-api";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 
 type Props = {
     initialOrders: OrderData[];
@@ -630,6 +635,198 @@ function AdminOrderShipmentIdCell({
     );
 }
 
+function AdminOrderDeliveryDateCell({
+    order,
+    onSavedAction,
+    onErrorAction,
+}: {
+    order: OrderData;
+    onSavedAction: (order: OrderData) => void;
+    onErrorAction?: (message: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [draft, setDraft] = useState(order.delivery_date?.trim() || "");
+    const [saving, setSaving] = useState(false);
+
+    const openEditor = () => {
+        setDraft(order.delivery_date?.trim() || format(new Date(), "yyyy-MM-dd"));
+        setOpen(true);
+    };
+
+    const save = async () => {
+        const next = draft.trim();
+        if (!next) {
+            onErrorAction?.("Укажите дату доставки");
+            return;
+        }
+        setSaving(true);
+        try {
+            const res = await updateOrderAdminFields(order.id, {
+                delivery_date: next,
+            });
+            onSavedAction(res.data);
+            setOpen(false);
+        } catch (error) {
+            console.error(error);
+            onErrorAction?.("Не удалось сохранить дату доставки");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const label = formatOrderDeliveryDate(order.delivery_date);
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={openEditor}
+                className="block w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted hover:underline hover:underline-offset-2"
+                aria-label={`Дата доставки заказа #${order.id}`}
+                title="Изменить дату доставки"
+            >
+                {label !== "—" ? label : <span className="text-admin-text-secondary">—</span>}
+            </button>
+            <AdminModalShell
+                open={open}
+                onCloseAction={() => !saving && setOpen(false)}
+                title={`Дата доставки #${order.id}`}
+                maxWidthClass="sm:max-w-sm"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setOpen(false)}
+                            className="rounded-lg border border-admin-border px-3 py-1.5 text-sm text-admin-text-secondary hover:bg-admin-muted"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void save()}
+                            className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                        >
+                            {saving ? "Сохранение…" : "Сохранить"}
+                        </button>
+                    </div>
+                }
+            >
+                <div className="space-y-2">
+                    <div className="text-sm text-admin-text-secondary">
+                        Выбрано:{" "}
+                        <span className="font-medium text-admin-text">
+                            {draft.trim()
+                                ? format(new Date(`${draft.trim()}T12:00:00`), "d MMMM yyyy", { locale: ru })
+                                : "—"}
+                        </span>
+                    </div>
+                    <AdminDatePicker value={draft} onChangeAction={setDraft} inline disabled={saving} />
+                </div>
+            </AdminModalShell>
+        </>
+    );
+}
+
+function AdminOrderTagsCell({
+    order,
+    onSavedAction,
+    onErrorAction,
+}: {
+    order: OrderData;
+    onSavedAction: (order: OrderData) => void;
+    onErrorAction?: (message: string) => void;
+}) {
+    const tags = order.tags ?? [];
+    const [open, setOpen] = useState(false);
+    const [draft, setDraft] = useState<OrderTag[]>(() =>
+        tags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
+    );
+    const [saving, setSaving] = useState(false);
+
+    const openEditor = () => {
+        setDraft((order.tags ?? []).map((t) => ({ id: t.id, name: t.name, color: t.color })));
+        setOpen(true);
+    };
+
+    const save = async () => {
+        setSaving(true);
+        try {
+            const res = await updateOrderAdminFields(order.id, {
+                tag_ids: draft.map((t) => t.id),
+            });
+            onSavedAction(res.data);
+            setOpen(false);
+        } catch (error) {
+            console.error(error);
+            onErrorAction?.("Не удалось сохранить теги заказа");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={openEditor}
+                className="block w-full rounded-lg px-0.5 py-0.5 text-left transition hover:bg-admin-muted"
+                aria-label={`Теги заказа #${order.id}`}
+                title="Изменить теги"
+            >
+                {tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                        {tags.map((tag) => (
+                            <span
+                                key={tag.id}
+                                className="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight"
+                                style={{
+                                    backgroundColor: tag.color,
+                                    color: tagContrastText(tag.color),
+                                }}
+                                title={tag.name}
+                            >
+                                {tag.name}
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <span className="text-admin-text-secondary">—</span>
+                )}
+            </button>
+            <AdminModalShell
+                open={open}
+                onCloseAction={() => !saving && setOpen(false)}
+                title={`Теги заказа #${order.id}`}
+                maxWidthClass="sm:max-w-md"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setOpen(false)}
+                            className="rounded-lg border border-admin-border px-3 py-1.5 text-sm text-admin-text-secondary hover:bg-admin-muted"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void save()}
+                            className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                        >
+                            {saving ? "Сохранение…" : "Сохранить"}
+                        </button>
+                    </div>
+                }
+            >
+                <AdminOrderTagsPicker selected={draft} onChangeAction={setDraft} compact />
+            </AdminModalShell>
+        </>
+    );
+}
+
 function AdminOrderDeliveryTimeCell({
     order,
     onSavedAction,
@@ -1129,7 +1326,11 @@ export default function AdminOrdersTable({
                                     </div>
                                 </td>
                                 <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 tabular-nums text-admin-text">
-                                    {formatOrderDeliveryDate(order.delivery_date)}
+                                    <AdminOrderDeliveryDateCell
+                                        order={order}
+                                        onSavedAction={patchOrderInList}
+                                        onErrorAction={onErrorMessageAction}
+                                    />
                                 </td>
                                 <td className="border-r border-admin-border/70 px-2 py-2">
                                     <AdminOrderClientPhoneCell
@@ -1193,25 +1394,11 @@ export default function AdminOrdersTable({
                                     {order.total} руб.
                                 </td>
                                 <td className="px-2 py-2">
-                                    {(order.tags ?? []).length > 0 ? (
-                                        <div className="flex flex-wrap gap-1">
-                                            {(order.tags ?? []).map((tag) => (
-                                                <span
-                                                    key={tag.id}
-                                                    className="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight"
-                                                    style={{
-                                                        backgroundColor: tag.color,
-                                                        color: tagContrastText(tag.color),
-                                                    }}
-                                                    title={tag.name}
-                                                >
-                                                    {tag.name}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <span className="text-admin-text-secondary">—</span>
-                                    )}
+                                    <AdminOrderTagsCell
+                                        order={order}
+                                        onSavedAction={patchOrderInList}
+                                        onErrorAction={onErrorMessageAction}
+                                    />
                                 </td>
                             </tr>
                         ))}

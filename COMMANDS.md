@@ -238,6 +238,7 @@ Make/npm — из корня или `frontend/`, как указано.
 | `php artisan legacy:map-products-by-slug --dry-run` | Сопоставление legacy-товаров по slug. |
 | `php artisan legacy:map-products-by-slug --sync-fields` | + описания, SEO, нормализация name/h1. |
 | `php artisan legacy:import-customers --dry-run` | Клиенты из OpenCart. |
+| `php artisan legacy:import-discount-cards --dry-run` | Накопительные карты из `oc_coupon` (без привязки к клиентам). |
 | `php artisan legacy:import-orders --dry-run` | Заказы. |
 | `php artisan legacy:import-reviews --dry-run` | Отзывы. |
 | `php artisan legacy:import-product-images --dry-run` | Картинки товаров. |
