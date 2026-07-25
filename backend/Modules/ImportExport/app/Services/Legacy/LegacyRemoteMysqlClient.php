@@ -81,22 +81,8 @@ final class LegacyRemoteMysqlClient
             throw new RuntimeException('Legacy MySQL не настроен (LEGACY_DB_DATABASE / LEGACY_DB_USERNAME).');
         }
 
-        if ($privateKey === '' || ! is_readable($privateKey)) {
-            throw new RuntimeException(
-                'LEGACY_SSH_PRIVATE_KEY не задан или недоступен php-fpm. '.
-                'Скопируй ключ в storage (не /root/.ssh) и укажи путь в .env.'
-            );
-        }
-
-        $knownHosts = $knownHosts !== '' ? $knownHosts : storage_path('app/legacy_ssh/known_hosts');
-        $knownHostsDir = dirname($knownHosts);
-        if (! is_dir($knownHostsDir) && ! @mkdir($knownHostsDir, 0750, true) && ! is_dir($knownHostsDir)) {
-            throw new RuntimeException('Не удалось создать каталог для LEGACY_SSH_KNOWN_HOSTS: '.$knownHostsDir);
-        }
-        if (! is_file($knownHosts)) {
-            @touch($knownHosts);
-            @chmod($knownHosts, 0640);
-        }
+        $privateKey = $this->resolvePrivateKey($privateKey);
+        $knownHosts = $this->resolveKnownHostsFile($knownHosts);
 
         $remoteMysql = sprintf(
             'MYSQL_PWD=%s mysql --batch --raw --default-character-set=utf8mb4 -h %s -P %d -u %s %s -e %s',
@@ -114,11 +100,15 @@ final class LegacyRemoteMysqlClient
             '-o', 'StrictHostKeyChecking=accept-new',
             '-o', 'UserKnownHostsFile='.$knownHosts,
             '-o', 'GlobalKnownHostsFile=/dev/null',
-            '-o', 'IdentitiesOnly=yes',
             '-o', 'ConnectTimeout=15',
-            '-i', $privateKey,
             '-p', (string) max(1, $sshPort),
         ];
+        if ($privateKey !== null) {
+            $ssh[] = '-o';
+            $ssh[] = 'IdentitiesOnly=yes';
+            $ssh[] = '-i';
+            $ssh[] = $privateKey;
+        }
         $ssh[] = $sshUser.'@'.$sshHost;
         $ssh[] = $remoteMysql;
 
@@ -131,6 +121,63 @@ final class LegacyRemoteMysqlClient
         }
 
         return $this->parseMysqlBatchOutput($result->output());
+    }
+
+    private function resolvePrivateKey(string $configured): ?string
+    {
+        if ($configured !== '' && is_readable($configured)) {
+            return $configured;
+        }
+
+        $home = rtrim((string) (getenv('HOME') ?: ($_SERVER['HOME'] ?? '')), '/');
+        if ($home !== '') {
+            foreach (['id_ed25519', 'id_rsa'] as $name) {
+                $candidate = $home.'/.ssh/'.$name;
+                if (is_readable($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        // Без -i: ssh возьмёт ключи из агента / default identity текущего пользователя.
+        return null;
+    }
+
+    private function resolveKnownHostsFile(string $configured): string
+    {
+        $candidates = [];
+        if ($configured !== '') {
+            $candidates[] = $configured;
+        }
+        $candidates[] = storage_path('app/legacy_ssh/known_hosts');
+
+        $home = rtrim((string) (getenv('HOME') ?: ($_SERVER['HOME'] ?? '')), '/');
+        if ($home !== '') {
+            $candidates[] = $home.'/.ssh/known_hosts';
+        }
+
+        foreach ($candidates as $path) {
+            $dir = dirname($path);
+            if (! is_dir($dir)) {
+                if (! @mkdir($dir, 0750, true) && ! is_dir($dir)) {
+                    continue;
+                }
+            }
+            if (! is_file($path)) {
+                if (! @touch($path)) {
+                    continue;
+                }
+                @chmod($path, 0640);
+            }
+            if (is_writable($path) || is_readable($path)) {
+                return $path;
+            }
+        }
+
+        throw new RuntimeException(
+            'Не удалось подготовить known_hosts для Legacy SSH. '.
+            'Проверь LEGACY_SSH_KNOWN_HOSTS или права на storage/app/legacy_ssh.'
+        );
     }
 
     /**
