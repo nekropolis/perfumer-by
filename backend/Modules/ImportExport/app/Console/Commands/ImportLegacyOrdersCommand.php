@@ -182,7 +182,7 @@ class ImportLegacyOrdersCommand extends Command
                         'delivery_method' => $this->nullableString(mb_substr((string) ($legacyOrder['shipping_method'] ?? ''), 0, 40)),
                         'delivery_city' => $this->nullableString((string) ($legacyOrder['shipping_city'] ?? '')),
                         'delivery_address' => $this->composeDeliveryAddress($legacyOrder),
-                        'delivery_date' => substr(
+                        'shipment_date' => substr(
                             $this->normalizeDateTime((string) ($legacyOrder['date_added'] ?? '')) ?? now()->format('Y-m-d H:i:s'),
                             0,
                             10

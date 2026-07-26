@@ -48,6 +48,7 @@ class OrderController extends Controller
             'delivery_apartment' => ['nullable', 'string', 'max:32'],
             'delivery_comment' => ['nullable', 'string', 'max:500'],
             'shipment_id' => ['nullable', 'string', 'max:64'],
+            'shipment_date' => ['nullable', 'date_format:Y-m-d'],
             'delivery_date' => ['nullable', 'date_format:Y-m-d'],
             'delivery_time_from' => ['nullable', 'date_format:H:i'],
             'delivery_time_to' => ['nullable', 'date_format:H:i'],
@@ -100,12 +101,19 @@ class OrderController extends Controller
     public function stats(): JsonResponse
     {
         $newCount = Order::query()->where('status', 'new')->count();
+        $today = now('Europe/Minsk')->toDateString();
+        $overdueDeliveryCount = Order::query()
+            ->whereNotNull('shipment_date')
+            ->whereDate('shipment_date', '<', $today)
+            ->whereNotIn('status', ['done', 'cancelled', 'completed'])
+            ->count();
 
         return response()->json([
             'data' => [
                 'by_status' => [
                     'new' => $newCount,
                 ],
+                'overdue_delivery' => $overdueDeliveryCount,
             ],
         ]);
     }
@@ -323,36 +331,36 @@ class OrderController extends Controller
             })
             ->when($useCustomDateRange, function ($query) use ($fromBoundary, $toBoundary) {
                 if ($fromBoundary !== null && $toBoundary !== null) {
-                    $query->whereBetween('delivery_date', [
+                    $query->whereBetween('shipment_date', [
                         $fromBoundary->toDateString(),
                         $toBoundary->toDateString(),
                     ]);
                 } elseif ($fromBoundary !== null) {
-                    $query->whereDate('delivery_date', '>=', $fromBoundary->toDateString());
+                    $query->whereDate('shipment_date', '>=', $fromBoundary->toDateString());
                 } elseif ($toBoundary !== null) {
-                    $query->whereDate('delivery_date', '<=', $toBoundary->toDateString());
+                    $query->whereDate('shipment_date', '<=', $toBoundary->toDateString());
                 }
             })
             ->when(! $useCustomDateRange && $period === 'today', function ($query) {
-                $query->whereDate('delivery_date', now()->toDateString());
+                $query->whereDate('shipment_date', now()->toDateString());
             })
             ->when(! $useCustomDateRange && $period === 'week', function ($query) {
-                $query->whereDate('delivery_date', '>=', now()->copy()->subDays(6)->toDateString());
+                $query->whereDate('shipment_date', '>=', now()->copy()->subDays(6)->toDateString());
             })
             ->when(! $useCustomDateRange && $period === 'month', function ($query) {
-                $query->whereBetween('delivery_date', [
+                $query->whereBetween('shipment_date', [
                     now()->copy()->startOfMonth()->toDateString(),
                     now()->copy()->endOfMonth()->toDateString(),
                 ]);
             })
             ->when(! $useCustomDateRange && $period === 'year', function ($query) {
-                $query->whereBetween('delivery_date', [
+                $query->whereBetween('shipment_date', [
                     now()->copy()->startOfYear()->toDateString(),
                     now()->copy()->endOfYear()->toDateString(),
                 ]);
             })
-            ->orderByRaw('delivery_date is null')
-            ->orderBy('delivery_date')
+            ->orderByRaw('shipment_date is null')
+            ->orderBy('shipment_date')
             ->orderBy('id')
             ->paginate($perPage);
 
@@ -507,7 +515,8 @@ class OrderController extends Controller
                 'delivery_apartment' => $validated['delivery_apartment'] ?? null,
                 'delivery_comment' => $validated['delivery_comment'] ?? null,
                 'shipment_id' => $validated['shipment_id'] ?? null,
-                'delivery_date' => $validated['delivery_date'] ?? now()->toDateString(),
+                'shipment_date' => $validated['shipment_date'] ?? now()->toDateString(),
+                'delivery_date' => $validated['delivery_date'] ?? null,
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
@@ -591,7 +600,10 @@ class OrderController extends Controller
                 'delivery_apartment' => $validated['delivery_apartment'] ?? null,
                 'delivery_comment' => $validated['delivery_comment'] ?? null,
                 'shipment_id' => $validated['shipment_id'] ?? null,
-                'delivery_date' => $validated['delivery_date'] ?? $order->delivery_date?->format('Y-m-d') ?? now()->toDateString(),
+                'shipment_date' => $validated['shipment_date'] ?? $order->shipment_date?->format('Y-m-d') ?? now()->toDateString(),
+                'delivery_date' => array_key_exists('delivery_date', $validated)
+                    ? $validated['delivery_date']
+                    : $order->delivery_date?->format('Y-m-d'),
                 'delivery_time_from' => $validated['delivery_time_from'] ?? null,
                 'delivery_time_to' => $validated['delivery_time_to'] ?? null,
                 'delivery_fee' => $validated['delivery_fee'] ?? 0,
@@ -724,6 +736,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'delivery_time_from' => ['sometimes', 'nullable', 'date_format:H:i'],
             'delivery_time_to' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'shipment_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'delivery_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'manager_comment' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'tag_ids' => ['sometimes', 'nullable', 'array'],
@@ -743,6 +756,9 @@ class OrderController extends Controller
         }
         if (array_key_exists('delivery_time_to', $validated)) {
             $payload['delivery_time_to'] = $validated['delivery_time_to'];
+        }
+        if (array_key_exists('shipment_date', $validated)) {
+            $payload['shipment_date'] = $validated['shipment_date'];
         }
         if (array_key_exists('delivery_date', $validated)) {
             $payload['delivery_date'] = $validated['delivery_date'];

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
@@ -107,16 +107,50 @@ function InfoItem({
     value,
 }: {
     label: string;
-    value: string;
+    value: string | ReactNode;
 }) {
     return (
         <div className="min-w-0">
             <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
                 {label}
             </div>
-            <div className="break-words whitespace-normal text-[13px] font-medium text-admin-text" title={value}>
-                {value}
-            </div>
+            {typeof value === "string" ? (
+                <div className="break-words whitespace-normal text-[13px] font-medium text-admin-text" title={value}>
+                    {value}
+                </div>
+            ) : (
+                <div className="text-[13px] font-medium text-admin-text">{value}</div>
+            )}
+        </div>
+    );
+}
+
+const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
+
+function weekdayShortFromIso(value?: string | null): string | null {
+    if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+    const d = new Date(`${value.slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return WEEKDAY_SHORT_RU[d.getDay()] ?? null;
+}
+
+function DeliveryDateWithBadge({ value }: { value?: string | null }) {
+    const label = formatDeliveryDate(value);
+    const weekday = weekdayShortFromIso(value);
+    if (!value || label === "—") {
+        return <span className="text-admin-text-secondary">—</span>;
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {weekday ? (
+                <span
+                    className="inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded bg-emerald-600 px-1 text-[10px] font-medium text-white"
+                    title={weekday}
+                >
+                    {weekday}
+                </span>
+            ) : null}
+            <span className="tabular-nums">{label}</span>
         </div>
     );
 }
@@ -287,7 +321,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
     const deliveryMethod = order.delivery_method_label || order.delivery_method || "—";
     const paymentMethod = order.payment_method_label || order.payment_method || "—";
     const deliveryCity = order.delivery_city || "—";
-    const deliveryDateLabel = formatDeliveryDate(order.delivery_date);
+    const shipmentDateLabel = formatDeliveryDate(order.shipment_date);
     const deliveryTimeLabel = formatDeliveryTimeRange(order.delivery_time_from, order.delivery_time_to);
     const managerComment = order.manager_comment?.trim() || "";
     const orderTags = order.tags ?? [];
@@ -463,7 +497,11 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                     />
                                 </div>
 
-                                <InfoItem label="Дата доставки" value={deliveryDateLabel} />
+                                <InfoItem label="Дата отправки" value={shipmentDateLabel} />
+                                <InfoItem
+                                    label="Дата доставки"
+                                    value={<DeliveryDateWithBadge value={order.delivery_date} />}
+                                />
                                 <InfoItem label="Время доставки" value={deliveryTimeLabel} />
 
                                 <div className="col-span-2 grid grid-cols-1 gap-2 sm:grid-cols-3">

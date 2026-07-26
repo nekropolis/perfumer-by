@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
+    AlertTriangle,
     BarChart3,
     BellRing,
     Calculator,
@@ -37,6 +38,7 @@ import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api"
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
 type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending";
+type AlertBadgeKey = "ordersOverdue";
 
 type LinkItem = {
     type: "link";
@@ -44,6 +46,7 @@ type LinkItem = {
     label: string;
     icon: LucideIcon;
     badgeKey?: BadgeKey;
+    alertBadgeKey?: AlertBadgeKey;
 };
 type SidebarItem = LinkItem;
 
@@ -59,7 +62,14 @@ const sections: SidebarSection[] = [
         label: "Основное",
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
-            { type: "link", href: "/admin/orders", label: "Заказы", icon: ShoppingCart, badgeKey: "ordersNew" },
+            {
+                type: "link",
+                href: "/admin/orders",
+                label: "Заказы",
+                icon: ShoppingCart,
+                badgeKey: "ordersNew",
+                alertBadgeKey: "ordersOverdue",
+            },
             {
                 type: "link",
                 href: "/admin/stock-notifications",
@@ -183,6 +193,39 @@ function SidebarBadge({
     );
 }
 
+function SidebarAlertBadge({
+    count,
+    compact,
+}: {
+    count: number;
+    compact: boolean;
+}) {
+    if (count <= 0) return null;
+
+    if (compact) {
+        return (
+            <span
+                className="pointer-events-none absolute -bottom-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-admin-sidebar"
+                aria-label={`Просрочено: ${count}`}
+                title={`Просроченная доставка: ${count}`}
+            >
+                <AlertTriangle size={9} strokeWidth={2.75} aria-hidden />
+            </span>
+        );
+    }
+
+    return (
+        <span
+            className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(245,158,11,0.45)]"
+            aria-label={`Просрочено: ${count}`}
+            title={`Просроченная доставка: ${count}`}
+        >
+            <AlertTriangle size={11} strokeWidth={2.5} aria-hidden />
+            {formatBadgeCount(count)}
+        </span>
+    );
+}
+
 function FloatingTooltip({ tooltip }: { tooltip: TooltipState }) {
     if (!tooltip || typeof document === "undefined") {
         return null;
@@ -231,6 +274,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const currentQuery = searchParams.toString();
     const [tooltip, setTooltip] = useState<TooltipState>(null);
     const [newOrdersCount, setNewOrdersCount] = useState(0);
+    const [overdueOrdersCount, setOverdueOrdersCount] = useState(0);
     const [stockProductRequestsNew, setStockProductRequestsNew] = useState(0);
     const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
 
@@ -247,9 +291,12 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
             ]);
 
             let ordersNew = 0;
+            let ordersOverdue = 0;
             if (ordersResult.status === "fulfilled") {
                 ordersNew = ordersResult.value.data.by_status.new ?? 0;
+                ordersOverdue = ordersResult.value.data.overdue_delivery ?? 0;
                 setNewOrdersCount(ordersNew);
+                setOverdueOrdersCount(ordersOverdue);
             }
 
             let backInStock = 0;
@@ -266,7 +313,12 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                 setReviewsPendingCount(reviewsPending);
             }
 
-            const active = ordersNew > 0 || backInStock > 0 || callback > 0 || reviewsPending > 0;
+            const active =
+                ordersNew > 0 ||
+                ordersOverdue > 0 ||
+                backInStock > 0 ||
+                callback > 0 ||
+                reviewsPending > 0;
             return { active };
         },
         [],
@@ -293,6 +345,9 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
         stockProductRequestsNew: stockProductRequestsNew,
         reviewsPending: reviewsPendingCount,
     };
+    const alertBadgeCounts: Record<AlertBadgeKey, number> = {
+        ordersOverdue: overdueOrdersCount,
+    };
 
     return (
         <aside className="w-full overflow-visible">
@@ -314,6 +369,9 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                     const isActive = isItemActive(pathname, currentQuery, item.href);
                                     const Icon = item.icon;
                                     const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+                                    const alertCount = item.alertBadgeKey
+                                        ? alertBadgeCounts[item.alertBadgeKey]
+                                        : 0;
 
                                     return (
                                         <Link
@@ -361,7 +419,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                             >
                                                 <Icon size={17} />
                                                 {collapsed ? (
-                                                    <SidebarBadge count={badgeCount} compact />
+                                                    <>
+                                                        <SidebarBadge count={badgeCount} compact />
+                                                        <SidebarAlertBadge count={alertCount} compact />
+                                                    </>
                                                 ) : null}
                                             </span>
 
@@ -371,6 +432,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                         {item.label}
                                                     </div>
                                                     <SidebarBadge count={badgeCount} compact={false} />
+                                                    <SidebarAlertBadge count={alertCount} compact={false} />
                                                 </div>
                                             ) : null}
 

@@ -66,7 +66,7 @@ class VeterTicketPayloadBuilder
             'PassportNumber' => '',
             'Goods' => [
                 [
-                    // GoodName — название из справочника Ветер (GoodsAPI).
+                    // GoodName — название из справочника ветерОК (GoodsAPI).
                     'GoodName' => 'Парфюмерия *(в ассортименте)',
                     'GoodModel' => $this->buildGoodName($order),
                     'GoodCost' => $this->formatMoney($order->total),
@@ -98,7 +98,7 @@ class VeterTicketPayloadBuilder
         if ($this->resolveCityId($order) <= 0) {
             $missing[] = $method === CheckoutDeliveryService::METHOD_MINSK
                 ? 'населённый пункт Минск (VETER_MINSK_CITY_ID)'
-                : 'населённый пункт (ID Ветер)';
+                : 'населённый пункт (ID ветерОК)';
         }
         if (trim((string) ($order->delivery_address ?? '')) === '') {
             $missing[] = 'адрес (улица)';

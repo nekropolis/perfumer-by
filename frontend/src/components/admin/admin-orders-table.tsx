@@ -24,6 +24,7 @@ import { formatMoneyRub } from "@/lib/format-money-display";
 import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 import { telHref } from "@/lib/site-contact";
+import { lineItemFullTitle } from "@/lib/product-display-name";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -51,29 +52,33 @@ function isOrderDeliveryOverdue(order: OrderData, todayIso: string): boolean {
     if (status === "done" || status === "cancelled" || status === "completed") {
         return false;
     }
-    const deliveryDate = order.delivery_date?.trim() ?? "";
-    if (!/^\d{4}-\d{2}-\d{2}/.test(deliveryDate)) {
+    const shipmentDate = order.shipment_date?.trim() ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}/.test(shipmentDate)) {
         return false;
     }
-    return deliveryDate.slice(0, 10) < todayIso;
+    return shipmentDate.slice(0, 10) < todayIso;
 }
 
 type AddressTooltipState = {
     lines: string[];
+    /** Дата доставки (YYYY-MM-DD) — только для тултипа адреса. */
+    deliveryDate?: string | null;
     x: number;
-    y: number;
+    /** Нижний край якорного элемента (для размещения снизу). */
+    anchorBottom: number;
+    /** Верхний край якорного элемента (для размещения сверху). */
+    anchorTop: number;
 } | null;
 
 type ItemsTooltipState = {
     items: OrderItem[];
     x: number;
-    y: number;
+    anchorTop: number;
+    anchorBottom: number;
 } | null;
 
 function orderItemTooltipTitle(item: OrderItem): string {
-    const name = item.product_name?.trim() || "Товар";
-    const variant = item.variant_title?.trim() || "";
-    return variant ? `${name} — ${variant}` : name;
+    return lineItemFullTitle(item);
 }
 
 type StatusFilterMenuCoords = {
@@ -296,6 +301,15 @@ function formatOrderDeliveryDate(value?: string | null): string {
     }
 }
 
+const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
+
+function weekdayShortFromIso(value?: string | null): string | null {
+    if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+    const d = new Date(`${value.slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return WEEKDAY_SHORT_RU[d.getDay()] ?? null;
+}
+
 function tagContrastText(hex: string): string {
     const m = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/i);
     if (!m) return "#fff";
@@ -392,14 +406,60 @@ function AdminOrderCellTooltip({
     onMouseEnterAction: () => void;
     onMouseLeaveAction: () => void;
 }) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+
+    useLayoutEffect(() => {
+        if (!tooltip || !ref.current) {
+            setCoords(null);
+            return;
+        }
+        const el = ref.current;
+        const pad = 8;
+        const rect = el.getBoundingClientRect();
+        const halfW = rect.width / 2;
+        const left = Math.min(
+            Math.max(tooltip.x, halfW + pad),
+            window.innerWidth - halfW - pad,
+        );
+
+        const spaceBelow = window.innerHeight - tooltip.anchorBottom - pad;
+        const spaceAbove = tooltip.anchorTop - pad;
+        const placeAbove =
+            rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
+
+        let top = placeAbove
+            ? tooltip.anchorTop - 8 - rect.height
+            : tooltip.anchorBottom + 8;
+
+        if (top + rect.height > window.innerHeight - pad) {
+            top = Math.max(pad, window.innerHeight - pad - rect.height);
+        }
+        if (top < pad) {
+            top = pad;
+        }
+
+        setCoords({ left, top });
+    }, [tooltip]);
+
     if (!tooltip || typeof document === "undefined") {
         return null;
     }
 
+    const deliveryDate = tooltip.deliveryDate?.trim() || "";
+    const deliveryLabel = formatOrderDeliveryDate(deliveryDate);
+    const weekday = weekdayShortFromIso(deliveryDate);
+    const showDelivery = Boolean(deliveryDate && deliveryLabel !== "—");
+
     return createPortal(
         <div
+            ref={ref}
             className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
-            style={{ left: tooltip.x, top: tooltip.y }}
+            style={{
+                left: coords?.left ?? tooltip.x,
+                top: coords?.top ?? tooltip.anchorBottom + 8,
+                visibility: coords ? "visible" : "hidden",
+            }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
         >
@@ -415,6 +475,21 @@ function AdminOrderCellTooltip({
                     {line}
                 </div>
             ))}
+            {showDelivery ? (
+                <div
+                    className={`flex flex-wrap items-center gap-1.5 ${
+                        tooltip.lines.length > 0 ? "mt-2 border-t border-admin-border/70 pt-2" : ""
+                    }`}
+                >
+                    <span className="text-[11px] text-admin-text-secondary">Доставка:</span>
+                    {weekday ? (
+                        <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">
+                            {weekday}
+                        </span>
+                    ) : null}
+                    <span className="tabular-nums text-sm font-medium text-admin-text">{deliveryLabel}</span>
+                </div>
+            ) : null}
         </div>,
         document.body,
     );
@@ -429,14 +504,55 @@ function AdminOrderItemsTooltip({
     onMouseEnterAction: () => void;
     onMouseLeaveAction: () => void;
 }) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+
+    useLayoutEffect(() => {
+        if (!tooltip || !ref.current) {
+            setCoords(null);
+            return;
+        }
+        const el = ref.current;
+        const pad = 8;
+        const rect = el.getBoundingClientRect();
+        const halfW = rect.width / 2;
+        const left = Math.min(
+            Math.max(tooltip.x, halfW + pad),
+            window.innerWidth - halfW - pad,
+        );
+
+        const spaceBelow = window.innerHeight - tooltip.anchorBottom - pad;
+        const spaceAbove = tooltip.anchorTop - pad;
+        const placeAbove =
+            rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
+
+        let top = placeAbove
+            ? tooltip.anchorTop - 8 - rect.height
+            : tooltip.anchorBottom + 8;
+
+        if (top + rect.height > window.innerHeight - pad) {
+            top = Math.max(pad, window.innerHeight - pad - rect.height);
+        }
+        if (top < pad) {
+            top = pad;
+        }
+
+        setCoords({ left, top });
+    }, [tooltip]);
+
     if (!tooltip || typeof document === "undefined") {
         return null;
     }
 
     return createPortal(
         <div
+            ref={ref}
             className="fixed z-[9999] max-w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2.5 text-xs leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
-            style={{ left: tooltip.x, top: tooltip.y }}
+            style={{
+                left: coords?.left ?? tooltip.x,
+                top: coords?.top ?? tooltip.anchorBottom + 8,
+                visibility: coords ? "visible" : "hidden",
+            }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
         >
@@ -499,7 +615,11 @@ function AdminOrderQtyCell({
     );
 }
 
-function getTooltipPosition(element: HTMLElement): { x: number; y: number } {
+function getTooltipPosition(element: HTMLElement): {
+    x: number;
+    anchorTop: number;
+    anchorBottom: number;
+} {
     const rect = element.getBoundingClientRect();
     const viewportPadding = 16;
     const tooltipHalfWidth = Math.min(192, Math.max(0, window.innerWidth / 2 - viewportPadding));
@@ -509,7 +629,8 @@ function getTooltipPosition(element: HTMLElement): { x: number; y: number } {
             Math.max(rect.left + rect.width / 2, tooltipHalfWidth + viewportPadding),
             window.innerWidth - tooltipHalfWidth - viewportPadding,
         ),
-        y: rect.bottom + 8,
+        anchorTop: rect.top,
+        anchorBottom: rect.bottom,
     };
 }
 
@@ -524,6 +645,7 @@ function AdminOrderAddressCell({
     house,
     korpus,
     apartment,
+    deliveryDate,
     onShowAction,
     onHideAction,
 }: {
@@ -533,6 +655,7 @@ function AdminOrderAddressCell({
     house?: string | null;
     korpus?: string | null;
     apartment?: string | null;
+    deliveryDate?: string | null;
     onShowAction: (tooltip: AddressTooltipState) => void;
     onHideAction: () => void;
 }) {
@@ -547,6 +670,8 @@ function AdminOrderAddressCell({
             apartment,
         }) || "—";
     const hasAddress = cityLine !== "—" || addressLine !== "—";
+    const deliveryIso = deliveryDate?.trim() || "";
+    const hasDeliveryDate = Boolean(deliveryIso && /^\d{4}-\d{2}-\d{2}/.test(deliveryIso));
     const tooltipCity = cityRaw || cityLine;
     const cityWasShortened = cityRaw !== "" && cityRaw !== cityLine;
 
@@ -555,6 +680,16 @@ function AdminOrderAddressCell({
             element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
         ).some(isTextOverflowing);
 
+        // Дата доставки — всегда в тултипе, если есть (даже когда адрес полностью влез).
+        if (hasDeliveryDate) {
+            onShowAction({
+                lines: hasAddress ? [tooltipCity, addressLine] : [],
+                deliveryDate: deliveryIso.slice(0, 10),
+                ...getTooltipPosition(element),
+            });
+            return;
+        }
+
         if (!hasAddress || (!truncatedLine && !cityWasShortened)) {
             onHideAction();
             return;
@@ -562,6 +697,7 @@ function AdminOrderAddressCell({
 
         onShowAction({
             lines: [tooltipCity, addressLine],
+            deliveryDate: null,
             ...getTooltipPosition(element),
         });
     };
@@ -569,7 +705,7 @@ function AdminOrderAddressCell({
     return (
         <div
             className="leading-tight whitespace-nowrap lg:min-w-0 lg:whitespace-normal"
-            tabIndex={hasAddress ? 0 : undefined}
+            tabIndex={hasAddress || hasDeliveryDate ? 0 : undefined}
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
@@ -674,37 +810,37 @@ function AdminOrderDeliveryDateCell({
     onReloadAction?: () => void;
 }) {
     const [open, setOpen] = useState(false);
-    const [draft, setDraft] = useState(order.delivery_date?.trim() || "");
+    const [draft, setDraft] = useState(order.shipment_date?.trim() || "");
     const [saving, setSaving] = useState(false);
 
     const openEditor = () => {
-        setDraft(order.delivery_date?.trim() || format(new Date(), "yyyy-MM-dd"));
+        setDraft(order.shipment_date?.trim() || format(new Date(), "yyyy-MM-dd"));
         setOpen(true);
     };
 
     const save = async () => {
         const next = draft.trim();
         if (!next) {
-            onErrorAction?.("Укажите дату доставки");
+            onErrorAction?.("Укажите дату отправки");
             return;
         }
         setSaving(true);
         try {
             const res = await updateOrderAdminFields(order.id, {
-                delivery_date: next,
+                shipment_date: next,
             });
             onSavedAction(res.data);
             setOpen(false);
             onReloadAction?.();
         } catch (error) {
             console.error(error);
-            onErrorAction?.("Не удалось сохранить дату доставки");
+            onErrorAction?.("Не удалось сохранить дату отправки");
         } finally {
             setSaving(false);
         }
     };
 
-    const label = formatOrderDeliveryDate(order.delivery_date);
+    const label = formatOrderDeliveryDate(order.shipment_date);
 
     return (
         <>
@@ -712,15 +848,15 @@ function AdminOrderDeliveryDateCell({
                 type="button"
                 onClick={openEditor}
                 className="block w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted hover:underline hover:underline-offset-2"
-                aria-label={`Дата доставки заказа #${order.id}`}
-                title="Изменить дату доставки"
+                aria-label={`Дата отправки заказа #${order.id}`}
+                title="Изменить дату отправки"
             >
                 {label !== "—" ? label : <span className="text-admin-text-secondary">—</span>}
             </button>
             <AdminModalShell
                 open={open}
                 onCloseAction={() => !saving && setOpen(false)}
-                title={`Дата доставки #${order.id}`}
+                title={`Дата отправки #${order.id}`}
                 maxWidthClass="sm:max-w-sm"
                 footer={
                     <div className="flex justify-end gap-2">
@@ -1293,12 +1429,12 @@ export default function AdminOrdersTable({
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
                                         className="cursor-pointer bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none"
-                                        aria-label="Фильтр по дате доставки"
+                                        aria-label="Фильтр по дате отправки"
                                     >
-                                        Дата доставки
+                                        Дата отправки
                                     </button>
                                 ) : (
-                                    "Дата доставки"
+                                    "Дата отправки"
                                 )}
                             </th>
                             <th className="border-r border-admin-border px-2 py-2">Клиент</th>
@@ -1392,6 +1528,7 @@ export default function AdminOrdersTable({
                                         house={order.delivery_house}
                                         korpus={order.delivery_korpus}
                                         apartment={order.delivery_apartment}
+                                        deliveryDate={order.delivery_date}
                                         onShowAction={showAddressTooltip}
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />

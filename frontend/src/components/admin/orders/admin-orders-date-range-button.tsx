@@ -418,7 +418,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
             }
             if (draftFrom) return formatDisplayDate(draftFrom);
             if (draftTo) return formatDisplayDate(draftTo);
-            return "Дата доставки";
+            return "Дата отправки";
         })();
 
         const popup = open ? (
@@ -434,7 +434,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                     role="dialog"
                     aria-modal="true"
                     {...(hideTrigger
-                        ? { "aria-label": "Фильтр по дате доставки" }
+                        ? { "aria-label": "Фильтр по дате отправки" }
                         : { "aria-labelledby": `${id}-trigger` })}
                     className="w-full max-w-[22rem] rounded-2xl border border-admin-border bg-white shadow-xl"
                     onMouseDown={(e) => e.stopPropagation()}
@@ -616,7 +616,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                             }
                             openPopup();
                         }}
-                        title="Фильтр по дате доставки"
+                        title="Фильтр по дате отправки"
                         className="inline-flex h-9 max-w-[11rem] items-center gap-1.5 rounded-lg border border-admin-border bg-white px-2.5 py-1.5 text-left text-xs font-medium text-admin-text shadow-sm transition hover:border-gray-300 hover:bg-admin-muted focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 sm:max-w-[13rem]"
                     >
                         <CalendarRange className="h-3.5 w-3.5 shrink-0 text-admin-text-secondary" aria-hidden />

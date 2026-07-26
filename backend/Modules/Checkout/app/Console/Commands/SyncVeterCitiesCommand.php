@@ -27,7 +27,7 @@ class SyncVeterCitiesCommand extends Command
         }
 
         if ($result['cities'] <= 0) {
-            $reason = 'Синхронизация завершилась без городов (cities=0). Проверьте ответ API Ветер.';
+            $reason = 'Синхронизация завершилась без городов (cities=0). Проверьте ответ API ветерОК.';
             $this->error($reason);
             $this->notifyFailure($reason);
 
@@ -47,7 +47,7 @@ class SyncVeterCitiesCommand extends Command
     private function notifyFailure(string $reason): void
     {
         $message = implode("\n", [
-            '⚠️ Синхронизация городов Ветер не выполнена',
+            '⚠️ Синхронизация городов ветерОК не выполнена',
             'Команда: veter:sync-cities',
             'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
             'Причина: '.$reason,

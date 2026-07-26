@@ -21,7 +21,7 @@ class VeterTicketStatusSyncController extends Controller
                 AuditLogService::ENTITY_VETER_TICKET,
                 null,
                 AuditLogService::ACTION_FAILED,
-                'Ветер getStatus: сбой синхронизации — '.$e->getMessage(),
+                'ветерОК getStatus: сбой синхронизации — '.$e->getMessage(),
                 [
                     'reason' => $e->getMessage(),
                     'source' => VeterTicketStatusSyncService::SOURCE_MANUAL,
@@ -40,7 +40,7 @@ class VeterTicketStatusSyncController extends Controller
         return response()->json([
             'data' => $result,
             'message' => sprintf(
-                'Статусы Ветер: обновлено %d из %d, ошибок: %d',
+                'Статусы ветерОК: обновлено %d из %d, ошибок: %d',
                 $updated,
                 $result['total'],
                 $failed,

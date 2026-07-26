@@ -258,7 +258,7 @@ final class LegacyOrdersImportService
                     'delivery_city' => $cityResolved['delivery_city'],
                     'delivery_city_id' => $cityResolved['delivery_city_id'],
                     'delivery_address' => $this->composeDeliveryAddress((array) $legacyOrder),
-                    'delivery_date' => $deliveryDate,
+                    'shipment_date' => $deliveryDate,
                     'delivery_fee' => $this->asMoneyString($deliveryFee),
                     'payment_method' => $this->nullableString(mb_substr((string) ($legacyOrder->payment_method ?? ''), 0, 32)),
                     'status' => 'new',

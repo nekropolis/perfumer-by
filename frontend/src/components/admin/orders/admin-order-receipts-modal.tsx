@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OrderData, OrderItem } from "@/types/orders";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 
 type ReceiptItemDraft = {
     key: string;
@@ -92,7 +93,7 @@ function stripConcentrationCodeFromVariant(variantTitle: string): string {
 }
 
 function receiptItemDisplayName(item: OrderItem): string {
-    const productName = String(item.product_name ?? "").trim();
+    const productName = lineItemProductTitle(item).trim() || "Товар";
     const variantTitle = String(item.variant_title ?? "").trim();
     const concentrationLabel = extractConcentrationLabel(variantTitle);
     const variantPart = concentrationLabel

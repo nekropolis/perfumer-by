@@ -55,7 +55,7 @@ class SyncVeterTicketStatusesCommand extends Command
     private function notifyFailureSummary(array $failed, int $total): void
     {
         $lines = [
-            '⚠️ Ветер getStatus: ошибки синхронизации',
+            '⚠️ ветерОК getStatus: ошибки синхронизации',
             'Команда: veter:sync-ticket-statuses',
             'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
             'Всего заказов в выборке: '.$total,

@@ -69,7 +69,7 @@ class VeterTicketStatusSyncService
                     AuditLogService::ENTITY_VETER_TICKET,
                     (int) $order->id,
                     AuditLogService::ACTION_FAILED,
-                    'Ветер getStatus: заказ #'.$order->id.' — '.$reason,
+                    'ветерОК getStatus: заказ #'.$order->id.' — '.$reason,
                     [
                         'order_id' => (int) $order->id,
                         'shipment_id' => $shipmentId,

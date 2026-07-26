@@ -122,7 +122,7 @@ export default function AdminDeliveryCitiesPage() {
 
             <AdminTableToolbar
                 title="Города доставок"
-                description="Справочник Ветер: населённые пункты, зоны, районы и дни доставки. Ночной sync + ручная кнопка."
+                description="Справочник ветерОК: населённые пункты, зоны, районы и дни доставки. Ночной sync + ручная кнопка."
                 action={
                     <button
                         type="button"
@@ -131,7 +131,7 @@ export default function AdminDeliveryCitiesPage() {
                         onClick={() => void handleSync()}
                     >
                         <RefreshCw size={14} className={syncing ? "animate-spin" : undefined} />
-                        {syncing ? "Синхронизация…" : "Синхронизировать с Ветер"}
+                        {syncing ? "Синхронизация…" : "Синхронизировать с ветерОК"}
                     </button>
                 }
             >
@@ -156,7 +156,7 @@ export default function AdminDeliveryCitiesPage() {
             ) : rows.length === 0 ? (
                 <AdminEmptyState
                     title="Городов нет"
-                    description="Запустите синхронизацию с Ветер, чтобы загрузить справочник."
+                    description="Запустите синхронизацию с ветерОК, чтобы загрузить справочник."
                 />
             ) : (
                 <div className="overflow-x-auto rounded-lg border border-admin-border">

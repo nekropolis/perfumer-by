@@ -38,6 +38,7 @@ class Order extends Model
         'shipment_id',
         'shipment_status',
         'shipment_status_at',
+        'shipment_date',
         'delivery_date',
         'delivery_time_from',
         'delivery_time_to',
@@ -50,6 +51,7 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'shipment_date' => 'date',
         'delivery_date' => 'date',
         'delivery_fee' => 'decimal:2',
         'shipment_status_at' => 'datetime',

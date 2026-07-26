@@ -70,32 +70,101 @@ const DELIVERY_OPTIONS = [
 /** Для «Курьер по Минску» населённый пункт в заказе всегда фиксирован. */
 const MINSK_COURIER_CITY = "Минск";
 
-const DELIVERY_DAY_LABELS: { key: keyof CheckoutCityHit["delivery_days"]; short: string }[] = [
-  { key: "monday", short: "Пн" },
-  { key: "tuesday", short: "Вт" },
-  { key: "wednesday", short: "Ср" },
-  { key: "thursday", short: "Чт" },
-  { key: "friday", short: "Пт" },
-  { key: "saturday", short: "Сб" },
-  { key: "sunday", short: "Вс" },
+const DELIVERY_DAY_LABELS: {
+  key: keyof CheckoutCityHit["delivery_days"];
+  short: string;
+  /** JS Date.getDay(): 0=Sun … 6=Sat */
+  jsDay: number;
+}[] = [
+  { key: "monday", short: "Пн", jsDay: 1 },
+  { key: "tuesday", short: "Вт", jsDay: 2 },
+  { key: "wednesday", short: "Ср", jsDay: 3 },
+  { key: "thursday", short: "Чт", jsDay: 4 },
+  { key: "friday", short: "Пт", jsDay: 5 },
+  { key: "saturday", short: "Сб", jsDay: 6 },
+  { key: "sunday", short: "Вс", jsDay: 0 },
 ];
 
-function DeliveryDaysBadges({ days }: { days: CheckoutCityHit["delivery_days"] | null | undefined }) {
+/** Ближайшая дата weekday начиная с сегодня (Минск) или завтра (остальные). */
+function nextDateForWeekday(jsDay: number, allowToday: boolean): string {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  if (!allowToday) {
+    d.setDate(d.getDate() + 1);
+  }
+  for (let i = 0; i < 7; i++) {
+    if (d.getDay() === jsDay) {
+      return format(d, "yyyy-MM-dd");
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return format(d, "yyyy-MM-dd");
+}
+
+function weekdayKeyFromIsoDate(
+  iso: string,
+): keyof CheckoutCityHit["delivery_days"] | null {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const hit = DELIVERY_DAY_LABELS.find((x) => x.jsDay === d.getDay());
+  return hit?.key ?? null;
+}
+
+function formatIsoDateShortRu(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso;
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return format(d, "d.MM.yyyy");
+}
+
+function DeliveryDaysBadges({
+  days,
+  selectedDate,
+  allowToday = false,
+  interactive = false,
+  onSelectDate,
+}: {
+  days: CheckoutCityHit["delivery_days"] | null | undefined;
+  selectedDate?: string | null;
+  allowToday?: boolean;
+  interactive?: boolean;
+  onSelectDate?: (isoDate: string) => void;
+}) {
   if (!days) return null;
+  const selectedKey = selectedDate ? weekdayKeyFromIsoDate(selectedDate) : null;
   return (
     <div className="flex flex-wrap gap-0.5">
-      {DELIVERY_DAY_LABELS.map(({ key, short }) => {
+      {DELIVERY_DAY_LABELS.map(({ key, short, jsDay }) => {
         const on = days[key] === 1;
+        const selected = on && selectedKey === key;
+        const className = `inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded px-1 text-[10px] font-medium ${
+          selected
+            ? "bg-emerald-600 text-white"
+            : on
+              ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
+              : "bg-admin-muted text-admin-text-secondary/50"
+        }`;
+        const title = on
+          ? selected
+            ? `${short}: выбрано ${selectedDate ? formatIsoDateShortRu(selectedDate) : ""}`
+            : `${short}: доставка`
+          : `${short}: нет`;
+        if (interactive && on) {
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`${className} cursor-pointer transition hover:bg-emerald-600 hover:text-white`}
+              title={title}
+              onClick={() => onSelectDate?.(nextDateForWeekday(jsDay, allowToday))}
+            >
+              {short}
+            </button>
+          );
+        }
         return (
-          <span
-            key={key}
-            className={`inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded px-1 text-[10px] font-medium ${
-              on
-                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
-                : "bg-admin-muted text-admin-text-secondary/50"
-            }`}
-            title={on ? `${short}: доставка` : `${short}: нет`}
-          >
+          <span key={key} className={className} title={title}>
             {short}
           </span>
         );
@@ -567,6 +636,7 @@ export default function AdminOrderCreateForm({
 }: AdminOrderCreateFormProps) {
   const router = useRouter();
   const isEdit = mode === "edit" && initialOrder != null;
+  const initialOrderId = initialOrder?.id ?? null;
   const itemsLocked = Boolean(
     isEdit && initialOrder && (initialOrder.status === "done" || initialOrder.status === "cancelled"),
   );
@@ -639,8 +709,13 @@ export default function AdminOrderCreateForm({
   const [deliveryTimeTo, setDeliveryTimeTo] = useState(
     () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_to),
   );
-  const [deliveryDate, setDeliveryDate] = useState(
-    () => initialOrder?.delivery_date?.trim() || format(new Date(), "yyyy-MM-dd"),
+  const [shipmentDate, setShipmentDate] = useState(
+    () =>
+      initialOrder?.shipment_date?.trim() ||
+      format(new Date(), "yyyy-MM-dd"),
+  );
+  const [courierDeliveryDate, setCourierDeliveryDate] = useState(
+    () => initialOrder?.delivery_date?.trim() || "",
   );
   const [selectedTags, setSelectedTags] = useState<OrderTag[]>(() =>
     (initialOrder?.tags ?? []).map((t) => ({
@@ -761,6 +836,12 @@ export default function AdminOrderCreateForm({
       .then((hit) => {
         if (cancelled || !hit?.delivery_days) return;
         setBelarusDeliveryDays(hit.delivery_days);
+        setCourierDeliveryDate((prev) => {
+          if (!prev) return prev;
+          const key = weekdayKeyFromIsoDate(prev);
+          if (!key || hit.delivery_days[key] !== 1) return "";
+          return prev;
+        });
         if (!deliveryCity.trim() && hit.full_name?.trim()) {
           setDeliveryCity(hit.full_name.trim());
         }
@@ -1150,7 +1231,7 @@ export default function AdminOrderCreateForm({
       delivery_method: deliveryMethod,
       discount_card_number: appliedDiscountCardNumber.trim() || null,
       gift_certificate_code: appliedGiftCertificateCode.trim() || null,
-      order_id: isEdit && initialOrder ? initialOrder.id : null,
+      order_id: isEdit ? initialOrderId : null,
       items: filledLinesForQuote.map((l) => ({
         qty: Math.max(1, l.qty),
         price: Math.max(0, l.price),
@@ -1197,7 +1278,7 @@ export default function AdminOrderCreateForm({
     appliedGiftCertificateCode,
     filledLinesForQuote,
     isEdit,
-    initialOrder?.id,
+    initialOrderId,
   ]);
 
   const localSubtotal = useMemo(
@@ -1270,7 +1351,7 @@ export default function AdminOrderCreateForm({
           delivery_method: deliveryMethod,
           discount_card_number: normalized,
           gift_certificate_code: appliedGiftCertificateCode.trim() || null,
-          order_id: isEdit && initialOrder ? initialOrder.id : null,
+          order_id: isEdit ? initialOrderId : null,
           items: filledLinesForQuote.map((l) => ({
             qty: Math.max(1, l.qty),
             price: Math.max(0, l.price),
@@ -1302,7 +1383,7 @@ export default function AdminOrderCreateForm({
         setOrderQuoteLoading(false);
       }
     },
-    [appliedGiftCertificateCode, deliveryMethod, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
+    [appliedGiftCertificateCode, deliveryMethod, filledLinesForQuote, initialOrderId, isEdit, paymentMethod],
   );
 
   const applyGiftCertificateToOrder = useCallback(
@@ -1324,7 +1405,7 @@ export default function AdminOrderCreateForm({
           delivery_method: deliveryMethod,
           discount_card_number: appliedDiscountCardNumber.trim() || null,
           gift_certificate_code: normalized,
-          order_id: isEdit && initialOrder ? initialOrder.id : null,
+          order_id: isEdit ? initialOrderId : null,
           items: filledLinesForQuote.map((l) => ({
             qty: Math.max(1, l.qty),
             price: Math.max(0, l.price),
@@ -1351,7 +1432,7 @@ export default function AdminOrderCreateForm({
         setOrderQuoteLoading(false);
       }
     },
-    [appliedDiscountCardNumber, deliveryMethod, filledLinesForQuote, initialOrder, isEdit, paymentMethod],
+    [appliedDiscountCardNumber, deliveryMethod, filledLinesForQuote, initialOrderId, isEdit, paymentMethod],
   );
 
   useEffect(() => {
@@ -1683,7 +1764,8 @@ export default function AdminOrderCreateForm({
         deliveryMethod === "minsk_courier" || deliveryMethod === "belarus_courier"
           ? shipmentId.trim() || null
           : null,
-      delivery_date: deliveryDate.trim() || format(new Date(), "yyyy-MM-dd"),
+      shipment_date: shipmentDate.trim() || format(new Date(), "yyyy-MM-dd"),
+      delivery_date: courierDeliveryDate.trim() || null,
       delivery_time_from: deliveryTimeFrom.trim()
         ? snapDeliveryClockToTenMinutes(deliveryTimeFrom)
         : null,
@@ -1772,6 +1854,7 @@ export default function AdminOrderCreateForm({
             setDeliveryCity("");
             setDeliveryCityId(null);
             setBelarusDeliveryDays(null);
+            setCourierDeliveryDate("");
           }
           setBelarusCityOpen(true);
           setBelarusCityLookupFailed(false);
@@ -1793,6 +1876,12 @@ export default function AdminOrderCreateForm({
                   setBelarusDeliveryDays(h.delivery_days);
                   setBelarusCityQuery("");
                   setBelarusCityOpen(false);
+                  setCourierDeliveryDate((prev) => {
+                    if (!prev) return prev;
+                    const key = weekdayKeyFromIsoDate(prev);
+                    if (!key || h.delivery_days[key] !== 1) return "";
+                    return prev;
+                  });
                 }}
               >
                 <div className="font-medium text-admin-text">{h.full_name}</div>
@@ -1805,9 +1894,22 @@ export default function AdminOrderCreateForm({
         </ul>
       ) : null}
       {deliveryCityId && belarusDeliveryDays ? (
-        <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-[11px] text-admin-text-secondary">Дни доставки:</span>
-          <DeliveryDaysBadges days={belarusDeliveryDays} />
+          <DeliveryDaysBadges
+            days={belarusDeliveryDays}
+            selectedDate={courierDeliveryDate}
+            allowToday={false}
+            interactive
+            onSelectDate={setCourierDeliveryDate}
+          />
+          {courierDeliveryDate ? (
+            <span className="text-[11px] tabular-nums text-emerald-800">
+              {formatIsoDateShortRu(courierDeliveryDate)}
+            </span>
+          ) : (
+            <span className="text-[11px] text-admin-text-secondary">выберите день</span>
+          )}
         </div>
       ) : null}
       {!deliveryCityId &&
@@ -1821,7 +1923,7 @@ export default function AdminOrderCreateForm({
       ) : null}
       {deliveryMethod === "belarus_courier" && !deliveryCityId && initialOrder?.delivery_city ? (
         <p className="mt-2 text-xs text-amber-700">
-          Старый заказ без ID Ветер — выберите населённый пункт из списка заново.
+          Старый заказ без ID ветерОК — выберите населённый пункт из списка заново.
         </p>
       ) : null}
     </div>
@@ -2677,9 +2779,53 @@ export default function AdminOrderCreateForm({
 
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <div>
-                    <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
-                    <AdminDatePicker value={deliveryDate} onChangeAction={setDeliveryDate} />
+                    <div className="mb-1 text-sm text-admin-text-secondary">Дата отправки</div>
+                    <AdminDatePicker value={shipmentDate} onChangeAction={setShipmentDate} />
                   </div>
+                  {deliveryMethod === "minsk_courier" ? (
+                    <div>
+                      <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
+                      <AdminDatePicker
+                        value={courierDeliveryDate}
+                        onChangeAction={setCourierDeliveryDate}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftDeliveryTimeFrom(
+                            deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
+                          );
+                          setDraftDeliveryTimeTo(
+                            deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
+                          );
+                          setDeliveryTimeModalOpen(true);
+                        }}
+                        className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                        title="Задать время доставки"
+                      >
+                        <span className="tabular-nums">
+                          {formatDeliveryClockTime(deliveryTimeFrom) ||
+                            formatDeliveryClockTime(deliveryTimeTo) ? (
+                            <>
+                              {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
+                              {" – "}
+                              {formatDeliveryClockTime(deliveryTimeTo) || "—"}
+                            </>
+                          ) : (
+                            <span className="text-admin-text-secondary">Не задано</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-xs text-admin-primary">Задать</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {deliveryMethod === "minsk_courier" ? (
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
                     <button
@@ -2711,7 +2857,7 @@ export default function AdminOrderCreateForm({
                       <span className="shrink-0 text-xs text-admin-primary">Задать</span>
                     </button>
                   </div>
-                </div>
+                ) : null}
 
                 <label className="block text-sm text-admin-text-secondary">
                   Комментарий доставки
@@ -2728,8 +2874,8 @@ export default function AdminOrderCreateForm({
               <>
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <div>
-                    <div className="mb-1 text-sm text-admin-text-secondary">Дата доставки</div>
-                    <AdminDatePicker value={deliveryDate} onChangeAction={setDeliveryDate} />
+                    <div className="mb-1 text-sm text-admin-text-secondary">Дата отправки</div>
+                    <AdminDatePicker value={shipmentDate} onChangeAction={setShipmentDate} />
                   </div>
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>

@@ -96,7 +96,7 @@ export type OrderData = {
     delivery_method?: string | null;
     delivery_method_label?: string | null;
     delivery_city?: string | null;
-    /** ID города в справочнике Ветер (belarus_courier). */
+    /** ID города в справочнике ветерОК (belarus_courier). */
     delivery_city_id?: number | null;
     delivery_address?: string | null;
     delivery_street_prefix?: string | null;
@@ -106,10 +106,12 @@ export type OrderData = {
     delivery_comment?: string | null;
     /** ID отправки (курьер Минск / РБ). */
     shipment_id?: string | null;
-    /** Статус заявки из Ветер (getStatus.lastStatus). */
+    /** Статус заявки из ветерОК (getStatus.lastStatus). */
     shipment_status?: string | null;
-    /** Когда статус Ветер обновлялся. */
+    /** Когда статус ветерОК обновлялся. */
     shipment_status_at?: string | null;
+    /** Дата отправки (YYYY-MM-DD). */
+    shipment_date?: string | null;
     /** Дата доставки (YYYY-MM-DD). */
     delivery_date?: string | null;
     /** Время доставки с (HH:mm). */

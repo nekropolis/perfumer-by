@@ -19,11 +19,11 @@ function getAdminHeaders() {
 export async function fetchOrders(params?: {
   search?: string;
   status?: string;
-  /** today | week | month | year — фильтр по дате доставки (игнорируется API, если задан from/to) */
+  /** today | week | month | year — фильтр по дате отправки (игнорируется API, если задан from/to) */
   period?: string;
-  /** YYYY-MM-DD — начало интервала delivery_date */
+    /** YYYY-MM-DD — начало интервала shipment_date */
   from?: string;
-  /** YYYY-MM-DD — конец интервала delivery_date (включительно) */
+  /** YYYY-MM-DD — конец интервала shipment_date (включительно) */
   to?: string;
   page?: number;
   /** Только 25, 50 или 100 (остальное API приведёт к 25) */
@@ -92,6 +92,7 @@ export type OrdersStatsResponse = {
     by_status: {
       new: number;
     };
+    overdue_delivery?: number;
   };
 };
 
@@ -144,6 +145,7 @@ export async function updateOrderStatus(
 export type AdminOrderFieldsPayload = {
   delivery_time_from?: string | null;
   delivery_time_to?: string | null;
+  shipment_date?: string | null;
   delivery_date?: string | null;
   manager_comment?: string | null;
   tag_ids?: number[];
@@ -233,7 +235,9 @@ export type AdminOrderPayload = {
   delivery_comment?: string | null;
   /** ID отправки (курьер Минск / РБ). */
   shipment_id?: string | null;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD — дата отправки */
+  shipment_date?: string | null;
+  /** YYYY-MM-DD — дата доставки (курьер) */
   delivery_date?: string | null;
   delivery_time_from?: string | null;
   delivery_time_to?: string | null;

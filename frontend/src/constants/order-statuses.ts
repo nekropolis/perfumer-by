@@ -28,7 +28,7 @@ export const ORDER_STATUS_OPTIONS = [
     { value: "cancelled", label: "Отменён" },
 ];
 
-/** Статусы, из которых можно отправить заказ в Ветер. После отправки → in_delivery. */
+/** Статусы, из которых можно отправить заказ в ветерОК. После отправки → in_delivery. */
 export const VETER_SEND_ALLOWED_STATUSES = [
     "new",
     "confirmed",

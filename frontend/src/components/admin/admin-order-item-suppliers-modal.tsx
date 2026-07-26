@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { OrderItem } from "@/types/orders";
 import CopyText from "@/components/ui/copy-text";
+import { lineItemFullTitle } from "@/lib/product-display-name";
 
 type Props = {
     item: OrderItem | null;
@@ -84,8 +85,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                             Поставщики товара
                         </h3>
                         <div className="mt-1 text-sm text-admin-text-secondary">
-                            {item.product_name}
-                            {item.variant_title ? ` · ${item.variant_title}` : ""}
+                            {lineItemFullTitle(item)}
                         </div>
                         {item.variant_id != null && (
                             <div className="mt-0.5 text-xs text-admin-text-secondary">

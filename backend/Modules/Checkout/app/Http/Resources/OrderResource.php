@@ -99,6 +99,7 @@ class OrderResource extends JsonResource
             'shipment_id' => $this->shipment_id,
             'shipment_status' => $this->shipment_status,
             'shipment_status_at' => $this->shipment_status_at?->toIso8601String(),
+            'shipment_date' => $this->shipment_date?->format('Y-m-d'),
             'delivery_date' => $this->delivery_date?->format('Y-m-d'),
             'delivery_time_from' => $this->formatOrderClockTime($this->delivery_time_from),
             'delivery_time_to' => $this->formatOrderClockTime($this->delivery_time_to),

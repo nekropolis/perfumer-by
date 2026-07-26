@@ -73,7 +73,7 @@ class VeterTicketSendService
             foreach ($readyOrderIds as $index => $orderId) {
                 $row = $rawResponse[$index] ?? null;
                 if (! is_array($row)) {
-                    $reason = 'В ответе Ветер нет результата для этой заявки (index '.$index.')';
+                    $reason = 'В ответе ветерОК нет результата для этой заявки (index '.$index.')';
                     $failed[] = [
                         'order_id' => $orderId,
                         'reason' => $reason,
@@ -162,7 +162,7 @@ class VeterTicketSendService
             AuditLogService::ENTITY_VETER_TICKET,
             $orderId > 0 ? $orderId : null,
             AuditLogService::ACTION_FAILED,
-            'Ветер CreateTickets: заказ #'.$orderId.' — '.$reason,
+            'ветерОК CreateTickets: заказ #'.$orderId.' — '.$reason,
             [
                 'order_id' => $orderId,
                 'reason' => $reason,

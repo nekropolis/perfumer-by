@@ -28,7 +28,7 @@ class VeterTicketSendController extends Controller
                 AuditLogService::ENTITY_VETER_TICKET,
                 null,
                 AuditLogService::ACTION_FAILED,
-                'Ветер CreateTickets: сбой отправки — '.$e->getMessage(),
+                'ветерОК CreateTickets: сбой отправки — '.$e->getMessage(),
                 [
                     'order_ids' => $validated['order_ids'],
                     'reason' => $e->getMessage(),

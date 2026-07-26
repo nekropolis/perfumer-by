@@ -6,6 +6,7 @@ import type { OrderGiftCertificatePurchase, OrderItem } from "@/types/orders";
 import AdminOrderItemSuppliersModal from "@/components/admin/admin-order-item-suppliers-modal";
 import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 import CopyText from "@/components/ui/copy-text";
+import { lineItemProductTitle } from "@/lib/product-display-name";
 
 type Props = {
     items: OrderItem[];
@@ -33,6 +34,7 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                             const suppliersCount =
                                 (item.supplier_offers?.length ?? 0) +
                                 (item.receipt_batches?.length ?? 0);
+                            const productTitle = lineItemProductTitle(item) || "Товар";
 
                             return (
                                 <tr key={item.id} className="align-top">
@@ -42,10 +44,10 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                                 href={`/admin/products/${item.product_id}/edit`}
                                                 className="font-medium underline decoration-gray-300 underline-offset-2 hover:text-admin-text"
                                             >
-                                                {item.product_name}
+                                                {productTitle}
                                             </Link>
                                         ) : (
-                                            <span className="font-medium">{item.product_name}</span>
+                                            <span className="font-medium">{productTitle}</span>
                                         )}
                                         {item.variant_title && (
                                             <div className="mt-0.5 text-xs text-admin-text-secondary">

@@ -16,7 +16,7 @@ class NotifyOverdueDeliveryOrdersCommand extends Command
     protected $signature = 'orders:notify-overdue-delivery
         {--dry-run : Только показать просроченные заказы без Telegram}';
 
-    protected $description = 'Просроченная дата доставки (не done/cancelled): уведомление в Telegram';
+    protected $description = 'Просроченная дата отправки (не done/cancelled): уведомление в Telegram';
 
     public function handle(): int
     {
@@ -24,12 +24,12 @@ class NotifyOverdueDeliveryOrdersCommand extends Command
         $today = now('Europe/Minsk')->toDateString();
 
         $orders = Order::query()
-            ->whereNotNull('delivery_date')
-            ->whereDate('delivery_date', '<', $today)
+            ->whereNotNull('shipment_date')
+            ->whereDate('shipment_date', '<', $today)
             ->whereNotIn('status', ['done', 'cancelled', 'completed'])
-            ->orderBy('delivery_date')
+            ->orderBy('shipment_date')
             ->orderBy('id')
-            ->get(['id', 'customer_name', 'phone', 'status', 'delivery_date', 'delivery_city', 'total']);
+            ->get(['id', 'customer_name', 'phone', 'status', 'shipment_date', 'delivery_city', 'total']);
 
         if ($orders->isEmpty()) {
             $this->info("Просроченных заказов на {$today} нет.");
@@ -40,14 +40,14 @@ class NotifyOverdueDeliveryOrdersCommand extends Command
         $this->info("Найдено просроченных: {$orders->count()} (сегодня {$today}).");
 
         $lines = [
-            '⚠️ Просроченная дата доставки',
+            '⚠️ Просроченная дата отправки',
             "Сегодня: {$today}",
             'Заказов: '.$orders->count(),
             '',
         ];
 
         foreach ($orders->take(40) as $order) {
-            $date = $order->delivery_date?->format('d.m.Y') ?? '—';
+            $date = $order->shipment_date?->format('d.m.Y') ?? '—';
             $name = trim((string) ($order->customer_name ?? '')) ?: 'Без имени';
             $phone = trim((string) ($order->phone ?? '')) ?: '—';
             $city = trim((string) ($order->delivery_city ?? ''));

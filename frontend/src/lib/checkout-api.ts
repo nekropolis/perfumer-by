@@ -47,13 +47,13 @@ export type CheckoutShopSettings = {
     delivery_belarus_free_min_lines: number;
 };
 
-/** Ответ `GET /checkout/cities` (справочник городов Ветер). */
+/** Ответ `GET /checkout/cities` (справочник городов ветерОК). */
 export type CheckoutCityHit = {
     id: number;
     name: string;
     full_name: string;
     village_council_name: string | null;
-    /** Зона/маршрут доставки Ветер (не адм. область). */
+    /** Зона/маршрут доставки ветерОК (не адм. область). */
     zone_name: string | null;
     region_name: string | null;
     district_name: string | null;

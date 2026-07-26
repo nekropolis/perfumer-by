@@ -516,7 +516,7 @@ export default function AdminOrdersPage() {
         }
 
         const ok = window.confirm(
-            `Отправить в курьерскую службу Ветер ${candidateIds.length} заказ(ов)?\n#${candidateIds.join(", #")}`,
+            `Отправить в курьерскую службу ветерОК ${candidateIds.length} заказ(ов)?\n#${candidateIds.join(", #")}`,
         );
         if (!ok) {
             return;
@@ -563,7 +563,7 @@ export default function AdminOrdersPage() {
                     type: "success",
                     message:
                         response.message ||
-                        `Отправлено в Ветер: ${sent.length}` +
+                        `Отправлено в ветерОК: ${sent.length}` +
                             (skipped.length > 0 ? `, пропущено: ${skipped.length}` : ""),
                 });
                 return;
@@ -607,7 +607,7 @@ export default function AdminOrdersPage() {
             console.error(error);
             setToast({
                 type: "error",
-                message: error instanceof Error ? error.message : "Ошибка отправки в Ветер",
+                message: error instanceof Error ? error.message : "Ошибка отправки в ветерОК",
             });
         } finally {
             setVeterSending(false);
@@ -634,7 +634,7 @@ export default function AdminOrdersPage() {
                     type: "success",
                     message:
                         response.message ||
-                        `Статусы Ветер обновлены: ${updated.length}`,
+                        `Статусы ветерОК обновлены: ${updated.length}`,
                 });
             } else if (updated.length > 0) {
                 setToast({
@@ -676,7 +676,7 @@ export default function AdminOrdersPage() {
             setToast({
                 type: "error",
                 message:
-                    error instanceof Error ? error.message : "Ошибка обновления статусов Ветер",
+                    error instanceof Error ? error.message : "Ошибка обновления статусов ветерОК",
             });
         } finally {
             setVeterStatusSyncing(false);
@@ -898,16 +898,16 @@ export default function AdminOrdersPage() {
                                 type="button"
                                 onClick={() => dateFilterRef.current?.open()}
                                 className="inline-flex min-w-0 items-center gap-1.5 text-left transition hover:text-admin-primary"
-                                title="Изменить фильтр по дате доставки"
+                                title="Изменить фильтр по дате отправки"
                             >
-                                <span className="shrink-0 text-admin-text-secondary">Дата доставки:</span>
+                                <span className="shrink-0 text-admin-text-secondary">Дата отправки:</span>
                                 <span className="max-w-[16rem] truncate font-medium">{dateFilterSummary}</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={clearDateFilter}
                                 className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
-                                aria-label="Сбросить фильтр по дате доставки"
+                                aria-label="Сбросить фильтр по дате отправки"
                                 title="Сбросить"
                             >
                                 <X size={12} strokeWidth={2.5} />
@@ -938,7 +938,7 @@ export default function AdminOrdersPage() {
                     {ordersMeta.total === 0 ? (
                         <AdminEmptyState
                             title="Заказы не найдены"
-                            description="Попробуйте изменить поиск, статус или фильтр по дате доставки."
+                            description="Попробуйте изменить поиск, статус или фильтр по дате отправки."
                         />
                     ) : (
                         <div className="mt-4 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">

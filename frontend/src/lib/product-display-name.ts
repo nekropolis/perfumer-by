@@ -57,6 +57,36 @@ export function lineItemProductTitle(item: {
     return `${brand} ${name}`;
 }
 
+/** Заказы / админка: «бренд + название — вариант» одной строкой. */
+export function lineItemFullTitle(
+    item: {
+        product_name?: string | null;
+        brand_name?: string | null;
+        product_display_name?: string | null;
+        variant_title?: string | null;
+    },
+    fallback = "Товар",
+): string {
+    const title = lineItemProductTitle(item).trim() || fallback;
+    const variant = (item.variant_title ?? "").trim();
+    if (!variant) {
+        return title;
+    }
+
+    const lowerTitle = title.toLocaleLowerCase("ru");
+    const lowerVariant = variant.toLocaleLowerCase("ru");
+    if (
+        lowerTitle === lowerVariant
+        || lowerTitle.endsWith(` ${lowerVariant}`)
+        || lowerTitle.endsWith(`— ${lowerVariant}`)
+        || lowerTitle.endsWith(`- ${lowerVariant}`)
+    ) {
+        return title;
+    }
+
+    return `${title} — ${variant}`;
+}
+
 export function headerSearchProductTitle(item: {
     name: string;
     display_name?: string | null;
