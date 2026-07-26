@@ -4,12 +4,13 @@ import { useState } from "react";
 import type { ManualPriceReviewItem } from "@/lib/admin-pricing-api";
 
 const REASON_LABELS: Record<ManualPriceReviewItem["reason"], string> = {
-    no_receipt_supplier: "Нет поставщика в приходе",
+    no_receipt_supplier: "Нет поставщика",
     no_supplier_match: "Нет в прайсе поставщика",
     warehouse_not_lower: "Вход склад ≥ прайс",
 };
 
 type RowState = {
+    warehousePurchase: string;
     price: string;
     listOnStorefront: boolean;
 };
@@ -18,25 +19,82 @@ type Props = {
     items: ManualPriceReviewItem[];
     savingId: number | null;
     onSaveAction: (item: ManualPriceReviewItem, state: RowState) => Promise<void>;
+    onSaveWarehousePurchaseAction: (
+        item: ManualPriceReviewItem,
+        warehousePurchase: string,
+    ) => Promise<boolean>;
 };
 
-export default function ManualPriceReviewsTable({ items, savingId, onSaveAction }: Props) {
+const numberInputClassName =
+    "w-28 rounded-lg border px-2 py-1.5 text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+function defaultRowState(item: ManualPriceReviewItem): RowState {
+    return {
+        warehousePurchase: item.warehouse_purchase != null ? String(item.warehouse_purchase) : "",
+        price: item.manual_retail_price != null ? String(item.manual_retail_price) : "",
+        listOnStorefront: item.list_on_storefront,
+    };
+}
+
+function sameMoney(a: string | number | null | undefined, b: string): boolean {
+    const left = Number(a);
+    const right = Number(b);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) {
+        return String(a ?? "").trim() === b.trim();
+    }
+    return left === right;
+}
+
+export default function ManualPriceReviewsTable({
+    items,
+    savingId,
+    onSaveAction,
+    onSaveWarehousePurchaseAction,
+}: Props) {
     const [rowState, setRowState] = useState<Record<number, RowState>>(() => {
         const initial: Record<number, RowState> = {};
         for (const item of items) {
-            initial[item.id] = {
-                price: item.manual_retail_price != null ? String(item.manual_retail_price) : "",
-                listOnStorefront: item.list_on_storefront,
-            };
+            initial[item.id] = defaultRowState(item);
         }
         return initial;
     });
 
     const getState = (item: ManualPriceReviewItem): RowState =>
-        rowState[item.id] ?? {
-            price: item.manual_retail_price != null ? String(item.manual_retail_price) : "",
-            listOnStorefront: item.list_on_storefront,
+        rowState[item.id] ?? defaultRowState(item);
+
+    const handleWarehouseBlur = (
+        item: ManualPriceReviewItem,
+        state: RowState,
+        rawValue: string,
+    ) => {
+        const next = rawValue.trim();
+        const revert = () => {
+            setRowState((prev) => ({
+                ...prev,
+                [item.id]: {
+                    ...state,
+                    warehousePurchase:
+                        item.warehouse_purchase != null ? String(item.warehouse_purchase) : "",
+                },
+            }));
         };
+
+        if (next === "" || !Number.isFinite(Number(next)) || Number(next) < 0) {
+            revert();
+            return;
+        }
+
+        if (sameMoney(item.warehouse_purchase, next)) {
+            return;
+        }
+
+        void (async () => {
+            const ok = await onSaveWarehousePurchaseAction(item, next);
+            if (!ok) {
+                revert();
+            }
+        })();
+    };
 
     return (
         <div className="overflow-x-auto">
@@ -57,6 +115,7 @@ export default function ManualPriceReviewsTable({ items, savingId, onSaveAction 
                     {items.map((item) => {
                         const state = getState(item);
                         const code = item.supplier_external_code || item.supplier_sku || "—";
+                        const canSave = state.price.trim() !== "";
 
                         return (
                             <tr
@@ -85,7 +144,28 @@ export default function ManualPriceReviewsTable({ items, savingId, onSaveAction 
                                 <td className="px-3 py-3 text-admin-text-secondary">
                                     {REASON_LABELS[item.reason]}
                                 </td>
-                                <td className="px-3 py-3 text-admin-text">{item.warehouse_purchase}</td>
+                                <td className="px-3 py-3">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={state.warehousePurchase}
+                                        disabled={savingId === item.id}
+                                        onChange={(e) =>
+                                            setRowState((prev) => ({
+                                                ...prev,
+                                                [item.id]: {
+                                                    ...state,
+                                                    warehousePurchase: e.target.value,
+                                                },
+                                            }))
+                                        }
+                                        onBlur={(e) =>
+                                            handleWarehouseBlur(item, state, e.target.value)
+                                        }
+                                        className={numberInputClassName}
+                                    />
+                                </td>
                                 <td className="px-3 py-3 text-admin-text">{item.supplier_purchase ?? "—"}</td>
                                 <td className="px-3 py-3 text-admin-text-secondary">{code}</td>
                                 <td className="px-3 py-3">
@@ -100,13 +180,13 @@ export default function ManualPriceReviewsTable({ items, savingId, onSaveAction 
                                                 [item.id]: { ...state, price: e.target.value },
                                             }))
                                         }
-                                        className="w-28 rounded-lg border px-2 py-1.5 text-sm"
+                                        className={numberInputClassName}
                                     />
                                 </td>
                                 <td className="px-3 py-3 text-right">
                                     <button
                                         type="button"
-                                        disabled={savingId === item.id || state.price.trim() === ""}
+                                        disabled={savingId === item.id || !canSave}
                                         onClick={() => void onSaveAction(item, state)}
                                         className="rounded-lg border border-admin-border px-3 py-1.5 text-sm hover:bg-admin-muted disabled:opacity-50"
                                     >

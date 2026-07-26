@@ -29,6 +29,7 @@ class ProductVariantLink extends Model
         'variant_definition_id',
         'price',
         'old_price',
+        'wholesale_price',
         'stock',
         'reserved_stock',
         'is_preorder',
@@ -40,6 +41,7 @@ class ProductVariantLink extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'old_price' => 'decimal:2',
+        'wholesale_price' => 'decimal:2',
         'reserved_stock' => 'integer',
         'is_preorder' => 'boolean',
         'is_active' => 'boolean',

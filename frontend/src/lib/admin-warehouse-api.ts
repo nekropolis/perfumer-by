@@ -265,6 +265,7 @@ export type StockBalanceItem = {
     reserved_stock: number;
     available_stock: number;
     price?: string | number | null;
+    wholesale_price?: string | number | null;
     is_active: boolean;
 };
 
@@ -273,6 +274,13 @@ export type StockBalancesResponse = {
     current_page: number;
     last_page: number;
     total: number;
+    last_wholesale_calculated_at?: string | null;
+};
+
+export type WholesaleRecalculateResponse = {
+    updated: number;
+    skipped: number;
+    last_calculated_at: string;
 };
 
 export type StockReportReceiptsResponse = {
@@ -835,6 +843,50 @@ export async function fetchStockBalances(params?: {
     }
 
     return res.json();
+}
+
+export async function recalculateStockWholesalePrices(): Promise<WholesaleRecalculateResponse> {
+    const res = await fetch(`${API_BASE}/admin/stock/balances/wholesale/recalculate`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Wholesale recalculate API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function exportStockWholesalePriceList(): Promise<void> {
+    const res = await fetch(`${API_BASE}/admin/stock/balances/wholesale/export`, {
+        method: "POST",
+        headers: getAdminAuthHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Wholesale export API error: ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
+    const filename = match?.[1]
+        ? decodeURIComponent(match[1].replace(/"/g, "").trim())
+        : `wholesale-price-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.xlsx`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 export type StockBalanceVariantSupplierRow = {

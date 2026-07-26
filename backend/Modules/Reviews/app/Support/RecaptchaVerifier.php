@@ -12,7 +12,7 @@ final class RecaptchaVerifier
             return false;
         }
 
-        return filter_var(env('REVIEWS_RECAPTCHA_ENABLED', true), FILTER_VALIDATE_BOOLEAN);
+        return (bool) config('recaptcha.reviews.enabled', true);
     }
 
     public function verify(string $token, string $ip): bool
@@ -44,14 +44,14 @@ final class RecaptchaVerifier
                 return false;
             }
 
-            $expectedAction = (string) env('REVIEWS_RECAPTCHA_ACTION', 'submit_review');
+            $expectedAction = (string) config('recaptcha.reviews.action', 'submit_review');
             $action = (string) ($payload['action'] ?? '');
             if ($expectedAction !== '' && $action !== '' && $action !== $expectedAction) {
                 return false;
             }
 
             $score = (float) ($payload['score'] ?? 0);
-            $minScore = (float) env('RECAPTCHA_MIN_SCORE', 0.5);
+            $minScore = (float) config('recaptcha.min_score', 0.5);
 
             return $score >= $minScore;
         } catch (\Throwable) {
@@ -61,6 +61,6 @@ final class RecaptchaVerifier
 
     private function secret(): string
     {
-        return (string) env('RECAPTCHA_SECRET_KEY', '');
+        return (string) config('recaptcha.secret_key', '');
     }
 }

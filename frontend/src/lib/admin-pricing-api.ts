@@ -238,9 +238,14 @@ export type ManualPriceReviewItem = {
     receipt_supplier?: { id: number; name: string; code: string } | null;
 };
 
-export async function fetchManualPriceReviews(params?: { page?: number; search?: string }) {
+export async function fetchManualPriceReviews(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+}) {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
+    if (params?.per_page) query.set("per_page", String(params.per_page));
     if (params?.search) query.set("search", params.search);
 
     const res = await fetch(`${API_BASE}/admin/pricing/manual-reviews?${query}`, {
@@ -253,6 +258,7 @@ export async function fetchManualPriceReviews(params?: { page?: number; search?:
         current_page: number;
         last_page: number;
         total: number;
+        per_page: number;
     }>;
 }
 
@@ -267,7 +273,11 @@ export async function fetchManualPriceReviewStats() {
 
 export async function saveManualPriceReview(
     id: number,
-    payload: { manual_retail_price: number; list_on_storefront: boolean },
+    payload: {
+        manual_retail_price?: number;
+        warehouse_purchase?: number;
+        list_on_storefront?: boolean;
+    },
 ) {
     const res = await fetch(`${API_BASE}/admin/pricing/manual-reviews/${id}`, {
         method: "PATCH",

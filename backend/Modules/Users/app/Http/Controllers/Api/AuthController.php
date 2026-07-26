@@ -697,7 +697,7 @@ class AuthController extends Controller
         $ip = $request->ip() ?: 'unknown';
 
         $cooldownKey = "auth:otp:cooldown:phone:{$phone}";
-        $cooldownSeconds = (int) env('AUTH_OTP_RESEND_COOLDOWN_SECONDS', 60);
+        $cooldownSeconds = (int) config('auth.otp.resend_cooldown_seconds', 60);
         if (Cache::has($cooldownKey)) {
             $this->apiError(429, "Подождите {$cooldownSeconds} сек перед повторной отправкой кода.", 'auth.otp.request.cooldown');
         }
@@ -705,26 +705,26 @@ class AuthController extends Controller
         $captchaVerified = $this->verifyCaptchaFromRequest($request, $ip);
 
         if (! $captchaVerified) {
-            $phoneLimit15m = (int) env('AUTH_OTP_PHONE_LIMIT_15M', 3);
+            $phoneLimit15m = (int) config('auth.otp.phone_limit_15m', 3);
             $phoneCount15m = (int) Cache::get("auth:otp:req:phone:15m:{$phone}", 0);
-            $captchaEnabled = (bool) env('AUTH_OTP_CAPTCHA_ENABLED', false);
+            $captchaEnabled = (bool) config('auth.otp.captcha_enabled', false);
             if (! $captchaEnabled && $phoneLimit15m > 0 && $phoneCount15m >= $phoneLimit15m) {
                 $this->apiError(429, 'Превышен лимит запросов кода для номера. Попробуйте позже.', 'auth.otp.request.phone_limit_15m');
             }
 
-            $phoneLimitDay = (int) env('AUTH_OTP_PHONE_LIMIT_DAY', 8);
+            $phoneLimitDay = (int) config('auth.otp.phone_limit_day', 8);
             $phoneCountDay = (int) Cache::get("auth:otp:req:phone:day:{$phone}", 0);
             if ($phoneCountDay >= $phoneLimitDay) {
                 $this->apiError(429, 'Суточный лимит запросов кода для номера исчерпан.', 'auth.otp.request.phone_limit_day');
             }
 
-            $ipLimit15m = (int) env('AUTH_OTP_IP_LIMIT_15M', 10);
+            $ipLimit15m = (int) config('auth.otp.ip_limit_15m', 10);
             $ipCount15m = (int) Cache::get("auth:otp:req:ip:15m:{$ip}", 0);
             if ($ipCount15m >= $ipLimit15m) {
                 $this->apiError(429, 'Превышен лимит запросов кода с вашего IP.', 'auth.otp.request.ip_limit_15m');
             }
 
-            $ipPhoneLimit15m = (int) env('AUTH_OTP_IP_PHONE_LIMIT_15M', 3);
+            $ipPhoneLimit15m = (int) config('auth.otp.ip_phone_limit_15m', 3);
             $ipPhoneCount15m = (int) Cache::get("auth:otp:req:ip_phone:15m:{$ip}:{$phone}", 0);
             if ($ipPhoneCount15m >= $ipPhoneLimit15m) {
                 $this->apiError(429, 'Слишком много попыток для номера с этого IP.', 'auth.otp.request.ip_phone_limit_15m');
@@ -738,9 +738,9 @@ class AuthController extends Controller
 
     protected function ensureLoginCaptchaIfNeeded(Request $request, string $ip, string $phone): void
     {
-        $always = (bool) env('AUTH_LOGIN_CAPTCHA_ENABLED', env('AUTH_OTP_CAPTCHA_ENABLED', false));
+        $always = (bool) config('auth.login_captcha.enabled', false);
         $failures = (int) Cache::get("auth:login:fails:{$ip}:{$phone}", 0);
-        $triggerFailures = (int) env('AUTH_LOGIN_CAPTCHA_TRIGGER_FAILURES', 2);
+        $triggerFailures = (int) config('auth.login_captcha.trigger_failures', 2);
 
         if (! $always && $failures < $triggerFailures) {
             return;
@@ -779,7 +779,7 @@ class AuthController extends Controller
     protected function markRequestCodeSent(Request $request, string $phone): void
     {
         $ip = $request->ip() ?: 'unknown';
-        $cooldownSeconds = (int) env('AUTH_OTP_RESEND_COOLDOWN_SECONDS', 60);
+        $cooldownSeconds = (int) config('auth.otp.resend_cooldown_seconds', 60);
 
         $this->incrementWithTtl("auth:otp:req:phone:15m:{$phone}", 900);
         $this->incrementWithTtl("auth:otp:req:phone:day:{$phone}", $this->secondsUntilDayEnd());
@@ -799,8 +799,8 @@ class AuthController extends Controller
 
     protected function markVerifyFailed(string $phone): void
     {
-        $maxAttempts = (int) env('AUTH_OTP_VERIFY_MAX_ATTEMPTS', 5);
-        $blockSeconds = (int) env('AUTH_OTP_VERIFY_BLOCK_SECONDS', 1800);
+        $maxAttempts = (int) config('auth.otp.verify_max_attempts', 5);
+        $blockSeconds = (int) config('auth.otp.verify_block_seconds', 1800);
 
         $attempts = $this->incrementWithTtl("auth:otp:verify:fails:{$phone}", 900);
         if ($attempts >= $maxAttempts) {
@@ -833,12 +833,12 @@ class AuthController extends Controller
 
     protected function isCaptchaRequired(string $ip, string $phone): bool
     {
-        if (!(bool) env('AUTH_OTP_CAPTCHA_ENABLED', false)) {
+        if (! (bool) config('auth.otp.captcha_enabled', false)) {
             return false;
         }
 
-        $ipTrigger = (int) env('AUTH_OTP_CAPTCHA_TRIGGER_IP_ATTEMPTS', 3);
-        $ipPhoneTrigger = (int) env('AUTH_OTP_CAPTCHA_TRIGGER_IP_PHONE_ATTEMPTS', 2);
+        $ipTrigger = (int) config('auth.otp.captcha_trigger_ip_attempts', 3);
+        $ipPhoneTrigger = (int) config('auth.otp.captcha_trigger_ip_phone_attempts', 2);
 
         $ipCount15m = (int) Cache::get("auth:otp:req:ip:15m:{$ip}", 0);
         $ipPhoneCount15m = (int) Cache::get("auth:otp:req:ip_phone:15m:{$ip}:{$phone}", 0);
@@ -848,7 +848,7 @@ class AuthController extends Controller
 
     protected function verifyRecaptchaToken(string $token, string $ip): bool
     {
-        $secret = (string) env('RECAPTCHA_SECRET_KEY', '');
+        $secret = (string) config('recaptcha.secret_key', '');
         if ($secret === '') {
             return false;
         }
@@ -876,7 +876,7 @@ class AuthController extends Controller
             }
 
             $score = (float) ($payload['score'] ?? 0);
-            $minScore = (float) env('RECAPTCHA_MIN_SCORE', 0.5);
+            $minScore = (float) config('recaptcha.min_score', 0.5);
 
             return $score >= $minScore;
         } catch (\Throwable) {

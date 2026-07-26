@@ -11,6 +11,8 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock')->group(fu
     Route::get('/warehouses/options', [StockReceiptController::class, 'warehouses']);
     Route::get('/balances', [StockBalanceController::class, 'index']);
     Route::get('/balances/variant-suppliers', [StockBalanceController::class, 'variantSuppliers']);
+    Route::post('/balances/wholesale/recalculate', [StockBalanceController::class, 'recalculateWholesale']);
+    Route::post('/balances/wholesale/export', [StockBalanceController::class, 'exportWholesale']);
 
     Route::prefix('receipts')->group(function () {
         Route::get('/', [StockReceiptController::class, 'index']);

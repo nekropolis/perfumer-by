@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ChangeEvent, ReactNode, TextareaHTMLAttributes } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -155,6 +155,40 @@ type OrderLine = {
 
 function digitsOnly(s: string): string {
   return s.replace(/\D+/g, "");
+}
+
+function AutoGrowTextarea({
+  value,
+  onChange,
+  className,
+  minRows = 2,
+  ...rest
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange" | "rows"> & {
+  value: string;
+  onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+  minRows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      {...rest}
+      ref={ref}
+      value={value}
+      rows={minRows}
+      onChange={onChange}
+      className={`resize-none overflow-hidden ${className ?? ""}`}
+    />
+  );
 }
 
 const PHONE_PREFIX = "375";
@@ -1194,17 +1228,28 @@ export default function AdminOrderCreateForm({
   const paymentMethodLabel =
     PAYMENT_OPTIONS.find((opt) => opt.value === paymentMethod)?.label ?? paymentMethod;
 
-  const discountCardConfirmed = Boolean(
-    appliedDiscountCardNumber.trim() &&
-    orderQuote?.discount_card_number?.trim() &&
-    orderQuote.discount_card_number.trim() === appliedDiscountCardNumber.trim(),
-  );
-
   const giftCertificateConfirmed = Boolean(
     appliedGiftCertificateCode.trim() &&
     orderQuote?.gift_certificate_code?.trim() &&
     orderQuote.gift_certificate_code.trim() === appliedGiftCertificateCode.trim(),
   );
+
+  const discountCardNumberDisplay = appliedDiscountCardNumber.trim();
+  const discountCardMatchesInitial =
+    discountCardNumberDisplay !== "" &&
+    discountCardNumberDisplay === (initialOrder?.discount_card_number?.trim() ?? "");
+  const discountPercentDisplay =
+    orderQuote?.loyalty_discount_percent ??
+    (discountCardMatchesInitial ? initialOrder?.discount_percent_snapshot : undefined) ??
+    "0.00";
+  const discountAmountDisplay =
+    orderQuote?.loyalty_discount_amount ??
+    (discountCardMatchesInitial ? initialOrder?.discount_amount : undefined) ??
+    "0.00";
+  const hasDiscountCardDisplay =
+    discountCardNumberDisplay !== "" ||
+    parseQuoteMoney(discountPercentDisplay) > 0.004 ||
+    parseQuoteMoney(discountAmountDisplay) > 0.004;
 
   const applyDiscountCardToOrder = useCallback(
     async (cardNumber: string) => {
@@ -2822,78 +2867,76 @@ export default function AdminOrderCreateForm({
             <div className="grid gap-4 border-t border-admin-border/80 pt-4 sm:grid-cols-2 sm:items-start">
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-admin-text">Скидочная карта</h3>
-                {itemsLocked ? (
-                  <div className="rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text">
-                    {initialOrder?.discount_card_number ? (
-                      <>
-                        Карта{" "}
-                        <span className="font-mono font-medium text-admin-text">{initialOrder.discount_card_number}</span>
-                        {parseQuoteMoney(initialOrder.discount_amount) > 0.004 ? (
-                          <>
-                            {" "}
-                            · скидка {initialOrder.discount_percent_snapshot}% (−{initialOrder.discount_amount} руб.)
-                          </>
-                        ) : (
-                          <span className="text-admin-text-secondary"> · скидка не применялась</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-admin-text-secondary">Карта не применялась</span>
-                    )}
+                {hasDiscountCardDisplay ? (
+                  <div className="relative rounded-2xl border border-admin-border bg-admin-muted/70 p-3">
+                    {!itemsLocked ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiscountCardInput("");
+                          setAppliedDiscountCardNumber("");
+                          setDiscountCardError("");
+                          setDiscountCardManuallyCleared(true);
+                        }}
+                        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-text"
+                        aria-label="Убрать карту"
+                        title="Убрать карту"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                    <div className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${itemsLocked ? "" : "pr-7"}`}>
+                      <div className="min-w-0">
+                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
+                          Номер карты
+                        </div>
+                        <div className="break-words font-mono text-[13px] font-medium text-admin-text">
+                          {discountCardNumberDisplay || "—"}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
+                          % скидки
+                        </div>
+                        <div className="text-[13px] font-medium text-admin-text">{discountPercentDisplay}%</div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
+                          Сумма скидки
+                        </div>
+                        <div className="text-[13px] font-medium text-admin-text">
+                          {discountAmountDisplay} руб.
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : (
+                ) : itemsLocked ? (
+                  <div className="text-[13px] text-admin-text-secondary">Не применялась</div>
+                ) : null}
+                {!itemsLocked && !discountCardNumberDisplay ? (
                   <>
-                    {discountCardConfirmed ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm">
-                        <span>
-                          Применена{" "}
-                          <span className="font-mono font-medium text-admin-text">{appliedDiscountCardNumber}</span>
-                          {hasLoyaltyDiscount ? (
-                            <span className="text-emerald-800">
-                              {" "}
-                              · {loyaltyPercentStr}% (−{loyaltyDiscountStr} руб.)
-                            </span>
-                          ) : paymentMethod === "card" ? (
-                            <span className="text-admin-text-secondary"> · при оплате картой скидка не действует</span>
-                          ) : null}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-emerald-200 bg-admin-surface px-2 py-1 text-xs font-medium text-admin-text hover:bg-emerald-50"
-                          onClick={() => {
-                            setDiscountCardInput("");
+                    <div className="flex gap-2">
+                      <input
+                        value={discountCardInput}
+                        onChange={(e) => {
+                          setDiscountCardInput(e.target.value);
+                          setDiscountCardError("");
+                          if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
                             setAppliedDiscountCardNumber("");
-                            setDiscountCardError("");
-                            setDiscountCardManuallyCleared(true);
-                          }}
-                        >
-                          Убрать
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <input
-                          value={discountCardInput}
-                          onChange={(e) => {
-                            setDiscountCardInput(e.target.value);
-                            setDiscountCardError("");
-                            if (appliedDiscountCardNumber && e.target.value.trim() !== appliedDiscountCardNumber) {
-                              setAppliedDiscountCardNumber("");
-                            }
-                          }}
-                          placeholder="Номер скидочной карты"
-                          className={`min-w-0 flex-1 ${surfaceFieldClass}`}
-                        />
-                        <button
-                          type="button"
-                          disabled={!discountCardInput.trim() || orderQuoteLoading}
-                          onClick={() => void applyDiscountCardToOrder(discountCardInput)}
-                          className="h-9 shrink-0 rounded-lg border border-admin-border bg-admin-surface px-2.5 text-xs font-medium disabled:opacity-40"
-                        >
-                          {orderQuoteLoading ? "…" : "Ок"}
-                        </button>
-                      </div>
-                    )}
+                          }
+                        }}
+                        placeholder="Номер скидочной карты"
+                        className={`min-w-0 flex-1 ${surfaceFieldClass}`}
+                      />
+                      <button
+                        type="button"
+                        disabled={!discountCardInput.trim() || orderQuoteLoading}
+                        onClick={() => void applyDiscountCardToOrder(discountCardInput)}
+                        className="h-9 shrink-0 rounded-lg border border-admin-border bg-admin-surface px-2.5 text-xs font-medium disabled:opacity-40"
+                      >
+                        {orderQuoteLoading ? "…" : "Ок"}
+                      </button>
+                    </div>
                     {context?.discount_cards.length ? (
                       <div className="flex flex-wrap gap-2">
                         {context.discount_cards.map((card) => (
@@ -2918,7 +2961,13 @@ export default function AdminOrderCreateForm({
                       начисляется.
                     </p>
                   </>
-                )}
+                ) : null}
+                {!itemsLocked && discountCardNumberDisplay && discountCardError ? (
+                  <p className="text-xs text-red-600">{discountCardError}</p>
+                ) : null}
+                {!itemsLocked && discountCardNumberDisplay && orderQuoteLoading ? (
+                  <p className="text-xs text-admin-text-secondary">Пересчёт скидки…</p>
+                ) : null}
               </div>
 
               <div className="space-y-3 border-t border-admin-border/80 pt-4 sm:border-t-0 sm:pt-0">
@@ -3010,10 +3059,10 @@ export default function AdminOrderCreateForm({
         <label className="block text-sm text-admin-text-secondary">
           Комментарий менеджера
           <span className="ml-1 text-xs font-normal text-admin-text-secondary/80">(только в админке)</span>
-          <textarea
+          <AutoGrowTextarea
             value={managerComment}
             onChange={(e) => setManagerComment(e.target.value)}
-            rows={2}
+            minRows={2}
             className={`mt-1 ${surfaceFieldClass}`}
             placeholder="Внутренняя заметка для менеджеров…"
           />

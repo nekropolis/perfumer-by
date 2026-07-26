@@ -23,6 +23,7 @@ import type { OrderTag } from "@/lib/admin-order-tags-api";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
+import { telHref } from "@/lib/site-contact";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -306,6 +307,7 @@ function AdminOrderClientPhoneCell({
 }) {
     const clientName = name?.trim() || "—";
     const phoneText = phone?.trim() || "—";
+    const callHref = phoneText !== "—" ? telHref(phoneText) : "";
     const hasContent = clientName !== "—" || phoneText !== "—";
 
     const showTooltip = (element: HTMLElement) => {
@@ -326,17 +328,28 @@ function AdminOrderClientPhoneCell({
 
     return (
         <div
-            className="min-w-0 leading-tight"
+            className="leading-tight whitespace-nowrap lg:min-w-0 lg:whitespace-normal"
             tabIndex={hasContent ? 0 : undefined}
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
         >
-            <div className="truncate font-semibold text-admin-text" data-truncate-check>
-                {highlightQueryInText(phoneText, searchQuery)}
-            </div>
-            <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
+            {callHref ? (
+                <a
+                    href={callHref}
+                    className="block font-semibold text-admin-text underline-offset-2 hover:underline lg:truncate lg:pointer-events-none lg:no-underline"
+                    data-truncate-check
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    {highlightQueryInText(phoneText, searchQuery)}
+                </a>
+            ) : (
+                <div className="font-semibold text-admin-text lg:truncate" data-truncate-check>
+                    {highlightQueryInText(phoneText, searchQuery)}
+                </div>
+            )}
+            <div className="text-[10px] text-admin-text-secondary lg:truncate" data-truncate-check>
                 {highlightQueryInText(clientName, searchQuery)}
             </div>
         </div>
@@ -541,17 +554,17 @@ function AdminOrderAddressCell({
 
     return (
         <div
-            className="min-w-0 leading-tight"
+            className="leading-tight whitespace-nowrap lg:min-w-0 lg:whitespace-normal"
             tabIndex={hasAddress ? 0 : undefined}
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
         >
-            <div className="truncate font-medium text-admin-text" data-truncate-check>
+            <div className="font-medium text-admin-text lg:truncate" data-truncate-check>
                 {cityLine}
             </div>
-            <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
+            <div className="text-[10px] text-admin-text-secondary lg:truncate" data-truncate-check>
                 {addressLine}
             </div>
         </div>
@@ -1227,14 +1240,14 @@ export default function AdminOrdersTable({
     return (
         <>
             <div className="overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
-                <div className="overflow-x-auto">
-                <table className="w-full min-w-[60rem] table-fixed border-collapse text-[13px]">
+                <div className="overflow-x-auto lg:overflow-x-hidden">
+                <table className="w-max min-w-full border-collapse text-[13px] lg:w-full lg:table-fixed">
                     <colgroup>
                         <col className="w-9" />
                         <col className="w-[7.25rem]" />
                         <col className="w-[7.75rem]" />
-                        <col />
-                        <col />
+                        <col className="w-[11.5rem] lg:w-auto" />
+                        <col className="w-[16rem] lg:w-auto" />
                         <col className="w-[4.5rem]" />
                         <col className="w-[6.5rem]" />
                         <col className="w-[8.5rem]" />
@@ -1332,7 +1345,7 @@ export default function AdminOrdersTable({
                                         onErrorAction={onErrorMessageAction}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 lg:whitespace-normal">
                                     <AdminOrderClientPhoneCell
                                         name={order.customer_name}
                                         phone={order.phone}
@@ -1341,7 +1354,7 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 lg:whitespace-normal">
                                     <AdminOrderAddressCell
                                         city={order.delivery_city}
                                         address={order.delivery_address}

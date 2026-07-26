@@ -17,8 +17,12 @@ import {
     type ManualPriceReviewItem,
 } from "@/lib/admin-pricing-api";
 
+const PER_PAGE_OPTIONS = [25, 50, 100, 2000] as const;
+const PER_PAGE_ALL = 2000;
+
 export default function AdminManualPriceReviewsPage() {
     const [page, setPage] = useUrlPage();
+    const [perPage, setPerPage] = useState<(typeof PER_PAGE_OPTIONS)[number]>(25);
     const [searchInput, setSearchInput] = useState("");
     const debouncedSearch = useDebouncedValue(searchInput, 400);
     const [items, setItems] = useState<ManualPriceReviewItem[]>([]);
@@ -28,18 +32,23 @@ export default function AdminManualPriceReviewsPage() {
     const [success, setSuccess] = useState("");
     const [savingId, setSavingId] = useState<number | null>(null);
 
-    useResetPageOnChange(setPage, [debouncedSearch]);
+    useResetPageOnChange(setPage, [debouncedSearch, perPage]);
 
-    const loadItems = useCallback(async (targetPage: number, search: string) => {
+    const loadItems = useCallback(async (targetPage: number, search: string, targetPerPage: number) => {
         setLoading(true);
         setError("");
         try {
             const res = await fetchManualPriceReviews({
                 page: targetPage,
+                per_page: targetPerPage,
                 search: search.trim() || undefined,
             });
             setItems(res.data || []);
-            setMeta(res);
+            setMeta({
+                current_page: res.current_page,
+                last_page: res.last_page,
+                total: res.total,
+            });
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка загрузки");
         } finally {
@@ -48,12 +57,12 @@ export default function AdminManualPriceReviewsPage() {
     }, []);
 
     useEffect(() => {
-        void loadItems(page, debouncedSearch);
-    }, [loadItems, page, debouncedSearch]);
+        void loadItems(page, debouncedSearch, perPage);
+    }, [loadItems, page, debouncedSearch, perPage]);
 
     const handleSave = async (
         item: ManualPriceReviewItem,
-        state: { price: string; listOnStorefront: boolean },
+        state: { warehousePurchase: string; price: string; listOnStorefront: boolean },
     ) => {
         setSavingId(item.id);
         setError("");
@@ -63,9 +72,32 @@ export default function AdminManualPriceReviewsPage() {
                 list_on_storefront: state.listOnStorefront,
             });
             setSuccess("Цена сохранена");
-            await loadItems(page, debouncedSearch);
+            await loadItems(page, debouncedSearch, perPage);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка сохранения");
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    const handleSaveWarehousePurchase = async (
+        item: ManualPriceReviewItem,
+        warehousePurchase: string,
+    ): Promise<boolean> => {
+        setSavingId(item.id);
+        setError("");
+        try {
+            const res = await saveManualPriceReview(item.id, {
+                warehouse_purchase: Number(warehousePurchase),
+            });
+            setItems((prev) =>
+                prev.map((row) => (row.id === item.id ? { ...row, ...res.data } : row)),
+            );
+            setSuccess("Входная цена сохранена");
+            return true;
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка сохранения входной цены");
+            return false;
         } finally {
             setSavingId(null);
         }
@@ -83,6 +115,7 @@ export default function AdminManualPriceReviewsPage() {
                     </p>
                     <p className="mt-1 text-sm text-admin-text-secondary">
                         Чекбокс «В наличии» включает вариант на витрине (<code className="text-xs">is_active</code>).
+                        Смена «Вход склад» также обновляет цену в последнем проведённом приходе.
                     </p>
                 </div>
 
@@ -99,16 +132,37 @@ export default function AdminManualPriceReviewsPage() {
                         />
                     }
                     footer={
-                        meta && meta.last_page > 1 ? (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                            <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
+                                На странице
+                                <select
+                                    value={perPage}
+                                    onChange={(e) => {
+                                        const v = Number(e.target.value);
+                                        if (v === 25 || v === 50 || v === 100 || v === PER_PAGE_ALL) {
+                                            setPerPage(v);
+                                        }
+                                    }}
+                                    className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
+                                >
+                                    {PER_PAGE_OPTIONS.map((n) => (
+                                        <option key={n} value={n}>
+                                            {n === PER_PAGE_ALL ? "Все" : n}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
                             <AdminPagination
-                                currentPage={meta.current_page ?? page}
-                                lastPage={meta.last_page}
+                                currentPage={meta?.current_page ?? page}
+                                lastPage={meta?.last_page ?? 1}
                                 onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
                                 onNextAction={() =>
-                                    setPage((p) => (meta.current_page < meta.last_page ? p + 1 : p))
+                                    setPage((p) =>
+                                        meta && meta.current_page < meta.last_page ? p + 1 : p,
+                                    )
                                 }
                             />
-                        ) : null
+                        </div>
                     }
                 >
                     {loading && items.length === 0 ? (
@@ -123,6 +177,7 @@ export default function AdminManualPriceReviewsPage() {
                             items={items}
                             savingId={savingId}
                             onSaveAction={handleSave}
+                            onSaveWarehousePurchaseAction={handleSaveWarehousePurchase}
                         />
                     )}
                 </AdminTableShell>

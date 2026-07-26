@@ -17,18 +17,68 @@ import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import {
+    exportStockWholesalePriceList,
     fetchStockBalances,
     fetchStockBalanceVariantSuppliers,
     fetchWarehouses,
+    recalculateStockWholesalePrices,
     type StockBalanceItem,
     type StockBalanceVariantSupplierRow,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
 
-const PER_PAGE_OPTIONS = [25, 50, 100] as const;
+const PER_PAGE_OPTIONS = [25, 50, 100, 2000] as const;
+const PER_PAGE_ALL = 2000;
 type SortColumn = "stock" | "reserved";
 type SortDir = "asc" | "desc";
 type TableSort = { column: SortColumn; dir: SortDir } | null;
+
+function moneyToCents(raw: string | number | null | undefined): number | null {
+    if (raw == null) {
+        return null;
+    }
+    const normalized = String(raw)
+        .trim()
+        .replace(/\u00a0/g, "")
+        .replace(/\s/g, "")
+        .replace(",", ".");
+    if (!/^-?\d+(\.\d{1,2})?$/.test(normalized)) {
+        return null;
+    }
+    const negative = normalized.startsWith("-");
+    const abs = negative ? normalized.slice(1) : normalized;
+    const [rubles, cents = ""] = abs.split(".");
+    const value = Number(rubles) * 100 + Number(cents.padEnd(2, "0"));
+    return negative ? -value : value;
+}
+
+function centsToMoneyLabel(cents: number): string {
+    const negative = cents < 0;
+    const abs = Math.abs(cents);
+    const rubles = Math.floor(abs / 100);
+    const frac = String(abs % 100).padStart(2, "0");
+    return `${negative ? "-" : ""}${rubles}.${frac}`;
+}
+
+/** Итого по строке: цена за единицу × кол-во (в копейках). */
+function lineTotalLabel(price: string | number | null | undefined, qty: number): string | null {
+    const cents = moneyToCents(price);
+    if (cents == null) {
+        return null;
+    }
+    return centsToMoneyLabel(cents * Math.max(0, qty));
+}
+
+function formatWholesaleCalculatedAt(value?: string | null): string {
+    if (!value) {
+        return "ещё не считали";
+    }
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) {
+        return value;
+    }
+    return dt.toLocaleString("ru-RU");
+}
 
 function sortTitle(column: SortColumn, active: TableSort): string {
     const label = column === "stock" ? "количеству" : "резерву";
@@ -82,7 +132,9 @@ export default function AdminWarehouseBalancesPage() {
 
     const [items, setItems] = useState<StockBalanceItem[]>([]);
     const [meta, setMeta] = useState<{ current_page: number; last_page: number; total: number } | null>(null);
+    const [lastWholesaleCalculatedAt, setLastWholesaleCalculatedAt] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [wholesaleBusy, setWholesaleBusy] = useState(false);
     const [error, setError] = useState("");
     const [page, setPage] = useUrlPage();
     const [perPage, setPerPage] = useState<(typeof PER_PAGE_OPTIONS)[number]>(25);
@@ -128,6 +180,7 @@ export default function AdminWarehouseBalancesPage() {
                 last_page: response.last_page,
                 total: response.total,
             });
+            setLastWholesaleCalculatedAt(response.last_wholesale_calculated_at ?? null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Не удалось загрузить остатки");
             setItems([]);
@@ -175,6 +228,33 @@ export default function AdminWarehouseBalancesPage() {
         setSuppliersTarget(item);
         setSupplierRows([]);
         setSuppliersError("");
+    };
+
+    const handleRecalculateWholesale = async () => {
+        setWholesaleBusy(true);
+        setError("");
+        try {
+            const result = await recalculateStockWholesalePrices();
+            setLastWholesaleCalculatedAt(result.last_calculated_at);
+            await loadItems(page, debouncedSearch, stockState, warehouseId, perPage, tableSort);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось рассчитать цену опт.");
+        } finally {
+            setWholesaleBusy(false);
+        }
+    };
+
+    const handleExportWholesale = async () => {
+        setWholesaleBusy(true);
+        setError("");
+        try {
+            await exportStockWholesalePriceList();
+            await loadItems(page, debouncedSearch, stockState, warehouseId, perPage, tableSort);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось выгрузить прайс");
+        } finally {
+            setWholesaleBusy(false);
+        }
     };
 
     useEffect(() => {
@@ -226,6 +306,31 @@ export default function AdminWarehouseBalancesPage() {
             <AdminTableToolbar
                 title="Склад: остатки"
                 description="Физический остаток, резерв и доступное количество по вариантам."
+                action={
+                    <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={wholesaleBusy}
+                                onClick={() => void handleRecalculateWholesale()}
+                                className="rounded-lg border border-admin-border bg-white px-3 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-60"
+                            >
+                                {wholesaleBusy ? "Считаем…" : "Рассчитать цену опт."}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={wholesaleBusy}
+                                onClick={() => void handleExportWholesale()}
+                                className="rounded-lg border border-admin-border bg-white px-3 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-60"
+                            >
+                                Выгрузить прайс
+                            </button>
+                        </div>
+                        <div className="text-xs text-admin-text-secondary">
+                            Последний расчёт: {formatWholesaleCalculatedAt(lastWholesaleCalculatedAt)}
+                        </div>
+                    </div>
+                }
             />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
@@ -258,7 +363,7 @@ export default function AdminWarehouseBalancesPage() {
                         <AdminSearchInput
                             value={search}
                             onChangeAction={setSearch}
-                            placeholder="Поиск по бренду, товару или цене"
+                            placeholder="Поиск по бренду или товару"
                         />
                     </div>
                 }
@@ -270,7 +375,7 @@ export default function AdminWarehouseBalancesPage() {
                                 value={perPage}
                                 onChange={(e) => {
                                     const v = Number(e.target.value);
-                                    if (v === 25 || v === 50 || v === 100) {
+                                    if (v === 25 || v === 50 || v === 100 || v === PER_PAGE_ALL) {
                                         setPerPage(v);
                                     }
                                 }}
@@ -278,7 +383,7 @@ export default function AdminWarehouseBalancesPage() {
                             >
                                 {PER_PAGE_OPTIONS.map((n) => (
                                     <option key={n} value={n}>
-                                        {n}
+                                        {n === PER_PAGE_ALL ? "Все" : n}
                                     </option>
                                 ))}
                             </select>
@@ -304,7 +409,6 @@ export default function AdminWarehouseBalancesPage() {
                         <table className="min-w-full text-xs">
                             <thead>
                                 <tr className="border-b text-left text-admin-text-secondary">
-                                    <th className="px-2 py-1.5 font-medium">ID</th>
                                     <th className="px-2 py-1.5 font-medium">Бренд</th>
                                     <th className="px-2 py-1.5 font-medium">Товар</th>
                                     <th className="px-2 py-1.5 font-medium">Вариант</th>
@@ -325,7 +429,9 @@ export default function AdminWarehouseBalancesPage() {
                                         />
                                     </th>
                                     <th className="px-2 py-1.5 font-medium">Доступно</th>
-                                    <th className="px-2 py-1.5 font-medium">Цена</th>
+                                    <th className="px-2 py-1.5 font-medium">Цена за шт.</th>
+                                    <th className="px-2 py-1.5 font-medium">Итого</th>
+                                    <th className="px-2 py-1.5 font-medium">Цена опт.</th>
                                     <th className="px-2 py-1.5 font-medium">Склад</th>
                                     <th className="w-10 px-2 py-1.5 text-right font-medium" />
                                 </tr>
@@ -334,13 +440,14 @@ export default function AdminWarehouseBalancesPage() {
                                 {items.map((item) => {
                                     const brandLabel = item.brand_name || "—";
                                     const productLabel = item.product_name || "—";
-                                    const priceLabel = item.price != null ? String(item.price) : "—";
+                                    const unitPriceLabel = item.price != null ? String(item.price) : null;
+                                    const totalPriceLabel = lineTotalLabel(item.price, item.stock);
+                                    const wholesaleLabel = item.wholesale_price != null ? String(item.wholesale_price) : "—";
                                     const productHref = item.product_slug ? `/${item.product_slug}` : null;
                                     const canWriteOff = item.available_stock > 0 || item.reserved_stock > 0;
 
                                     return (
                                         <tr key={item.id} className="border-b last:border-b-0 hover:bg-admin-muted/50">
-                                            <td className="whitespace-nowrap px-2 py-1.5 font-medium text-slate-900">{item.id}</td>
                                             <td className="px-2 py-1.5 text-admin-text">
                                                 {highlightAdminSearchTerms(brandLabel, debouncedSearch)}
                                             </td>
@@ -373,7 +480,15 @@ export default function AdminWarehouseBalancesPage() {
                                                 </span>
                                             </td>
                                             <td className="whitespace-nowrap px-2 py-1.5 text-admin-text">
-                                                {highlightAdminSearchTerms(priceLabel, debouncedSearch)}
+                                                {unitPriceLabel != null
+                                                    ? highlightAdminSearchTerms(unitPriceLabel, debouncedSearch)
+                                                    : "—"}
+                                            </td>
+                                            <td className="whitespace-nowrap px-2 py-1.5 font-medium text-admin-text">
+                                                {totalPriceLabel ?? "—"}
+                                            </td>
+                                            <td className="whitespace-nowrap px-2 py-1.5 text-admin-text">
+                                                {wholesaleLabel}
                                             </td>
                                             <td className="px-2 py-1.5 text-admin-text">{item.warehouse_name || "—"}</td>
                                             <td className="px-2 py-1.5 text-right">

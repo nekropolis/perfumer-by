@@ -6,19 +6,29 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\WholesalePriceService;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StockBalanceController extends Controller
 {
+    public function __construct(
+        private readonly WholesalePriceService $wholesalePriceService,
+        private readonly WarehousePurchasePriceResolver $purchasePriceResolver,
+    ) {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $search = trim((string) $request->input('search', ''));
         $stockState = trim((string) $request->input('stock_state', ''));
         $warehouseId = (int) $request->input('warehouse_id', 0);
         $perPage = (int) $request->input('per_page', 25);
-        if (!in_array($perPage, [25, 50, 100], true)) {
+        // 2000 ≈ «показать все» для админ-отчёта; выше — риск тяжёлого ответа/рендера.
+        if (!in_array($perPage, [25, 50, 100, 2000], true)) {
             $perPage = 25;
         }
 
@@ -37,14 +47,15 @@ class StockBalanceController extends Controller
         }
 
         if ($search !== '') {
-            $query->where(function ($balanceQuery) use ($search) {
-                $balanceQuery->whereHas('product', function ($productQuery) use ($search) {
-                    $productQuery->where('name', 'like', "%{$search}%")
-                        ->orWhereHas('brand', function ($brandQuery) use ($search) {
-                            $brandQuery->where('name', 'like', "%{$search}%");
-                        });
-                })->orWhereHas('variant', function ($variantQuery) use ($search) {
-                    $variantQuery->where('price', 'like', "%{$search}%");
+            // Как в UI: «бренд + название». Полный запрос не лежит ни в name, ни в brand по отдельности.
+            $search = trim((string) preg_replace('/\s+/u', ' ', $search));
+            $like = '%' . mb_strtolower($search, 'UTF-8') . '%';
+            $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
+            $displayNameExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
+
+            $query->where(function ($balanceQuery) use ($search, $like, $displayNameExpr) {
+                $balanceQuery->whereHas('product', function ($productQuery) use ($like, $displayNameExpr) {
+                    $productQuery->whereRaw("{$displayNameExpr} LIKE ?", [$like]);
                 });
             });
         }
@@ -91,28 +102,48 @@ class StockBalanceController extends Controller
                 ->orderBy('products.name');
         }
 
-        $balances = $balancesQuery
-            ->paginate($perPage)
-            ->through(function (WarehouseVariantStock $row) {
-                return [
-                    'id' => $row->id,
-                    'variant_id' => $row->variant_id,
-                    'warehouse_id' => $row->warehouse_id,
-                    'warehouse_name' => $row->warehouse?->name,
-                    'product_id' => $row->product_id,
-                    'product_name' => $row->product?->name,
-                    'product_slug' => $row->product?->slug,
-                    'brand_name' => $row->product?->brand?->name,
-                    'variant_title' => $row->variant?->title,
-                    'stock' => (int) $row->stock,
-                    'reserved_stock' => (int) $row->reserved_stock,
-                    'available_stock' => (int) $row->available_stock,
-                    'price' => $row->variant?->price,
-                    'is_active' => (bool) ($row->variant?->is_active ?? false),
-                ];
-            });
+        $balances = $balancesQuery->paginate($perPage);
+        $entryPriceMap = $this->purchasePriceResolver->lastPostedPurchasePriceMapForRows($balances->getCollection());
 
-        return response()->json($balances);
+        $balances->through(function (WarehouseVariantStock $row) use ($entryPriceMap) {
+            $warehouseId = (int) ($row->warehouse_id ?? 0);
+            $variantId = (int) ($row->variant_id ?? 0);
+            $entryKey = $warehouseId.':'.$variantId;
+
+            return [
+                'id' => $row->id,
+                'variant_id' => $row->variant_id,
+                'warehouse_id' => $row->warehouse_id,
+                'warehouse_name' => $row->warehouse?->name,
+                'product_id' => $row->product_id,
+                'product_name' => $row->product?->name,
+                'product_slug' => $row->product?->slug,
+                'brand_name' => $row->product?->brand?->name,
+                'variant_title' => $row->variant?->title,
+                'stock' => (int) $row->stock,
+                'reserved_stock' => (int) $row->reserved_stock,
+                'available_stock' => (int) $row->available_stock,
+                // Вход: последняя posted-цена прихода на склад этой строки.
+                'price' => $entryPriceMap[$entryKey] ?? null,
+                'wholesale_price' => $row->variant?->wholesale_price,
+                'is_active' => (bool) ($row->variant?->is_active ?? false),
+            ];
+        });
+
+        $payload = $balances->toArray();
+        $payload['last_wholesale_calculated_at'] = $this->wholesalePriceService->lastCalculatedAt();
+
+        return response()->json($payload);
+    }
+
+    public function recalculateWholesale(): JsonResponse
+    {
+        return response()->json($this->wholesalePriceService->recalculate());
+    }
+
+    public function exportWholesale(): StreamedResponse
+    {
+        return $this->wholesalePriceService->exportXlsx();
     }
 
     public function variantSuppliers(Request $request): JsonResponse

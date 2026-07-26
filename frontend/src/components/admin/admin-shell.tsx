@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { useEffect, useState, startTransition } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import { X, Store, User } from "lucide-react";
 import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
+import AdminScrollToTopButton from "@/components/admin/ui/admin-scroll-to-top-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
 import { adminBtnGhost, adminBtnSecondary } from "@/lib/admin-ui-classes";
@@ -23,6 +24,7 @@ export default function AdminShell({ children }: Props) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [sidebarReady, setSidebarReady] = useState(false);
     const [cacheResetBusy, setCacheResetBusy] = useState(false);
+    const mainScrollRef = useRef<HTMLElement>(null);
 
     const { logout } = useAuth();
 
@@ -133,11 +135,13 @@ export default function AdminShell({ children }: Props) {
                 />
 
                 <main className="min-h-0 flex-1 overflow-hidden">
-                    <section className="h-full min-h-0 min-w-0 overflow-y-auto">
+                    <section ref={mainScrollRef} className="h-full min-h-0 min-w-0 overflow-y-auto">
                         {children}
                     </section>
                 </main>
             </div>
+
+            <AdminScrollToTopButton scrollRef={mainScrollRef} />
 
             {mobileMenuOpen && (
                 <div className="fixed inset-0 z-[200] lg:hidden">

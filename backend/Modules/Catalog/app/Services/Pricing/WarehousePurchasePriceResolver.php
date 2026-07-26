@@ -21,19 +21,35 @@ final class WarehousePurchasePriceResolver
      */
     public function lastPostedReceiptMetaForMainWarehouse(array $variantIds, int $mainWarehouseId): array
     {
+        return $this->lastPostedReceiptMetaForWarehouse($variantIds, $mainWarehouseId);
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array<int, array{
+     *     warehouse_purchase: string,
+     *     supplier_sku: ?string,
+     *     receipt_supplier_id: ?int,
+     *     receipt_supplier_code: ?string,
+     *     stock_receipt_id: int,
+     *     received_at: ?string
+     * }>
+     */
+    public function lastPostedReceiptMetaForWarehouse(array $variantIds, int $warehouseId): array
+    {
         $variantIds = array_values(array_unique(array_filter(
             array_map(static fn (mixed $id): int => (int) $id, $variantIds),
             static fn (int $id): bool => $id > 0,
         )));
 
-        if ($variantIds === [] || $mainWarehouseId <= 0) {
+        if ($variantIds === [] || $warehouseId <= 0) {
             return [];
         }
 
         $rows = DB::table('stock_receipt_items as sri')
             ->join('stock_receipts as sr', 'sr.id', '=', 'sri.stock_receipt_id')
             ->where('sr.status', StockReceipt::STATUS_POSTED)
-            ->where('sr.warehouse_id', $mainWarehouseId)
+            ->where('sr.warehouse_id', $warehouseId)
             ->whereIn('sri.variant_id', $variantIds)
             ->whereNotNull('sri.variant_id')
             ->where('sri.supplier_price', '>', 0)
@@ -80,8 +96,37 @@ final class WarehousePurchasePriceResolver
     public function lastPostedPricesForMainWarehouse(array $variantIds, int $mainWarehouseId): array
     {
         $map = [];
-        foreach ($this->lastPostedReceiptMetaForMainWarehouse($variantIds, $mainWarehouseId) as $variantId => $meta) {
+        foreach ($this->lastPostedReceiptMetaForWarehouse($variantIds, $mainWarehouseId) as $variantId => $meta) {
             $map[$variantId] = (float) $meta['warehouse_purchase'];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Последняя posted-цена прихода по парам склад+вариант.
+     *
+     * @param  \Illuminate\Support\Collection<int, object{warehouse_id?: mixed, variant_id?: mixed}>  $rows
+     * @return array<string, string> ключ "{warehouseId}:{variantId}" => "12.34"
+     */
+    public function lastPostedPurchasePriceMapForRows($rows): array
+    {
+        /** @var array<int, list<int>> $variantIdsByWarehouse */
+        $variantIdsByWarehouse = [];
+        foreach ($rows as $row) {
+            $warehouseId = (int) ($row->warehouse_id ?? 0);
+            $variantId = (int) ($row->variant_id ?? 0);
+            if ($warehouseId <= 0 || $variantId <= 0) {
+                continue;
+            }
+            $variantIdsByWarehouse[$warehouseId][] = $variantId;
+        }
+
+        $map = [];
+        foreach ($variantIdsByWarehouse as $warehouseId => $variantIds) {
+            foreach ($this->lastPostedReceiptMetaForWarehouse($variantIds, $warehouseId) as $variantId => $meta) {
+                $map[$warehouseId.':'.$variantId] = $meta['warehouse_purchase'];
+            }
         }
 
         return $map;

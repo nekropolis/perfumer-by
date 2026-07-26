@@ -160,6 +160,7 @@ class ImportLegacyOrdersCommand extends Command
             $managerComment = LegacyOrderImportExtras::buildManagerComment(
                 $itemRows,
                 $optionsByOrderProduct[$legacyOrderId] ?? [],
+                $totalRows,
             );
             if ($managerComment !== null) {
                 $withManagerComment++;
@@ -215,8 +216,8 @@ class ImportLegacyOrdersCommand extends Command
                         $brandName = $catalogProduct?->brand?->name;
 
                         $qty = max(1, (int) ($item['quantity'] ?? 1));
-                        $price = $this->asMoneyString((string) ($item['price'] ?? '0'));
-                        $lineTotal = $this->asMoneyString((string) ($item['total'] ?? (string) (round((float) $price * $qty, 2))));
+                        $price = LegacyOrderImportExtras::unitPriceWithTax($item);
+                        $lineTotal = LegacyOrderImportExtras::lineTotalWithTax($item);
 
                         $itemInsert[] = [
                             'order_id' => $orderId,
@@ -315,8 +316,7 @@ class ImportLegacyOrdersCommand extends Command
 
     private function asMoneyString(string $value): string
     {
-        $num = is_numeric($value) ? (string) $value : '0';
-        return number_format((float) $num, 2, '.', '');
+        return LegacyOrderImportExtras::asMoneyString($value);
     }
 
     private function normalizeDateTime(string $value): ?string
