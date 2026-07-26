@@ -575,11 +575,8 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                if (draftFrom || draftTo) {
-                                                    clearDraft();
-                                                } else {
-                                                    clearAllAndClose();
-                                                }
+                                                clearDraft();
+                                                clearAllAndClose();
                                             }}
                                             className="px-2 py-1.5 text-sm font-semibold text-admin-text hover:underline"
                                         >

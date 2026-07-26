@@ -34,6 +34,8 @@ type Props = {
     onErrorMessageAction?: (message: string) => void;
     /** Открыть попап фильтра по дате доставки (из заголовка колонки). */
     onDateFilterHeaderClickAction?: () => void;
+    /** Перезагрузить список заказов (после смены даты доставки и т.п.). */
+    onOrdersReloadAction?: () => void;
     statusFilter?: string;
     onStatusFilterChangeAction?: (status: string) => void;
     selectedOrderIds?: number[];
@@ -43,6 +45,18 @@ type Props = {
 const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
+
+function isOrderDeliveryOverdue(order: OrderData, todayIso: string): boolean {
+    const status = (order.status ?? "").trim();
+    if (status === "done" || status === "cancelled" || status === "completed") {
+        return false;
+    }
+    const deliveryDate = order.delivery_date?.trim() ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}/.test(deliveryDate)) {
+        return false;
+    }
+    return deliveryDate.slice(0, 10) < todayIso;
+}
 
 type AddressTooltipState = {
     lines: string[];
@@ -652,10 +666,12 @@ function AdminOrderDeliveryDateCell({
     order,
     onSavedAction,
     onErrorAction,
+    onReloadAction,
 }: {
     order: OrderData;
     onSavedAction: (order: OrderData) => void;
     onErrorAction?: (message: string) => void;
+    onReloadAction?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const [draft, setDraft] = useState(order.delivery_date?.trim() || "");
@@ -679,6 +695,7 @@ function AdminOrderDeliveryDateCell({
             });
             onSavedAction(res.data);
             setOpen(false);
+            onReloadAction?.();
         } catch (error) {
             console.error(error);
             onErrorAction?.("Не удалось сохранить дату доставки");
@@ -1064,6 +1081,7 @@ export default function AdminOrdersTable({
     onSuccessMessageAction,
     onErrorMessageAction,
     onDateFilterHeaderClickAction,
+    onOrdersReloadAction,
     statusFilter = "",
     onStatusFilterChangeAction,
     selectedOrderIds = [],
@@ -1079,6 +1097,8 @@ export default function AdminOrdersTable({
     const [itemsTooltip, setItemsTooltip] = useState<ItemsTooltipState>(null);
     const tooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isStatusPending, startStatusTransition] = useTransition();
+
+    const todayIso = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
     const clearTooltipHideTimer = useCallback(() => {
         if (tooltipHideTimerRef.current) {
@@ -1302,8 +1322,17 @@ export default function AdminOrdersTable({
                     </thead>
 
                     <tbody className="align-middle">
-                        {orders.map((order) => (
-                            <tr key={order.id} className="border-b border-admin-border/70 transition-colors last:border-b-0 hover:bg-admin-muted/35">
+                        {orders.map((order) => {
+                            const deliveryOverdue = isOrderDeliveryOverdue(order, todayIso);
+                            return (
+                            <tr
+                                key={order.id}
+                                className={`border-b border-admin-border/70 transition-colors last:border-b-0 ${
+                                    deliveryOverdue
+                                        ? "bg-red-50 hover:bg-red-100/80"
+                                        : "hover:bg-admin-muted/35"
+                                }`}
+                            >
                                 <td className="border-r border-admin-border/70 px-2 py-2">
                                     <input
                                         type="checkbox"
@@ -1343,6 +1372,7 @@ export default function AdminOrdersTable({
                                         order={order}
                                         onSavedAction={patchOrderInList}
                                         onErrorAction={onErrorMessageAction}
+                                        onReloadAction={onOrdersReloadAction}
                                     />
                                 </td>
                                 <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 lg:whitespace-normal">
@@ -1414,7 +1444,8 @@ export default function AdminOrdersTable({
                                     />
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
                 </div>

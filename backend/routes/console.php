@@ -39,6 +39,13 @@ Schedule::command('veter:sync-cities')
     ->onOneServer()
     ->runInBackground();
 
+Schedule::command('orders:notify-overdue-delivery')
+    ->dailyAt('06:00')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 Schedule::command('veter:sync-ticket-statuses')
     ->hourly()
     ->timezone('Europe/Minsk')

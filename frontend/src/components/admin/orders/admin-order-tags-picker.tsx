@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
 
@@ -31,32 +31,29 @@ function contrastText(hex: string): string {
 
 export default function AdminOrderTagsPicker({ selected, onChangeAction, compact = false }: Props) {
   const [query, setQuery] = useState("");
-  const debouncedQuery = useDebouncedValue(query, 250);
+  const debouncedQuery = useDebouncedValue(query, 200);
   const [hits, setHits] = useState<OrderTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedIds = useMemo(() => new Set(selected.map((t) => t.id)), [selected]);
-  const showMenu = open && query.trim().length >= 2;
 
   useEffect(() => {
-    const q = debouncedQuery.trim();
-    if (q.length < 2) {
-      setHits([]);
-      setLoading(false);
+    if (!open) {
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    void fetchOrderTags({ search: q })
+    void fetchOrderTags({ search: debouncedQuery.trim() || undefined })
       .then((res) => {
         if (!cancelled) {
-          setHits(res.data.filter((t) => !selectedIds.has(t.id)));
+          setHits(res.data);
         }
       })
       .catch(() => {
@@ -73,17 +70,17 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, selectedIds]);
+  }, [open, debouncedQuery]);
 
   const updateMenuPosition = () => {
-    if (!inputRef.current) {
+    if (!triggerRef.current) {
       return;
     }
-    const rect = inputRef.current.getBoundingClientRect();
-    const menuWidth = Math.min(Math.max(rect.width, 220), Math.max(0, window.innerWidth - 24));
-    const menuHeight = Math.min(192, 12 + Math.max(1, hits.length || 1) * 36);
+    const rect = triggerRef.current.getBoundingClientRect();
+    const menuWidth = Math.min(Math.max(rect.width, 260), Math.max(0, window.innerWidth - 24));
+    const menuHeight = Math.min(280, 56 + Math.max(1, hits.length || 1) * 44);
     const pad = 8;
-    const gap = 4;
+    const gap = 6;
     let left = rect.left;
     left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
     const spaceBelow = window.innerHeight - rect.bottom;
@@ -97,15 +94,15 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
   };
 
   useLayoutEffect(() => {
-    if (!showMenu) {
+    if (!open) {
       setMenuCoords(null);
       return;
     }
     updateMenuPosition();
-  }, [showMenu, hits.length, loading, query]);
+  }, [open, hits.length, loading, query]);
 
   useEffect(() => {
-    if (!showMenu) {
+    if (!open) {
       return;
     }
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
@@ -135,14 +132,22 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
       window.removeEventListener("resize", onReposition);
       window.removeEventListener("scroll", onReposition, true);
     };
-  }, [showMenu, hits.length]);
+  }, [open, hits.length]);
 
-  const addTag = (tag: OrderTag) => {
-    if (selectedIds.has(tag.id)) return;
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const id = window.setTimeout(() => inputRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [open]);
+
+  const toggleTag = (tag: OrderTag) => {
+    if (selectedIds.has(tag.id)) {
+      onChangeAction(selected.filter((t) => t.id !== tag.id));
+      return;
+    }
     onChangeAction([...selected, tag]);
-    setQuery("");
-    setHits([]);
-    setOpen(false);
   };
 
   const removeTag = (id: number) => {
@@ -150,11 +155,11 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
   };
 
   const menu =
-    showMenu && menuCoords && typeof document !== "undefined"
+    open && menuCoords && typeof document !== "undefined"
       ? createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[9999] max-h-48 overflow-y-auto rounded-lg border border-admin-border bg-admin-surface shadow-lg"
+            className="fixed z-[9999] overflow-hidden rounded-[14px] border border-black/10 bg-white/95 shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl"
             style={{
               top: menuCoords.top,
               bottom: menuCoords.bottom,
@@ -162,34 +167,62 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
               width: menuCoords.width,
             }}
             role="listbox"
-            aria-label="Поиск тегов"
+            aria-label="Выбор тегов"
+            aria-multiselectable="true"
           >
-            {loading ? (
-              <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-            ) : hits.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-            ) : (
-              <ul>
-                {hits.map((tag) => (
-                  <li key={tag.id}>
-                    <button
-                      type="button"
-                      role="option"
-                      onClick={() => addTag(tag)}
-                      className={`flex w-full items-center gap-2 text-left text-sm hover:bg-admin-muted ${
-                        compact ? "px-2.5 py-1.5" : "px-3 py-2"
-                      }`}
-                    >
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      {tag.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="border-b border-black/[0.08] bg-white/80 px-3 py-2.5">
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Поиск"
+                className="w-full rounded-[10px] border-0 bg-[#767680]/12 px-3 py-2 text-[15px] text-admin-text outline-none placeholder:text-[#3c3c43]/60 focus:bg-[#767680]/18"
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto overscroll-contain py-1">
+              {loading ? (
+                <div className="px-4 py-3 text-[13px] text-[#3c3c43]/60">Загрузка…</div>
+              ) : hits.length === 0 ? (
+                <div className="px-4 py-3 text-[13px] text-[#3c3c43]/60">Ничего не найдено</div>
+              ) : (
+                <ul>
+                  {hits.map((tag, index) => {
+                    const isSelected = selectedIds.has(tag.id);
+                    return (
+                      <li key={tag.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => toggleTag(tag)}
+                          className={`flex w-full items-center gap-3 px-4 py-[11px] text-left transition active:bg-black/[0.06] ${
+                            isSelected ? "bg-[#007aff]/08" : "hover:bg-black/[0.04]"
+                          }`}
+                        >
+                          <span
+                            className="inline-block h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[15px] font-normal tracking-[-0.01em] text-admin-text">
+                            {tag.name}
+                          </span>
+                          <span
+                            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                              isSelected ? "bg-[#007aff] text-white" : "border border-black/15 bg-white"
+                            }`}
+                          >
+                            {isSelected ? <Check size={12} strokeWidth={3} /> : null}
+                          </span>
+                        </button>
+                        {index < hits.length - 1 ? (
+                          <div className="ml-[2.75rem] border-b border-black/[0.08]" />
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>,
           document.body,
         )
@@ -221,20 +254,25 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
         </div>
       ) : null}
 
-      <div className="relative">
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder="Поиск тега (от 2 букв)…"
-          className={`w-full rounded-lg border border-admin-border bg-admin-surface text-sm text-admin-text ${
-            compact ? "px-2.5 py-1.5" : "px-3 py-2"
+      <div ref={triggerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`flex w-full items-center justify-between gap-2 rounded-[12px] border border-black/10 bg-[#f2f2f7] text-left text-admin-text shadow-sm transition hover:bg-[#ebebf0] ${
+            compact ? "px-2.5 py-1.5 text-[13px]" : "px-3 py-2 text-[15px]"
           }`}
-        />
+          aria-expanded={open}
+          aria-haspopup="listbox"
+        >
+          <span className={selected.length > 0 ? "text-admin-text" : "text-[#3c3c43]/60"}>
+            {selected.length > 0 ? `Выбрано: ${selected.length}` : "Выбрать тег"}
+          </span>
+          <ChevronDown
+            size={16}
+            strokeWidth={2.25}
+            className={`shrink-0 text-[#3c3c43]/50 transition ${open ? "rotate-180" : ""}`}
+          />
+        </button>
       </div>
       {menu}
     </div>

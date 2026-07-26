@@ -193,6 +193,7 @@ export default function AdminOrdersPage() {
     const [veterSending, setVeterSending] = useState(false);
     const [veterStatusSyncing, setVeterStatusSyncing] = useState(false);
     const [legacySyncing, setLegacySyncing] = useState(false);
+    const [ordersReloadNonce, setOrdersReloadNonce] = useState(0);
 
     const [searchInput, setSearchInput] = useState(
         () => searchParamsFromUrl.get("search") ?? "",
@@ -226,6 +227,7 @@ export default function AdminOrdersPage() {
     };
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
+    const urlQueryKey = searchParamsFromUrl.toString();
 
     const selectedOrders = useMemo(
         () => orders.filter((order) => selectedOrderIds.includes(order.id)),
@@ -272,7 +274,7 @@ export default function AdminOrdersPage() {
             setOrdersPage(1);
         }
 
-        const fetchSig = `${ordersListKey}|${pageForRequest}`;
+        const fetchSig = `${ordersListKey}|${pageForRequest}|${ordersReloadNonce}`;
         if (lastOrdersFetchSigRef.current === fetchSig) {
             return;
         }
@@ -331,6 +333,7 @@ export default function AdminOrdersPage() {
         dateFrom,
         dateTo,
         ordersPerPage,
+        ordersReloadNonce,
     ]);
 
     useEffect(() => {
@@ -343,7 +346,9 @@ export default function AdminOrdersPage() {
         setOrdersPerPage(parseOrdersPerPage(searchParamsFromUrl.get("per_page")));
         setActiveTab(parseOrdersTab(searchParamsFromUrl.get("tab")));
         setOrderFilter(parseOrderFilter(searchParamsFromUrl.get("order_id")));
-    }, [searchParamsFromUrl]);
+        // Только при реальном изменении query string — иначе сброс фильтра откатывается из старого URL.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- urlQueryKey отражает searchParamsFromUrl
+    }, [urlQueryKey]);
 
     useEffect(() => {
         const nextQuery = buildOrdersFiltersQuery({
@@ -358,7 +363,7 @@ export default function AdminOrdersPage() {
             orderId: orderFilter,
         });
 
-        const currentParams = new URLSearchParams(searchParamsFromUrl.toString());
+        const currentParams = new URLSearchParams(urlQueryKey);
         currentParams.delete("created");
         currentParams.delete("updated");
         const currentQuery = buildOrdersFiltersQuery({
@@ -389,14 +394,14 @@ export default function AdminOrdersPage() {
         periodFilter,
         router,
         searchInput,
-        searchParamsFromUrl,
         statusFilter,
+        urlQueryKey,
     ]);
 
     useEffect(() => {
         if (searchParamsFromUrl.get("created") === "1") {
             setToast({ type: "success", message: "Заказ создан" });
-            const params = new URLSearchParams(searchParamsFromUrl.toString());
+            const params = new URLSearchParams(urlQueryKey);
             params.delete("created");
             params.delete("updated");
             const qs = params.toString();
@@ -405,13 +410,14 @@ export default function AdminOrdersPage() {
         }
         if (searchParamsFromUrl.get("updated") === "1") {
             setToast({ type: "success", message: "Заказ сохранён" });
-            const params = new URLSearchParams(searchParamsFromUrl.toString());
+            const params = new URLSearchParams(urlQueryKey);
             params.delete("created");
             params.delete("updated");
             const qs = params.toString();
             router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
         }
-    }, [searchParamsFromUrl, router, pathname]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- urlQueryKey отражает searchParamsFromUrl
+    }, [urlQueryKey, router, pathname]);
 
     useEffect(() => {
         const visibleOrderIds = new Set(orders.map((order) => order.id));
@@ -923,6 +929,7 @@ export default function AdminOrdersPage() {
                         onSuccessMessageAction={(message) => setToast({ type: "success", message })}
                         onErrorMessageAction={(message) => setToast({ type: "error", message })}
                         onDateFilterHeaderClickAction={() => dateFilterRef.current?.open()}
+                        onOrdersReloadAction={() => setOrdersReloadNonce((n) => n + 1)}
                         statusFilter={statusFilter}
                         onStatusFilterChangeAction={setStatusFilter}
                         selectedOrderIds={selectedOrderIds}

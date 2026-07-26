@@ -351,8 +351,9 @@ class OrderController extends Controller
                     now()->copy()->endOfYear()->toDateString(),
                 ]);
             })
-            ->orderByDesc('delivery_date')
-            ->orderByDesc('id')
+            ->orderByRaw('delivery_date is null')
+            ->orderBy('delivery_date')
+            ->orderBy('id')
             ->paginate($perPage);
 
         return response()->json([
