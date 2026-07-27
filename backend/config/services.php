@@ -41,6 +41,8 @@ return [
     ],
 
     'veter' => [
+        // Явный флаг расписания/API: на prod VETER=true, на staging/dev не задавать.
+        'enabled' => filter_var(env('VETER', false), FILTER_VALIDATE_BOOLEAN),
         // Punycode for ветер.бел — Cyrillic host breaks on some servers.
         'base_url' => env('VETER_BASE_URL', 'https://xn--b1aga8bi.xn--90ais'),
         'user_id' => env('VETER_USER_ID'),

@@ -258,8 +258,15 @@ LOG_LEVEL=warning
 TELEGRAM_NOTIFICATIONS_ENABLED=true
 TELEGRAM_BOT_TOKEN=       # опционально, для уведомлений
 TELEGRAM_CHAT_ID=
+
+# ветерОК: включить только на production (cron sync городов/статусов накладных)
+VETER=true
+VETER_USER_ID=
+VETER_API_KEY=
+# VETER_BASE_URL=https://xn--b1aga8bi.xn--90ais
 ```
 
+На **staging / local** `VETER` не задавать или `VETER=false` — иначе hourly `veter:sync-ticket-statuses` будет слать ошибки в Telegram при отсутствии кредов.
 ### 4.3. Инициализация
 
 ```bash
@@ -670,6 +677,31 @@ sudo crontab -u www-data -e
 * * * * * cd /var/www/perfumer-by/backend && /usr/bin/php artisan schedule:run >> /dev/null 2>&1
 ```
 
+### ветерОК (VETER)
+
+В расписании:
+
+| Команда | Когда | Условие |
+|---|---|---|
+| `veter:sync-cities` | ежедневно 03:10 | только при `VETER=true` |
+| `veter:sync-ticket-statuses` | каждый час | только при `VETER=true` |
+
+В `.env` production:
+
+```dotenv
+VETER=true
+VETER_USER_ID=...
+VETER_API_KEY=...
+```
+
+Staging / dev: флаг не ставить (или `VETER=false`). Без флага команды из schedule не запускаются и при ручном вызове тихо выходят без Telegram.
+
+После смены `VETER` на сервере с `config:cache`:
+
+```bash
+cd /var/www/perfumer-by/backend && php artisan config:cache
+```
+
 ---
 
 ## 9) Скрипт деплоя
@@ -1053,6 +1085,7 @@ make bootstrap-shared # = scripts/bootstrap-shared.sh (один раз)
 - [ ] `certbot renew --dry-run` → успех.
 - [ ] Бэкап БД запускался хотя бы один раз успешно.
 - [ ] В `.env` `APP_DEBUG=false`, `APP_ENV=production`.
+- [ ] В `.env` production: `VETER=true` + `VETER_USER_ID` / `VETER_API_KEY` (на staging не включать).
 
 ---
 

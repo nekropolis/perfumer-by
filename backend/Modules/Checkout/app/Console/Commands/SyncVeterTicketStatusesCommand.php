@@ -15,6 +15,12 @@ class SyncVeterTicketStatusesCommand extends Command
 
     public function handle(VeterTicketStatusSyncService $sync): int
     {
+        if (! config('services.veter.enabled')) {
+            $this->warn('Veter is disabled (VETER=false) — skip.');
+
+            return self::SUCCESS;
+        }
+
         $this->info('Syncing Veter ticket statuses…');
 
         try {

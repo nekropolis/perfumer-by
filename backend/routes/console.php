@@ -37,7 +37,8 @@ Schedule::command('veter:sync-cities')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->onOneServer()
-    ->runInBackground();
+    ->runInBackground()
+    ->when(fn () => (bool) config('services.veter.enabled'));
 
 Schedule::command('orders:notify-overdue-delivery')
     ->dailyAt('06:00')
@@ -51,4 +52,5 @@ Schedule::command('veter:sync-ticket-statuses')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->onOneServer()
-    ->runInBackground();
+    ->runInBackground()
+    ->when(fn () => (bool) config('services.veter.enabled'));

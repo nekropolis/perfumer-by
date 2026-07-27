@@ -15,6 +15,12 @@ class SyncVeterCitiesCommand extends Command
 
     public function handle(VeterCitiesSyncService $sync): int
     {
+        if (! config('services.veter.enabled')) {
+            $this->warn('Veter is disabled (VETER=false) — skip.');
+
+            return self::SUCCESS;
+        }
+
         $this->info('Syncing Veter geography…');
 
         try {
