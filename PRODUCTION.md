@@ -267,6 +267,7 @@ VETER_API_KEY=
 ```
 
 На **staging / local** `VETER` не задавать или `VETER=false` — иначе hourly `veter:sync-ticket-statuses` будет слать ошибки в Telegram при отсутствии кредов.
+
 ### 4.3. Инициализация
 
 ```bash
