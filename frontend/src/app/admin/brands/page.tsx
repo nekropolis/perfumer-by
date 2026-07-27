@@ -18,7 +18,6 @@ import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     deleteBrand,
     fetchBrands,
-    syncBrandsFromVanilleJson,
     type BrandItem,
     type BrandsResponse,
 } from "@/lib/admin-brands-api";
@@ -38,7 +37,6 @@ export default function AdminBrandsPage() {
 
     const [deleteTarget, setDeleteTarget] = useState<BrandItem | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const [syncing, setSyncing] = useState(false);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -96,48 +94,18 @@ export default function AdminBrandsPage() {
         }
     };
 
-    const syncFromVanille = async () => {
-        setSyncing(true);
-        setError("");
-        setSuccess("");
-
-        try {
-            const data = await syncBrandsFromVanilleJson();
-            setSuccess(`${data.message}. Добавлено: ${data.created}, пропущено: ${data.skipped}`);
-            await loadItems(1, debouncedSearch);
-            setPage(1);
-        } catch (e: unknown) {
-            setError(
-                e instanceof Error
-                    ? e.message : "Ошибка синхронизации брендов"
-            );
-        } finally {
-            setSyncing(false);
-        }
-    };
-
     return (
         <AdminPageCard>
             <AdminTableToolbar
                 title="Бренды"
                 description="Просмотр, создание, редактирование и удаление брендов"
                 action={
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            onClick={() => void syncFromVanille()}
-                            disabled={syncing}
-                            className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {syncing ? "Добавляем..." : "Добавить новые бренды"}
-                        </button>
-                        <Link
-                            href="/admin/brands/create"
-                            className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
-                        >
-                            Создать бренд
-                        </Link>
-                    </div>
+                    <Link
+                        href="/admin/brands/create"
+                        className="inline-flex items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
+                    >
+                        Создать бренд
+                    </Link>
                 }
             >
             </AdminTableToolbar>

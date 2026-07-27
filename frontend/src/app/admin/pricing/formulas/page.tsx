@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
@@ -8,9 +9,11 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import PriceFormulasTable from "@/components/admin/pricing/price-formulas-table";
+import { adminBtnSm } from "@/lib/admin-ui-classes";
 import {
     createPriceFormula,
     deletePriceFormula,
+    fetchBynRate,
     fetchPriceFormulas,
     fetchPricingSources,
     updatePriceFormula,
@@ -64,19 +67,22 @@ export default function AdminPricingFormulasPage() {
     const [form, setForm] = useState<PriceFormulaPayload>(EMPTY_FORM);
     const [deleteTarget, setDeleteTarget] = useState<PriceFormulaItem | null>(null);
     const [meta, setMeta] = useState<{ total: number } | null>(null);
+    const [bynRate, setBynRate] = useState<string | null>(null);
 
     const loadItems = useCallback(async () => {
         setLoading(true);
         setError("");
         try {
-            const [formulasRes, sourcesRes] = await Promise.all([
+            const [formulasRes, sourcesRes, bynRes] = await Promise.all([
                 fetchPriceFormulas({ page: 1 }),
                 fetchPricingSources(),
+                fetchBynRate(),
             ]);
             setItems(formulasRes.data || []);
             setMeta({ total: formulasRes.total ?? formulasRes.data?.length ?? 0 });
             setSuppliers(sourcesRes.data.suppliers || []);
             setWarehouses(sourcesRes.data.warehouses || []);
+            setBynRate(bynRes.data.rate);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка загрузки");
         } finally {
@@ -92,6 +98,7 @@ export default function AdminPricingFormulasPage() {
         setEditing(null);
         setForm({
             ...EMPTY_FORM,
+            rub_rate: Number(bynRate ?? EMPTY_FORM.rub_rate),
             source_id: suppliers[0]?.id || warehouses[0]?.id || 0,
             source_type: suppliers[0] ? "supplier" : "warehouse",
         });
@@ -105,7 +112,7 @@ export default function AdminPricingFormulasPage() {
             source_type: item.source_type,
             source_id: item.source_id,
             multiplier: Number(item.multiplier),
-            rub_rate: Number(item.rub_rate),
+            rub_rate: Number(bynRate ?? item.rub_rate),
             addend: Number(item.addend),
             round_precision: item.round_precision,
             variant_rule_mode: item.variant_rule_mode,
@@ -165,8 +172,13 @@ export default function AdminPricingFormulasPage() {
         <AdminPageCard>
             <div className="space-y-4 rounded-2xl border bg-white p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <h1 className="text-lg font-semibold">Формулы цен</h1>
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h1 className="text-lg font-semibold">Формулы цен</h1>
+                            <Link href="/admin/pricing/refresh" className={adminBtnSm}>
+                                ← Обновить цены
+                            </Link>
+                        </div>
                         <p className="mt-1 text-sm text-admin-text-secondary">
                             Цена = ОКРУГЛ((закупка × коэффициент + сложение) × курс; точность).
                             Внутри одного источника формулы проверяются по возрастанию приоритета — меньшее значение срабатывает раньше.
@@ -224,10 +236,12 @@ export default function AdminPricingFormulasPage() {
                                     <span>Коэффициент умножения</span>
                                     <input type="number" step="0.01" className="w-full rounded-lg border px-3 py-2" value={form.multiplier} onChange={(e) => setForm({ ...form, multiplier: Number(e.target.value) })} />
                                 </label>
-                                <label className="space-y-1 text-sm">
-                                    <span>Курс RUB</span>
-                                    <input type="number" step="0.01" className="w-full rounded-lg border px-3 py-2" value={form.rub_rate} onChange={(e) => setForm({ ...form, rub_rate: Number(e.target.value) })} />
-                                </label>
+                                <div className="space-y-1 text-sm">
+                                    <span className="block">Курс BYN</span>
+                                    <div className="rounded-lg border bg-admin-muted px-3 py-2 tabular-nums text-admin-text">
+                                        {bynRate ?? form.rub_rate}р
+                                    </div>
+                                </div>
                                 <label className="space-y-1 text-sm">
                                     <span>Коэффициент сложения</span>
                                     <input type="number" step="0.1" className="w-full rounded-lg border px-3 py-2" value={form.addend} onChange={(e) => setForm({ ...form, addend: Number(e.target.value) })} />

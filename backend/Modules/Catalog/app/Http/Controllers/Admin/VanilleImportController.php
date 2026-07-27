@@ -13,7 +13,6 @@ use Modules\ImportExport\Services\Vanille\VanilleImportService;
 use Modules\ImportExport\Services\Vanille\VanilleMediaImportService;
 use Modules\Catalog\Models\VanilleImportJob;
 use Modules\Catalog\Models\VanilleImportJobLog;
-use Modules\ImportExport\Models\ImportRetryItem;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Modules\Catalog\Models\Supplier;
@@ -137,7 +136,7 @@ class VanilleImportController extends Controller
     }
 
     /**
-     * Каталожное фото / галерея / описание только для товара по введённому URL (без массовой очереди).
+     * Каталожное фото / описание только для товара по введённому URL (без массовой очереди).
      */
     public function singleUrlMediaFollowUp(
         Request $request,
@@ -148,15 +147,13 @@ class VanilleImportController extends Controller
             'url' => ['required_without:product_id', 'nullable', 'string', 'max:2048'],
             'product_id' => ['required_without:url', 'nullable', 'integer', 'min:1'],
             'catalog' => ['sometimes', 'boolean'],
-            'gallery' => ['sometimes', 'boolean'],
             'descriptions' => ['sometimes', 'boolean'],
         ]);
 
         $catalog = (bool) ($validated['catalog'] ?? false);
-        $gallery = (bool) ($validated['gallery'] ?? false);
         $descriptions = (bool) ($validated['descriptions'] ?? false);
 
-        if ($catalog === false && $gallery === false && $descriptions === false) {
+        if ($catalog === false && $descriptions === false) {
             return response()->json(['message' => 'Отметьте хотя бы один шаг.'], 422);
         }
 
@@ -178,7 +175,7 @@ class VanilleImportController extends Controller
             ], 422);
         }
 
-        $result = $mediaService->runSingleProductMediaFollowUp($productId, $catalog, $gallery, $descriptions);
+        $result = $mediaService->runSingleProductMediaFollowUp($productId, $catalog, $descriptions);
 
         return response()->json([
             'message' => $result['message'],
@@ -337,20 +334,6 @@ class VanilleImportController extends Controller
         ], 202);
     }
 
-    public function parseProductImages(VanilleImportService $service)
-    {
-        try {
-            $job = $service->enqueueParseProductImages();
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 409);
-        }
-
-        return response()->json([
-            'message' => 'Импорт галереи карточек Vanille поставлен в очередь',
-            'job' => $job,
-        ], 202);
-    }
-
     public function rewriteDescriptions(VanilleImportService $service)
     {
         try {
@@ -361,24 +344,6 @@ class VanilleImportController extends Controller
 
         return response()->json([
             'message' => 'Уникализация описаний поставлена в очередь',
-            'job' => $job,
-        ], 202);
-    }
-
-    public function retryFailedJob(Request $request, VanilleImportService $service)
-    {
-        $validated = $request->validate([
-            'task_type' => ['required', 'string', 'in:'.ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES.','.ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES.','.ImportRetryItem::TASK_DESCRIPTION_REWRITE],
-        ]);
-
-        try {
-            $job = $service->enqueueRetryFailed($validated['task_type'], null);
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 409);
-        }
-
-        return response()->json([
-            'message' => 'Повтор неудачных импортов поставлен в очередь',
             'job' => $job,
         ], 202);
     }

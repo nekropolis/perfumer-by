@@ -187,6 +187,87 @@ export async function fetchPriceRefreshRuns(page = 1) {
     }>;
 }
 
+export type InStockPricingPreviewOffer = {
+    shop_key: string;
+    shop_name: string;
+    price: string;
+    role: "min" | "next" | "snap_min" | "snap_offer" | null;
+    selected: boolean;
+};
+
+export type InStockPricingPreviewInputSource = {
+    source: "warehouse" | "supplier";
+    source_label: string;
+    product_name: string | null;
+    price: string;
+    selected: boolean;
+};
+
+export type InStockPricingPreviewRow = {
+    variant_id: number;
+    product_id: number;
+    product_slug: string | null;
+    product_name: string;
+    variant_label: string;
+    input_price: string | null;
+    input_sources: InStockPricingPreviewInputSource[];
+    role: "ordinary" | "allparfume";
+    site_price: string | null;
+    proposed_site_price: string | null;
+    ordinary_proposed_site_price: string | null;
+    sellable_price?: string | null;
+    manual?: {
+        reason: string;
+        manual_retail_price: string | null;
+        list_on_storefront: boolean;
+    } | null;
+    allparfume: {
+        allparfume_variant_id: number;
+        min_price: string | null;
+        selected_offer_role: string | null;
+        selected_purchase: string | null;
+        selected_shop_name?: string | null;
+        sellable_price?: string | null;
+        manual_reason?: string | null;
+        offers: InStockPricingPreviewOffer[];
+    } | null;
+};
+
+export type InStockPricingPreviewResponse = {
+    data: InStockPricingPreviewRow[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+    last_refresh_at: string | null;
+};
+
+export async function fetchInStockPricingPreview(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    role?: "ordinary" | "allparfume" | "";
+}): Promise<InStockPricingPreviewResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.per_page) searchParams.set("per_page", String(params.per_page));
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.role) searchParams.set("role", params.role);
+    const query = searchParams.toString();
+    const res = await fetch(
+        `${API_BASE}/admin/pricing/refresh/in-stock-preview${query ? `?${query}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+        },
+    );
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message || "Не удалось загрузить превью цен");
+    }
+    return res.json();
+}
+
 export async function startPriceRefresh() {
     const res = await fetch(`${API_BASE}/admin/pricing/refresh/start`, {
         method: "POST",
@@ -218,7 +299,11 @@ export async function fetchActivePriceRefresh() {
 export type ManualPriceReviewReason =
     | "no_receipt_supplier"
     | "no_supplier_match"
-    | "warehouse_not_lower";
+    | "warehouse_not_lower"
+    | "warehouse_offer_gap"
+    | "warehouse_blend_gap"
+    | "allparfume_no_match"
+    | "allparfume_no_input";
 
 export type ManualPriceReviewItem = {
     id: number;
@@ -287,4 +372,27 @@ export async function saveManualPriceReview(
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Ошибка сохранения");
     return data as { message: string; data: ManualPriceReviewItem };
+}
+
+export async function fetchBynRate(): Promise<{ data: { rate: string } }> {
+    const res = await fetch(`${API_BASE}/admin/pricing/byn-rate`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message || "Не удалось загрузить курс BYN");
+    }
+    return res.json();
+}
+
+export async function updateBynRate(rate: number): Promise<{ message: string; data: { rate: string } }> {
+    const res = await fetch(`${API_BASE}/admin/pricing/byn-rate`, {
+        method: "PUT",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ rate }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Не удалось сохранить курс BYN");
+    return data;
 }

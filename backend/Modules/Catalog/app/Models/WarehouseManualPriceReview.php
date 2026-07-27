@@ -15,6 +15,14 @@ class WarehouseManualPriceReview extends Model
 
     public const REASON_WAREHOUSE_NOT_LOWER = 'warehouse_not_lower';
 
+    public const REASON_WAREHOUSE_OFFER_GAP = 'warehouse_offer_gap';
+
+    public const REASON_WAREHOUSE_BLEND_GAP = 'warehouse_blend_gap';
+
+    public const REASON_ALLPARFUME_NO_MATCH = 'allparfume_no_match';
+
+    public const REASON_ALLPARFUME_NO_INPUT = 'allparfume_no_input';
+
     protected $fillable = [
         'variant_id',
         'product_id',

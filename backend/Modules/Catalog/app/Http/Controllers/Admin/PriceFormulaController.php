@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Models\PriceFormula;
 use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Services\Pricing\BynRateService;
 use Modules\Warehouse\Models\Warehouse;
 
 class PriceFormulaController extends Controller
@@ -38,9 +39,9 @@ class PriceFormulaController extends Controller
         return response()->json(['data' => $formula]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, BynRateService $bynRate): JsonResponse
     {
-        $validated = $this->validatePayload($request);
+        $validated = $this->validatePayload($request, $bynRate);
         $formula = PriceFormula::query()->create($validated);
 
         return response()->json([
@@ -49,10 +50,10 @@ class PriceFormulaController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, BynRateService $bynRate): JsonResponse
     {
         $formula = PriceFormula::query()->findOrFail($id);
-        $validated = $this->validatePayload($request);
+        $validated = $this->validatePayload($request, $bynRate);
         $formula->update($validated);
 
         return response()->json([
@@ -74,7 +75,7 @@ class PriceFormulaController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validatePayload(Request $request): array
+    private function validatePayload(Request $request, BynRateService $bynRate): array
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -84,7 +85,7 @@ class PriceFormulaController extends Controller
             ])],
             'source_id' => ['required', 'integer', 'min:1'],
             'multiplier' => ['required', 'numeric', 'min:0'],
-            'rub_rate' => ['required', 'numeric', 'min:0'],
+            'rub_rate' => ['nullable', 'numeric', 'min:0'],
             'addend' => ['required', 'numeric'],
             'round_precision' => ['required', 'integer', 'min:0', 'max:4'],
             'variant_rule_mode' => ['required', Rule::in([
@@ -110,6 +111,7 @@ class PriceFormulaController extends Controller
             (int) $validated['source_id'],
         );
 
+        $validated['rub_rate'] = $bynRate->get();
         $validated['variant_rules'] = $this->normalizeVariantRules($validated['variant_rules'] ?? null);
         $validated['is_active'] = $validated['is_active'] ?? true;
         $validated['sort_order'] = $validated['sort_order'] ?? 0;

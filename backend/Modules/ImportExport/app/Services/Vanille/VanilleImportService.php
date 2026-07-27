@@ -30,8 +30,6 @@ use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
-use Modules\ImportExport\Models\ImportRetryItem;
-use Modules\ImportExport\Services\ImportRetryQueue;
 use App\Services\AuditLogService;
 use Throwable;
 
@@ -48,11 +46,7 @@ class VanilleImportService
 
     public const JOB_TYPE_PARSE_CATALOG_IMAGES = 'parse_catalog_images';
 
-    public const JOB_TYPE_PARSE_PRODUCT_IMAGES = 'parse_product_images';
-
     public const JOB_TYPE_REWRITE_DESCRIPTIONS = 'rewrite_descriptions';
-
-    public const JOB_TYPE_RETRY_FAILED = 'retry_failed';
 
     public const PARSE_PRODUCTS_MODE_FULL = 'full';
 
@@ -2913,24 +2907,6 @@ class VanilleImportService
     /**
      * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
      */
-    public function runVanilleProductImagesJob(VanilleImportJob $job): array
-    {
-        $result = is_array($job->result) ? $job->result : [];
-        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
-        $offset = (int) ($state['offset'] ?? 0);
-        $batch = $this->mediaImportService()->runProductGalleryBatch($offset, 3);
-
-        return [
-            'done' => (bool) ($batch['done'] ?? true),
-            'progress' => (int) ($batch['progress'] ?? 100),
-            'message' => (string) ($batch['message'] ?? ''),
-            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
-        ];
-    }
-
-    /**
-     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
-     */
     public function runVanilleRewriteDescriptionsJob(VanilleImportJob $job): array
     {
         $result = is_array($job->result) ? $job->result : [];
@@ -2946,56 +2922,6 @@ class VanilleImportService
         ];
     }
 
-    /**
-     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
-     */
-    public function runVanilleRetryFailedJob(VanilleImportJob $job): array
-    {
-        $result = is_array($job->result) ? $job->result : [];
-        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
-        $taskType = (string) ($state['task_type'] ?? ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES);
-        $onlyIds = isset($state['product_ids']) && is_array($state['product_ids'])
-            ? array_values(array_filter(array_map('intval', $state['product_ids'])))
-            : null;
-
-        $queue = app(ImportRetryQueue::class);
-
-        if ($onlyIds !== null && $onlyIds !== []) {
-            $batch = $this->mediaImportService()->runRetryFailedBatch($taskType, 0, count($onlyIds), $onlyIds);
-
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => (string) ($batch['message'] ?? 'Retry'),
-                'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
-            ];
-        }
-
-        $ids = $queue->pendingProductIds($taskType, 5, 0);
-        if ($ids === []) {
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => 'Retry: очередь пуста',
-                'result' => ['task_type' => $taskType, 'state' => $state],
-            ];
-        }
-
-        $batch = $this->mediaImportService()->runRetryFailedBatch($taskType, 0, 5, $ids);
-        $remaining = $queue->pendingCount($taskType);
-        $done = $remaining === 0;
-
-        return [
-            'done' => $done,
-            'progress' => $done ? 100 : max(10, 90 - min(80, $remaining * 2)),
-            'message' => (string) ($batch['message'] ?? 'Retry').' (осталось: '.$remaining.')',
-            'result' => array_merge(
-                is_array($batch['result'] ?? null) ? $batch['result'] : [],
-                ['state' => ['task_type' => $taskType], 'pending_remaining' => $remaining],
-            ),
-        ];
-    }
-
     public function enqueueParseCatalogImages(): VanilleImportJob
     {
         PublicStorageWriteGuard::assertProductImagesWritable();
@@ -3005,41 +2931,10 @@ class VanilleImportService
         ]);
     }
 
-    public function enqueueParseProductImages(): VanilleImportJob
-    {
-        PublicStorageWriteGuard::assertProductImagesWritable();
-
-        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_PRODUCT_IMAGES, [
-            'state' => ['offset' => 0],
-        ]);
-    }
-
     public function enqueueRewriteDescriptions(): VanilleImportJob
     {
         return $this->enqueueJobWithInitialResult(self::JOB_TYPE_REWRITE_DESCRIPTIONS, [
             'state' => ['offset' => 0],
-        ]);
-    }
-
-    /**
-     * @param  list<int>|null  $productIds
-     */
-    public function enqueueRetryFailed(string $taskType, ?array $productIds = null): VanilleImportJob
-    {
-        if (in_array($taskType, [
-            ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
-            ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-        ], true)) {
-            PublicStorageWriteGuard::assertProductImagesWritable();
-        }
-
-        $state = ['task_type' => $taskType];
-        if ($productIds !== null && $productIds !== []) {
-            $state['product_ids'] = array_values(array_map('intval', $productIds));
-        }
-
-        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_RETRY_FAILED, [
-            'state' => $state,
         ]);
     }
 

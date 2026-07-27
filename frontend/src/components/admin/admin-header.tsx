@@ -6,6 +6,7 @@ import useDebouncedValue from "@/hooks/use-debounced-value";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
+import AdminBynRateControl from "@/components/admin/pricing/admin-byn-rate-control";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
@@ -165,6 +166,7 @@ export default function AdminHeader({
     const pathname = usePathname();
     const [accountOpen, setAccountOpen] = useState(false);
     const [cacheResetBusy, setCacheResetBusy] = useState(false);
+    const [hasActiveTasks, setHasActiveTasks] = useState(false);
     const [quickPhone, setQuickPhone] = useState("");
     const [quickPhoneFocused, setQuickPhoneFocused] = useState(false);
     const [quickPhoneHitsLoading, setQuickPhoneHitsLoading] = useState(false);
@@ -507,8 +509,14 @@ export default function AdminHeader({
 
                 <div className="relative z-40 flex shrink-0 items-center gap-2 sm:gap-3">
                     <div className="hidden sm:block">
-                        <AdminActiveTasksWidget />
+                        <AdminActiveTasksWidget onActiveChangeAction={setHasActiveTasks} />
                     </div>
+
+                    {!hasActiveTasks ? (
+                        <div className="hidden sm:block">
+                            <AdminBynRateControl />
+                        </div>
+                    ) : null}
 
                     <button
                         type="button"

@@ -25,7 +25,6 @@ import {
     importParsedVanilleProducts,
     parseSingleVanilleProductUrl,
     parseVanilleCatalogImages,
-    parseVanilleProductImages,
     rewriteVanilleDescriptions,
     startVanillePipelineNewProducts,
     startVanillePipelineRefreshAll,
@@ -63,11 +62,6 @@ const VANILLE_CONFIRM = {
     ].join("\n"),
     catalogImages: [
         "Запустить «Каталожные фото (листинг)»?",
-        "",
-        "Фоновая задача для всех связанных товаров Vanille.",
-    ].join("\n"),
-    productImages: [
-        "Запустить «Галерея карточек»?",
         "",
         "Фоновая задача для всех связанных товаров Vanille.",
     ].join("\n"),
@@ -146,7 +140,6 @@ export default function VanilleProductsPage() {
     const [lastImportedProductId, setLastImportedProductId] = useState<number | null>(null);
     /** После успешного импорта по URL — те же фоновые задачи, что и кнопки выше (весь каталог). */
     const [singleUrlChainCatalog, setSingleUrlChainCatalog] = useState(false);
-    const [singleUrlChainGallery, setSingleUrlChainGallery] = useState(false);
     const [singleUrlChainDescriptions, setSingleUrlChainDescriptions] = useState(false);
 
     const [parsingError, setParsingError] = useState("");
@@ -357,15 +350,11 @@ export default function VanilleProductsPage() {
         }
 
         const chainCatalog = singleUrlChainCatalog;
-        const chainGallery = singleUrlChainGallery;
         const chainDescriptions = singleUrlChainDescriptions;
 
         const followUp: string[] = [];
         if (chainCatalog) {
             followUp.push("каталожные фото (листинг)");
-        }
-        if (chainGallery) {
-            followUp.push("галерея карточек");
         }
         if (chainDescriptions) {
             followUp.push("уникализация описаний");
@@ -434,14 +423,11 @@ export default function VanilleProductsPage() {
 
             if (
                 importOk &&
-                (chainCatalog || chainGallery || chainDescriptions)
+                (chainCatalog || chainDescriptions)
             ) {
                 const stepLabels: string[] = [];
                 if (chainCatalog) {
                     stepLabels.push("каталожные фото");
-                }
-                if (chainGallery) {
-                    stepLabels.push("галерея");
                 }
                 if (chainDescriptions) {
                     stepLabels.push("описание");
@@ -455,7 +441,6 @@ export default function VanilleProductsPage() {
                         url,
                         product_id: importedRow?.product_id,
                         catalog: chainCatalog,
-                        gallery: chainGallery,
                         descriptions: chainDescriptions,
                     });
                     if (followUp.message) {
@@ -578,23 +563,6 @@ export default function VanilleProductsPage() {
                                     type="button"
                                     onClick={() =>
                                         void enqueueMediaJob(
-                                            parseVanilleProductImages,
-                                            "Галерея карточек",
-                                            VANILLE_CONFIRM.productImages,
-                                        )
-                                    }
-                                    disabled={hasActiveParse}
-                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
-                                >
-                                    {hasActiveParse && parseJob?.type === "parse_product_images"
-                                        ? "Галерея…"
-                                        : "Галерея карточек"}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void enqueueMediaJob(
                                             rewriteVanilleDescriptions,
                                             "Описания",
                                             VANILLE_CONFIRM.descriptions,
@@ -607,13 +575,6 @@ export default function VanilleProductsPage() {
                                         ? "Описания…"
                                         : "Уникализация описаний"}
                                 </button>
-
-                                <Link
-                                    href="/admin/import-export/retry-queue"
-                                    className="inline-flex items-center rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-admin-text hover:bg-admin-muted"
-                                >
-                                    Очередь ошибок
-                                </Link>
                             </div>
 
                             <p className="text-xs text-admin-text-secondary">
@@ -670,16 +631,6 @@ export default function VanilleProductsPage() {
                                             className="rounded border-gray-300"
                                         />
                                         Затем: каталожные фото (листинг)
-                                    </label>
-                                    <label className="inline-flex cursor-pointer items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={singleUrlChainGallery}
-                                            onChange={(e) => setSingleUrlChainGallery(e.target.checked)}
-                                            disabled={singleUrlBusy || hasActiveParse}
-                                            className="rounded border-gray-300"
-                                        />
-                                        Затем: галерея карточек
                                     </label>
                                     <label className="inline-flex cursor-pointer items-center gap-2">
                                         <input

@@ -73,6 +73,66 @@ export function applyPercentDiscount(price: string | null, percent: number): str
     return discounted.toFixed(2);
 }
 
+/**
+ * Точный процент скидки товара: (old − price) / old × 100.
+ * 0 если old_price нет или не выше текущей цены.
+ */
+export function productDiscountPercent(
+    price: string | null | undefined,
+    oldPrice: string | null | undefined,
+): number {
+    if (!price || !oldPrice) {
+        return 0;
+    }
+
+    const current = Number(price);
+    const old = Number(oldPrice);
+    if (!Number.isFinite(current) || !Number.isFinite(old) || old <= 0 || old <= current) {
+        return 0;
+    }
+
+    return ((old - current) / old) * 100;
+}
+
+/**
+ * Доп. процент карты поверх скидки товара: max(0, C − D).
+ */
+export function loyaltyExtraPercent(
+    price: string | null | undefined,
+    oldPrice: string | null | undefined,
+    cardPercent: number,
+): number {
+    const card = Math.max(0, cardPercent);
+    if (card <= 0) {
+        return 0;
+    }
+
+    return Math.max(0, card - productDiscountPercent(price, oldPrice));
+}
+
+/** Сумма скидки карты на единицу (текущая цена × доп.%). */
+export function loyaltyUnitDiscountAmount(
+    price: string | null | undefined,
+    oldPrice: string | null | undefined,
+    cardPercent: number,
+): number {
+    if (!price) {
+        return 0;
+    }
+
+    const current = Number(price);
+    if (!Number.isFinite(current) || current <= 0) {
+        return 0;
+    }
+
+    const extra = loyaltyExtraPercent(price, oldPrice, cardPercent);
+    if (extra <= 0) {
+        return 0;
+    }
+
+    return Math.round(current * (extra / 100) * 100) / 100;
+}
+
 /** Скидка по накопительной карте не применяется к акционным вариантам. */
 export function isVariantEligibleForLoyaltyCardDiscount(isPromotion?: boolean | null): boolean {
     return !isPromotion;
@@ -112,14 +172,15 @@ export function roundMoneyToTenths(raw: string | null): string | null {
 }
 
 /** Итоговая цена с учётом накопительной карты и скидки за ожидание.
- *  Порядок расчёта как в корзине: сначала скидка за ожидание (округление до десятых),
- *  затем скидка по карте от исходной цены. */
+ *  Порядок как в корзине: waiting от каталожной цены, затем вычитается сумма доп. скидки карты
+ *  (max(0, C−D)% от текущей цены; D из old_price). */
 export function resolveDiscountedPrice(
     price: string | null,
     options: {
         isPromotion?: boolean | null;
         loyaltyPercent?: number;
         waitingActive?: boolean;
+        oldPrice?: string | null;
     },
 ): string | null {
     if (!price || options.isPromotion) {
@@ -136,12 +197,11 @@ export function resolveDiscountedPrice(
         return waitingPrice;
     }
 
-    const loyaltyDiscounted = applyPercentDiscount(price, loyaltyPercent);
-    if (!loyaltyDiscounted) {
+    const loyaltyAmount = loyaltyUnitDiscountAmount(price, options.oldPrice, loyaltyPercent);
+    if (loyaltyAmount <= 0) {
         return waitingPrice;
     }
 
-    const loyaltyAmount = Number(price) - Number(loyaltyDiscounted);
     const final = Number(waitingPrice) - loyaltyAmount;
 
     if (final <= 0) {

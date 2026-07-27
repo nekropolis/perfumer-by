@@ -3,10 +3,14 @@
 import { useState } from "react";
 import type { ManualPriceReviewItem } from "@/lib/admin-pricing-api";
 
-const REASON_LABELS: Record<ManualPriceReviewItem["reason"], string> = {
+const REASON_LABELS: Record<string, string> = {
     no_receipt_supplier: "Нет поставщика",
-    no_supplier_match: "Нет в прайсе поставщика",
+    no_supplier_match: "Нет поставщика",
     warehouse_not_lower: "Вход склад ≥ прайс",
+    warehouse_offer_gap: "Разница склад/офер >10%",
+    warehouse_blend_gap: "Разница склад/офер >30%",
+    allparfume_no_match: "Allparfume: нет подходящего оффера",
+    allparfume_no_input: "Allparfume: нет входа",
 };
 
 type RowState = {
@@ -142,7 +146,7 @@ export default function ManualPriceReviewsTable({
                                     <div className="text-xs text-admin-text-secondary">{item.variant_title}</div>
                                 </td>
                                 <td className="px-3 py-3 text-admin-text-secondary">
-                                    {REASON_LABELS[item.reason]}
+                                    {REASON_LABELS[item.reason] ?? item.reason}
                                 </td>
                                 <td className="px-3 py-3">
                                     <input

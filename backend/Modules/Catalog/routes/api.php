@@ -15,7 +15,6 @@ use Modules\Catalog\Http\Controllers\Admin\ProductImageAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
-use Modules\ImportExport\Http\Controllers\Admin\ImportRetryQueueAdminController;
 
 Route::prefix('catalog')->group(function () {
     Route::get('/bootstrap', [ProductController::class, 'bootstrap']);
@@ -42,9 +41,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::get('/supplier-products', [VanilleImportController::class, 'supplierProducts']);
     Route::post('/import-parsed-products', [VanilleImportController::class, 'importParsedProducts']);
     Route::post('/parse-catalog-images', [VanilleImportController::class, 'parseCatalogImages']);
-    Route::post('/parse-product-images', [VanilleImportController::class, 'parseProductImages']);
     Route::post('/rewrite-descriptions', [VanilleImportController::class, 'rewriteDescriptions']);
-    Route::post('/retry-failed-job', [VanilleImportController::class, 'retryFailedJob']);
     // Seller One / прайс (те же обработчики, что seller-one — fallback URL во фронте)
     Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
     Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
@@ -55,16 +52,6 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
     Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
     Route::get('/duplicate-variant-links', [VanilleImportController::class, 'sellerOneDuplicateVariantLinks']);
-});
-
-Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/retry-queue')->group(function () {
-    Route::get('/', [ImportRetryQueueAdminController::class, 'index']);
-    Route::post('/run', [ImportRetryQueueAdminController::class, 'run']);
-    Route::post('/dismiss', [ImportRetryQueueAdminController::class, 'dismiss']);
-    Route::post('/retry-one', [ImportRetryQueueAdminController::class, 'retryOne']);
-    Route::post('/run-bulk-retry', [ImportRetryQueueAdminController::class, 'runBulkRetry']);
-    Route::post('/{id}/dismiss', [ImportRetryQueueAdminController::class, 'dismissById']);
-    Route::post('/{id}/retry-one', [ImportRetryQueueAdminController::class, 'retryOneById']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/seller-one')->group(function () {
@@ -141,12 +128,15 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/pricing')->group(function () {
     Route::get('/refresh/runs', [PriceRefreshController::class, 'index']);
     Route::get('/refresh/runs/{id}', [PriceRefreshController::class, 'show']);
+    Route::get('/refresh/in-stock-preview', [PriceRefreshController::class, 'inStockPreview']);
     Route::post('/refresh/start', [PriceRefreshController::class, 'start']);
     Route::get('/refresh/active', [PriceRefreshController::class, 'active']);
     Route::get('/refresh/status/{jobId}', [PriceRefreshController::class, 'status']);
     Route::get('/price-files', [PriceRefreshController::class, 'priceFiles']);
     Route::post('/price-files/upload', [PriceRefreshController::class, 'uploadPriceFile']);
     Route::get('/sources', [PriceRefreshController::class, 'sources']);
+    Route::get('/byn-rate', [PriceRefreshController::class, 'bynRate']);
+    Route::put('/byn-rate', [PriceRefreshController::class, 'updateBynRate']);
 
     Route::get('/formulas', [PriceFormulaController::class, 'index']);
     Route::post('/formulas', [PriceFormulaController::class, 'store']);

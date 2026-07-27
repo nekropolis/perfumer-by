@@ -7,8 +7,9 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\WarehouseManualPriceReview;
 use Modules\Catalog\Services\ListingMinPriceService;
-use Modules\Catalog\Support\MoneyDecimal;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\ImportExport\Models\AllparfumeVariant;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 final class WarehousePriceRefreshService
@@ -21,6 +22,7 @@ final class WarehousePriceRefreshService
         private readonly WarehouseSupplierPurchaseResolver $supplierPurchaseResolver,
         private readonly WarehouseManualPriceReviewSyncService $manualReviewSync,
         private readonly ListingMinPriceService $listingMinPriceService,
+        private readonly VariantRetailPriceDecisionService $priceDecision,
     ) {
     }
 
@@ -87,15 +89,32 @@ final class WarehousePriceRefreshService
                 $supplierPurchaseMap = $this->supplierPurchaseResolver->resolveForVariants($receiptMetaMap);
 
                 $variants = ProductVariantLink::query()
-                    ->with(['definition', 'product'])
+                    ->with(['definition', 'product', 'supplierOffers'])
                     ->whereIn('id', $variantIds)
                     ->get()
                     ->keyBy('id');
+
+                $allparfumeLinkIds = AllparfumeVariant::query()
+                    ->whereIn('product_variant_link_id', $variantIds)
+                    ->whereHas('shopOffers', static function ($q): void {
+                        $q->where('is_active', true)
+                            ->where('include_in_pricing', true)
+                            ->where('price', '>', 0);
+                    })
+                    ->pluck('product_variant_link_id')
+                    ->map(static fn ($id): int => (int) $id)
+                    ->all();
+                $allparfumeSkip = array_fill_keys($allparfumeLinkIds, true);
 
                 foreach ($variantIds as $variantId) {
                     $stats['processed']++;
                     $variant = $variants->get($variantId);
                     if (!$variant) {
+                        continue;
+                    }
+
+                    // Allparfume branch handles these in a dedicated phase / decision path.
+                    if (isset($allparfumeSkip[$variantId])) {
                         continue;
                     }
 
@@ -116,28 +135,28 @@ final class WarehousePriceRefreshService
                         continue;
                     }
 
-                    $warehousePurchase = $receiptMeta['warehouse_purchase'];
-                    $receiptSupplierId = $receiptMeta['receipt_supplier_id'];
-                    if ($receiptSupplierId !== null && $receiptSupplierId > 0) {
-                        $supplierValid = Supplier::query()->forPricing()->whereKey($receiptSupplierId)->exists();
-                        if (!$supplierValid) {
-                            $receiptSupplierId = null;
-                        }
-                    }
-                    $supplierPurchase = $supplierPurchaseMap[$variantId] ?? null;
+                    $warehousePurchase = (float) $receiptMeta['warehouse_purchase'];
+                    $listingMin = CatalogVariantStockPresenter::minListingPurchasePrice($variant);
+                    $matchedSupplier = $supplierPurchaseMap[$variantId] ?? null;
 
-                    $needsManual = $receiptSupplierId === null
-                        || $receiptSupplierId <= 0
-                        || $supplierPurchase === null
-                        || !MoneyDecimal::isLessThan($warehousePurchase, $supplierPurchase['supplier_purchase']);
+                    $decision = $this->priceDecision->decide(
+                        $variant,
+                        $warehousePurchase,
+                        $listingMin,
+                        null,
+                        null,
+                        $mainWarehouseId,
+                    );
 
-                    if ($needsManual) {
+                    if (($decision['manual'] ?? null) !== null) {
                         if ($priceRefreshRunId !== null) {
-                            $reason = $receiptSupplierId === null || $receiptSupplierId <= 0
-                                ? WarehouseManualPriceReview::REASON_NO_RECEIPT_SUPPLIER
-                                : ($supplierPurchase === null
-                                    ? WarehouseManualPriceReview::REASON_NO_SUPPLIER_MATCH
-                                    : WarehouseManualPriceReview::REASON_WAREHOUSE_NOT_LOWER);
+                            $receiptSupplierId = $receiptMeta['receipt_supplier_id'];
+                            if ($receiptSupplierId !== null && $receiptSupplierId > 0) {
+                                $supplierValid = Supplier::query()->forPricing()->whereKey($receiptSupplierId)->exists();
+                                if (!$supplierValid) {
+                                    $receiptSupplierId = null;
+                                }
+                            }
 
                             $this->manualReviewSync->queue($priceRefreshRunId, [
                                 'variant_id' => $variantId,
@@ -146,12 +165,15 @@ final class WarehousePriceRefreshService
                                     ? ProductDisplayName::forProduct($variant->product)
                                     : (string) $variant->title,
                                 'variant_title' => (string) $variant->title,
-                                'reason' => $reason,
-                                'warehouse_purchase' => $warehousePurchase,
-                                'supplier_purchase' => $supplierPurchase['supplier_purchase'] ?? null,
+                                'reason' => (string) $decision['manual']['reason'],
+                                'warehouse_purchase' => $receiptMeta['warehouse_purchase'],
+                                'supplier_purchase' => $decision['warehouse']['supplier_purchase']
+                                    ?? ($matchedSupplier['supplier_purchase'] ?? null),
                                 'receipt_supplier_id' => $receiptSupplierId,
                                 'supplier_sku' => $receiptMeta['supplier_sku'],
-                                'supplier_external_code' => $supplierPurchase['external_code'] ?? null,
+                                'supplier_external_code' => $matchedSupplier['external_code'] ?? null,
+                                'manual_retail_price' => $decision['manual']['manual_retail_price'] ?? null,
+                                'list_on_storefront' => (bool) ($decision['manual']['list_on_storefront'] ?? false),
                             ]);
                             $manualQueuedVariantIds[] = $variantId;
                             $stats['manual_queued']++;
@@ -160,26 +182,15 @@ final class WarehousePriceRefreshService
                         continue;
                     }
 
-                    $this->manualReviewSync->resolveByVariantId($variantId);
-
-                    $blendedBase = MoneyDecimal::average(
-                        $warehousePurchase,
-                        $supplierPurchase['supplier_purchase'],
-                    );
-
-                    $retail = $this->formulaResolver->calculateRetailPrice(
-                        $variant,
-                        (float) $blendedBase,
-                        PriceFormula::SOURCE_WAREHOUSE,
-                        $mainWarehouseId,
-                    );
-
-                    if ($retail === null) {
+                    if (!($decision['apply'] ?? false) || $decision['proposed_site_price'] === null) {
                         $stats['skipped_by_rule']++;
 
                         continue;
                     }
 
+                    $this->manualReviewSync->resolveByVariantId($variantId);
+
+                    $retail = (float) $decision['proposed_site_price'];
                     $stats['blended_updated']++;
                     if ($this->applyRetailPrice($variant, $retail)) {
                         $stats['updated']++;

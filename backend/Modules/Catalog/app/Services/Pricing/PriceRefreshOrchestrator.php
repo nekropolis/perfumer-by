@@ -10,6 +10,7 @@ final class PriceRefreshOrchestrator
 {
     public function __construct(
         private readonly WarehousePriceRefreshService $warehousePriceRefresh,
+        private readonly AllparfumeRetailPriceApplyService $allparfumePriceApply,
         private readonly SupplierPriceFileStorage $priceFileStorage,
         private readonly SupplierPriceImportService $supplierPriceImport,
     ) {
@@ -36,11 +37,27 @@ final class PriceRefreshOrchestrator
                 'manual_queued' => 0,
                 'manual_resolved' => 0,
             ],
+            'allparfume' => [
+                'processed' => 0,
+                'updated' => 0,
+                'unchanged' => 0,
+                'manual_queued' => 0,
+                'skipped' => 0,
+            ],
             'suppliers' => [],
         ];
 
         try {
             $stats['warehouse'] = $this->warehousePriceRefresh->refresh(
+                (int) $run->id,
+                function (array $progress) use ($onProgress): void {
+                    if ($onProgress !== null) {
+                        $onProgress($progress);
+                    }
+                },
+            );
+
+            $stats['allparfume'] = $this->allparfumePriceApply->apply(
                 (int) $run->id,
                 function (array $progress) use ($onProgress): void {
                     if ($onProgress !== null) {

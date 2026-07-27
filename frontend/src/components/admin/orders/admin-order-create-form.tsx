@@ -317,12 +317,39 @@ type CustomerNameParts = {
   patronymic: string;
 };
 
+function looksLikePatronymic(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (!v) return false;
+  return /(ович|евич|ич|овна|евна|ична|инична)$/u.test(v);
+}
+
+function looksLikeFirstName(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (!v || /\s/.test(v)) return false;
+  const last = v.slice(-1);
+  return "аяйнрлмствдкгбпь".includes(last);
+}
+
 function parseCustomerNameParts(full: string): CustomerNameParts {
   const parts = full.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { first: "", last: "", patronymic: "" };
   if (parts.length === 1) return { first: parts[0], last: "", patronymic: "" };
-  if (parts.length === 2) return { first: parts[0], last: parts[1], patronymic: "" };
-  return { first: parts[0], last: parts[1], patronymic: parts.slice(2).join(" ") };
+  if (parts.length === 2) {
+    if (looksLikeFirstName(parts[1]) && !looksLikeFirstName(parts[0])) {
+      return { first: parts[1], last: parts[0], patronymic: "" };
+    }
+    return { first: parts[0], last: parts[1], patronymic: "" };
+  }
+  const a = parts[0];
+  const b = parts[1];
+  const c = parts.slice(2).join(" ");
+  if (looksLikePatronymic(b) && !looksLikePatronymic(c)) {
+    return { first: a, last: c, patronymic: b };
+  }
+  if (looksLikePatronymic(c) && !looksLikePatronymic(b) && looksLikeFirstName(b)) {
+    return { first: b, last: a, patronymic: c };
+  }
+  return { first: a, last: b, patronymic: c };
 }
 
 function buildCustomerName(parts: CustomerNameParts): string {
@@ -1466,10 +1493,19 @@ export default function AdminOrderCreateForm({
       setPlainPhoneMode(false);
       setPhoneDigits(d.startsWith(PHONE_PREFIX) ? d.slice(0, 12) : fullPhoneFromNational(d));
     }
-    const parts = parseCustomerNameParts(u.name ?? "");
-    setCustomerFirstName(parts.first);
-    setCustomerLastName(parts.last);
-    setCustomerPatronymic(parts.patronymic);
+    const fn = u.first_name?.trim() || "";
+    const ln = u.last_name?.trim() || "";
+    const pn = u.patronymic?.trim() || "";
+    if (ln && fn && !/\s/.test(fn)) {
+      setCustomerFirstName(fn);
+      setCustomerLastName(ln);
+      setCustomerPatronymic(pn);
+    } else {
+      const parts = parseCustomerNameParts(fn && /\s/.test(fn) ? fn : u.name || "");
+      setCustomerFirstName(parts.first || (!/\s/.test(fn) ? fn : ""));
+      setCustomerLastName(parts.last || ln);
+      setCustomerPatronymic(parts.patronymic || pn);
+    }
     setPhoneHitsOpen(false);
   };
 

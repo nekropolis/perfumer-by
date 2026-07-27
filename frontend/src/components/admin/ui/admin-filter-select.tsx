@@ -26,7 +26,9 @@ export default function AdminFilterSelect({
                                           }: Props) {
     return (
         <div className={className}>
-            <label className="mb-1.5 block text-sm font-medium text-admin-text-secondary">{label}</label>
+            {label ? (
+                <label className="mb-1.5 block text-sm font-medium text-admin-text-secondary">{label}</label>
+            ) : null}
             <select
                 value={value}
                 onChange={(e) => onChangeAction(e.target.value)}

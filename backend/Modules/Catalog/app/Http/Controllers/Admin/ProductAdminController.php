@@ -20,8 +20,6 @@ use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\Catalog\Services\ProductDescriptionRewriter;
-use Modules\ImportExport\Models\ImportRetryItem;
-use Modules\ImportExport\Services\ImportRetryQueue;
 use Modules\ImportExport\Support\LegacyProductDetector;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
@@ -335,19 +333,9 @@ class ProductAdminController extends Controller
         $legacyDetector = app(LegacyProductDetector::class);
         $legacyDetector->preload([(int) $product->id]);
 
-        $pendingRetryTasks = ImportRetryItem::query()
-            ->where('product_id', $product->id)
-            ->where('status', ImportRetryItem::STATUS_PENDING)
-            ->orderBy('task_type')
-            ->pluck('task_type')
-            ->map(static fn ($t) => (string) $t)
-            ->values()
-            ->all();
-
         return response()->json([
             'data' => array_merge($resolved, [
                 'is_legacy_for_import' => $legacyDetector->isLegacy((int) $product->id),
-                'import_retry_pending_tasks' => $pendingRetryTasks,
                 'description_rewritten_at' => optional($product->description_rewritten_at)?->toIso8601String(),
             ]),
         ]);
@@ -355,8 +343,7 @@ class ProductAdminController extends Controller
 
     public function rewriteDescription(
         int $id,
-        ProductDescriptionRewriter $rewriter,
-        ImportRetryQueue $retryQueue
+        ProductDescriptionRewriter $rewriter
     ): JsonResponse {
         $product = Product::query()->findOrFail($id);
 
@@ -370,12 +357,11 @@ class ProductAdminController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($product, $result, $retryQueue): void {
+        DB::transaction(function () use ($product, $result): void {
             $product->update([
                 'description' => $result['description'],
                 'description_rewritten_at' => now(),
             ]);
-            $retryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, (int) $product->id);
         });
 
         $fresh = $product->fresh();

@@ -4,8 +4,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import type { ProductListItem } from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import {
-    applyPercentDiscount,
     resolveActiveLoyaltyCard,
+    resolveDiscountedPrice,
     resolveProductListLoyaltyPriceRange,
 } from "@/lib/loyalty-pricing";
 
@@ -30,8 +30,27 @@ export default function ProductCardLoyaltyPrice({ product }: Props) {
         return null;
     }
 
-    const loyaltyMin = applyPercentDiscount(loyaltyRange.min, loyaltyCard.discountPercent ?? 0);
-    const loyaltyMax = applyPercentDiscount(loyaltyRange.max, loyaltyCard.discountPercent ?? 0);
+    const oldMin = product.has_discount ? (product.old_price_range?.min ?? null) : null;
+    const oldMax = product.has_discount ? (product.old_price_range?.max ?? null) : null;
+    const cardPercent = loyaltyCard.discountPercent ?? 0;
+
+    const loyaltyMin = resolveDiscountedPrice(loyaltyRange.min, {
+        loyaltyPercent: cardPercent,
+        oldPrice: oldMin,
+    });
+    const loyaltyMax = resolveDiscountedPrice(loyaltyRange.max ?? loyaltyRange.min, {
+        loyaltyPercent: cardPercent,
+        oldPrice: oldMax ?? oldMin,
+    });
+
+    // Нет доп. скидки карты поверх товарной — не дублируем ту же цену.
+    if (
+        loyaltyMin === loyaltyRange.min &&
+        loyaltyMax === (loyaltyRange.max ?? loyaltyRange.min)
+    ) {
+        return null;
+    }
+
     const loyaltyMinFmt = formatMoneyDisplay(loyaltyMin);
     const loyaltyMaxFmt = formatMoneyDisplay(loyaltyMax);
 

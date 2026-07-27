@@ -3,10 +3,12 @@
 namespace Modules\Checkout\Services;
 
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Checkout\Models\Order;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
+use Modules\Loyalty\Support\LoyaltyLineDiscount;
 
 final class AdminOrderPricingService
 {
@@ -42,9 +44,8 @@ final class AdminOrderPricingService
         $percent = $card && $applyCardDiscount
             ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent)
             : 0.0;
-        $loyaltyEligibleSubtotal = $this->loyaltyEligibleSubtotal($items);
         $loyaltyAmount = $card && $applyCardDiscount
-            ? round($loyaltyEligibleSubtotal * ($percent / 100), 2)
+            ? $this->loyaltyDiscountAmount($items, $percent)
             : 0.0;
         $merchandiseTotal = max(0, round($subtotal - $loyaltyAmount, 2));
 
@@ -130,8 +131,12 @@ final class AdminOrderPricingService
     /**
      * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
      */
-    private function loyaltyEligibleSubtotal(array $items): float
+    private function loyaltyDiscountAmount(array $items, float $cardPercent): float
     {
+        if ($cardPercent <= 0) {
+            return 0.0;
+        }
+
         $variantIds = [];
         foreach ($items as $item) {
             $variantId = (int) ($item['variant_id'] ?? 0);
@@ -140,28 +145,39 @@ final class AdminOrderPricingService
             }
         }
 
-        $promotionVariantIds = [];
+        /** @var array<int, array{old_price: mixed, is_promotion: bool}> $variantMeta */
+        $variantMeta = [];
         if ($variantIds !== []) {
-            $promotionVariantIds = ProductVariantLink::query()
+            $variantMeta = ProductVariantLink::query()
                 ->whereIn('id', array_keys($variantIds))
-                ->where('is_promotion', true)
-                ->pluck('id')
-                ->flip()
+                ->get(['id', 'old_price', 'is_promotion'])
+                ->keyBy('id')
+                ->map(fn (ProductVariantLink $v): array => [
+                    'old_price' => $v->old_price,
+                    'is_promotion' => (bool) $v->is_promotion,
+                ])
                 ->all();
         }
 
-        $eligible = 0.0;
+        $total = '0.00';
         foreach ($items as $item) {
             $variantId = (int) ($item['variant_id'] ?? 0);
-            if ($variantId > 0 && isset($promotionVariantIds[$variantId])) {
-                continue;
-            }
-
+            $meta = $variantId > 0 ? ($variantMeta[$variantId] ?? null) : null;
+            $isPromotion = (bool) ($meta['is_promotion'] ?? false);
+            $oldPrice = $meta['old_price'] ?? null;
             $qty = max(0, (int) ($item['qty'] ?? 0));
-            $price = round((float) ($item['price'] ?? 0), 2);
-            $eligible += round($qty * $price, 2);
+            $price = $item['price'] ?? 0;
+
+            $line = LoyaltyLineDiscount::lineAmount(
+                $price,
+                $oldPrice,
+                $cardPercent,
+                $qty,
+                $isPromotion,
+            );
+            $total = bcadd($total, $line, 2);
         }
 
-        return round($eligible, 2);
+        return (float) MoneyDecimal::normalize($total);
     }
 }

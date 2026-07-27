@@ -6,10 +6,15 @@ use Modules\Catalog\Models\PriceFormula;
 
 final class PriceFormulaCalculator
 {
+    public function __construct(
+        private readonly BynRateService $bynRate,
+    ) {
+    }
+
     public function calculate(PriceFormula $formula, float $purchasePrice): float
     {
         $multiplier = (float) $formula->multiplier;
-        $rubRate = (float) $formula->rub_rate;
+        $rubRate = $this->bynRate->get();
         $addend = (float) $formula->addend;
         $precision = (int) $formula->round_precision;
 

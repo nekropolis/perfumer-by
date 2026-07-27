@@ -1678,12 +1678,17 @@ export function getVariantMatchFlags(
     const miniatureRelevant = hint.isMiniature || variantIsMiniature;
     const miniature = variantIsMiniature === hint.isMiniature;
 
+    // Несовпадение тестера/пробника/миниатюры штрафуем: иначе «100 мл EDP Тестер»
+    // набирает тот же score, что и обычный «100 мл EDP», когда в прайсе тестера нет.
     const score =
         (volume ? 70 : 0)
         + (concentration ? 30 : 0)
         + (testerRelevant && tester ? 20 : 0)
+        + (testerRelevant && !tester ? -40 : 0)
         + (vialRelevant && vial ? 20 : 0)
-        + (miniatureRelevant && miniature ? 20 : 0);
+        + (vialRelevant && !vial ? -40 : 0)
+        + (miniatureRelevant && miniature ? 20 : 0)
+        + (miniatureRelevant && !miniature ? -40 : 0);
 
     return { volume, concentration, tester, testerRelevant, vial, vialRelevant, miniature, miniatureRelevant, score };
 }
@@ -1716,18 +1721,35 @@ export function isFullVariantMatch(flags: VariantMatchFlags): boolean {
         && (!flags.miniatureRelevant || flags.miniature);
 }
 
+export function hasVariantFlagMismatch(flags: VariantMatchFlags): boolean {
+    return (flags.testerRelevant && !flags.tester)
+        || (flags.vialRelevant && !flags.vial)
+        || (flags.miniatureRelevant && !flags.miniature);
+}
+
+/** Полное совпадение выше; внутри группы — по score. */
+export function compareVariantMatchFlags(a: VariantMatchFlags, b: VariantMatchFlags): number {
+    const fullA = isFullVariantMatch(a) ? 1 : 0;
+    const fullB = isFullVariantMatch(b) ? 1 : 0;
+    if (fullB !== fullA) {
+        return fullB - fullA;
+    }
+
+    return b.score - a.score;
+}
+
 export function getVariantMatchRowClass(flags: VariantMatchFlags, selected: boolean): string {
     if (selected) {
         return "bg-admin-primary text-white";
     }
     if (isFullVariantMatch(flags)) {
-        return "bg-green-50 ring-1 ring-green-200 hover:bg-green-100";
+        return "bg-green-50/80 hover:bg-green-50";
     }
-    if (flags.score > 0) {
-        return "bg-amber-50 ring-1 ring-amber-200 hover:bg-amber-100";
+    if (flags.score > 0 && !hasVariantFlagMismatch(flags)) {
+        return "hover:bg-admin-muted";
     }
 
-    return "hover:bg-admin-muted";
+    return "text-admin-text-secondary hover:bg-admin-muted/70";
 }
 
 export function buildDefinitionSearchFromHint(hint: SupplierVariantHint): string {

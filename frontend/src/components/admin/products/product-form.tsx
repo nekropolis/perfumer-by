@@ -31,8 +31,6 @@ type Props = {
     onSubmitAction: () => void;
     /** Legacy (импорт): уникализация описания недоступна */
     isLegacyForImport?: boolean;
-    /** Открытые задачи import_retry_queue для карточки */
-    importRetryPendingTasks?: string[];
     descriptionRewrittenAt?: string | null;
     descriptionRewriting?: boolean;
     onRewriteDescriptionAction?: () => void | Promise<void>;
@@ -45,25 +43,12 @@ export default function ProductForm({
                                         onChangeAction,
                                         onSubmitAction,
                                         isLegacyForImport = false,
-                                        importRetryPendingTasks = [],
                                         descriptionRewrittenAt = null,
                                         descriptionRewriting = false,
                                         onRewriteDescriptionAction,
                                     }: Props) {
-    const pendingLabel = importRetryPendingTasks.length
-        ? importRetryPendingTasks.join(", ")
-        : "";
-
     return (
         <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
-            {importRetryPendingTasks.length > 0 ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-                    <span className="font-medium">Импорт:</span> есть невыполненные задачи (
-                    <span className="font-mono text-xs">{pendingLabel}</span>
-                    ).
-                </div>
-            ) : null}
-
             <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2 grid gap-2 sm:grid-cols-3">
                     <label className="flex items-center gap-2 rounded-lg border border-admin-border bg-admin-muted px-3 py-2 text-xs font-medium text-admin-text">

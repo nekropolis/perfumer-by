@@ -87,7 +87,6 @@ export type VanilleImportQueueJob = {
         | "collect_links"
         | "parse_products"
         | "parse_catalog_images"
-        | "parse_product_images"
         | "rewrite_descriptions"
         | "import_parsed_products"
         | "pipeline_new_products"

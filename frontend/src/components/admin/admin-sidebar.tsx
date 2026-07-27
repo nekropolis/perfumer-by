@@ -8,6 +8,7 @@ import {
     BarChart3,
     BellRing,
     Calculator,
+    BookOpen,
     ClipboardList,
     CreditCard,
     FileBarChart,
@@ -115,7 +116,7 @@ const sections: SidebarSection[] = [
         label: "Импорт и парсинг",
         items: [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
-            { type: "link", href: "/admin/import-export/retry-queue", label: "Ошибки импорта", icon: FolderSync },
+            { type: "link", href: "/admin/import-export/allparfume", label: "Allparfume", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
         ],
     },
@@ -124,7 +125,9 @@ const sections: SidebarSection[] = [
         label: "Цена",
         items: [
             { type: "link", href: "/admin/pricing/refresh", label: "Обновить цены", icon: RefreshCw },
+            { type: "link", href: "/admin/pricing/history", label: "История обновлений", icon: ScrollText },
             { type: "link", href: "/admin/pricing/formulas", label: "Формулы цен", icon: Calculator },
+            { type: "link", href: "/admin/pricing/logic", label: "Логика цен", icon: BookOpen },
             { type: "link", href: "/admin/pricing/manual-reviews", label: "Ручная установка", icon: ClipboardList },
         ],
     },

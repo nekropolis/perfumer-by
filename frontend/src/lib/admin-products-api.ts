@@ -173,7 +173,6 @@ export type ProductAdminDetail = {
 
     /** Админ-метаданные импорта (расширение ответа GET /admin/products/:id). */
     is_legacy_for_import?: boolean;
-    import_retry_pending_tasks?: string[];
     description_rewritten_at?: string | null;
 
     brand: {

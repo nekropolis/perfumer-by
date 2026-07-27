@@ -13,6 +13,8 @@ use Modules\Catalog\Jobs\RunPriceRefreshJob;
 use Modules\Catalog\Models\PriceFormula;
 use Modules\Catalog\Models\PriceRefreshRun;
 use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Services\Pricing\BynRateService;
+use Modules\Catalog\Services\Pricing\InStockPricingPreviewService;
 use Modules\Catalog\Services\Pricing\SupplierPriceFileStorage;
 use Modules\Warehouse\Models\Warehouse;
 
@@ -95,6 +97,33 @@ class PriceRefreshController extends Controller
         ], 202);
     }
 
+    public function inStockPreview(Request $request, InStockPricingPreviewService $previewService): JsonResponse
+    {
+        $perPage = (int) $request->integer('per_page', 50);
+        $page = max(1, (int) $request->integer('page', 1));
+        $search = $request->filled('search') ? trim($request->string('search')->toString()) : null;
+        $role = $request->filled('role') ? trim($request->string('role')->toString()) : null;
+
+        $paginator = $previewService->paginate($page, $perPage, $search, $role);
+
+        $lastRefreshAt = PriceRefreshRun::query()
+            ->where('status', PriceRefreshRun::STATUS_COMPLETED)
+            ->orderByDesc('finished_at')
+            ->orderByDesc('id')
+            ->value('finished_at');
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'last_refresh_at' => $lastRefreshAt !== null
+                ? (string) $lastRefreshAt
+                : null,
+        ]);
+    }
+
     public function uploadPriceFile(Request $request, SupplierPriceFileStorage $storage): JsonResponse
     {
         $validated = $request->validate([
@@ -151,6 +180,31 @@ class PriceRefreshController extends Controller
                 'warehouses' => Warehouse::query()
                     ->orderBy('name')
                     ->get(['id', 'name', 'code']),
+            ],
+        ]);
+    }
+
+    public function bynRate(BynRateService $bynRate): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'rate' => number_format($bynRate->get(), 2, '.', ''),
+            ],
+        ]);
+    }
+
+    public function updateBynRate(Request $request, BynRateService $bynRate): JsonResponse
+    {
+        $validated = $request->validate([
+            'rate' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $rate = $bynRate->update((float) $validated['rate']);
+
+        return response()->json([
+            'message' => 'Курс BYN обновлён',
+            'data' => [
+                'rate' => number_format($rate, 2, '.', ''),
             ],
         ]);
     }

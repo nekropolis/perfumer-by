@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
     fetchSellerOneActiveStatus,
@@ -9,6 +9,10 @@ import {
 import { fetchActivePriceRefresh } from "@/lib/admin-pricing-api";
 import type { PriceRefreshJobStatus } from "@/lib/admin-pricing-api";
 import { resolvePriceRefreshProgress } from "@/lib/price-refresh-ui";
+import {
+    fetchAllparfumeSyncActive,
+    type AllparfumeSyncJobStatus,
+} from "@/lib/admin-allparfume-api";
 import type {
     SellerOneParseStatus,
     VanilleImportQueueJob,
@@ -32,6 +36,7 @@ type ActiveTask = {
 type Props = {
     compact?: boolean;
     className?: string;
+    onActiveChangeAction?: (active: boolean) => void;
 };
 
 const VANILLE_TYPE_LABELS: Record<VanilleImportQueueJob["type"], string> = {
@@ -39,7 +44,6 @@ const VANILLE_TYPE_LABELS: Record<VanilleImportQueueJob["type"], string> = {
     collect_links: "Сбор ссылок Vanille",
     parse_products: "Парсинг товаров Vanille",
     parse_catalog_images: "Каталожные изображения Vanille",
-    parse_product_images: "Галерея изображений Vanille",
     rewrite_descriptions: "Уникализация описаний Vanille",
     import_parsed_products: "Импорт Vanille",
     pipeline_new_products: "Пайплайн Vanille (новые)",
@@ -79,6 +83,17 @@ function isPriceRefreshActive(status: string | undefined): boolean {
 function isSellerOneActive(status: SellerOneParseStatus["status"] | undefined): boolean {
     return status === "queued" || status === "running";
 }
+
+function isAllparfumeSyncActive(status: string | undefined): boolean {
+    return status === "queued" || status === "running";
+}
+
+const ALLPARFUME_STATUS_LABELS: Record<string, string> = {
+    queued: "в очереди",
+    running: "выполняется",
+    completed: "завершено",
+    failed: "ошибка",
+};
 
 function clampProgress(value: number): number {
     if (!Number.isFinite(value)) return 0;
@@ -161,7 +176,27 @@ function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
     };
 }
 
-export default function AdminActiveTasksWidget({ compact = false, className }: Props) {
+function buildAllparfumeSyncTask(status: AllparfumeSyncJobStatus): ActiveTask {
+    const isFull = status.job_type === "full";
+    const processed = Number(status.processed ?? 0);
+    const total = Number(status.total ?? 0);
+    const progress = clampProgress(Number(status.progress ?? 0));
+    const counter = total > 0 ? `${processed} / ${total}` : extractCounter(status.message);
+    return {
+        key: `allparfume:${status.job_id}:${status.job_type ?? "sync"}`,
+        title: isFull ? "Allparfume парсинг" : "Allparfume цены",
+        statusLabel: ALLPARFUME_STATUS_LABELS[status.status] ?? status.status,
+        message: status.message ?? null,
+        counter,
+        progress: progress > 0 ? progress : status.status === "running" || status.status === "queued" ? 3 : 0,
+    };
+}
+
+export default function AdminActiveTasksWidget({
+    compact = false,
+    className,
+    onActiveChangeAction,
+}: Props) {
     const [tasks, setTasks] = useState<ActiveTask[]>([]);
 
     const load = useCallback(async (): Promise<{ active: boolean }> => {
@@ -170,10 +205,11 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
         //   • Seller One — используем discovery-эндпоинт (/supplier-price/active),
         //     чтобы не зависеть от localStorage: джоб мог быть запущен в другой
         //     вкладке / браузере / сессии — всё равно нужно показать.
-        const [vanilleRes, sellerOneRes, priceRefreshRes] = await Promise.allSettled([
+        const [vanilleRes, sellerOneRes, priceRefreshRes, allparfumeRes] = await Promise.allSettled([
             fetchVanilleParseStatus(),
             fetchSellerOneActiveStatus(),
             fetchActivePriceRefresh(),
+            fetchAllparfumeSyncActive(),
         ]);
 
         const next: ActiveTask[] = [];
@@ -199,6 +235,13 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
             }
         }
 
+        if (allparfumeRes.status === "fulfilled") {
+            const status = allparfumeRes.value?.data ?? null;
+            if (status && isAllparfumeSyncActive(status.status)) {
+                next.push(buildAllparfumeSyncTask(status));
+            }
+        }
+
         setTasks(next);
 
         // Подсказываем хуку: есть активные задачи — жми на газ (5s), нет — идём на idle-интервал.
@@ -210,6 +253,10 @@ export default function AdminActiveTasksWidget({ compact = false, className }: P
         idleIntervalMs: IDLE_INTERVAL_MS,
         fetcherAction: load,
     });
+
+    useEffect(() => {
+        onActiveChangeAction?.(tasks.length > 0);
+    }, [tasks.length, onActiveChangeAction]);
 
     if (tasks.length === 0) {
         return null;

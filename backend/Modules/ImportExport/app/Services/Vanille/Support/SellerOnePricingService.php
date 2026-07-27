@@ -6,6 +6,7 @@ use Modules\Catalog\Models\PriceFormula;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SellerOneSetting;
 use Modules\Catalog\Models\Supplier;
+use Modules\Catalog\Services\Pricing\BynRateService;
 use Modules\Catalog\Services\Pricing\PriceFormulaCalculator;
 use Modules\Catalog\Services\Pricing\PriceFormulaResolver;
 
@@ -16,13 +17,14 @@ class SellerOnePricingService
     private const DEFAULT_PRICE_FIXED_FEE = 7.0;
     private const DEFAULTL_PRECISION = 1;
     public const SETTING_PRICE_MARKUP = 'seller_one.price_markup';
-    public const SETTING_PRICE_RATE = 'seller_one.price_rate';
+    public const SETTING_PRICE_RATE = BynRateService::SETTING_KEY;
     public const SETTING_PRICE_FIXED_FEE = 'seller_one.price_fixed_fee';
     public const SETTING_PRICE_PRECISION = 'seller_one.price_precision';
 
     public function __construct(
         private readonly PriceFormulaResolver $formulaResolver,
         private readonly PriceFormulaCalculator $calculator,
+        private readonly BynRateService $bynRate,
     ) {
     }
 
@@ -30,7 +32,6 @@ class SellerOnePricingService
     {
         $keys = [
             self::SETTING_PRICE_MARKUP,
-            self::SETTING_PRICE_RATE,
             self::SETTING_PRICE_FIXED_FEE,
             self::SETTING_PRICE_PRECISION,
         ];
@@ -45,11 +46,7 @@ class SellerOnePricingService
                 'SELLER_ONE_PRICE_MARKUP',
                 self::DEFAULT_PRICE_MARKUP
             ),
-            'price_rate' => $this->resolveFloatSetting(
-                $stored->get(self::SETTING_PRICE_RATE),
-                'SELLER_ONE_PRICE_RATE',
-                self::DEFAULT_PRICE_RATE
-            ),
+            'price_rate' => $this->bynRate->get(),
             'price_fixed_fee' => $this->resolveFloatSetting(
                 $stored->get(self::SETTING_PRICE_FIXED_FEE),
                 'SELLER_ONE_PRICE_FIXED_FEE',
@@ -67,9 +64,8 @@ class SellerOnePricingService
     {
         $map = [
             self::SETTING_PRICE_MARKUP => (string) $settings['price_markup'],
-            self::SETTING_PRICE_RATE => (string) $settings['price_rate'],
             self::SETTING_PRICE_FIXED_FEE => (string) $settings['price_fixed_fee'],
-            self::SETTING_PRICE_PRECISION => (string) $settings['price_final_precision'],
+            self::SETTING_PRICE_PRECISION => (string) ($settings['price_precision'] ?? $settings['price_final_precision'] ?? ''),
         ];
 
         foreach ($map as $key => $value) {
@@ -78,6 +74,8 @@ class SellerOnePricingService
                 ['value' => $value]
             );
         }
+
+        $this->bynRate->update((float) $settings['price_rate']);
 
         return $this->getSettings();
     }

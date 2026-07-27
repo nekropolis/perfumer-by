@@ -234,24 +234,10 @@ export async function parseVanilleCatalogImages(): Promise<{ message?: string; j
     );
 }
 
-export async function parseVanilleProductImages(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
-    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
-        "/admin/import-export/vanille/parse-product-images",
-        { method: "POST", body: JSON.stringify({}) }
-    );
-}
-
 export async function rewriteVanilleDescriptions(): Promise<{ message?: string; job: VanilleImportQueueJob }> {
     return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
         "/admin/import-export/vanille/rewrite-descriptions",
         { method: "POST", body: JSON.stringify({}) }
-    );
-}
-
-export async function startVanilleRetryFailedJob(taskType: string): Promise<{ message?: string; job: VanilleImportQueueJob }> {
-    return adminVanilleFetch<{ message?: string; job: VanilleImportQueueJob }>(
-        "/admin/import-export/vanille/retry-failed-job",
-        { method: "POST", body: JSON.stringify({ task_type: taskType }) }
     );
 }
 
@@ -320,7 +306,6 @@ export async function vanilleSingleUrlMediaFollowUp(body: {
     url?: string;
     product_id?: number;
     catalog?: boolean;
-    gallery?: boolean;
     descriptions?: boolean;
 }): Promise<VanilleSingleUrlMediaFollowUpResponse> {
     return adminVanilleFetch<VanilleSingleUrlMediaFollowUpResponse>(
@@ -332,7 +317,6 @@ export async function vanilleSingleUrlMediaFollowUp(body: {
                     ? { product_id: body.product_id }
                     : { url: (body.url ?? "").trim() }),
                 catalog: Boolean(body.catalog),
-                gallery: Boolean(body.gallery),
                 descriptions: Boolean(body.descriptions),
             }),
         }

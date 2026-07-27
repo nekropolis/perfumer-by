@@ -7,6 +7,7 @@ import { X, Store, User } from "lucide-react";
 import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
+import AdminBynRateControl from "@/components/admin/pricing/admin-byn-rate-control";
 import AdminScrollToTopButton from "@/components/admin/ui/admin-scroll-to-top-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
@@ -24,6 +25,7 @@ export default function AdminShell({ children }: Props) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [sidebarReady, setSidebarReady] = useState(false);
     const [cacheResetBusy, setCacheResetBusy] = useState(false);
+    const [hasActiveTasks, setHasActiveTasks] = useState(false);
     const mainScrollRef = useRef<HTMLElement>(null);
 
     const { logout } = useAuth();
@@ -160,7 +162,11 @@ export default function AdminShell({ children }: Props) {
                             </div>
 
                             <div className="flex shrink-0 items-center gap-1.5">
-                                <AdminActiveTasksWidget compact className="flex items-center gap-2" />
+                                <AdminActiveTasksWidget
+                                    compact
+                                    className="flex items-center gap-2"
+                                    onActiveChangeAction={setHasActiveTasks}
+                                />
                                 <button
                                     type="button"
                                     className={adminBtnGhost}
@@ -185,6 +191,13 @@ export default function AdminShell({ children }: Props) {
                             {mobileActionsOpen ? (
                                 <div className="absolute right-4 top-[calc(100%+0.5rem)] z-[210] w-[min(88vw,22rem)] rounded-xl border border-admin-border bg-admin-surface p-2 shadow-xl">
                                     <div className="flex flex-col gap-1">
+                                        {!hasActiveTasks ? (
+                                            <AdminBynRateControl
+                                                fullWidth
+                                                onBeforeOpenAction={() => setMobileActionsOpen(false)}
+                                            />
+                                        ) : null}
+
                                         <button
                                             type="button"
                                             onClick={() => void handleResetCatalogCache()}

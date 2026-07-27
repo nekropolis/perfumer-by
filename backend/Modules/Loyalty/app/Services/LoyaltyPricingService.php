@@ -3,10 +3,12 @@
 namespace Modules\Loyalty\Services;
 
 use Modules\Cart\Models\Cart;
+use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\ClientDiscountCard;
+use Modules\Loyalty\Support\LoyaltyLineDiscount;
 use Modules\Users\Models\Client;
 
 class LoyaltyPricingService
@@ -187,6 +189,8 @@ class LoyaltyPricingService
     }
 
     /**
+     * Скидка по карте: по каждой позиции max(0, C−D)% от текущей цены (D из old_price).
+     *
      * @param  int[]|null  $onlyCartItemIds
      */
     private function loyaltyDiscountAmount(
@@ -199,24 +203,12 @@ class LoyaltyPricingService
             return 0.0;
         }
 
-        $eligibleSubtotal = $this->cartLoyaltyEligibleSubtotal($cart, $onlyCartItemIds);
-        if ($eligibleSubtotal <= 0) {
+        $card = $this->resolveDiscountCard($cart, $client);
+        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
+        if ($cardPercent <= 0) {
             return 0.0;
         }
 
-        $card = $this->resolveDiscountCard($cart, $client);
-        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
-
-        return round($eligibleSubtotal * ($cardPercent / 100), 2);
-    }
-
-    /**
-     * Сумма строк корзины, к которым применяется скидка по карте (без акционных вариантов).
-     *
-     * @param  int[]|null  $onlyCartItemIds
-     */
-    private function cartLoyaltyEligibleSubtotal(Cart $cart, ?array $onlyCartItemIds = null): float
-    {
         $rows = $cart->items;
         if ($onlyCartItemIds !== null) {
             if ($onlyCartItemIds === []) {
@@ -226,13 +218,19 @@ class LoyaltyPricingService
             $rows = $rows->filter(fn ($item) => isset($allowed[(int) $item->id]));
         }
 
-        return (float) $rows->sum(function ($item) {
-            if ((bool) ($item->variant?->is_promotion ?? false)) {
-                return 0.0;
-            }
+        $total = '0.00';
+        foreach ($rows as $item) {
+            $line = LoyaltyLineDiscount::lineAmount(
+                $item->variant?->price,
+                $item->variant?->old_price,
+                $cardPercent,
+                (int) $item->qty,
+                (bool) ($item->variant?->is_promotion ?? false),
+            );
+            $total = bcadd($total, $line, 2);
+        }
 
-            return ((float) ($item->variant?->price ?? 0)) * (int) $item->qty;
-        });
+        return (float) MoneyDecimal::normalize($total);
     }
 
     private function clientHasVerifiedLink(Client $client, DiscountCard $card): bool

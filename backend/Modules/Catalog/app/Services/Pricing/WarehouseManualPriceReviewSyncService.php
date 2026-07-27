@@ -18,6 +18,8 @@ final class WarehouseManualPriceReviewSyncService
      *     receipt_supplier_id: ?int,
      *     supplier_sku: ?string,
      *     supplier_external_code: ?string,
+     *     manual_retail_price?: ?string,
+     *     list_on_storefront?: bool,
      * }  $payload
      */
     public function queue(int $priceRefreshRunId, array $payload): WarehouseManualPriceReview
@@ -40,6 +42,13 @@ final class WarehouseManualPriceReviewSyncService
             'price_refresh_run_id' => $priceRefreshRunId,
             'resolved_at' => null,
         ];
+
+        if (array_key_exists('manual_retail_price', $payload)) {
+            $data['manual_retail_price'] = $payload['manual_retail_price'];
+        }
+        if (array_key_exists('list_on_storefront', $payload)) {
+            $data['list_on_storefront'] = (bool) $payload['list_on_storefront'];
+        }
 
         if ($existing instanceof WarehouseManualPriceReview) {
             $existing->update($data);

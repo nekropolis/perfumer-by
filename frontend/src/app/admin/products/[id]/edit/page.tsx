@@ -228,7 +228,6 @@ export default function AdminProductEditPage() {
                             onChangeAction={setForm}
                             onSubmitAction={handleSubmit}
                             isLegacyForImport={Boolean(productData.is_legacy_for_import)}
-                            importRetryPendingTasks={productData.import_retry_pending_tasks}
                             descriptionRewrittenAt={productData.description_rewritten_at ?? null}
                             descriptionRewriting={descriptionRewriting}
                             onRewriteDescriptionAction={handleRewriteDescription}

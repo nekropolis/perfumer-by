@@ -16,12 +16,9 @@ use Modules\Catalog\Services\ProductImageVariantService;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Support\PublicStorageWriteGuard;
-use Modules\ImportExport\Models\ImportRetryItem;
-use Modules\ImportExport\Services\ImportRetryQueue;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleBrandParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleCatalogImageParser;
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleLinkCollector;
-use Modules\ImportExport\Services\Vanille\Parsers\VanilleProductParser;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\ImportExport\Support\LegacyProductDetector;
 use Throwable;
@@ -30,18 +27,12 @@ class VanilleMediaImportService
 {
     private const int CATALOG_BRANDS_PER_BATCH = 1;
 
-    private const int GALLERY_PRODUCTS_PER_BATCH = 3;
-
     private const int DESCRIPTION_PRODUCTS_PER_BATCH = 2;
-
-    private const int RETRY_PRODUCTS_PER_BATCH = 5;
 
     public function __construct(
         protected VanilleHttpClient $httpClient,
         protected VanilleCatalogImageParser $catalogImageParser,
         protected VanilleLinkCollector $linkCollector,
-        protected VanilleProductParser $productParser,
-        protected ImportRetryQueue $importRetryQueue,
         protected LegacyProductDetector $legacyDetector,
         protected ProductImageVariantService $imageVariantService,
     ) {
@@ -145,16 +136,9 @@ class VanilleMediaImportService
                     foreach ($imageUrls as $imgUrl) {
                         $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
                     }
-                    $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
                 } catch (Throwable $e) {
                     $this->abortIfStorageWriteError($e);
                     $failed++;
-                    $this->importRetryQueue->record(
-                        ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
-                        $productId,
-                        $e->getMessage(),
-                        ['slug' => $slug, 'image_urls' => $imageUrls],
-                    );
                     $log[] = 'ERROR product '.$productId.' slug='.$slug.' -> '.$e->getMessage();
                 }
             }
@@ -190,16 +174,9 @@ class VanilleMediaImportService
                     foreach ($imageUrls as $imgUrl) {
                         $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
                     }
-                    $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
                 } catch (Throwable $e) {
                     $this->abortIfStorageWriteError($e);
                     $failed++;
-                    $this->importRetryQueue->record(
-                        ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
-                        $productId,
-                        $e->getMessage(),
-                        ['slug' => $slug, 'image_urls' => $imageUrls, 'source' => 'product_page_fallback'],
-                    );
                     $log[] = 'ERROR product '.$productId.' slug='.$slug.' (card fallback) -> '.$e->getMessage();
                 }
             }
@@ -219,136 +196,6 @@ class VanilleMediaImportService
                 'failed_count' => $failed,
                 'processed_brands' => min($nextOffset, $totalBrands),
                 'total_brands' => $totalBrands,
-            ],
-        ];
-    }
-
-    public function runProductGalleryBatch(int $offset, int $limit = self::GALLERY_PRODUCTS_PER_BATCH): array
-    {
-        PublicStorageWriteGuard::assertProductImagesWritable();
-
-        $supplierId = $this->vanilleSupplierId();
-        if ($supplierId === 0) {
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => 'Галерея: поставщик Vanille не найден',
-                'result' => ['log' => [], 'failed_count' => 0],
-            ];
-        }
-
-        $query = SupplierProduct::query()
-            ->where('supplier_id', $supplierId)
-            ->where('is_linked', true)
-            ->whereNotNull('product_id')
-            ->orderBy('id');
-
-        $total = (clone $query)->count();
-        if ($total === 0) {
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => 'Галерея: нет связанных товаров',
-                'result' => ['log' => [], 'failed_count' => 0],
-            ];
-        }
-
-        $items = $query->offset($offset)->limit($limit)->get();
-        $productIds = $items->pluck('product_id')->map(fn ($id) => (int) $id)->filter()->unique()->values()->all();
-        $this->legacyDetector->preload($productIds);
-
-        $log = [];
-        $failed = 0;
-
-        foreach ($items as $sp) {
-            $productId = (int) $sp->product_id;
-            if ($productId <= 0) {
-                continue;
-            }
-
-            if ($this->legacyDetector->isLegacy($productId)) {
-                $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES, $productId);
-                continue;
-            }
-
-            $url = trim((string) $sp->external_url);
-            if ($url === '') {
-                $this->importRetryQueue->record(
-                    ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-                    $productId,
-                    'empty external_url',
-                    [],
-                );
-                $failed++;
-                continue;
-            }
-
-            try {
-                $html = $this->httpClient->fetchUrl($url, 20);
-                $gallery = $this->productParser->parseGalleryImageUrlsFromHtml($html);
-                if ($gallery === []) {
-                    $this->importRetryQueue->record(
-                        ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-                        $productId,
-                        'no gallery urls parsed',
-                        ['url' => $url],
-                    );
-                    $failed++;
-                    continue;
-                }
-
-                $saved = 0;
-                foreach (array_slice($gallery, 0, 8) as $imgUrl) {
-                    try {
-                        if ($this->productImageSourceExists($productId, $imgUrl)) {
-                            continue;
-                        }
-                        $this->storeGalleryImage($productId, $imgUrl);
-                        $saved++;
-                    } catch (Throwable $e) {
-                        $this->abortIfStorageWriteError($e);
-                        $log[] = 'WARN product '.$productId.' img '.$imgUrl.' -> '.$e->getMessage();
-                    }
-                }
-
-                if ($saved === 0 && $gallery !== []) {
-                    $this->importRetryQueue->record(
-                        ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-                        $productId,
-                        'gallery download failed for all urls',
-                        ['url' => $url],
-                    );
-                    $failed++;
-                } else {
-                    $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES, $productId);
-                }
-            } catch (Throwable $e) {
-                $this->abortIfStorageWriteError($e);
-                $failed++;
-                $this->importRetryQueue->record(
-                    ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-                    $productId,
-                    $e->getMessage(),
-                    ['url' => $url],
-                );
-                $log[] = 'ERROR product '.$productId.' -> '.$e->getMessage();
-            }
-        }
-
-        $nextOffset = $offset + $items->count();
-        $done = $nextOffset >= $total;
-        $progress = $done ? 100 : max(5, min(95, (int) round(($nextOffset / max(1, $total)) * 100)));
-
-        return [
-            'done' => $done,
-            'progress' => $progress,
-            'message' => sprintf('Галерея: товары %d / %d', min($nextOffset, $total), $total),
-            'result' => [
-                'state' => ['offset' => $nextOffset, 'limit' => $limit],
-                'log' => $log,
-                'failed_count' => $failed,
-                'processed' => min($nextOffset, $total),
-                'total' => $total,
             ],
         ];
     }
@@ -381,23 +228,14 @@ class VanilleMediaImportService
         foreach ($products as $product) {
             $pid = (int) $product->id;
             if ($this->legacyDetector->isLegacy($pid)) {
-                $this->importRetryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, $pid);
                 continue;
             }
 
             $res = $this->descriptionRewriter()->rewriteProduct($product);
             if (! ($res['ok'] ?? false)) {
                 $err = (string) ($res['error'] ?? 'unknown');
-                if ($err === 'legacy_skip' || $err === 'source_too_short') {
-                    $this->importRetryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, $pid);
-                } else {
+                if ($err !== 'legacy_skip' && $err !== 'source_too_short') {
                     $failed++;
-                    $this->importRetryQueue->record(
-                        ImportRetryItem::TASK_DESCRIPTION_REWRITE,
-                        $pid,
-                        $err,
-                        ['len' => mb_strlen((string) $product->description), 'prompt_hash' => hash('sha256', (string) $product->id)],
-                    );
                 }
                 $log[] = 'SKIP/ERR product '.$pid.': '.$err;
                 continue;
@@ -411,15 +249,9 @@ class VanilleMediaImportService
                     ]);
                 });
                 $ok++;
-                $this->importRetryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, $pid);
             } catch (Throwable $e) {
                 $failed++;
-                $this->importRetryQueue->record(
-                    ImportRetryItem::TASK_DESCRIPTION_REWRITE,
-                    $pid,
-                    $e->getMessage(),
-                    [],
-                );
+                $log[] = 'ERROR product '.$pid.': '.$e->getMessage();
             }
         }
 
@@ -438,56 +270,6 @@ class VanilleMediaImportService
                 'rewritten_ok' => $ok,
                 'processed' => min($nextOffset, $total),
                 'total' => $total,
-            ],
-        ];
-    }
-
-    /**
-     * @param  list<int>|null  $onlyProductIds
-     */
-    public function runRetryFailedBatch(string $taskType, int $offset, int $limit = self::RETRY_PRODUCTS_PER_BATCH, ?array $onlyProductIds = null): array
-    {
-        if (in_array($taskType, [
-            ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES,
-            ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES,
-        ], true)) {
-            PublicStorageWriteGuard::assertProductImagesWritable();
-        }
-
-        $ids = $onlyProductIds ?? $this->importRetryQueue->pendingProductIds($taskType, $limit, $offset);
-        if ($ids === []) {
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => 'Retry: очередь пуста',
-                'result' => ['task_type' => $taskType, 'processed' => 0, 'failed_count' => 0],
-            ];
-        }
-
-        $failed = 0;
-        foreach ($ids as $productId) {
-            try {
-                match ($taskType) {
-                    ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES => $this->retryOneCatalogImage((int) $productId),
-                    ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES => $this->retryOneGallery((int) $productId),
-                    ImportRetryItem::TASK_DESCRIPTION_REWRITE => $this->retryOneDescription((int) $productId),
-                    default => throw new \InvalidArgumentException('Unknown task_type'),
-                };
-            } catch (Throwable $e) {
-                $this->abortIfStorageWriteError($e);
-                $failed++;
-                $this->importRetryQueue->record($taskType, (int) $productId, $e->getMessage(), []);
-            }
-        }
-
-        return [
-            'done' => true,
-            'progress' => 100,
-            'message' => 'Retry: пачка обработана',
-            'result' => [
-                'task_type' => $taskType,
-                'processed' => count($ids),
-                'failed_count' => $failed,
             ],
         ];
     }
@@ -547,46 +329,12 @@ class VanilleMediaImportService
         }
 
         if ($this->catalogImagesCountForProduct($productId) >= 2) {
-            $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
-
             return;
         }
 
         foreach ($listingImageUrls as $listingImageUrl) {
             $this->storeCatalogImageForProduct($productId, $listingImageUrl, $slug);
         }
-        $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_CATALOG_IMAGES, $productId);
-    }
-
-    private function retryOneGallery(int $productId): void
-    {
-        if ($this->legacyDetector->isLegacy($productId)) {
-            $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES, $productId);
-
-            return;
-        }
-        $sp = SupplierProduct::query()
-            ->where('product_id', $productId)
-            ->whereHas('supplier', fn ($q) => $q->where('code', 'vanille'))
-            ->firstOrFail();
-        $url = trim((string) $sp->external_url);
-        $html = $this->httpClient->fetchUrl($url, 20);
-        $gallery = $this->productParser->parseGalleryImageUrlsFromHtml($html);
-        if ($gallery === []) {
-            throw new \RuntimeException('Нет URL галереи');
-        }
-        $saved = 0;
-        foreach (array_slice($gallery, 0, 8) as $imgUrl) {
-            if ($this->productImageSourceExists($productId, $imgUrl)) {
-                continue;
-            }
-            $this->storeGalleryImage($productId, $imgUrl);
-            $saved++;
-        }
-        if ($saved === 0) {
-            throw new \RuntimeException('Не удалось сохранить ни одного изображения');
-        }
-        $this->importRetryQueue->markResolved(ImportRetryItem::TASK_VANILLE_PRODUCT_IMAGES, $productId);
     }
 
     private function retryOneDescription(int $productId): void
@@ -600,7 +348,6 @@ class VanilleMediaImportService
             'description' => $res['description'],
             'description_rewritten_at' => now(),
         ]);
-        $this->importRetryQueue->markResolved(ImportRetryItem::TASK_DESCRIPTION_REWRITE, $productId);
     }
 
     private function vanilleSupplierId(): int
@@ -735,18 +482,6 @@ class VanilleMediaImportService
             ->get();
     }
 
-    private function productImageSourceExists(int $productId, string $sourceUrl): bool
-    {
-        if (! Schema::hasColumn('product_images', 'source_url')) {
-            return false;
-        }
-
-        return ProductImage::query()
-            ->where('product_id', $productId)
-            ->where('source_url', $sourceUrl)
-            ->exists();
-    }
-
     /**
      * Всегда string (никогда null) — иначе при string $imageUrl в сигнатуре PHP падает TypeError до тела метода.
      */
@@ -852,54 +587,6 @@ class VanilleMediaImportService
         ProductImage::query()->create($row);
     }
 
-    private function storeGalleryImage(int $productId, string $imageUrl): void
-    {
-        $binary = $this->downloadBinary($imageUrl);
-        [$processed, $wmStatus, $meta] = $this->processWatermarkBinary($binary);
-
-        $hash = sha1($processed);
-
-        $disk = Storage::disk('public');
-        $directory = 'products/'.$productId;
-        $variantPaths = $this->imageVariantService->generateFromBinary(
-            $processed,
-            $disk,
-            $directory,
-            'vanille',
-            1,
-            'vanille-'.$hash
-        );
-
-        $dbPath = $variantPaths['path'];
-        if (ProductImage::query()->where('product_id', $productId)->where('path', $dbPath)->exists()) {
-            return;
-        }
-
-        $maxSort = (int) ProductImage::query()->where('product_id', $productId)->max('sort_order');
-        $hasMain = ProductImage::query()->where('product_id', $productId)->where('is_main', true)->exists();
-
-        $row = [
-            'product_id' => $productId,
-            'path' => $variantPaths['path'],
-            'alt' => null,
-            'sort_order' => $maxSort + 1,
-            'is_main' => ! $hasMain,
-        ];
-        if (ProductImagePathResolver::hasVariantColumns()) {
-            $row['path_full'] = $variantPaths['path_full'];
-            $row['path_card'] = $variantPaths['path_card'];
-            $row['path_listing'] = $variantPaths['path_listing'];
-            $row['path_thumb'] = $variantPaths['path_thumb'];
-        }
-        if (self::hasProductImagesExtendedSchema()) {
-            $row['usage_type'] = ProductImage::USAGE_GALLERY;
-            $row['source_url'] = $imageUrl;
-            $row['watermark_status'] = $wmStatus;
-            $row['watermark_meta'] = $meta;
-        }
-        ProductImage::query()->create($row);
-    }
-
     private function downloadBinary(string $url): string
     {
         $response = Http::timeout(45)->retry(2, 1000)->get($url);
@@ -917,36 +604,12 @@ class VanilleMediaImportService
     /**
      * @return array{0: string, 1: string, 2: array<string, mixed>}
      */
-    private function processWatermarkBinary(string $binary): array
-    {
-        $class = \Modules\Catalog\Services\ImageWatermarkService::class;
-
-        if (! class_exists($class)) {
-            return [$binary, ProductImage::WATERMARK_NEEDS_REVIEW, ['reason' => 'service_class_missing']];
-        }
-
-        try {
-            /** @var object $service */
-            $service = app($class);
-            if (method_exists($service, 'processImageBinary')) {
-                /** @var array{0: string, 1: string, 2: array<string, mixed>} $result */
-                $result = $service->processImageBinary($binary);
-
-                return $result;
-            }
-        } catch (Throwable) {
-            // fallback ниже
-        }
-
-        return [$binary, ProductImage::WATERMARK_NEEDS_REVIEW, ['reason' => 'service_unavailable']];
-    }
-
     /**
-     * Каталожное фото, галерея и уникализация описания — только для одного product_id (без очереди по каталогу).
+     * Каталожное фото и уникализация описания — только для одного product_id (без очереди по каталогу).
      *
      * @return array{success: bool, message: string, steps: array<string, array{ok: bool, error?: string}>}
      */
-    public function runSingleProductMediaFollowUp(int $productId, bool $catalog, bool $gallery, bool $descriptions): array
+    public function runSingleProductMediaFollowUp(int $productId, bool $catalog, bool $descriptions): array
     {
         $steps = [];
         $parts = [];
@@ -960,18 +623,6 @@ class VanilleMediaImportService
                 $err = $e->getMessage();
                 $steps['catalog_image'] = ['ok' => false, 'error' => $err];
                 $parts[] = 'Каталожное фото: '.$err;
-            }
-        }
-
-        if ($gallery) {
-            try {
-                $this->retryOneGallery($productId);
-                $steps['gallery'] = ['ok' => true];
-                $parts[] = 'Галерея: готово.';
-            } catch (Throwable $e) {
-                $err = $e->getMessage();
-                $steps['gallery'] = ['ok' => false, 'error' => $err];
-                $parts[] = 'Галерея: '.$err;
             }
         }
 

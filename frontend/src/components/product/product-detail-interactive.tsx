@@ -226,6 +226,7 @@ export default function ProductDetailInteractive({
                                                     ? (loyaltyCard?.discountPercent ?? 0)
                                                     : 0,
                                             waitingActive: gridWaitingActive,
+                                            oldPrice: variant.old_price,
                                         });
 
                                         return (

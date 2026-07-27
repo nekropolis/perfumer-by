@@ -146,24 +146,3 @@ export async function deleteBrand(id: number) {
 
     return res.json();
 }
-
-export type SyncBrandsFromVanilleResponse = {
-    message: string;
-    created: number;
-    skipped: number;
-};
-
-export async function syncBrandsFromVanilleJson(): Promise<SyncBrandsFromVanilleResponse> {
-    const res = await fetch(`${API_BASE}/admin/brands/sync-from-vanille-json`, {
-        method: "POST",
-        headers: getAdminHeaders(),
-        cache: "no-store",
-    });
-
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Sync brands API error: ${res.status}`);
-    }
-
-    return res.json();
-}
