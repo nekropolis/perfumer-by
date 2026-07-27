@@ -629,19 +629,19 @@ sudo systemctl reload php8.3-fpm
 
 ## 7) Queue worker через supervisor
 
-`/etc/supervisor/conf.d/perfumer-queue.conf`:
+`/etc/supervisor/conf.d/perfumer-queue.conf` (пример в репо: [`scripts/supervisor/perfumer-queue.conf`](scripts/supervisor/perfumer-queue.conf)):
 
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=768
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=7500 --sleep=1 --max-jobs=200 --max-time=0 --memory=768
 autostart=true
 autorestart=true
 startretries=20
 startsecs=10
 stopasgroup=true
 killasgroup=true
-stopwaitsecs=70
+stopwaitsecs=90
 numprocs=1
 user=www-data
 redirect_stderr=true
@@ -649,18 +649,19 @@ stdout_logfile=/var/log/supervisor/perfumer-queue.log
 ```
 
 ```bash
+sudo cp /var/www/perfumer-by/scripts/supervisor/perfumer-queue.conf /etc/supervisor/conf.d/perfumer-queue.conf
 sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl status perfumer-queue:*
 ```
 
+> `--timeout=7500` должен быть **больше** job timeout (`RunPriceRefreshJob` / Seller One = 7200).
+> `--max-time=0` — не убивать воркер через час: иначе после обновления цен supervisor
+> уходит в `STARTING`, и health-check шлёт ложный алерт.
+>
 > `--tries=1` намеренно: импорт-джобы идемпотентны и восстанавливаются через
 > `php artisan catalog:vanille-queue resume`, а автоперезапуски воркеров только
 > сбивали статус. См. `README-dev.md §8`.
->
-> **`--timeout=3720`**: должно быть **≥** таймаута тяжёлых задач Seller One (`RunSellerOne*Job`
-> задают `timeout = 3600`). Значение `65` убивает джобу на минуте, overlap-lock в Redis
-> может висеть до `expireAfter`, UI остаётся «в очереди / 0%», в логе воркера — короткий `DONE`.
 >
 > `--memory=768` — тяжёлые прайсы и индексация Meilisearch; при нехватке памяти воркер перезапустится после джобы.
 
@@ -873,15 +874,18 @@ sudo systemctl reload php8.3-fpm
 
 ### 12.2. Queue worker tuning
 
-Снижаем лимиты воркера, чтобы он чаще перезапускался и не копил утечки памяти:
-
-`/etc/supervisor/conf.d/perfumer-queue.conf`:
+Длинные job’ы (обновление цен, Seller One) живут до ~7200 с. Воркер должен переживать их:
 
 ```ini
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=200 --max-time=1800 --memory=512
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=7500 --sleep=1 --max-jobs=200 --max-time=0 --memory=768
 ```
 
+- `--timeout=7500` ≥ job `$timeout` (7200), иначе Laravel убивает задачу раньше.
+- `--max-time=0` — не перезапускать процесс каждый час (ложные health-алерты `STARTING`).
+- `--memory=768` / `--max-jobs=200` — периодический recycle без привязки к часу.
+
 ```bash
+sudo cp /var/www/perfumer-by/scripts/supervisor/perfumer-queue.conf /etc/supervisor/conf.d/perfumer-queue.conf
 sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl restart perfumer-queue:*
@@ -1009,7 +1013,7 @@ Nginx → `current/...` — симлинк разворачивается на �
 
 ```ini
 [program:perfumer-queue]
-command=/usr/bin/php /var/www/perfumer-by/current/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=512
+command=/usr/bin/php /var/www/perfumer-by/current/backend/artisan queue:work redis --tries=1 --timeout=7500 --sleep=1 --max-jobs=200 --max-time=0 --memory=768
 ...
 ```
 

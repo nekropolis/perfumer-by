@@ -380,7 +380,7 @@ class ServerHealthMonitorService
     }
 
     /**
-     * @return list<array{name: string, status: string, message: string}>
+     * @return string
      */
     private function supervisorctlStatusOutput(): string
     {
@@ -435,10 +435,11 @@ class ServerHealthMonitorService
             $state = $status['state'];
             $uptimeSeconds = $status['uptime_seconds'];
 
-            // Если не RUNNING — подождать и проверить ещё раз (worker может перезапускаться).
+            // Если не RUNNING — подождать и проверить ещё раз.
+            // После длинных job (price refresh) worker часто в STARTING из‑за --max-time/--memory.
             if ($state !== 'RUNNING') {
-                $recovered = false;
-                for ($attempt = 2; $attempt <= 3; $attempt++) {
+                $maxAttempts = in_array($state, ['STARTING', 'STOPPING'], true) ? 12 : 3;
+                for ($attempt = 2; $attempt <= $maxAttempts; $attempt++) {
                     sleep(10);
                     $retryOutput = $this->supervisorctlStatusOutput();
                     $retryLines = preg_split('/\r\n|\r|\n/', $retryOutput) ?: [];
@@ -449,9 +450,9 @@ class ServerHealthMonitorService
                             $state = 'RUNNING';
                             $uptimeSeconds = $retryStatus['uptime_seconds'];
                             $line = $retryLine;
-                            $recovered = true;
                             break 2;
                         }
+                        $state = $retryStatus['state'] !== '' ? $retryStatus['state'] : $state;
                     }
                 }
             }

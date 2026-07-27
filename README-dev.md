@@ -319,19 +319,19 @@ pm2 save
 
 ### Supervisord: queue worker должен подниматься сам
 
-Файл `/etc/supervisor/conf.d/perfumer-queue.conf`:
+Файл `/etc/supervisor/conf.d/perfumer-queue.conf` (прод-пример: `scripts/supervisor/perfumer-queue.conf`):
 
 ```ini
 [program:perfumer-queue]
 process_name=%(program_name)s_%(process_num)02d
-command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=3720 --sleep=1 --max-jobs=500 --max-time=3600 --memory=768
+command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tries=1 --timeout=7500 --sleep=1 --max-jobs=200 --max-time=0 --memory=768
 autostart=true
 autorestart=true
 startretries=20
 startsecs=10
 stopasgroup=true
 killasgroup=true
-stopwaitsecs=70
+stopwaitsecs=90
 numprocs=1
 user=www-data
 redirect_stderr=true
@@ -343,10 +343,11 @@ stdout_logfile=/var/log/supervisor/perfumer-queue.log
 `WithoutOverlapping(...)->shared()` lock `laravel-queue-overlap:seller_one_heavy_global` —
 одна тяжёлая задача Seller One (парсинг или обновление цен).
 
-`--timeout` воркера должен быть **не меньше** `RunSellerOne*Job::$timeout` (3600 сек), иначе
-воркер убивает задачу, `lock->release()` в middleware может не успеть выполниться, и ключ
-overlap остаётся в Redis до `expireAfter` (~час+) — UI «queued / 0%», в логе воркера
-`DONE` за миллисекунды (repeat `release`).
+`--timeout` воркера должен быть **не меньше** job `$timeout` (`RunPriceRefreshJob` /
+`RunSellerOne*Job` = 7200 сек → воркер `7500`). `--max-time=0` (или ≥14400): иначе
+после длинного job воркер выходит, supervisor `STARTING`, health-check шлёт ложный алерт.
+Если `--timeout` воркера меньше job timeout, воркер убивает задачу, `lock->release()` в
+middleware может не успеть, и ключ overlap остаётся в Redis до `expireAfter`.
 
 Применить:
 

@@ -159,7 +159,9 @@ elif awk -v l="$LOAD1" -v t="$LOAD_WARN_THRESHOLD" 'BEGIN{exit !(l >= t)}'; then
     ALERTS+=("⚡ Load average ${LOAD1} (5m: ${LOAD5}), CPUs=${CPU_COUNT}, warning ≥ ${LOAD_WARN_THRESHOLD}")
 fi
 
-# 5. Queue worker status (3 retries with pause — covers supervisor restart window).
+# 5. Queue worker status.
+# After long jobs (price refresh up to ~2h) worker often exits due to --max-time/--memory
+# and supervisor shows STARTING for a while. Wait up to ~2 minutes before alerting.
 SUPERVISORCTL=""
 if command -v supervisorctl >/dev/null 2>&1; then
     SUPERVISORCTL="$(command -v supervisorctl)"
@@ -169,15 +171,27 @@ fi
 
 if [[ -n "$SUPERVISORCTL" ]]; then
     worker_ok=false
-    for attempt in 1 2 3; do
-        if sudo "$SUPERVISORCTL" status perfumer-queue:* 2>/dev/null | grep -q RUNNING; then
+    last_queue_status=""
+    QUEUE_CHECK_ATTEMPTS="${QUEUE_CHECK_ATTEMPTS:-12}"
+    QUEUE_CHECK_SLEEP_SECONDS="${QUEUE_CHECK_SLEEP_SECONDS:-10}"
+    for attempt in $(seq 1 "$QUEUE_CHECK_ATTEMPTS"); do
+        last_queue_status="$(sudo "$SUPERVISORCTL" status perfumer-queue:* 2>/dev/null || true)"
+        if printf '%s\n' "$last_queue_status" | grep -q RUNNING; then
             worker_ok=true
             break
         fi
-        sleep 10
+        # STARTING/STOPPING — ожидаемое окно после max-time/memory restart.
+        if (( attempt < QUEUE_CHECK_ATTEMPTS )); then
+            sleep "$QUEUE_CHECK_SLEEP_SECONDS"
+        fi
     done
     if [[ "$worker_ok" != true ]]; then
-        ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING")
+        detail="$(printf '%s' "$last_queue_status" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-160)"
+        if [[ -n "$detail" ]]; then
+            ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING (${detail})")
+        else
+            ALERTS+=("⚙️ Queue worker perfumer-queue is not RUNNING")
+        fi
     fi
 fi
 
