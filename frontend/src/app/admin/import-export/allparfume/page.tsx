@@ -214,7 +214,8 @@ function ManualLinkSearchHost({
 
     useEffect(() => {
         const rowId = manualLink.rowId;
-        if (manualLink.selectedProductId === null) {
+        const productId = manualLink.selectedProductId;
+        if (productId === null) {
             return;
         }
         const query = debouncedDefinitionSearch.trim();
@@ -234,7 +235,7 @@ function ManualLinkSearchHost({
             try {
                 const data = await fetchVariantDefinitions({
                     search: query,
-                    product_id: manualLink.selectedProductId,
+                    product_id: productId,
                 });
                 if (cancelled) {
                     return;
