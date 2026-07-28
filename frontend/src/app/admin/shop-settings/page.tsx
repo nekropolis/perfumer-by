@@ -18,8 +18,9 @@ import {
     type ProductBrandOption,
 } from "@/lib/admin-products-api";
 import OrderTagsManager from "@/components/admin/shop-settings/order-tags-manager";
+import OrderStatusesManager from "@/components/admin/shop-settings/order-statuses-manager";
 
-type ShopTab = "delivery" | "contacts" | "discounts" | "brands" | "tags";
+type ShopTab = "delivery" | "contacts" | "discounts" | "brands" | "tags" | "statuses";
 
 const HOME_POPULAR_BRANDS_MAX = 5;
 const SEARCH_POPULAR_BRANDS_MAX = 8;
@@ -65,6 +66,7 @@ function tabDescription(tab: ShopTab): string {
     if (tab === "contacts") return "Телефоны и мессенджеры для шапки и контактов на витрине.";
     if (tab === "discounts") return "Настройки скидки за ожидание доставки.";
     if (tab === "tags") return "Теги заказов: название и цвет.";
+    if (tab === "statuses") return "Статусы заказов: название, цвет и активность.";
     return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
 }
 
@@ -270,6 +272,9 @@ export default function AdminShopSettingsPage() {
                 <button type="button" className={tabButtonClass(tab === "tags")} onClick={() => setTab("tags")}>
                     Теги
                 </button>
+                <button type="button" className={tabButtonClass(tab === "statuses")} onClick={() => setTab("statuses")}>
+                    Статусы заказов
+                </button>
             </div>
 
             {message ? <AdminFeedbackMessage type={message.type} message={message.text} onCloseAction={() => setMessage(null)} /> : null}
@@ -409,6 +414,8 @@ export default function AdminShopSettingsPage() {
                         </div>
                     ) : tab === "tags" ? (
                         <OrderTagsManager />
+                    ) : tab === "statuses" ? (
+                        <OrderStatusesManager />
                     ) : (
                         <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
                             <div>
@@ -465,7 +472,7 @@ export default function AdminShopSettingsPage() {
                         </div>
                     )}
 
-                    {tab !== "tags" ? (
+                    {tab !== "tags" && tab !== "statuses" ? (
                         <div className="mt-6">
                             <button
                                 type="button"

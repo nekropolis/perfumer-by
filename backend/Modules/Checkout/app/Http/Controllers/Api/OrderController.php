@@ -8,9 +8,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
+use Modules\Checkout\Models\OrderStatus;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Support\DeliveryCityResolver;
 use Modules\Loyalty\Models\DiscountCard;
@@ -477,6 +479,7 @@ class OrderController extends Controller
     public function store(Request $request, AdminOrderPricingService $pricing): JsonResponse
     {
         $validated = $this->normalizeDeliveryFields($request->validate($this->orderValidationRules()));
+        $this->assertAssignableOrderStatus((string) ($validated['status'] ?? 'new'));
         $discountCardNumber = trim((string) ($validated['discount_card_number'] ?? ''));
         if ($discountCardNumber !== '' && ! $pricing->resolveDiscountCard($discountCardNumber)) {
             return response()->json([
@@ -562,6 +565,8 @@ class OrderController extends Controller
 
         $order = Order::query()->with('items')->findOrFail($id);
         $previousStatus = (string) $order->status;
+        $nextStatusCandidate = (string) ($validated['status'] ?? $previousStatus);
+        $this->assertAssignableOrderStatus($nextStatusCandidate, $previousStatus);
         $isTerminal = in_array($order->status, ['done', 'cancelled'], true);
 
         $giftCertificateCode = trim((string) ($validated['gift_certificate_code'] ?? ''));
@@ -800,6 +805,7 @@ class OrderController extends Controller
 
         $order = Order::query()->findOrFail($id);
         $previousStatus = (string) $order->status;
+        $this->assertAssignableOrderStatus((string) $validated['status'], $previousStatus);
 
         DB::transaction(function () use ($order, $validated, $previousStatus) {
             $order->update([
@@ -822,6 +828,17 @@ class OrderController extends Controller
         return response()->json([
             'data' => $this->orderPayloadWithInventoryFlag($order),
             'message' => 'Order status updated',
+        ]);
+    }
+
+    private function assertAssignableOrderStatus(string $status, ?string $allowCurrent = null): void
+    {
+        if (OrderStatus::isAssignableCode($status, $allowCurrent)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'status' => ['Недопустимый или отключённый статус заказа'],
         ]);
     }
 

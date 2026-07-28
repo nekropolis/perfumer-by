@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Models\OrderItem;
+use Modules\Checkout\Models\OrderStatus;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
@@ -76,13 +77,17 @@ class OrderResource extends JsonResource
         $deliveryCity = $deliveryMethod === CheckoutDeliveryService::METHOD_MINSK
             ? CheckoutDeliveryService::MINSK_CITY
             : $this->delivery_city;
+        $statusCode = (string) $this->status;
+        $statusDisplay = OrderStatus::displayForCode($statusCode);
 
         return [
             'id' => $this->id,
             'customer_name' => $this->customer_name,
             'phone' => $this->phone,
             'comment' => $this->comment,
-            'status' => $this->status,
+            'status' => $statusCode,
+            'status_label' => $statusDisplay['label'],
+            'status_color' => $statusDisplay['color'],
             'created_at' => $this->created_at?->toIso8601String(),
             'items_qty' => $this->items_qty,
             'subtotal' => number_format((float) $this->subtotal, 2, '.', ''),

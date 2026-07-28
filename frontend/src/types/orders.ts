@@ -90,6 +90,8 @@ export type OrderData = {
     phone: string;
     comment: string | null;
     status: string;
+    status_label?: string | null;
+    status_color?: string | null;
     created_at?: string | null;
     items_qty: number;
     subtotal: string;

@@ -21,7 +21,7 @@ import {
     isAdminPhoneSearchReady,
     normalizeAdminPhoneSearchDigits,
 } from "@/lib/admin-phone-search";
-import { adminBtnSecondary } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminIconBtn } from "@/lib/admin-ui-classes";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -336,12 +336,12 @@ export default function AdminHeader({
     }, [pathname]);
 
     return (
-        <header className="relative z-20 h-14 flex-none border-b border-admin-border bg-admin-header shadow-admin-header">
+        <header className="relative z-20 h-14 flex-none border-b border-black/[0.06] bg-admin-header shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
             <div className="flex h-full w-full items-center gap-3 px-4 sm:px-6">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                     <button
                         type="button"
-                        className="hidden shrink-0 rounded-full border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text lg:inline-flex"
+                        className={`hidden lg:inline-flex ${adminIconBtn}`}
                         onClick={onToggleSidebarAction}
                         title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
                     >
@@ -349,7 +349,7 @@ export default function AdminHeader({
                     </button>
 
                     <div className="relative w-full max-w-[24rem] lg:max-w-[26rem]" ref={quickPhoneRef}>
-                        <div className="flex items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
+                        <div className="flex items-stretch overflow-hidden rounded-lg border border-black/[0.06] bg-white shadow-[0_3px_8px_rgba(15,23,42,0.08)]">
                             <input
                                 value={searchDigits}
                                 onChange={(e) => setQuickPhone(clampSearchDigits(e.target.value))}
@@ -366,19 +366,19 @@ export default function AdminHeader({
                                 autoCorrect="off"
                                 autoCapitalize="off"
                                 spellCheck={false}
-                                className="w-full min-w-0 border-0 bg-transparent px-2.5 py-1.5 font-mono text-sm text-admin-text outline-none placeholder:text-admin-text-muted"
+                                className="w-full min-w-0 border-0 bg-transparent px-3 py-1.5 font-mono text-sm text-admin-text outline-none placeholder:text-admin-text-muted"
                             />
                             <button
                                 type="button"
                                 onClick={() => openFindOrdersByPhone(searchDigits)}
-                                className="hidden shrink-0 border-l border-admin-border px-2.5 py-1.5 text-xs font-medium text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-text sm:inline-flex"
+                                className="hidden shrink-0 border-l border-black/[0.06] px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide text-admin-text-secondary transition hover:bg-slate-100 hover:text-slate-900 sm:inline-flex"
                             >
                                 Найти
                             </button>
                             <Link
                                 href={getCreateOrderHref(quickPhone, quickPhoneSuggestedName)}
                                 onClick={() => setQuickPhoneFocused(false)}
-                                className="inline-flex shrink-0 items-center justify-center border-l border-admin-border bg-admin-primary px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-admin-primary-hover sm:px-3"
+                                className="inline-flex shrink-0 items-center justify-center border-l border-black/[0.06] bg-admin-primary px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-admin-primary-hover sm:px-3"
                             >
                                 <span className="sm:hidden">+ Заказ</span>
                                 <span className="hidden sm:inline">+ Создать заказ</span>
@@ -583,7 +583,7 @@ export default function AdminHeader({
 
                     <button
                         type="button"
-                        className="inline-flex rounded-lg border border-admin-border bg-admin-surface p-2 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text lg:hidden"
+                        className={`lg:hidden ${adminIconBtn}`}
                         onClick={onOpenMobileMenuAction}
                         aria-label="Открыть меню"
                         title="Открыть меню"

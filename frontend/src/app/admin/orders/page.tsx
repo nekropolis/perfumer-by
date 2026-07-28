@@ -13,7 +13,7 @@ import {
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
-import { getOrderStatusLabel, isVeterSendAllowedStatus } from "@/constants/order-statuses";
+import { getOrderStatusLabel, isVeterSendAllowedStatus, solidColorPillStyle } from "@/constants/order-statuses";
 import AdminOrdersTable from "@/components/admin/admin-orders-table";
 import AdminOrdersDateRangeButton, {
     type AdminOrdersDateRangeButtonHandle,
@@ -29,7 +29,8 @@ import useDebouncedValue from "@/hooks/use-debounced-value";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admin-rich-tabs";
 import AdminOrderReceiptsModal from "@/components/admin/orders/admin-order-receipts-modal";
-import {AdminToast} from "@/types/admin";
+import { AdminToast } from "@/types/admin";
+import { adminIconBtn } from "@/lib/admin-ui-classes";
 
 type OrdersTab = "orders" | "order_products";
 
@@ -57,10 +58,12 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     },
 ];
 
-const iconBtnClassName =
-    "relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 md:h-10 md:w-10";
+const iconBtnClassName = `${adminIconBtn} md:h-10 md:w-10`;
 
 const iconClassName = "h-4 w-4 md:h-[1.125rem] md:w-[1.125rem]";
+
+const filterChipClassName =
+    "inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-[0_3px_8px_rgba(15,23,42,0.12)]";
 
 function parseOrdersPerPage(raw: string | null): (typeof ORDERS_PER_PAGE_OPTIONS)[number] {
     const value = Number(raw);
@@ -731,10 +734,10 @@ export default function AdminOrdersPage() {
         <AdminPageCard>
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-admin-text sm:text-2xl">
+                    <h2 className="text-xl font-bold tracking-tight text-admin-text sm:text-2xl">
                         {activeTab === "orders" ? "Заказы" : "Товары для заказов"}
                     </h2>
-                    <p className="mt-0.5 text-sm text-admin-text-secondary">
+                    <p className="mt-0.5 text-sm font-medium text-admin-text-secondary">
                         {activeTab === "orders"
                             ? "Поиск по номеру заказа, ID отправки, имени или телефону"
                             : "Все товары из новых заказов и заказов в обработке"}
@@ -879,15 +882,18 @@ export default function AdminOrdersPage() {
             {activeTab === "orders" && (hasDateFilter || hasStatusFilter) ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                     {hasStatusFilter ? (
-                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
+                        <span
+                            className={filterChipClassName}
+                            style={solidColorPillStyle("#3B82F6")}
+                        >
                             <span className="inline-flex min-w-0 items-center gap-1.5">
-                                <span className="shrink-0 text-admin-text-secondary">Статус:</span>
-                                <span className="max-w-[16rem] truncate font-medium">{statusFilterLabel}</span>
+                                <span className="shrink-0 opacity-80">Статус</span>
+                                <span className="max-w-[16rem] truncate">{statusFilterLabel}</span>
                             </span>
                             <button
                                 type="button"
                                 onClick={clearStatusFilter}
-                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
+                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 opacity-80 transition hover:bg-black/10 hover:opacity-100"
                                 aria-label="Сбросить фильтр по статусу"
                                 title="Сбросить"
                             >
@@ -896,20 +902,25 @@ export default function AdminOrdersPage() {
                         </span>
                     ) : null}
                     {hasDateFilter ? (
-                        <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs text-admin-text">
+                        <span
+                            className={filterChipClassName}
+                            style={solidColorPillStyle("#0EA5E9")}
+                        >
                             <button
                                 type="button"
                                 onClick={() => dateFilterRef.current?.open()}
-                                className="inline-flex min-w-0 items-center gap-1.5 text-left transition hover:text-admin-primary"
+                                className="inline-flex min-w-0 items-center gap-1.5 text-left opacity-95 transition hover:opacity-100"
                                 title="Изменить фильтр по дате отправки"
                             >
-                                <span className="shrink-0 text-admin-text-secondary">Дата отправки:</span>
-                                <span className="max-w-[16rem] truncate font-medium">{dateFilterSummary}</span>
+                                <span className="shrink-0 opacity-80">Дата</span>
+                                <span className="max-w-[16rem] truncate normal-case tracking-normal">
+                                    {dateFilterSummary}
+                                </span>
                             </button>
                             <button
                                 type="button"
                                 onClick={clearDateFilter}
-                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 text-admin-text-secondary transition hover:bg-gray-200 hover:text-admin-text"
+                                className="ml-0.5 inline-flex shrink-0 rounded-full p-0.5 opacity-80 transition hover:bg-black/10 hover:opacity-100"
                                 aria-label="Сбросить фильтр по дате отправки"
                                 title="Сбросить"
                             >
@@ -945,7 +956,7 @@ export default function AdminOrdersPage() {
                         />
                     ) : (
                         <div className="mt-4 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                            <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-admin-text-secondary">
                                 На странице
                                 <select
                                     value={ordersPerPage}
@@ -955,7 +966,7 @@ export default function AdminOrdersPage() {
                                             setOrdersPerPage(v as (typeof ORDERS_PER_PAGE_OPTIONS)[number]);
                                         }
                                     }}
-                                    className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
+                                    className="cursor-pointer rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
                                 >
                                     {ORDERS_PER_PAGE_OPTIONS.map((n) => (
                                         <option key={n} value={n}>

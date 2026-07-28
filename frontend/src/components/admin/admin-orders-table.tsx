@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { MessageSquare, Pencil, ChevronDown, Check, Truck } from "lucide-react";
+import { MessageSquare, Pencil, ChevronDown, Check, Truck, GripVertical } from "lucide-react";
 import { isVeterInTransitStatus, veterOrderUrl } from "@/constants/veter";
-import type { ReactNode } from "react";
+import type { ReactNode, MouseEvent as ReactMouseEvent } from "react";
 import type { OrderData, OrderItem } from "@/types/orders";
 import { fetchOrder, updateOrderAdminFields, updateOrderStatus } from "@/lib/admin-orders-api";
-import { getOrderStatusLabel, getOrderStatusTableTextClass, ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import { getOrderStatusLabel, getOrderStatusColor, solidColorPillStyle, SOLID_PILL_CHIP_CLASS, orderStatusSoftBg } from "@/constants/order-statuses";
+import { useOrderStatusOptions, type OrderStatusOption } from "@/hooks/use-order-status-options";
 import AdminOrderItemsModal from "@/components/admin/admin-order-items-modal";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
@@ -43,7 +44,7 @@ type Props = {
     onSelectedOrderIdsChangeAction?: (ids: number[]) => void;
 };
 
-const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-[220px]";
+const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-max max-w-[11.5rem]";
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
@@ -77,38 +78,42 @@ type ItemsTooltipState = {
     anchorBottom: number;
 } | null;
 
+const PRODUCTS_COL_MIN_PX = 72;
+const PRODUCTS_COL_MAX_PX = 560;
+
 function orderItemTooltipTitle(item: OrderItem): string {
     return lineItemFullTitle(item);
 }
 
-type StatusFilterMenuCoords = {
-    top?: number;
-    bottom?: number;
-    left: number;
-    width: number;
-};
-
 function OrdersStatusFilterHeader({
     value,
+    options,
     onChangeAction,
 }: {
     value: string;
+    options: OrderStatusOption[];
     onChangeAction: (status: string) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [menuCoords, setMenuCoords] = useState<StatusFilterMenuCoords | null>(null);
     const triggerRef = useRef<HTMLButtonElement | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
     const hasFilter = value.trim() !== "";
-    const label = hasFilter ? getOrderStatusLabel(value) : "Статус";
+    const label = hasFilter
+        ? options.find((item) => item.value === value)?.label ?? getOrderStatusLabel(value)
+        : "Статус";
 
-    const updateMenuPosition = () => {
-        if (!triggerRef.current) {
+    useLayoutEffect(() => {
+        if (!isOpen) {
             return;
         }
-        const rect = triggerRef.current.getBoundingClientRect();
+        const trigger = triggerRef.current;
+        const menu = menuRef.current;
+        if (!trigger || !menu) {
+            return;
+        }
+        const rect = trigger.getBoundingClientRect();
         const menuWidth = Math.min(200, Math.max(0, window.innerWidth - 24));
-        const menuHeight = Math.min(320, (ORDER_STATUS_OPTIONS.length + 1) * 36 + 12);
+        const menuHeight = Math.min(320, (options.length + 1) * 36 + 12);
         const pad = 8;
         const gap = 6;
         let left = rect.left;
@@ -118,26 +123,55 @@ function OrdersStatusFilterHeader({
         left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
         const spaceBelow = window.innerHeight - rect.bottom;
         const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
-        setMenuCoords({
-            top: openUp ? undefined : rect.bottom + gap,
-            bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
-            left,
-            width: menuWidth,
-        });
-    };
 
-    useLayoutEffect(() => {
-        if (!isOpen) {
-            setMenuCoords(null);
-            return;
+        menu.style.width = `${menuWidth}px`;
+        menu.style.left = `${left}px`;
+        if (openUp) {
+            menu.style.top = "auto";
+            menu.style.bottom = `${window.innerHeight - rect.top + gap}px`;
+        } else {
+            menu.style.bottom = "auto";
+            menu.style.top = `${rect.bottom + gap}px`;
         }
-        updateMenuPosition();
-    }, [isOpen]);
+        menu.style.visibility = "visible";
+    }, [isOpen, options.length]);
 
     useEffect(() => {
         if (!isOpen) {
             return;
         }
+
+        const applyMenuPosition = () => {
+            const trigger = triggerRef.current;
+            const menu = menuRef.current;
+            if (!trigger || !menu) {
+                return;
+            }
+            const rect = trigger.getBoundingClientRect();
+            const menuWidth = Math.min(200, Math.max(0, window.innerWidth - 24));
+            const menuHeight = Math.min(320, (options.length + 1) * 36 + 12);
+            const pad = 8;
+            const gap = 6;
+            let left = rect.left;
+            if (window.innerWidth - rect.left < menuWidth + pad) {
+                left = rect.right - menuWidth;
+            }
+            left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
+
+            menu.style.width = `${menuWidth}px`;
+            menu.style.left = `${left}px`;
+            if (openUp) {
+                menu.style.top = "auto";
+                menu.style.bottom = `${window.innerHeight - rect.top + gap}px`;
+            } else {
+                menu.style.bottom = "auto";
+                menu.style.top = `${rect.bottom + gap}px`;
+            }
+            menu.style.visibility = "visible";
+        };
+
         const onPointerDown = (event: MouseEvent | TouchEvent) => {
             const target = event.target as Node;
             if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) {
@@ -150,35 +184,29 @@ function OrdersStatusFilterHeader({
                 setIsOpen(false);
             }
         };
-        const onReposition = () => updateMenuPosition();
 
         document.addEventListener("mousedown", onPointerDown);
         document.addEventListener("touchstart", onPointerDown, { passive: true });
         window.addEventListener("keydown", onKeyDown);
-        window.addEventListener("resize", onReposition);
-        window.addEventListener("scroll", onReposition, true);
+        window.addEventListener("resize", applyMenuPosition);
+        window.addEventListener("scroll", applyMenuPosition, true);
 
         return () => {
             document.removeEventListener("mousedown", onPointerDown);
             document.removeEventListener("touchstart", onPointerDown);
             window.removeEventListener("keydown", onKeyDown);
-            window.removeEventListener("resize", onReposition);
-            window.removeEventListener("scroll", onReposition, true);
+            window.removeEventListener("resize", applyMenuPosition);
+            window.removeEventListener("scroll", applyMenuPosition, true);
         };
-    }, [isOpen]);
+    }, [isOpen, options.length]);
 
     const menu =
-        isOpen && menuCoords && typeof document !== "undefined"
+        isOpen && typeof document !== "undefined"
             ? createPortal(
                   <div
                       ref={menuRef}
                       className="fixed z-[9999] max-h-[min(20rem,70vh)] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg"
-                      style={{
-                          top: menuCoords.top,
-                          bottom: menuCoords.bottom,
-                          left: menuCoords.left,
-                          width: menuCoords.width,
-                      }}
+                      style={{ visibility: "hidden" }}
                       role="listbox"
                       aria-label="Фильтр по статусу"
                   >
@@ -197,7 +225,7 @@ function OrdersStatusFilterHeader({
                           <span>Все статусы</span>
                           {!hasFilter ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} /> : null}
                       </button>
-                      {ORDER_STATUS_OPTIONS.map((option) => {
+                      {options.map((option) => {
                           const selected = value === option.value;
                           return (
                               <button
@@ -229,7 +257,7 @@ function OrdersStatusFilterHeader({
                 ref={triggerRef}
                 type="button"
                 onClick={() => setIsOpen((prev) => !prev)}
-                className={`inline-flex max-w-full cursor-pointer items-center gap-0.5 bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none ${
+                className={`inline-flex max-w-full cursor-pointer items-center gap-0.5 bg-transparent p-0 text-left text-[10px] font-bold uppercase tracking-[0.08em] transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none ${
                     hasFilter || isOpen ? "text-admin-text" : "text-admin-text-secondary"
                 }`}
                 aria-haspopup="listbox"
@@ -310,16 +338,6 @@ function weekdayShortFromIso(value?: string | null): string | null {
     return WEEKDAY_SHORT_RU[d.getDay()] ?? null;
 }
 
-function tagContrastText(hex: string): string {
-    const m = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/i);
-    if (!m) return "#fff";
-    const r = parseInt(m[1], 16);
-    const g = parseInt(m[2], 16);
-    const b = parseInt(m[3], 16);
-    const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luma > 0.62 ? "#111827" : "#ffffff";
-}
-
 function AdminOrderClientPhoneCell({
     name,
     phone,
@@ -339,11 +357,10 @@ function AdminOrderClientPhoneCell({
     const hasContent = clientName !== "—" || phoneText !== "—";
 
     const showTooltip = (element: HTMLElement) => {
-        const truncatedLine = Array.from(
-            element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
-        ).some(isTextOverflowing);
+        const nameEl = element.querySelector<HTMLElement>("[data-client-name]");
+        const nameTruncated = nameEl ? isTextOverflowing(nameEl) : false;
 
-        if (!hasContent || !truncatedLine) {
+        if (!hasContent || !nameTruncated) {
             onHideAction();
             return;
         }
@@ -356,7 +373,7 @@ function AdminOrderClientPhoneCell({
 
     return (
         <div
-            className="leading-tight whitespace-nowrap lg:min-w-0 lg:whitespace-normal"
+            className="min-w-0 leading-tight"
             tabIndex={hasContent ? 0 : undefined}
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
@@ -366,18 +383,21 @@ function AdminOrderClientPhoneCell({
             {callHref ? (
                 <a
                     href={callHref}
-                    className="block font-semibold text-admin-text underline-offset-2 hover:underline lg:truncate lg:pointer-events-none lg:no-underline"
-                    data-truncate-check
+                    className="block truncate font-semibold text-admin-text underline-offset-2 hover:underline lg:pointer-events-none lg:no-underline"
                     onClick={(event) => event.stopPropagation()}
                 >
                     {highlightQueryInText(phoneText, searchQuery)}
                 </a>
             ) : (
-                <div className="font-semibold text-admin-text lg:truncate" data-truncate-check>
+                <div className="truncate font-semibold text-admin-text">
                     {highlightQueryInText(phoneText, searchQuery)}
                 </div>
             )}
-            <div className="text-[10px] text-admin-text-secondary lg:truncate" data-truncate-check>
+            <div
+                className="truncate text-[10px] text-admin-text-secondary"
+                data-client-name
+                data-truncate-check
+            >
                 {highlightQueryInText(clientName, searchQuery)}
             </div>
         </div>
@@ -397,6 +417,38 @@ function formatOrderCityDisplay(city?: string | null): string {
     return (addressMarkerMatch ? withoutRegion.slice(0, addressMarkerMatch.index).trim() : withoutRegion) || "—";
 }
 
+function positionFixedTooltipEl(
+    el: HTMLElement,
+    anchor: { x: number; anchorTop: number; anchorBottom: number },
+): void {
+    const pad = 8;
+    const rect = el.getBoundingClientRect();
+    const halfW = rect.width / 2;
+    const left = Math.min(
+        Math.max(anchor.x, halfW + pad),
+        window.innerWidth - halfW - pad,
+    );
+
+    const spaceBelow = window.innerHeight - anchor.anchorBottom - pad;
+    const spaceAbove = anchor.anchorTop - pad;
+    const placeAbove = rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
+
+    let top = placeAbove
+        ? anchor.anchorTop - 8 - rect.height
+        : anchor.anchorBottom + 8;
+
+    if (top + rect.height > window.innerHeight - pad) {
+        top = Math.max(pad, window.innerHeight - pad - rect.height);
+    }
+    if (top < pad) {
+        top = pad;
+    }
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.visibility = "visible";
+}
+
 function AdminOrderCellTooltip({
     tooltip,
     onMouseEnterAction,
@@ -407,39 +459,13 @@ function AdminOrderCellTooltip({
     onMouseLeaveAction: () => void;
 }) {
     const ref = useRef<HTMLDivElement | null>(null);
-    const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
 
     useLayoutEffect(() => {
-        if (!tooltip || !ref.current) {
-            setCoords(null);
+        const el = ref.current;
+        if (!tooltip || !el) {
             return;
         }
-        const el = ref.current;
-        const pad = 8;
-        const rect = el.getBoundingClientRect();
-        const halfW = rect.width / 2;
-        const left = Math.min(
-            Math.max(tooltip.x, halfW + pad),
-            window.innerWidth - halfW - pad,
-        );
-
-        const spaceBelow = window.innerHeight - tooltip.anchorBottom - pad;
-        const spaceAbove = tooltip.anchorTop - pad;
-        const placeAbove =
-            rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
-
-        let top = placeAbove
-            ? tooltip.anchorTop - 8 - rect.height
-            : tooltip.anchorBottom + 8;
-
-        if (top + rect.height > window.innerHeight - pad) {
-            top = Math.max(pad, window.innerHeight - pad - rect.height);
-        }
-        if (top < pad) {
-            top = pad;
-        }
-
-        setCoords({ left, top });
+        positionFixedTooltipEl(el, tooltip);
     }, [tooltip]);
 
     if (!tooltip || typeof document === "undefined") {
@@ -456,9 +482,9 @@ function AdminOrderCellTooltip({
             ref={ref}
             className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
             style={{
-                left: coords?.left ?? tooltip.x,
-                top: coords?.top ?? tooltip.anchorBottom + 8,
-                visibility: coords ? "visible" : "hidden",
+                left: tooltip.x,
+                top: tooltip.anchorBottom + 8,
+                visibility: "hidden",
             }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
@@ -505,39 +531,13 @@ function AdminOrderItemsTooltip({
     onMouseLeaveAction: () => void;
 }) {
     const ref = useRef<HTMLDivElement | null>(null);
-    const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
 
     useLayoutEffect(() => {
-        if (!tooltip || !ref.current) {
-            setCoords(null);
+        const el = ref.current;
+        if (!tooltip || !el) {
             return;
         }
-        const el = ref.current;
-        const pad = 8;
-        const rect = el.getBoundingClientRect();
-        const halfW = rect.width / 2;
-        const left = Math.min(
-            Math.max(tooltip.x, halfW + pad),
-            window.innerWidth - halfW - pad,
-        );
-
-        const spaceBelow = window.innerHeight - tooltip.anchorBottom - pad;
-        const spaceAbove = tooltip.anchorTop - pad;
-        const placeAbove =
-            rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
-
-        let top = placeAbove
-            ? tooltip.anchorTop - 8 - rect.height
-            : tooltip.anchorBottom + 8;
-
-        if (top + rect.height > window.innerHeight - pad) {
-            top = Math.max(pad, window.innerHeight - pad - rect.height);
-        }
-        if (top < pad) {
-            top = pad;
-        }
-
-        setCoords({ left, top });
+        positionFixedTooltipEl(el, tooltip);
     }, [tooltip]);
 
     if (!tooltip || typeof document === "undefined") {
@@ -549,9 +549,9 @@ function AdminOrderItemsTooltip({
             ref={ref}
             className="fixed z-[9999] max-w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2.5 text-xs leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
             style={{
-                left: coords?.left ?? tooltip.x,
-                top: coords?.top ?? tooltip.anchorBottom + 8,
-                visibility: coords ? "visible" : "hidden",
+                left: tooltip.x,
+                top: tooltip.anchorBottom + 8,
+                visibility: "hidden",
             }}
             onMouseEnter={onMouseEnterAction}
             onMouseLeave={onMouseLeaveAction}
@@ -603,14 +603,25 @@ function AdminOrderQtyCell({
     return (
         <button
             type="button"
-            className="w-full cursor-default text-right tabular-nums"
+            className="w-full min-w-0 cursor-default text-right tabular-nums lg:text-left"
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
             aria-label={`Товары заказа #${order.id}`}
         >
-            {order.items_qty}
+            <span className="lg:hidden">{order.items_qty}</span>
+            <span className="hidden min-w-0 space-y-0.5 lg:block">
+                {items.length === 0 ? (
+                    <span className="tabular-nums">{order.items_qty || "—"}</span>
+                ) : (
+                    items.map((item) => (
+                        <div key={item.id} className="truncate leading-tight">
+                            {lineItemFullTitle(item)}
+                        </div>
+                    ))
+                )}
+            </span>
         </button>
     );
 }
@@ -704,17 +715,17 @@ function AdminOrderAddressCell({
 
     return (
         <div
-            className="leading-tight whitespace-nowrap lg:min-w-0 lg:whitespace-normal"
+            className="min-w-0 leading-tight"
             tabIndex={hasAddress || hasDeliveryDate ? 0 : undefined}
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
         >
-            <div className="font-medium text-admin-text lg:truncate" data-truncate-check>
+            <div className="truncate font-medium text-admin-text" data-truncate-check>
                 {cityLine}
             </div>
-            <div className="text-[10px] text-admin-text-secondary lg:truncate" data-truncate-check>
+            <div className="truncate text-[10px] text-admin-text-secondary" data-truncate-check>
                 {addressLine}
             </div>
         </div>
@@ -847,11 +858,13 @@ function AdminOrderDeliveryDateCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="block w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted hover:underline hover:underline-offset-2"
+                className="inline-flex max-w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-none text-admin-text transition-transform duration-200 ease-out hover:scale-110"
                 aria-label={`Дата отправки заказа #${order.id}`}
                 title="Изменить дату отправки"
             >
-                {label !== "—" ? label : <span className="text-admin-text-secondary">—</span>}
+                <span className="whitespace-nowrap">
+                    {label !== "—" ? label : <span className="text-admin-text-secondary">—</span>}
+                </span>
             </button>
             <AdminModalShell
                 open={open}
@@ -937,7 +950,7 @@ function AdminOrderTagsCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="block w-full rounded-lg px-0.5 py-0.5 text-left transition hover:bg-admin-muted"
+                className="inline-flex max-w-full rounded-lg px-0.5 py-0.5 text-left transition-transform duration-200 ease-out hover:scale-110"
                 aria-label={`Теги заказа #${order.id}`}
                 title="Изменить теги"
             >
@@ -946,11 +959,8 @@ function AdminOrderTagsCell({
                         {tags.map((tag) => (
                             <span
                                 key={tag.id}
-                                className="inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight"
-                                style={{
-                                    backgroundColor: tag.color,
-                                    color: tagContrastText(tag.color),
-                                }}
+                                className={`${SOLID_PILL_CHIP_CLASS} truncate`}
+                                style={solidColorPillStyle(tag.color)}
                                 title={tag.name}
                             >
                                 {tag.name}
@@ -1037,14 +1047,14 @@ function AdminOrderDeliveryTimeCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="block w-full rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-snug text-admin-text transition hover:bg-admin-muted"
+                className="inline-flex max-w-full flex-col rounded-lg px-0.5 py-0.5 text-left tabular-nums leading-none text-admin-text transition-transform duration-200 ease-out hover:scale-110"
                 aria-label={`Время доставки заказа #${order.id}`}
                 title="Задать время доставки"
             >
                 {from || to ? (
                     <>
-                        <span className="block">{from || "—"}</span>
-                        <span className="block text-admin-text-secondary">{to || "—"}</span>
+                        <span className="whitespace-nowrap">{from || "—"}</span>
+                        <span className="mt-0.5 whitespace-nowrap text-admin-text-secondary">{to || "—"}</span>
                     </>
                 ) : (
                     <span className="text-admin-text-secondary">—</span>
@@ -1233,6 +1243,54 @@ export default function AdminOrdersTable({
     const [itemsTooltip, setItemsTooltip] = useState<ItemsTooltipState>(null);
     const tooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isStatusPending, startStatusTransition] = useTransition();
+    const [productsColWidth, setProductsColWidth] = useState<number | null>(null);
+    const productsThRef = useRef<HTMLTableCellElement | null>(null);
+    const { options: statusOptions } = useOrderStatusOptions(true);
+
+    const statusOptionsForOrder = useCallback(
+        (order: OrderData): OrderStatusOption[] => {
+            if (statusOptions.some((item) => item.value === order.status)) {
+                return statusOptions;
+            }
+            return [
+                ...statusOptions,
+                {
+                    value: order.status,
+                    label: getOrderStatusLabel(order.status, order.status_label),
+                    color: getOrderStatusColor(order.status, order.status_color),
+                },
+            ];
+        },
+        [statusOptions],
+    );
+
+    const onProductsColResizeStart = useCallback((event: ReactMouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const measured = Math.round(productsThRef.current?.getBoundingClientRect().width ?? 168);
+        const startX = event.clientX;
+        const startWidth = measured;
+
+        const onMove = (moveEvent: MouseEvent) => {
+            const next = Math.min(
+                PRODUCTS_COL_MAX_PX,
+                Math.max(PRODUCTS_COL_MIN_PX, startWidth + (moveEvent.clientX - startX)),
+            );
+            setProductsColWidth(next);
+        };
+
+        const onUp = () => {
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }, []);
 
     const todayIso = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
@@ -1395,25 +1453,37 @@ export default function AdminOrdersTable({
 
     return (
         <>
-            <div className="overflow-hidden rounded-lg border border-admin-border bg-admin-surface shadow-sm">
-                <div className="overflow-x-auto lg:overflow-x-hidden">
-                <table className="w-max min-w-full border-collapse text-[13px] lg:w-full lg:table-fixed">
+            <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-admin-surface shadow-[0_8px_28px_rgba(15,23,42,0.07)]">
+                <div
+                    className={
+                        productsColWidth === null
+                            ? "overflow-x-auto lg:overflow-x-hidden"
+                            : "overflow-x-auto"
+                    }
+                >
+                <table className="w-full min-w-0 border-collapse text-[13px] font-medium table-fixed">
                     <colgroup>
-                        <col className="w-9" />
-                        <col className="w-[7.25rem]" />
-                        <col className="w-[7.75rem]" />
-                        <col className="w-[11.5rem] lg:w-auto" />
-                        <col className="w-[16rem] lg:w-auto" />
-                        <col className="w-[4.5rem]" />
-                        <col className="w-[6.5rem]" />
-                        <col className="w-[8.5rem]" />
-                        <col className="w-[3.25rem]" />
-                        <col className="w-[6.5rem]" />
-                        <col className="w-[8rem]" />
+                        <col style={{ width: "2.25rem" }} />
+                        <col style={{ width: "7.5rem" }} />
+                        <col style={{ width: "5.75rem" }} />
+                        <col style={{ width: "7rem" }} />
+                        <col style={{ width: "15ch" }} />
+                        <col style={{ width: "3.5rem" }} />
+                        <col style={{ width: "6.75rem" }} />
+                        <col style={{ width: "9rem" }} />
+                        <col
+                            style={
+                                productsColWidth === null
+                                    ? undefined
+                                    : { minWidth: `${productsColWidth}px` }
+                            }
+                        />
+                        <col style={{ width: "5.75rem" }} />
+                        <col style={{ width: "8rem" }} />
                     </colgroup>
-                    <thead className="bg-admin-muted/80">
-                        <tr className="border-b border-admin-border text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
-                            <th className="border-r border-admin-border px-2 py-2">
+                    <thead className="bg-[#F8FAFC]">
+                        <tr className="border-b border-black/[0.06] text-left text-[10px] font-bold uppercase tracking-[0.08em] text-admin-text-secondary">
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
@@ -1422,54 +1492,90 @@ export default function AdminOrdersTable({
                                     className={adminCheckbox}
                                 />
                             </th>
-                            <th className="border-r border-admin-border px-1.5 py-2">Заказ</th>
-                            <th className="border-r border-admin-border px-2 py-2">
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">Заказ</th>
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">
                                 {onDateFilterHeaderClickAction !== undefined ? (
                                     <button
                                         type="button"
                                         onClick={onDateFilterHeaderClickAction}
-                                        className="cursor-pointer bg-transparent p-0 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary transition hover:scale-[1.04] hover:text-admin-text hover:underline hover:underline-offset-2 focus:outline-none"
+                                        className="inline-flex cursor-pointer items-center gap-1 border-b border-transparent bg-transparent p-0 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-admin-text-secondary transition hover:scale-[1.04] hover:border-current hover:text-admin-text focus:outline-none"
                                         aria-label="Фильтр по дате отправки"
+                                        title="Дата отправки"
                                     >
-                                        Дата отправки
+                                        <span>Дата</span>
+                                        <Truck size={12} className="shrink-0" aria-hidden />
                                     </button>
                                 ) : (
-                                    "Дата отправки"
+                                    <span
+                                        className="inline-flex items-center gap-1"
+                                        title="Дата отправки"
+                                    >
+                                        <span>Дата</span>
+                                        <Truck size={12} className="shrink-0" aria-hidden />
+                                    </span>
                                 )}
                             </th>
-                            <th className="border-r border-admin-border px-2 py-2">Клиент</th>
-                            <th className="border-r border-admin-border px-2 py-2">Адрес</th>
-                            <th className="border-r border-admin-border px-2 py-2">Время</th>
-                            <th className="border-r border-admin-border px-2 py-2">ID отправки</th>
-                            <th className="border-r border-admin-border px-2 py-2">
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">Клиент</th>
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">Адрес</th>
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">Время</th>
+                            <th className="whitespace-nowrap border-r border-black/[0.06] px-2 py-2.5">ID отправки</th>
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">
                                 {onStatusFilterChangeAction !== undefined ? (
                                     <OrdersStatusFilterHeader
                                         value={statusFilter}
+                                        options={statusOptions}
                                         onChangeAction={onStatusFilterChangeAction}
                                     />
                                 ) : (
                                     "Статус"
                                 )}
                             </th>
-                            <th className="border-r border-admin-border px-2 py-2">Кол.</th>
-                            <th className="border-r border-admin-border px-2 py-2">Сумма</th>
-                            <th className="px-2 py-2">Теги</th>
+                            <th
+                                ref={productsThRef}
+                                className="relative border-r border-black/[0.06] px-2 py-2.5 pr-3"
+                            >
+                                <span className="lg:hidden">Кол.</span>
+                                <span className="hidden lg:inline">Товары</span>
+                                <span
+                                    role="separator"
+                                    aria-orientation="vertical"
+                                    aria-label="Изменить ширину колонки товары"
+                                    title="Потяните, чтобы изменить ширину. Двойной клик — авто"
+                                    onMouseDown={onProductsColResizeStart}
+                                    onDoubleClick={() => setProductsColWidth(null)}
+                                    className={`absolute inset-y-1 right-0 hidden w-3 cursor-col-resize touch-none items-center justify-center rounded-sm border-r-2 transition lg:flex ${
+                                        productsColWidth !== null
+                                            ? "border-admin-primary/50 bg-admin-primary/10 text-admin-primary"
+                                            : "border-transparent text-admin-text-muted/50 hover:border-admin-primary/40 hover:bg-admin-primary/10 hover:text-admin-primary"
+                                    }`}
+                                >
+                                    <GripVertical size={12} strokeWidth={2.25} aria-hidden className="opacity-80" />
+                                </span>
+                            </th>
+                            <th className="border-r border-black/[0.06] px-2 py-2.5">Сумма</th>
+                            <th className="px-2 py-2.5">Теги</th>
                         </tr>
                     </thead>
 
                     <tbody className="align-middle">
                         {orders.map((order) => {
                             const deliveryOverdue = isOrderDeliveryOverdue(order, todayIso);
+                            const statusColor = getOrderStatusColor(order.status, order.status_color);
                             return (
                             <tr
                                 key={order.id}
-                                className={`border-b border-admin-border/70 transition-colors last:border-b-0 ${
+                                className={`border-b border-black/[0.05] transition-colors last:border-b-0 ${
                                     deliveryOverdue
                                         ? "bg-red-50 hover:bg-red-100/80"
-                                        : "hover:bg-admin-muted/35"
+                                        : "hover:brightness-[0.98]"
                                 }`}
+                                style={
+                                    deliveryOverdue
+                                        ? undefined
+                                        : { backgroundColor: orderStatusSoftBg(statusColor) }
+                                }
                             >
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="border-r border-black/[0.05] px-2 py-2">
                                     <input
                                         type="checkbox"
                                         checked={selectedOrderIdsSet.has(order.id)}
@@ -1478,8 +1584,8 @@ export default function AdminOrdersTable({
                                         className={adminCheckbox}
                                     />
                                 </td>
-                                <td className="overflow-hidden border-r border-admin-border/70 px-1.5 py-2">
-                                    <div className="flex w-max max-w-full items-center gap-1">
+                                <td className="border-r border-black/[0.05] px-2 py-2">
+                                    <div className="flex items-center gap-1">
                                         <button
                                             type="button"
                                             className="shrink-0 text-left font-medium tabular-nums text-blue-600 underline decoration-blue-600/80 underline-offset-2 hover:text-blue-700 hover:decoration-blue-700"
@@ -1503,7 +1609,7 @@ export default function AdminOrdersTable({
                                         />
                                     </div>
                                 </td>
-                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 tabular-nums text-admin-text">
+                                <td className="whitespace-nowrap border-r border-black/[0.05] px-2 py-2 tabular-nums text-admin-text">
                                     <AdminOrderDeliveryDateCell
                                         order={order}
                                         onSavedAction={patchOrderInList}
@@ -1511,7 +1617,7 @@ export default function AdminOrdersTable({
                                         onReloadAction={onOrdersReloadAction}
                                     />
                                 </td>
-                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 lg:whitespace-normal">
+                                <td className="min-w-0 overflow-hidden border-r border-black/[0.05] px-1.5 py-2">
                                     <AdminOrderClientPhoneCell
                                         name={order.customer_name}
                                         phone={order.phone}
@@ -1520,7 +1626,7 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="whitespace-nowrap border-r border-admin-border/70 px-2 py-2 lg:whitespace-normal">
+                                <td className="min-w-0 overflow-hidden border-r border-black/[0.05] px-1.5 py-2">
                                     <AdminOrderAddressCell
                                         city={order.delivery_city}
                                         address={order.delivery_address}
@@ -1533,14 +1639,14 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="border-r border-black/[0.05] px-2 py-2">
                                     <AdminOrderDeliveryTimeCell
                                         order={order}
                                         onSavedAction={patchOrderInList}
                                         onErrorAction={onErrorMessageAction}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="border-r border-black/[0.05] px-2 py-2">
                                     <AdminOrderShipmentIdCell
                                         shipmentId={order.shipment_id}
                                         shipmentStatus={order.shipment_status}
@@ -1550,27 +1656,27 @@ export default function AdminOrdersTable({
                                         onHideAction={hideAddressTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2">
+                                <td className="overflow-hidden border-r border-black/[0.05] px-1.5 py-2">
                                     <AdminStatusDropdown
                                         value={order.status}
-                                        options={ORDER_STATUS_OPTIONS}
+                                        options={statusOptionsForOrder(order)}
                                         onChangeAction={(nextStatus) =>
                                             requestStatusChange(order.id, order.status, nextStatus)
                                         }
                                         disabled={order.status === "done" || order.status === "cancelled"}
                                         triggerVariant="text"
-                                        triggerTextClassName={getOrderStatusTableTextClass(order.status)}
+                                        triggerColor={statusColor}
                                         menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2 text-right tabular-nums">
+                                <td className="border-r border-black/[0.05] px-2 py-2 text-right tabular-nums lg:min-w-0 lg:overflow-hidden lg:text-left">
                                     <AdminOrderQtyCell
                                         order={order}
                                         onShowAction={showItemsTooltip}
                                         onHideAction={hideItemsTooltipWithDelay}
                                     />
                                 </td>
-                                <td className="border-r border-admin-border/70 px-2 py-2 whitespace-nowrap text-right tabular-nums">
+                                <td className="border-r border-black/[0.05] px-2 py-2 whitespace-nowrap text-right tabular-nums">
                                     {order.total} руб.
                                 </td>
                                 <td className="px-2 py-2">

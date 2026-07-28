@@ -4,7 +4,11 @@ export const adminBtnPrimary =
     "inline-flex min-h-10 items-center justify-center rounded-lg bg-admin-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-admin-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary disabled:cursor-not-allowed disabled:opacity-50";
 
 export const adminBtnSecondary =
-    "inline-flex min-h-10 items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 py-2 text-sm font-medium text-admin-text transition hover:border-admin-border-strong hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-black/[0.06] bg-white px-3.5 py-2 text-sm font-medium text-admin-text shadow-[0_3px_8px_rgba(15,23,42,0.08)] transition-[transform,background-color,box-shadow,color] duration-200 ease-out hover:scale-[1.04] hover:bg-slate-100 hover:text-slate-900 hover:shadow-[0_6px_14px_rgba(15,23,42,0.16)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-white disabled:hover:shadow-[0_3px_8px_rgba(15,23,42,0.08)]";
+
+/** Icon-only control — soft UI hover (scale + darken). */
+export const adminIconBtn =
+    "relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/[0.06] bg-white text-admin-text shadow-[0_3px_8px_rgba(15,23,42,0.08)] transition-[transform,background-color,box-shadow,color] duration-200 ease-out hover:scale-110 hover:bg-slate-100 hover:text-slate-900 hover:shadow-[0_6px_14px_rgba(15,23,42,0.16)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-white disabled:hover:shadow-[0_3px_8px_rgba(15,23,42,0.08)]";
 
 export const adminBtnGhost =
     "inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text";

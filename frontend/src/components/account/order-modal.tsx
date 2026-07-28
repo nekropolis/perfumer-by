@@ -4,10 +4,7 @@ import Image from "next/image";
 import { useEffect, useState, startTransition } from "react";
 import { fetchMyOrder } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
-import {
-    getOrderStatusLabel,
-    getOrderStatusStyle,
-} from "@/constants/order-statuses";
+import { getOrderStatusColor, getOrderStatusLabel, orderStatusPillStyle } from "@/constants/order-statuses";
 import OrderDiscountSummary from "@/components/account/order-discount-summary";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import { lineItemProductTitle } from "@/lib/product-display-name";
@@ -103,9 +100,12 @@ export default function OrderModal({ orderId, onCloseOrderAction }: Props) {
                             <div className="mb-6 flex flex-wrap items-center gap-3">
                                 <span> Статус заказа: </span>
                                 <div
-                                    className={`rounded-full px-3 py-1 text-sm ${getOrderStatusStyle(order.status)}`}
+                                    className="rounded-full px-3 py-1 text-sm"
+                                    style={orderStatusPillStyle(
+                                        getOrderStatusColor(order.status, order.status_color),
+                                    )}
                                 >
-                                   {getOrderStatusLabel(order.status)}
+                                   {getOrderStatusLabel(order.status, order.status_label)}
                                 </div>
                             </div>
 

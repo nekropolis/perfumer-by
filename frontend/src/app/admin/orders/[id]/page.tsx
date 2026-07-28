@@ -44,7 +44,7 @@ export default async function AdminOrderPage({ params }: Props) {
 
                         <div>
                             <div className="text-sm text-admin-text-secondary">Статус</div>
-                            <div>{getOrderStatusLabel(order.status)}</div>
+                            <div>{getOrderStatusLabel(order.status, order.status_label)}</div>
                         </div>
 
                         <div>
@@ -190,7 +190,12 @@ export default async function AdminOrderPage({ params }: Props) {
                     </div>
                     <div className="mb-6 text-2xl font-semibold">{order.total} руб.</div>
 
-                    <AdminOrderStatusForm orderId={order.id} currentStatus={order.status} />
+                    <AdminOrderStatusForm
+                        orderId={order.id}
+                        currentStatus={order.status}
+                        statusLabel={order.status_label}
+                        statusColor={order.status_color}
+                    />
                     <AdminOrderInventorySync
                         orderId={order.id}
                         canSync={Boolean(order.can_sync_inventory_writeoff)}

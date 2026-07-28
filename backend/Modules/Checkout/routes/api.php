@@ -10,6 +10,7 @@ use Modules\Checkout\Http\Controllers\Api\VeterTicketSendController;
 use Modules\Checkout\Http\Controllers\Api\VeterTicketStatusSyncController;
 use Modules\ImportExport\Http\Controllers\Admin\LegacySyncController;
 use Modules\Checkout\Http\Controllers\Api\OrderTagController;
+use Modules\Checkout\Http\Controllers\Api\OrderStatusController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
@@ -54,6 +55,12 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/order-
     Route::post('/', [OrderTagController::class, 'store']);
     Route::put('/{id}', [OrderTagController::class, 'update']);
     Route::delete('/{id}', [OrderTagController::class, 'destroy']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/order-statuses')->group(function () {
+    Route::get('/', [OrderStatusController::class, 'index']);
+    Route::post('/', [OrderStatusController::class, 'store']);
+    Route::put('/{id}', [OrderStatusController::class, 'update']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->group(function () {

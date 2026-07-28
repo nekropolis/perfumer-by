@@ -3,21 +3,30 @@
 import { adminBtnPrimary } from "@/lib/admin-ui-classes";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateOrderStatus } from "@/lib/admin-orders-api";
-import { ORDER_STATUS_OPTIONS } from "@/constants/order-statuses";
+import { getOrderStatusColor, getOrderStatusLabel } from "@/constants/order-statuses";
+import { useOrderStatusOptions } from "@/hooks/use-order-status-options";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 
 type Props = {
     orderId: number;
     currentStatus: string;
+    statusLabel?: string | null;
+    statusColor?: string | null;
 };
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
-export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) {
+export default function AdminOrderStatusForm({
+    orderId,
+    currentStatus,
+    statusLabel,
+    statusColor,
+}: Props) {
     const router = useRouter();
+    const { options } = useOrderStatusOptions(true);
     const [savedStatus, setSavedStatus] = useState(currentStatus);
     const [status, setStatus] = useState(currentStatus);
     const [message, setMessage] = useState("");
@@ -29,6 +38,20 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
         setSavedStatus(currentStatus);
         setStatus(currentStatus);
     }, [currentStatus, orderId]);
+
+    const dropdownOptions = useMemo(() => {
+        if (options.some((item) => item.value === status)) {
+            return options;
+        }
+        return [
+            ...options,
+            {
+                value: status,
+                label: getOrderStatusLabel(status, statusLabel),
+                color: getOrderStatusColor(status, statusColor),
+            },
+        ];
+    }, [options, status, statusLabel, statusColor]);
 
     const isTerminal = TERMINAL_STATUSES.has(savedStatus);
 
@@ -78,7 +101,7 @@ export default function AdminOrderStatusForm({ orderId, currentStatus }: Props) 
             <div className="mb-3">
                 <AdminStatusDropdown
                     value={status}
-                    options={ORDER_STATUS_OPTIONS}
+                    options={dropdownOptions}
                     onChangeAction={setStatus}
                     disabled={isTerminal}
                     widthClassName="w-full"

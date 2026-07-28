@@ -3,10 +3,12 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { orderStatusPillStyle } from "@/constants/order-statuses";
 
 type Option = {
     value: string;
     label: string;
+    color?: string;
 };
 
 type Props = {
@@ -14,10 +16,12 @@ type Props = {
     options: Option[];
     onChangeAction: (value: string) => void;
     disabled?: boolean;
-    /** «text» — показывать только подпись статуса; дропдаун по клику (как у кнопки). */
+    /** «text» — solid pill-бейдж фиксированной ширины в таблице. */
     triggerVariant?: "default" | "text";
-    /** Классы цвета текста для `triggerVariant="text"` (например из `getOrderStatusTableTextClass`). */
+    /** Классы для `triggerVariant="text"`. */
     triggerTextClassName?: string;
+    /** Цвет статуса для solid pill. */
+    triggerColor?: string;
     widthClassName?: string;
     menuWidthClassName?: string;
     /** Выравнивание меню относительно триггера. `auto` — не уезжать за край экрана. */
@@ -28,7 +32,8 @@ type MenuCoords = {
     top?: number;
     bottom?: number;
     left: number;
-    width: number;
+    minWidth: number;
+    openUp: boolean;
 };
 
 export default function AdminStatusDropdown({
@@ -38,18 +43,51 @@ export default function AdminStatusDropdown({
     disabled = false,
     triggerVariant = "default",
     triggerTextClassName,
+    triggerColor,
     widthClassName = "w-[168px]",
-    menuWidthClassName = "w-[220px]",
+    menuWidthClassName = "w-max",
     menuAlign = "auto",
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
+    const [menuEntered, setMenuEntered] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
-    const currentLabel = useMemo(
-        () => options.find((item) => item.value === value)?.label ?? value,
+    const currentOption = useMemo(
+        () => options.find((item) => item.value === value),
         [options, value],
+    );
+    const currentLabel = currentOption?.label ?? value;
+    const resolvedTriggerColor = triggerColor?.trim() || currentOption?.color?.trim() || undefined;
+    const pillStyle = resolvedTriggerColor ? orderStatusPillStyle(resolvedTriggerColor) : null;
+    const pillClassName =
+        "relative inline-flex h-7 w-full max-w-full items-center justify-center rounded-md px-2 text-center text-[10px] font-bold uppercase leading-none tracking-wide";
+
+    const textTrigger = disabled ? (
+        <span
+            className={`${pillClassName} ${triggerTextClassName ?? ""}`}
+            style={pillStyle ?? undefined}
+        >
+            <span className="min-w-0 truncate">{currentLabel}</span>
+        </span>
+    ) : (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={`${pillClassName} cursor-pointer transition hover:brightness-[1.03] active:brightness-95 ${triggerTextClassName ?? ""}`}
+            style={pillStyle ?? undefined}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-label="Изменить статус"
+        >
+            <span className="min-w-0 truncate px-3">{currentLabel}</span>
+            <ChevronDown
+                aria-hidden
+                strokeWidth={2.5}
+                className={`pointer-events-none absolute right-1 h-3 w-3 shrink-0 opacity-80 transition-transform duration-200 ease-out will-change-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+        </button>
     );
 
     const updateMenuPosition = () => {
@@ -57,21 +95,26 @@ export default function AdminStatusDropdown({
             return;
         }
         const rect = rootRef.current.getBoundingClientRect();
-        const menuWidth = Math.min(220, Math.max(0, window.innerWidth - 24));
-        const menuHeight = Math.min(320, options.length * 40 + 16);
+        const measured = menuRef.current?.offsetWidth ?? 0;
+        const minWidth = Math.min(
+            Math.max(rect.width, measured || 132, 132),
+            Math.max(0, window.innerWidth - 24),
+        );
+        const menuHeight = Math.min(280, options.length * 30 + 8);
         const pad = 8;
-        const gap = 6;
+        const gap = 4;
+        const placeWidth = Math.max(minWidth, measured || minWidth);
 
         let left = rect.left;
         if (menuAlign === "right") {
-            left = rect.right - menuWidth;
+            left = rect.right - placeWidth;
         } else if (menuAlign === "auto") {
             const spaceRight = window.innerWidth - rect.left;
-            if (spaceRight < menuWidth + pad) {
-                left = rect.right - menuWidth;
+            if (spaceRight < placeWidth + pad) {
+                left = rect.right - placeWidth;
             }
         }
-        left = Math.min(Math.max(pad, left), window.innerWidth - menuWidth - pad);
+        left = Math.min(Math.max(pad, left), window.innerWidth - placeWidth - pad);
 
         const spaceBelow = window.innerHeight - rect.bottom;
         const openUp = spaceBelow < menuHeight + pad && rect.top > spaceBelow;
@@ -80,16 +123,23 @@ export default function AdminStatusDropdown({
             top: openUp ? undefined : rect.bottom + gap,
             bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
             left,
-            width: menuWidth,
+            minWidth,
+            openUp,
         });
     };
 
     useLayoutEffect(() => {
         if (!isOpen) {
-            setMenuCoords(null);
+            setMenuEntered(false);
             return;
         }
         updateMenuPosition();
+        setMenuEntered(false);
+        const frame = window.requestAnimationFrame(() => {
+            setMenuEntered(true);
+            updateMenuPosition();
+        });
+        return () => window.cancelAnimationFrame(frame);
     }, [isOpen, menuAlign, options.length]);
 
     useEffect(() => {
@@ -129,7 +179,7 @@ export default function AdminStatusDropdown({
 
     const rootClassName =
         triggerVariant === "text"
-            ? "relative inline-block align-middle max-w-full"
+            ? "relative block w-full max-w-full align-middle"
             : `relative inline-flex ${widthClassName}`;
 
     const defaultTrigger = (
@@ -137,36 +187,15 @@ export default function AdminStatusDropdown({
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
             disabled={disabled}
-            className="flex min-h-10 w-full items-center justify-between rounded-lg border border-admin-border bg-admin-surface px-3 text-left text-sm text-admin-text shadow-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted"
+            className="flex min-h-10 w-full items-center justify-between rounded-lg border border-admin-border bg-admin-surface px-3 text-left text-sm font-medium shadow-sm transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:bg-admin-muted disabled:opacity-60"
+            style={resolvedTriggerColor ? { color: resolvedTriggerColor } : undefined}
             aria-haspopup="listbox"
             aria-expanded={isOpen}
             aria-label="Статус"
         >
             <span className="truncate">{currentLabel}</span>
             <ChevronDown
-                className={`h-4 w-4 shrink-0 text-admin-text-muted transition ${isOpen ? "rotate-180" : ""}`}
-            />
-        </button>
-    );
-
-    const textColorClass = triggerTextClassName?.trim() || "text-admin-text";
-
-    const textTrigger = disabled ? (
-        <span className={`text-sm font-medium ${textColorClass}`}>{currentLabel}</span>
-    ) : (
-        <button
-            type="button"
-            onClick={() => setIsOpen((prev) => !prev)}
-            className={`inline-flex max-w-full cursor-pointer items-center gap-1.5 border-x-0 border-t-0 border-b-2 border-solid border-current bg-transparent px-0 pb-0.5 pt-0 text-left text-sm font-medium transition hover:opacity-90 ${textColorClass}`}
-            aria-haspopup="listbox"
-            aria-expanded={isOpen}
-            aria-label="Изменить статус"
-        >
-            <span className="min-w-0 break-words">{currentLabel}</span>
-            <ChevronDown
-                aria-hidden
-                strokeWidth={2.25}
-                className={`h-3.5 w-3.5 shrink-0 opacity-55 transition-transform duration-200 ease-out will-change-transform ${isOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 shrink-0 opacity-55 transition ${isOpen ? "rotate-180" : ""}`}
             />
         </button>
     );
@@ -176,18 +205,27 @@ export default function AdminStatusDropdown({
             ? createPortal(
                   <div
                       ref={menuRef}
-                      className={`fixed z-[9999] max-h-[min(20rem,70vh)] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-1 shadow-lg ${menuWidthClassName}`}
+                      className={`fixed z-[9999] max-h-[min(18rem,70vh)] overflow-y-auto rounded-xl border border-black/[0.06] bg-white p-0.5 shadow-[0_10px_28px_rgba(15,23,42,0.14)] transition-[opacity,transform] duration-150 ease-out ${
+                          menuCoords.openUp ? "origin-bottom" : "origin-top"
+                      } ${
+                          menuEntered
+                              ? "translate-y-0 scale-100 opacity-100"
+                              : menuCoords.openUp
+                                ? "translate-y-1 scale-[0.96] opacity-0"
+                                : "-translate-y-1 scale-[0.96] opacity-0"
+                      } ${menuWidthClassName}`}
                       style={{
                           top: menuCoords.top,
                           bottom: menuCoords.bottom,
                           left: menuCoords.left,
-                          width: menuCoords.width,
+                          minWidth: menuCoords.minWidth,
                       }}
                       role="listbox"
                       aria-label="Выбор статуса"
                   >
                       {options.map((item) => {
                           const isActive = item.value === value;
+                          const optionColor = item.color?.trim();
                           return (
                               <button
                                   key={item.value}
@@ -198,10 +236,30 @@ export default function AdminStatusDropdown({
                                       setIsOpen(false);
                                       onChangeAction(item.value);
                                   }}
-                                  className={`flex min-h-10 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${isActive ? "bg-admin-primary/10 text-admin-primary" : "text-admin-text hover:bg-admin-muted"}`}
+                                  className={`flex min-h-7 w-full items-center justify-between gap-1.5 rounded-lg px-2 py-1 text-left text-xs font-medium transition hover:bg-admin-muted ${
+                                      isActive ? "bg-admin-muted/70" : ""
+                                  }`}
                               >
-                                  <span>{item.label}</span>
-                                  {isActive ? <Check className="h-4 w-4 text-admin-primary" /> : null}
+                                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                                      {optionColor ? (
+                                          <span
+                                              aria-hidden
+                                              className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                              style={{ backgroundColor: optionColor }}
+                                          />
+                                      ) : null}
+                                      <span
+                                          className="whitespace-nowrap"
+                                          style={optionColor ? { color: optionColor } : undefined}
+                                      >
+                                          {item.label}
+                                      </span>
+                                  </span>
+                                  {isActive ? (
+                                      <Check className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                                  ) : (
+                                      <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                  )}
                               </button>
                           );
                       })}

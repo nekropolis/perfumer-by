@@ -1,6 +1,6 @@
 "use client";
 
-import { getOrderStatusLabel, getOrderStatusStyle } from "@/constants/order-statuses";
+import { getOrderStatusColor, getOrderStatusLabel, orderStatusPillStyle } from "@/constants/order-statuses";
 import { useEffect, useState, startTransition, useCallback } from "react";
 import { fetchMyOrders } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
@@ -211,9 +211,12 @@ export default function OrdersAccount({
                                                     </h3>
 
                                                     <div
-                                                        className={`rounded-full px-3 py-1 text-xs ${getOrderStatusStyle(order.status)}`}
+                                                        className="rounded-full px-3 py-1 text-xs"
+                                                        style={orderStatusPillStyle(
+                                                            getOrderStatusColor(order.status, order.status_color),
+                                                        )}
                                                     >
-                                                        {getOrderStatusLabel(order.status)}
+                                                        {getOrderStatusLabel(order.status, order.status_label)}
                                                     </div>
                                                 </div>
 

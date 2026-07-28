@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { createOrderTag, fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
+import { solidColorPillStyle, SOLID_PILL_CHIP_CLASS } from "@/constants/order-statuses";
 
 type Props = {
   selected: OrderTag[];
@@ -31,16 +32,6 @@ const PRESET_COLORS = [
   "#EC4899",
   "#78716C",
 ];
-
-function contrastText(hex: string): string {
-  const m = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/i);
-  if (!m) return "#fff";
-  const r = parseInt(m[1], 16);
-  const g = parseInt(m[2], 16);
-  const b = parseInt(m[3], 16);
-  const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luma > 0.62 ? "#111827" : "#ffffff";
-}
 
 function normalizeTagNameKey(name: string): string {
   return name.trim().toLocaleLowerCase("ru-RU");
@@ -365,12 +356,10 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
           {selected.map((tag) => (
             <span
               key={tag.id}
-              className={`inline-flex items-center gap-1 rounded-full font-medium ${
-                compact ? "px-2 py-0 text-[11px]" : "px-2.5 py-0.5 text-xs"
-              }`}
-              style={{ backgroundColor: tag.color, color: contrastText(tag.color) }}
+              className={`${SOLID_PILL_CHIP_CLASS} gap-1 ${compact ? "" : "px-2.5 text-[11px]"}`}
+              style={solidColorPillStyle(tag.color)}
             >
-              {tag.name}
+              <span className="min-w-0 truncate">{tag.name}</span>
               <button
                 type="button"
                 onClick={() => removeTag(tag.id)}

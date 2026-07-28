@@ -43,7 +43,8 @@ import {
 import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
 import { applyWaitingDiscount, WAITING_DISCOUNT_PERCENT } from "@/lib/loyalty-pricing";
 import { fetchCheckoutCityById, searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
-import { ORDER_STATUS_OPTIONS, getOrderStatusTableTextClass } from "@/constants/order-statuses";
+import { getOrderStatusColor, getOrderStatusLabel } from "@/constants/order-statuses";
+import { useOrderStatusOptions } from "@/hooks/use-order-status-options";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
@@ -696,6 +697,20 @@ export default function AdminOrderCreateForm({
   const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
   const [managerComment, setManagerComment] = useState(() => initialOrder?.manager_comment ?? "");
   const [orderStatus, setOrderStatus] = useState(() => initialOrder?.status ?? "new");
+  const { options: statusOptions } = useOrderStatusOptions(true);
+  const statusDropdownOptions = useMemo(() => {
+    if (statusOptions.some((item) => item.value === orderStatus)) {
+      return statusOptions;
+    }
+    return [
+      ...statusOptions,
+      {
+        value: orderStatus,
+        label: getOrderStatusLabel(orderStatus, initialOrder?.status_label),
+        color: getOrderStatusColor(orderStatus, initialOrder?.status_color),
+      },
+    ];
+  }, [statusOptions, orderStatus, initialOrder?.status_label, initialOrder?.status_color]);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
   const [deliveryCity, setDeliveryCity] = useState(() => {
     const method = normalizeDelivery(initialOrder?.delivery_method);
@@ -2634,11 +2649,11 @@ export default function AdminOrderCreateForm({
               <span className="shrink-0 text-xs font-medium text-admin-text-secondary">Статус заказа</span>
               <AdminStatusDropdown
                 value={orderStatus}
-                options={ORDER_STATUS_OPTIONS}
+                options={statusDropdownOptions}
                 onChangeAction={setOrderStatus}
                 disabled={itemsLocked}
                 triggerVariant="text"
-                triggerTextClassName={getOrderStatusTableTextClass(orderStatus)}
+                triggerColor={getOrderStatusColor(orderStatus, initialOrder?.status_color)}
                 menuAlign="right"
               />
             </div>
