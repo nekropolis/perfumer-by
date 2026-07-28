@@ -1,6 +1,47 @@
-import type { ProductImageData, ProductVariantData } from "@/types/catalog";
+import type {
+    ProductAttributeValueData,
+    ProductImageData,
+    ProductVariantData,
+} from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { compareVariantsByVolume } from "@/lib/product-card-utils";
+
+/** Значение атрибута по имени (опции или custom_value). */
+export function getProductAttributeDisplayValue(
+    attributeValues: ProductAttributeValueData[],
+    attributeName: string,
+): string | null {
+    const needle = attributeName.trim().toLocaleLowerCase("ru");
+    const item = attributeValues.find(
+        (value) => value.attribute?.name?.trim().toLocaleLowerCase("ru") === needle,
+    );
+
+    if (!item) {
+        return null;
+    }
+
+    if (item.selected_options.length > 0) {
+        return item.selected_options.map((option) => option.name).join(", ");
+    }
+
+    const custom = item.custom_value?.trim();
+    return custom || null;
+}
+
+export function formatReviewsCountLabel(count: number): string {
+    const n100 = Math.abs(count) % 100;
+    const n10 = n100 % 10;
+    if (n100 > 10 && n100 < 20) {
+        return `${count} отзывов`;
+    }
+    if (n10 > 1 && n10 < 5) {
+        return `${count} отзыва`;
+    }
+    if (n10 === 1) {
+        return `${count} отзыв`;
+    }
+    return `${count} отзывов`;
+}
 
 export const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
 export const SIMILAR_GAP_PX = 12;

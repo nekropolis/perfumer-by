@@ -1,6 +1,7 @@
 "use client";
 
 import { Heart } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
@@ -26,8 +27,10 @@ import {
 } from "@/lib/loyalty-pricing";
 import {
     formatProductDetailPrice,
+    formatReviewsCountLabel,
     formatVariantConcentrationLabel,
     formatVariantVolumeLine,
+    getProductAttributeDisplayValue,
     getVariantAvailabilityState,
     normalizeProductVariants,
 } from "@/lib/product-detail-utils";
@@ -82,7 +85,7 @@ export default function ProductDetailInteractive({
             return null;
         }
         return cart.items.find((item) => item.product_variant_id === selectedVariant.id) ?? null;
-    }, [cart?.items, selectedVariant?.id]);
+    }, [cart, selectedVariant]);
 
     const isSelectedVariantInCart = Boolean(cartItemForSelected);
     const selectedVariantHasPromotion = Boolean(selectedVariant?.is_promotion);
@@ -115,6 +118,19 @@ export default function ProductDetailInteractive({
         : selectedVariant?.price ?? null;
 
     const inWishlist = isInWishlist(product.id);
+    const genderLabel = getProductAttributeDisplayValue(product.attribute_values, "Для кого");
+    const seasonLabel = getProductAttributeDisplayValue(product.attribute_values, "Сезон");
+    const reviewsMetaLabel = formatReviewsCountLabel(reviewsTabCount);
+
+    const openReviewsTab = () => {
+        setActiveTab("reviews");
+        requestAnimationFrame(() => {
+            document.getElementById("product-info-tabs")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        });
+    };
 
     const handleWaitingDiscountChange = (active: boolean) => {
         if (!selectedVariant || waitingDiscountForced) {
@@ -172,14 +188,16 @@ export default function ProductDetailInteractive({
 
                 <section className="min-w-0 xl:[grid-area:variants]">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                        <div className="flex min-w-0 items-center gap-1 text-sm text-admin-text-secondary">
-                            <span className="shrink-0">Код товара:</span>
-                            <CopyText
-                                value={String(product.id)}
-                                label={`${product.id}`}
-                                title="Скопировать код товара"
-                            />
-                        </div>
+                        {product.brand ? (
+                            <Link
+                                href={`/brands/${product.brand.slug}`}
+                                className="min-w-0 truncate text-sm font-medium uppercase tracking-[0.08em] text-admin-text-secondary transition hover:text-admin-text"
+                            >
+                                {product.brand.name}
+                            </Link>
+                        ) : (
+                            <span />
+                        )}
 
                         <button
                             type="button"
@@ -203,9 +221,37 @@ export default function ProductDetailInteractive({
                         </button>
                     </div>
 
-                    <h1 className="mb-5 text-3xl font-semibold leading-tight sm:text-4xl">
+                    <h1 className="mb-2.5 font-display text-3xl font-semibold leading-tight sm:text-4xl">
                         {product.h1 || productDisplayName(product)}
                     </h1>
+
+                    <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+                        {genderLabel ? (
+                            <span className="font-semibold uppercase tracking-wide text-admin-text">
+                                {genderLabel}
+                            </span>
+                        ) : null}
+                        {seasonLabel ? (
+                            <span className="text-admin-text">{seasonLabel}</span>
+                        ) : null}
+                        <span className="inline-flex items-center gap-1 text-admin-text-secondary">
+                            <span>Код:</span>
+                            <CopyText
+                                value={String(product.id)}
+                                label={`${product.id}`}
+                                title="Скопировать код товара"
+                                className="px-0.5 font-medium text-admin-text underline decoration-admin-text/35 underline-offset-2"
+                                iconSize={12}
+                            />
+                        </span>
+                        <button
+                            type="button"
+                            onClick={openReviewsTab}
+                            className="text-admin-text-secondary transition hover:text-admin-text"
+                        >
+                            {reviewsMetaLabel}
+                        </button>
+                    </div>
 
                     {variants.length > 0 ? (
                         <>
@@ -323,10 +369,10 @@ export default function ProductDetailInteractive({
                     <ProductServiceInfo delivery={deliveryInfo} />
                 </section>
 
-                <section className="min-w-0 md:col-span-2 xl:[grid-area:tabs]">
-                    <div className="rounded-3xl border border-admin-border bg-admin-surface">
+                <section id="product-info-tabs" className="min-w-0 md:col-span-2 xl:[grid-area:tabs]">
+                    <div>
                         <div
-                            className="flex overflow-x-auto border-b border-admin-border"
+                            className="flex items-center gap-2 overflow-x-auto border-b border-admin-border pb-3"
                             role="tablist"
                             aria-label="Информация о товаре"
                         >
@@ -335,10 +381,10 @@ export default function ProductDetailInteractive({
                                 role="tab"
                                 aria-selected={activeTab === "attributes"}
                                 onClick={() => setActiveTab("attributes")}
-                                className={`shrink-0 whitespace-nowrap px-6 py-4 text-sm font-medium ${
+                                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                                     activeTab === "attributes"
-                                        ? "border-b-2 border-admin-primary text-admin-text"
-                                        : "text-admin-text-secondary"
+                                        ? "bg-admin-primary text-white"
+                                        : "text-admin-text-secondary hover:text-admin-text"
                                 }`}
                             >
                                 Характеристики
@@ -349,23 +395,18 @@ export default function ProductDetailInteractive({
                                 role="tab"
                                 aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
-                                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-6 py-4 text-sm font-medium ${
+                                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                                     activeTab === "reviews"
-                                        ? "border-b-2 border-admin-primary text-admin-text"
-                                        : "text-admin-text-secondary"
+                                        ? "bg-admin-primary text-white"
+                                        : "text-admin-text-secondary hover:text-admin-text"
                                 }`}
+                                aria-label={`Отзывы, ${reviewsTabCount}`}
                             >
-                                <span>Отзывы</span>
-                                <span
-                                    className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-admin-primary px-1.5 text-[11px] font-semibold tabular-nums text-white"
-                                    aria-label={`${reviewsTabCount} отзывов`}
-                                >
-                                    {reviewsTabCount}
-                                </span>
+                                Отзывы · {reviewsTabCount}
                             </button>
                         </div>
 
-                        <div className="p-5 sm:p-6">
+                        <div className="pt-1 sm:pt-2">
                             <div
                                 className={activeTab === "attributes" ? "block" : "hidden"}
                                 role="tabpanel"
