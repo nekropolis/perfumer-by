@@ -5,7 +5,9 @@ namespace Modules\Warehouse\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Warehouse\Models\StockWriteoff;
+use Modules\Warehouse\Models\StockWriteoffItem;
 use Modules\Warehouse\Services\StockInventoryService;
 
 class StockWriteoffController extends Controller
@@ -39,8 +41,16 @@ class StockWriteoffController extends Controller
     public function show(int $id, StockInventoryService $inventoryService): JsonResponse
     {
         $writeoff = StockWriteoff::query()
-            ->with(['warehouse', 'items.variant.definition'])
+            ->with(['warehouse', 'items.variant.definition', 'items.product.brand'])
             ->findOrFail($id);
+
+        if ($writeoff->type === 'reserve' && $writeoff->order_id && $writeoff->items->isEmpty()) {
+            if ($inventoryService->backfillOrderReserveDocumentItems($writeoff)) {
+                $writeoff->load(['items.variant.definition', 'items.product.brand']);
+            }
+        }
+
+        $this->enrichWriteoffItemLabels($writeoff);
 
         return response()->json([
             'data' => $writeoff,
@@ -51,6 +61,7 @@ class StockWriteoffController extends Controller
     public function reverse(int $id, StockInventoryService $service): JsonResponse
     {
         $writeoff = $service->reverseWriteoff($id);
+        $this->enrichWriteoffItemLabels($writeoff);
 
         return response()->json([
             'message' => 'Списание отменено, остатки на физических складах восстановлены',
@@ -79,9 +90,37 @@ class StockWriteoffController extends Controller
             ? $service->createManualReserve($validated)
             : $service->createManualWriteoff($validated);
 
+        $writeoff->load(['warehouse', 'items.variant.definition', 'items.product.brand']);
+        $this->enrichWriteoffItemLabels($writeoff);
+
         return response()->json([
             'message' => $documentKind === 'reserve' ? 'Резерв создан' : 'Списание создано',
             'data' => $writeoff,
         ], 201);
+    }
+
+    private function enrichWriteoffItemLabels(StockWriteoff $writeoff): void
+    {
+        $writeoff->loadMissing(['items.variant.definition', 'items.product.brand']);
+
+        foreach ($writeoff->items as $item) {
+            if (! $item instanceof StockWriteoffItem) {
+                continue;
+            }
+
+            $variantTitle = trim((string) $item->variant_title);
+            if ($variantTitle === '' && $item->variant) {
+                $item->setAttribute('variant_title', trim((string) $item->variant->title));
+            }
+
+            // Snapshot из заказа часто без бренда («King of Seduction Absolute»).
+            // Для отображения всегда каноническое «бренд + имя» из каталога.
+            if ($item->product) {
+                $canonical = ProductDisplayName::forProduct($item->product);
+                if ($canonical !== '') {
+                    $item->setAttribute('product_name', $canonical);
+                }
+            }
+        }
     }
 }

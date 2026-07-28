@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { InStockPricingPreviewRow } from "@/lib/admin-pricing-api";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 type TooltipKind = "input" | "offers" | "will";
 
@@ -16,9 +17,10 @@ type TooltipState = {
 
 type Props = {
     items: InStockPricingPreviewRow[];
+    searchQuery?: string;
 };
 
-export default function InStockPricingPreviewTable({ items }: Props) {
+export default function InStockPricingPreviewTable({ items, searchQuery = "" }: Props) {
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -92,12 +94,22 @@ export default function InStockPricingPreviewTable({ items }: Props) {
                                             target="_blank"
                                             className="break-words font-medium hover:underline"
                                         >
-                                            {row.product_name}
+                                            {searchQuery.trim()
+                                                ? highlightAdminSearchTerms(row.product_name, searchQuery)
+                                                : row.product_name}
                                         </Link>
                                     ) : (
-                                        <span className="break-words font-medium">{row.product_name}</span>
+                                        <span className="break-words font-medium">
+                                            {searchQuery.trim()
+                                                ? highlightAdminSearchTerms(row.product_name, searchQuery)
+                                                : row.product_name}
+                                        </span>
                                     )}
-                                    <div className="text-xs text-admin-text-secondary">{row.variant_label}</div>
+                                    <div className="text-xs text-admin-text-secondary">
+                                        {searchQuery.trim()
+                                            ? highlightAdminSearchTerms(row.variant_label, searchQuery)
+                                            : row.variant_label}
+                                    </div>
                                 </td>
                                 <td className="px-2 py-2 text-right tabular-nums text-xs">
                                     {row.input_price && (row.input_sources?.length ?? 0) > 0 ? (

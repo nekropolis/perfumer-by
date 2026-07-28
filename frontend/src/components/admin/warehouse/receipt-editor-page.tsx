@@ -661,12 +661,10 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
             {isAddModalOpen ? (
                 <div
                     className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
-                    onClick={() => setIsAddModalOpen(false)}
                     role="presentation"
                 >
                     <div
                         className="w-full max-w-3xl rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
                         role="dialog"
                         aria-modal="true"
                     >

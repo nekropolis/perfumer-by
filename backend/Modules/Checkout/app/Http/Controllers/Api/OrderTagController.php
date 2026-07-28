@@ -5,7 +5,7 @@ namespace Modules\Checkout\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Modules\Checkout\Models\OrderTag;
 
 class OrderTagController extends Controller
@@ -29,12 +29,19 @@ class OrderTagController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100', 'unique:order_tags,name'],
+            'name' => ['required', 'string', 'max:100'],
             'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ], [
+            'name.required' => 'Укажите название тега',
+            'color.required' => 'Укажите цвет тега',
+            'color.regex' => 'Цвет должен быть в формате #RRGGBB',
         ]);
 
+        $name = trim($validated['name']);
+        $this->assertUniqueTagName($name);
+
         $tag = OrderTag::query()->create([
-            'name' => trim($validated['name']),
+            'name' => $name,
             'color' => strtoupper($validated['color']),
         ]);
 
@@ -49,12 +56,19 @@ class OrderTagController extends Controller
         $tag = OrderTag::query()->findOrFail($id);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100', Rule::unique('order_tags', 'name')->ignore($tag->id)],
+            'name' => ['required', 'string', 'max:100'],
             'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ], [
+            'name.required' => 'Укажите название тега',
+            'color.required' => 'Укажите цвет тега',
+            'color.regex' => 'Цвет должен быть в формате #RRGGBB',
         ]);
 
+        $name = trim($validated['name']);
+        $this->assertUniqueTagName($name, $tag->id);
+
         $tag->update([
-            'name' => trim($validated['name']),
+            'name' => $name,
             'color' => strtoupper($validated['color']),
         ]);
 
@@ -72,5 +86,27 @@ class OrderTagController extends Controller
         return response()->json([
             'message' => 'Тег удалён',
         ]);
+    }
+
+    private function assertUniqueTagName(string $name, ?int $ignoreId = null): void
+    {
+        if ($name === '') {
+            throw ValidationException::withMessages([
+                'name' => ['Укажите название тега'],
+            ]);
+        }
+
+        $query = OrderTag::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name, 'UTF-8')]);
+
+        if ($ignoreId !== null && $ignoreId > 0) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'name' => ['Тег с таким названием уже существует'],
+            ]);
+        }
     }
 }

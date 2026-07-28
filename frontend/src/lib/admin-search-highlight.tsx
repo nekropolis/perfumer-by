@@ -99,18 +99,19 @@ export function highlightAdminSearchTerms(
     query: string,
     brandName?: string | null,
 ): ReactNode {
+    const safeText = text ?? "";
     const terms = collectAdminSearchHighlightTerms(query, brandName);
     if (!terms.length) {
-        return text;
+        return safeText;
     }
 
-    const lowerText = text.toLocaleLowerCase("ru-RU");
+    const lowerText = safeText.toLocaleLowerCase("ru-RU");
     const ranges: HighlightRange[] = [];
 
     for (const term of terms) {
         const lowerTerm = term.toLocaleLowerCase("ru-RU");
         let pos = 0;
-        for (let i = 0; i < 80 && pos < text.length; i += 1) {
+        for (let i = 0; i < 80 && pos < safeText.length; i += 1) {
             const idx = lowerText.indexOf(lowerTerm, pos);
             if (idx === -1) {
                 break;
@@ -122,7 +123,7 @@ export function highlightAdminSearchTerms(
 
     const merged = mergeHighlightRanges(ranges);
     if (merged.length === 0) {
-        return text;
+        return safeText;
     }
 
     const parts: ReactNode[] = [];
@@ -130,21 +131,21 @@ export function highlightAdminSearchTerms(
 
     merged.forEach((range, index) => {
         if (range.start > cursor) {
-            parts.push(text.slice(cursor, range.start));
+            parts.push(safeText.slice(cursor, range.start));
         }
         parts.push(
             <mark
                 key={`hl-${range.start}-${index}`}
                 className="rounded-sm bg-amber-200 px-0.5 text-admin-text"
             >
-                {text.slice(range.start, range.end)}
+                {safeText.slice(range.start, range.end)}
             </mark>,
         );
         cursor = range.end;
     });
 
-    if (cursor < text.length) {
-        parts.push(text.slice(cursor));
+    if (cursor < safeText.length) {
+        parts.push(safeText.slice(cursor));
     }
 
     return <>{parts}</>;

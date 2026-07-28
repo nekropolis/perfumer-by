@@ -2,11 +2,11 @@ import type { BuiltSitemapEntry } from "@/lib/sitemap-builder";
 import { buildSitemapEntries } from "@/lib/sitemap-builder";
 
 /**
- * Для больших sitemap (тысячи URL) payload может превышать лимит Data Cache Next.js (~2MB),
- * из-за чего `unstable_cache` шумит предупреждениями на build/deploy.
+ * Payload sitemap может превышать лимит Data Cache Next.js (~2MB),
+ * поэтому `unstable_cache` здесь не используем.
  *
- * Здесь сознательно без `unstable_cache`: используем route-level ISR (`revalidate`)
- * в `app/sitemap.ts` и `app/(site)/sitemap/page.tsx`.
+ * Источник правды для списка URL — Laravel Redis (`SeoSitemapService`, TTL 1ч + `seo:warm-sitemap`).
+ * На фронте остаётся route-level ISR (`revalidate = 3600`) в `app/sitemap.ts` и HTML-странице.
  */
 export function getCachedSitemapEntries(): Promise<BuiltSitemapEntry[]> {
     return buildSitemapEntries();

@@ -20,6 +20,12 @@ class CatalogSearchScoring
         return trim($value);
     }
 
+    /** Без пробелов: «Montblanc» ≡ «Mont Blanc». */
+    public static function compactSearchText(string $value): string
+    {
+        return preg_replace('/\s+/u', '', self::normalizeSearchText($value)) ?? '';
+    }
+
     /**
      * Сравнимая строка «бренд + продукт» без дубля бренда в name (Ormonde Jayne + Ormonde Jayne Ormond).
      */
@@ -110,13 +116,17 @@ class CatalogSearchScoring
         $full = self::buildProductSearchLabel($brandName, $productName);
         $score = self::similarityScore($normalizedQuery, $full);
         $fullLen = mb_strlen($full, 'UTF-8');
+        $compactQuery = self::compactSearchText($query);
+        $compactName = self::compactSearchText($productName);
+        $compactFull = self::compactSearchText($full);
 
         if ($normalizedQuery === '' || $full === '') {
             return ['tier' => 3, 'score' => 0.0, 'full' => $full, 'full_len' => $fullLen];
         }
 
         // Точное совпадение названия товара («the one» → «The One») выше, чем brand+name.
-        if ($normalizedName === $normalizedQuery || $full === $normalizedQuery) {
+        if ($normalizedName === $normalizedQuery || $full === $normalizedQuery
+            || ($compactQuery !== '' && ($compactName === $compactQuery || $compactFull === $compactQuery))) {
             return ['tier' => 0, 'score' => max($score, 1.0), 'full' => $full, 'full_len' => $fullLen];
         }
 
@@ -134,8 +144,15 @@ class CatalogSearchScoring
             }
         }
 
+        if ($compactQuery !== '' && $compactFull !== '') {
+            if (str_starts_with($compactName, $compactQuery) || str_starts_with($compactFull, $compactQuery)) {
+                return ['tier' => 1, 'score' => max($score, 0.97), 'full' => $full, 'full_len' => $fullLen];
+            }
+        }
+
         // Смежная фраза в названии («… The One …») выше разрозненных токенов («The Only One»).
-        if (str_contains($normalizedName, $normalizedQuery) || str_contains($full, $normalizedQuery)) {
+        if (str_contains($normalizedName, $normalizedQuery) || str_contains($full, $normalizedQuery)
+            || ($compactQuery !== '' && (str_contains($compactName, $compactQuery) || str_contains($compactFull, $compactQuery)))) {
             $nameScore = str_contains($normalizedName, $normalizedQuery)
                 ? self::similarityScore($normalizedQuery, $normalizedName)
                 : $score;
@@ -144,6 +161,18 @@ class CatalogSearchScoring
         }
 
         return ['tier' => 3, 'score' => $score, 'full' => $full, 'full_len' => $fullLen];
+    }
+
+    /**
+     * Сортировка выдачи: меньший tier / больший score / короче название — выше.
+     *
+     * @param  array{tier: int, score: float, full_len: int}  $a
+     * @param  array{tier: int, score: float, full_len: int}  $b
+     */
+    public static function compareProductSearchRanks(array $a, array $b): int
+    {
+        return [$a['tier'], -$a['score'], $a['full_len']]
+            <=> [$b['tier'], -$b['score'], $b['full_len']];
     }
 
     public static function diceCoefficient(string $a, string $b): float

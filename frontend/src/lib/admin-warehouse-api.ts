@@ -209,6 +209,11 @@ export type StockWriteoffItem = {
     qty: number;
     price?: string | number | null;
     payload?: Record<string, unknown> | null;
+    variant?: {
+        id?: number;
+        title?: string | null;
+        display_name?: string | null;
+    } | null;
 };
 
 export type StockWriteoffListItem = {

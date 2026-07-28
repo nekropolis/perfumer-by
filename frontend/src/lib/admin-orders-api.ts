@@ -444,6 +444,7 @@ export type VeterStatusSyncResultData = {
     order_id: number;
     shipment_id: string;
     shipment_status: string | null;
+    shipment_date?: string | null;
   }[];
   failed: { order_id: number; shipment_id: string; reason: string }[];
   total: number;

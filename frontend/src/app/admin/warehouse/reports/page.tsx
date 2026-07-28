@@ -55,7 +55,7 @@ function mapWriteoffDetailRows(doc: StockWriteoffListItem | null | undefined): R
     return doc.items.map((it) => ({
         id: it.id,
         product_name: it.product_name,
-        variant_title: it.variant_title,
+        variant_title: it.variant_title || it.variant?.title || it.variant?.display_name || "",
         qty: it.qty,
         price: it.price ?? null,
         line_total: null,

@@ -7,9 +7,6 @@ import {
     AlertTriangle,
     BarChart3,
     BellRing,
-    Calculator,
-    BookOpen,
-    ClipboardList,
     CreditCard,
     FileBarChart,
     FolderSync,
@@ -63,6 +60,7 @@ const sections: SidebarSection[] = [
         label: "Основное",
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
+            { type: "link", href: "/admin/pricing/refresh", label: "Обновление цен", icon: RefreshCw },
             {
                 type: "link",
                 href: "/admin/orders",
@@ -79,6 +77,7 @@ const sections: SidebarSection[] = [
                 badgeKey: "stockProductRequestsNew",
             },
             { type: "link", href: "/admin/reviews", label: "Отзывы", icon: MessageSquare, badgeKey: "reviewsPending" },
+            { type: "link", href: "/admin/pages", label: "Контент", icon: PanelsTopLeft },
             { type: "link", href: "/admin/shop-settings", label: "Настройки магазина", icon: Settings },
         ],
     },
@@ -88,9 +87,7 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
             { type: "link", href: "/admin/products", label: "Продукты", icon: Package },
-            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },
-            { type: "link", href: "/admin/pages", label: "Контент", icon: PanelsTopLeft },
-        ],
+            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },        ],
     },
     {
         key: "loyalty",
@@ -118,17 +115,6 @@ const sections: SidebarSection[] = [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/allparfume", label: "Allparfume", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
-        ],
-    },
-    {
-        key: "pricing",
-        label: "Цена",
-        items: [
-            { type: "link", href: "/admin/pricing/refresh", label: "Обновить цены", icon: RefreshCw },
-            { type: "link", href: "/admin/pricing/history", label: "История обновлений", icon: ScrollText },
-            { type: "link", href: "/admin/pricing/formulas", label: "Формулы цен", icon: Calculator },
-            { type: "link", href: "/admin/pricing/logic", label: "Логика цен", icon: BookOpen },
-            { type: "link", href: "/admin/pricing/manual-reviews", label: "Ручная установка", icon: ClipboardList },
         ],
     },
     {
@@ -265,6 +251,12 @@ function isItemActive(
     }
 
     if (pathname === targetPath) {
+        return true;
+    }
+
+    // Раздел «Обновление цен»: все вложенные страницы (/history, /formulas, …)
+    // оставляют активным главный пункт сайдбара.
+    if (targetPath === "/admin/pricing/refresh" && pathname.startsWith("/admin/pricing")) {
         return true;
     }
 

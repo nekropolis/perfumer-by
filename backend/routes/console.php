@@ -32,6 +32,12 @@ Schedule::command('catalog:warm-cache --pages=3')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('seo:warm-sitemap')
+    ->dailyAt('03:35')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('veter:sync-cities')
     ->dailyAt('03:10')
     ->timezone('Europe/Minsk')

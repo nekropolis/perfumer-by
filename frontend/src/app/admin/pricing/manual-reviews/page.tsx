@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
@@ -9,6 +8,7 @@ import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import ManualPriceReviewsTable from "@/components/admin/pricing/manual-price-reviews-table";
+import { useAdminPricingShell } from "@/components/admin/pricing/admin-pricing-shell";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
@@ -21,6 +21,7 @@ const PER_PAGE_OPTIONS = [25, 50, 100, 2000] as const;
 const PER_PAGE_ALL = 2000;
 
 export default function AdminManualPriceReviewsPage() {
+    const { contentEpoch, bumpContent } = useAdminPricingShell();
     const [page, setPage] = useUrlPage();
     const [perPage, setPerPage] = useState<(typeof PER_PAGE_OPTIONS)[number]>(25);
     const [searchInput, setSearchInput] = useState("");
@@ -58,7 +59,7 @@ export default function AdminManualPriceReviewsPage() {
 
     useEffect(() => {
         void loadItems(page, debouncedSearch, perPage);
-    }, [loadItems, page, debouncedSearch, perPage]);
+    }, [loadItems, page, debouncedSearch, perPage, contentEpoch]);
 
     const handleSave = async (
         item: ManualPriceReviewItem,
@@ -72,6 +73,7 @@ export default function AdminManualPriceReviewsPage() {
                 list_on_storefront: state.listOnStorefront,
             });
             setSuccess("Цена сохранена");
+            bumpContent();
             await loadItems(page, debouncedSearch, perPage);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка сохранения");
@@ -104,84 +106,81 @@ export default function AdminManualPriceReviewsPage() {
     };
 
     return (
-        <AdminPageCard>
-            <div className="space-y-4 rounded-2xl border bg-white p-6">
-                <div>
-                    <h1 className="text-lg font-semibold">Ручная установка цен</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Товары на складе, для которых автоматический пересчёт невозможен. После следующего
-                        «Обновить цены», если вход станет меньше прайса поставщика — строка исчезнет и цена
-                        пересчитается автоматически.
-                    </p>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Чекбокс «В наличии» включает вариант на витрине (<code className="text-xs">is_active</code>).
-                        Смена «Вход склад» также обновляет цену в последнем проведённом приходе.
-                    </p>
-                </div>
-
-                {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
-                {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}
-
-                <AdminTableShell
-                    total={meta?.total ?? items.length}
-                    search={
-                        <AdminSearchInput
-                            value={searchInput}
-                            onChangeAction={setSearchInput}
-                            placeholder="Поиск по товару или коду"
-                        />
-                    }
-                    footer={
-                        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                            <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
-                                На странице
-                                <select
-                                    value={perPage}
-                                    onChange={(e) => {
-                                        const v = Number(e.target.value);
-                                        if (v === 25 || v === 50 || v === 100 || v === PER_PAGE_ALL) {
-                                            setPerPage(v);
-                                        }
-                                    }}
-                                    className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
-                                >
-                                    {PER_PAGE_OPTIONS.map((n) => (
-                                        <option key={n} value={n}>
-                                            {n === PER_PAGE_ALL ? "Все" : n}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <AdminPagination
-                                currentPage={meta?.current_page ?? page}
-                                lastPage={meta?.last_page ?? 1}
-                                onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
-                                onNextAction={() =>
-                                    setPage((p) =>
-                                        meta && meta.current_page < meta.last_page ? p + 1 : p,
-                                    )
-                                }
-                            />
-                        </div>
-                    }
-                >
-                    {loading && items.length === 0 ? (
-                        <AdminLoadingState />
-                    ) : items.length === 0 ? (
-                        <AdminEmptyState
-                            title="Очередь пуста"
-                            description="Нет вариантов для ручной установки. Запустите «Обновить цены» в разделе обновления."
-                        />
-                    ) : (
-                        <ManualPriceReviewsTable
-                            items={items}
-                            savingId={savingId}
-                            onSaveAction={handleSave}
-                            onSaveWarehousePurchaseAction={handleSaveWarehousePurchase}
-                        />
-                    )}
-                </AdminTableShell>
+        <div className="space-y-4">
+            <div className="space-y-1">
+                <p className="text-sm text-admin-text-secondary">
+                    Товары на складе, для которых автоматический пересчёт невозможен. После следующего
+                    «Обновить цены», если вход станет меньше прайса поставщика — строка исчезнет и цена
+                    пересчитается автоматически.
+                </p>
+                <p className="text-sm text-admin-text-secondary">
+                    Чекбокс «В наличии» включает вариант на витрине (<code className="text-xs">is_active</code>).
+                    Смена «Вход склад» также обновляет цену в последнем проведённом приходе.
+                </p>
             </div>
-        </AdminPageCard>
+
+            {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
+            {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}
+
+            <AdminTableShell
+                total={meta?.total ?? items.length}
+                search={
+                    <AdminSearchInput
+                        value={searchInput}
+                        onChangeAction={setSearchInput}
+                        placeholder="Поиск по товару или коду"
+                    />
+                }
+                footer={
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                        <label className="flex items-center gap-2 text-sm text-admin-text-secondary">
+                            На странице
+                            <select
+                                value={perPage}
+                                onChange={(e) => {
+                                    const v = Number(e.target.value);
+                                    if (v === 25 || v === 50 || v === 100 || v === PER_PAGE_ALL) {
+                                        setPerPage(v);
+                                    }
+                                }}
+                                className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
+                            >
+                                {PER_PAGE_OPTIONS.map((n) => (
+                                    <option key={n} value={n}>
+                                        {n === PER_PAGE_ALL ? "Все" : n}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <AdminPagination
+                            currentPage={meta?.current_page ?? page}
+                            lastPage={meta?.last_page ?? 1}
+                            onPrevAction={() => setPage((p) => Math.max(1, p - 1))}
+                            onNextAction={() =>
+                                setPage((p) =>
+                                    meta && meta.current_page < meta.last_page ? p + 1 : p,
+                                )
+                            }
+                        />
+                    </div>
+                }
+            >
+                {loading && items.length === 0 ? (
+                    <AdminLoadingState />
+                ) : items.length === 0 ? (
+                    <AdminEmptyState
+                        title="Очередь пуста"
+                        description="Нет вариантов для ручной установки. Запустите «Обновить цены» в разделе обновления."
+                    />
+                ) : (
+                    <ManualPriceReviewsTable
+                        items={items}
+                        savingId={savingId}
+                        onSaveAction={handleSave}
+                        onSaveWarehousePurchaseAction={handleSaveWarehousePurchase}
+                    />
+                )}
+            </AdminTableShell>
+        </div>
     );
 }

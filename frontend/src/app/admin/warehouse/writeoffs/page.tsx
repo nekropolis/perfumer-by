@@ -148,8 +148,13 @@ function WriteoffDetailsModal({
                                 <tbody>
                                     {(doc.items ?? []).map((item) => (
                                         <tr key={item.id} className="border-b last:border-b-0">
-                                            <td className="px-4 py-3">{item.product_name}</td>
-                                            <td className="px-4 py-3 text-xs text-admin-text">{item.variant_title}</td>
+                                            <td className="px-4 py-3">{item.product_name || "—"}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text">
+                                                {item.variant_title
+                                                    || item.variant?.title
+                                                    || item.variant?.display_name
+                                                    || "—"}
+                                            </td>
                                             <td className="px-4 py-3">{item.qty}</td>
                                             <td className="px-4 py-3 text-xs text-admin-text-secondary">
                                                 {writeoffLineSourceLabel(doc.type, item.payload)}

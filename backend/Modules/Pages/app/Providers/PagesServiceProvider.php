@@ -2,6 +2,7 @@
 
 namespace Modules\Pages\Providers;
 
+use Modules\Pages\Console\Commands\WarmSeoSitemapCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class PagesServiceProvider extends ModuleServiceProvider
@@ -12,5 +13,9 @@ class PagesServiceProvider extends ModuleServiceProvider
 
     protected array $providers = [
         RouteServiceProvider::class,
+    ];
+
+    protected array $commands = [
+        WarmSeoSitemapCommand::class,
     ];
 }

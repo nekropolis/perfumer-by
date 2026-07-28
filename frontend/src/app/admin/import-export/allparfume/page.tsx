@@ -11,6 +11,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import { adminBtnSecondary } from "@/lib/admin-ui-classes";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 const PER_PAGE_OPTIONS = [25, 50, 100] as const;
 type PerPageOption = (typeof PER_PAGE_OPTIONS)[number];
@@ -218,12 +219,22 @@ function ManualLinkSearchHost({
         }
         const query = debouncedDefinitionSearch.trim();
         let cancelled = false;
-        setManualLink((prev) => (prev && prev.rowId === rowId ? { ...prev, definitionsLoading: true } : prev));
+
         const run = async () => {
+            if (query === "") {
+                setManualLink((prev) =>
+                    prev && prev.rowId === rowId
+                        ? { ...prev, definitions: [], definitionsLoading: false }
+                        : prev,
+                );
+                return;
+            }
+
+            setManualLink((prev) => (prev && prev.rowId === rowId ? { ...prev, definitionsLoading: true } : prev));
             try {
                 const data = await fetchVariantDefinitions({
-                    search: query || undefined,
-                    page: 1,
+                    search: query,
+                    product_id: manualLink.selectedProductId,
                 });
                 if (cancelled) {
                     return;
@@ -240,6 +251,7 @@ function ManualLinkSearchHost({
                 }
             }
         };
+
         void run();
         return () => {
             cancelled = true;
@@ -933,7 +945,12 @@ export default function AllparfumeImportPage() {
                                                                 label = name || brand || row.external_name;
                                                             }
 
-                                                            const titleNode = (
+                                                            const searchQ = debouncedSearch.trim();
+                                                            const titleNode = searchQ ? (
+                                                                <span className="break-words font-medium">
+                                                                    {highlightAdminSearchTerms(label, searchQ, brand || null)}
+                                                                </span>
+                                                            ) : (
                                                                 <HighlightedNameText
                                                                     text={label}
                                                                     matchInfo={nameMatchInfo}
@@ -956,7 +973,9 @@ export default function AllparfumeImportPage() {
                                                         })()}
                                                         {row.raw_label ? (
                                                             <div className="text-xs text-admin-text-secondary">
-                                                                {row.raw_label}
+                                                                {debouncedSearch.trim()
+                                                                    ? highlightAdminSearchTerms(row.raw_label, debouncedSearch)
+                                                                    : row.raw_label}
                                                             </div>
                                                         ) : null}
                                                     </div>

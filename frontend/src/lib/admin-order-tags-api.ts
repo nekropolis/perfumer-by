@@ -50,15 +50,7 @@ export async function createOrderTag(payload: OrderTagPayload): Promise<{ data: 
     cache: "no-store",
   });
   if (!res.ok) {
-    const text = await res.text();
-    let message = `Не удалось создать тег (${res.status})`;
-    try {
-      const parsed = JSON.parse(text) as { message?: string };
-      if (parsed.message) message = parsed.message;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(message);
+    throw new Error(await parseOrderTagError(res, "Не удалось создать тег"));
   }
   return res.json();
 }
@@ -74,15 +66,7 @@ export async function updateOrderTag(
     cache: "no-store",
   });
   if (!res.ok) {
-    const text = await res.text();
-    let message = `Не удалось обновить тег (${res.status})`;
-    try {
-      const parsed = JSON.parse(text) as { message?: string };
-      if (parsed.message) message = parsed.message;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(message);
+    throw new Error(await parseOrderTagError(res, "Не удалось обновить тег"));
   }
   return res.json();
 }
@@ -96,4 +80,23 @@ export async function deleteOrderTag(id: number): Promise<void> {
   if (!res.ok) {
     throw new Error(`Не удалось удалить тег (${res.status})`);
   }
+}
+
+async function parseOrderTagError(res: Response, fallback: string): Promise<string> {
+  const text = await res.text();
+  try {
+    const parsed = JSON.parse(text) as {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+    if (parsed.errors?.name?.[0]) {
+      return parsed.errors.name[0];
+    }
+    if (parsed.message) {
+      return parsed.message;
+    }
+  } catch {
+    /* ignore */
+  }
+  return `${fallback} (${res.status})`;
 }

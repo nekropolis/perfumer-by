@@ -66,4 +66,26 @@ class CatalogProductLinkNameTokenizerSearchTest extends TestCase
 
         $this->assertSame(['q', 'intense'], $tokens);
     }
+
+    public function test_split_leading_brand_requires_word_boundary(): void
+    {
+        $brands = [
+            (object) ['id' => 1, 'name' => 'Si'],
+            (object) ['id' => 2, 'name' => 'Montblanc'],
+        ];
+
+        $noBrand = CatalogProductLinkNameTokenizer::splitLeadingBrand('Signature Absolue', $brands);
+        $this->assertNull($noBrand['brand_id']);
+        $this->assertSame('Signature Absolue', $noBrand['rest']);
+
+        $withBrand = CatalogProductLinkNameTokenizer::splitLeadingBrand('Montblanc Signature Absolue', $brands);
+        $this->assertSame(2, $withBrand['brand_id']);
+        $this->assertSame('Signature Absolue', $withBrand['rest']);
+
+        $exactBrandName = CatalogProductLinkNameTokenizer::splitLeadingBrand('Signature Absolue', [
+            (object) ['id' => 3, 'name' => 'Signature'],
+        ]);
+        $this->assertSame(3, $exactBrandName['brand_id']);
+        $this->assertSame('Absolue', $exactBrandName['rest']);
+    }
 }

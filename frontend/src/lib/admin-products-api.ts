@@ -428,15 +428,47 @@ export async function smartSearchProductsWithFallback(params: {
         return smart;
     }
     const page = await fetchProducts({ search: q, page: 1 });
-    const rows = page.data ?? [];
-    const mapped: ProductSmartSearchItem[] = rows.slice(0, limit).map((p) => ({
-        id: p.id,
-        name: p.name,
-        brand_name: p.brand?.name ?? null,
-        variant_titles: [],
-        variants_preview: [],
-        score: 0.5,
-    }));
+    const rows = (page.data ?? []).slice(0, limit);
+    if (rows.length === 0) {
+        return { data: [] };
+    }
+
+    const details = await Promise.all(
+        rows.map(async (p) => {
+            try {
+                const detail = await fetchProductById(p.id);
+                return detail.data ?? null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    const mapped: ProductSmartSearchItem[] = rows.map((p, index) => {
+        const detail = details[index];
+        const variants = detail?.variants ?? [];
+        const variantsPreview: ProductSmartSearchVariantPreview[] = variants.map((v) => ({
+            id: v.id,
+            title: (v.display_name ?? v.title ?? "").trim() || "—",
+            fulfillment_tooltip: v.fulfillment_tooltip ?? "",
+            available_stock: v.available_stock ?? v.stock ?? 0,
+            is_available: Boolean(v.is_available),
+            is_preorder: Boolean(v.is_preorder),
+            price: v.price ?? null,
+            can_fulfill_main: v.can_fulfill_main,
+            can_fulfill_offer: v.can_fulfill_offer,
+        }));
+
+        return {
+            id: p.id,
+            name: p.name,
+            brand_name: p.brand?.name ?? null,
+            variant_titles: variantsPreview.map((v) => v.title),
+            variants_preview: variantsPreview,
+            score: 0.5,
+        };
+    });
+
     return { data: mapped };
 }
 

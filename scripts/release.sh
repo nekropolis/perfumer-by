@@ -513,6 +513,12 @@ else
     false
 fi
 
+log "Warming catalog cache"
+(cd "$CURRENT/backend" && "$PHP_BIN" artisan catalog:warm-cache) || warn "catalog:warm-cache failed — site is up, warm manually"
+
+log "Warming SEO sitemap cache"
+(cd "$CURRENT/backend" && "$PHP_BIN" artisan seo:warm-sitemap) || warn "seo:warm-sitemap failed — site is up, warm manually"
+
 # --- prune old releases -----------------------------------------------------
 
 log "Оставляю $KEEP_RELEASES последних релизов"

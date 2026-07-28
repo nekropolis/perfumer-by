@@ -1,15 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import PriceFormulasTable from "@/components/admin/pricing/price-formulas-table";
-import { adminBtnSm } from "@/lib/admin-ui-classes";
 import {
     createPriceFormula,
     deletePriceFormula,
@@ -169,22 +166,13 @@ export default function AdminPricingFormulasPage() {
     const sourceOptions = form.source_type === "supplier" ? suppliers : warehouses;
 
     return (
-        <AdminPageCard>
-            <div className="space-y-4 rounded-2xl border bg-white p-6">
+        <div className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h1 className="text-lg font-semibold">Формулы цен</h1>
-                            <Link href="/admin/pricing/refresh" className={adminBtnSm}>
-                                ← Обновить цены
-                            </Link>
-                        </div>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
+                    <p className="text-sm text-admin-text-secondary">
                             Цена = ОКРУГЛ((закупка × коэффициент + сложение) × курс; точность).
                             Внутри одного источника формулы проверяются по возрастанию приоритета — меньшее значение срабатывает раньше.
-                        </p>
-                    </div>
-                    <button type="button" onClick={openCreate} className="rounded-lg border px-4 py-2 text-sm">
+                    </p>
+                    <button type="button" onClick={openCreate} className="shrink-0 rounded-lg border px-4 py-2 text-sm">
                         Добавить формулу
                     </button>
                 </div>
@@ -204,7 +192,6 @@ export default function AdminPricingFormulasPage() {
                         />
                     </AdminTableShell>
                 )}
-            </div>
 
             {modalOpen ? (
                 <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
@@ -302,6 +289,6 @@ export default function AdminPricingFormulasPage() {
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={() => void confirmDelete()}
             />
-        </AdminPageCard>
+        </div>
     );
 }

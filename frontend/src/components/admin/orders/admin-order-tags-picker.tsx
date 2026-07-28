@@ -2,9 +2,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
-import { fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
+import { createOrderTag, fetchOrderTags, type OrderTag } from "@/lib/admin-order-tags-api";
 
 type Props = {
   selected: OrderTag[];
@@ -19,6 +19,19 @@ type MenuCoords = {
   width: number;
 };
 
+const PRESET_COLORS = [
+  "#64748B",
+  "#EF4444",
+  "#F97316",
+  "#EAB308",
+  "#22C55E",
+  "#14B8A6",
+  "#3B82F6",
+  "#8B5CF6",
+  "#EC4899",
+  "#78716C",
+];
+
 function contrastText(hex: string): string {
   const m = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/i);
   if (!m) return "#fff";
@@ -29,6 +42,10 @@ function contrastText(hex: string): string {
   return luma > 0.62 ? "#111827" : "#ffffff";
 }
 
+function normalizeTagNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase("ru-RU");
+}
+
 export default function AdminOrderTagsPicker({ selected, onChangeAction, compact = false }: Props) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 200);
@@ -36,12 +53,30 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
+  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedIds = useMemo(() => new Set(selected.map((t) => t.id)), [selected]);
+  const createName = query.trim();
+  const createNameKey = normalizeTagNameKey(createName);
+
+  const existingByName = useMemo(() => {
+    if (!createNameKey) {
+      return null;
+    }
+    const fromHits = hits.find((t) => normalizeTagNameKey(t.name) === createNameKey);
+    if (fromHits) {
+      return fromHits;
+    }
+    return selected.find((t) => normalizeTagNameKey(t.name) === createNameKey) ?? null;
+  }, [createNameKey, hits, selected]);
+
+  const canCreate = createName.length > 0 && !existingByName && !loading;
 
   useEffect(() => {
     if (!open) {
@@ -77,8 +112,8 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
       return;
     }
     const rect = triggerRef.current.getBoundingClientRect();
-    const menuWidth = Math.min(Math.max(rect.width, 260), Math.max(0, window.innerWidth - 24));
-    const menuHeight = Math.min(280, 56 + Math.max(1, hits.length || 1) * 44);
+    const menuWidth = Math.min(Math.max(rect.width, 280), Math.max(0, window.innerWidth - 24));
+    const menuHeight = Math.min(360, 120 + Math.max(1, hits.length || 1) * 44);
     const pad = 8;
     const gap = 6;
     let left = rect.left;
@@ -99,7 +134,7 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
       return;
     }
     updateMenuPosition();
-  }, [open, hits.length, loading, query]);
+  }, [open, hits.length, loading, query, createError, canCreate]);
 
   useEffect(() => {
     if (!open) {
@@ -142,6 +177,13 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
     return () => window.clearTimeout(id);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setCreateError("");
+      setCreating(false);
+    }
+  }, [open]);
+
   const toggleTag = (tag: OrderTag) => {
     if (selectedIds.has(tag.id)) {
       onChangeAction(selected.filter((t) => t.id !== tag.id));
@@ -152,6 +194,42 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
 
   const removeTag = (id: number) => {
     onChangeAction(selected.filter((t) => t.id !== id));
+  };
+
+  const createTag = async () => {
+    const name = createName;
+    if (!name) {
+      setCreateError("Укажите название тега");
+      return;
+    }
+    if (existingByName) {
+      setCreateError("Тег с таким названием уже существует");
+      if (!selectedIds.has(existingByName.id)) {
+        onChangeAction([...selected, existingByName]);
+      }
+      return;
+    }
+
+    setCreating(true);
+    setCreateError("");
+    try {
+      const res = await createOrderTag({ name, color: newColor });
+      const tag = res.data;
+      setHits((prev) => {
+        if (prev.some((t) => t.id === tag.id)) {
+          return prev;
+        }
+        return [...prev, tag].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+      });
+      if (!selectedIds.has(tag.id)) {
+        onChangeAction([...selected, tag]);
+      }
+      setQuery("");
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Не удалось создать тег");
+    } finally {
+      setCreating(false);
+    }
   };
 
   const menu =
@@ -174,8 +252,17 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
               <input
                 ref={inputRef}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск"
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setCreateError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canCreate && !creating) {
+                    e.preventDefault();
+                    void createTag();
+                  }
+                }}
+                placeholder="Поиск или новый тег"
                 className="w-full rounded-[10px] border-0 bg-[#767680]/12 px-3 py-2 text-[15px] text-admin-text outline-none placeholder:text-[#3c3c43]/60 focus:bg-[#767680]/18"
               />
             </div>
@@ -183,7 +270,9 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
               {loading ? (
                 <div className="px-4 py-3 text-[13px] text-[#3c3c43]/60">Загрузка…</div>
               ) : hits.length === 0 ? (
-                <div className="px-4 py-3 text-[13px] text-[#3c3c43]/60">Ничего не найдено</div>
+                <div className="px-4 py-3 text-[13px] text-[#3c3c43]/60">
+                  {createName ? "Такого тега пока нет" : "Ничего не найдено"}
+                </div>
               ) : (
                 <ul>
                   {hits.map((tag, index) => {
@@ -222,6 +311,47 @@ export default function AdminOrderTagsPicker({ selected, onChangeAction, compact
                   })}
                 </ul>
               )}
+            </div>
+
+            <div className="border-t border-black/[0.08] bg-[#f2f2f7]/80 px-3 py-2.5">
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {PRESET_COLORS.map((color) => {
+                  const active = newColor.toUpperCase() === color.toUpperCase();
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setNewColor(color)}
+                      className={`h-5 w-5 rounded-full ring-1 ring-black/10 transition ${
+                        active ? "ring-2 ring-admin-primary ring-offset-1" : "hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      aria-label={`Цвет ${color}`}
+                      title={color}
+                    />
+                  );
+                })}
+              </div>
+              {createError ? (
+                <p className="mb-2 text-[12px] text-red-600">{createError}</p>
+              ) : existingByName && createName ? (
+                <p className="mb-2 text-[12px] text-[#3c3c43]/60">
+                  Тег «{existingByName.name}» уже есть — выберите его в списке
+                </p>
+              ) : null}
+              <button
+                type="button"
+                disabled={!canCreate || creating}
+                onClick={() => void createTag()}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-admin-primary px-3 py-2 text-[13px] font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                {creating
+                  ? "Создание…"
+                  : createName
+                    ? `Создать «${createName}»`
+                    : "Введите название нового тега"}
+              </button>
             </div>
           </div>,
           document.body,

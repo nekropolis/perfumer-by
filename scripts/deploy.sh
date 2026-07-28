@@ -503,6 +503,9 @@ fi
 log "Warming catalog cache"
 (cd "$BACKEND" && "$PHP_BIN" artisan catalog:warm-cache) || warn "catalog:warm-cache failed — site is up, warm manually"
 
+log "Warming SEO sitemap cache"
+(cd "$BACKEND" && "$PHP_BIN" artisan seo:warm-sitemap) || warn "seo:warm-sitemap failed — site is up, warm manually"
+
 log "Done. Current state:"
 echo "Commit         : $DEPLOY_SHA"
 echo "Build duration : $((BUILD_FINISHED_AT - BUILD_STARTED_AT))s"

@@ -80,7 +80,30 @@ class ProductVariantLink extends Model
 
     public function getTitleAttribute(): string
     {
-        return (string) ($this->definition?->title ?? '');
+        $fromDefinition = trim((string) ($this->definition?->title ?? ''));
+        if ($fromDefinition !== '') {
+            return $fromDefinition;
+        }
+
+        // Как ProductVariantResource::display_name — если title в definition пустой.
+        $parts = [];
+        $volume = $this->definition?->volume_ml;
+        if ($volume !== null && $volume !== '') {
+            $parts[] = trim((string) $volume.' мл');
+        }
+        $code = trim((string) ($this->definition?->concentration_code ?? ''));
+        if ($code !== '') {
+            $parts[] = strtoupper($code);
+        }
+        if ($this->definition?->is_tester) {
+            $parts[] = 'Тестер';
+        } elseif ($this->definition?->is_vial) {
+            $parts[] = 'Пробник';
+        } elseif ($this->definition?->is_miniature) {
+            $parts[] = 'Миниатюра';
+        }
+
+        return $parts !== [] ? implode(' / ', $parts) : '';
     }
 
     public function getDisplayNameAttribute(): string

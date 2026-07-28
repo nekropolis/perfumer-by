@@ -140,11 +140,18 @@ final class CatalogProductLinkNameTokenizer
             if ($normalizedBrand === '') {
                 continue;
             }
-            if (Str::startsWith($normalizedTitle, $normalizedBrand) && Str::length($normalizedBrand) > $bestLen) {
-                $bestId = (int) $brand->id;
-                $bestName = $name;
-                $bestLen = Str::length($normalizedBrand);
+            $brandLen = Str::length($normalizedBrand);
+            if ($brandLen <= $bestLen || ! Str::startsWith($normalizedTitle, $normalizedBrand)) {
+                continue;
             }
+            // Граница слова: «Si» не должен матчить «Signature Absolue».
+            $after = mb_substr($normalizedTitle, $brandLen, null, 'UTF-8');
+            if ($after !== '' && ! str_starts_with($after, ' ')) {
+                continue;
+            }
+            $bestId = (int) $brand->id;
+            $bestName = $name;
+            $bestLen = $brandLen;
         }
 
         if ($bestName === null || $bestName === '') {

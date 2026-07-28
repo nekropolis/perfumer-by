@@ -13,6 +13,7 @@ use Modules\Catalog\Services\Pricing\VariantPromotionService;
 use Modules\Catalog\Services\VariantSupplierRetailPriceService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
@@ -424,12 +425,20 @@ class StockInventoryService
             }
 
             if ($totalWrittenOffQty > 0) {
+                $variant->loadMissing('product.brand');
+                $productName = $variant->product
+                    ? ProductDisplayName::forProduct($variant->product)
+                    : trim((string) $item->product_name);
+                if ($productName === '') {
+                    $productName = trim((string) $item->product_name) ?: ('Товар #'.(int) $item->product_id);
+                }
+
                 StockWriteoffItem::query()->create([
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $item->product_id,
                     'variant_id' => $variant->id,
-                    'product_name' => $item->product_name,
-                    'variant_title' => $item->variant_title,
+                    'product_name' => $productName,
+                    'variant_title' => $this->resolveWriteoffVariantTitle($variant, $item->variant_title),
                     'qty' => $totalWrittenOffQty,
                     'price' => $item->price,
                     'payload' => [
@@ -491,9 +500,9 @@ class StockInventoryService
                 $product = Product::query()->findOrFail((int) $item['product_id']);
                 $variant = ProductVariantLink::query()
                     ->where('product_id', $product->id)
-                    ->with('definition')
                     ->lockForUpdate()
                     ->findOrFail((int) $item['variant_id']);
+                $variantTitle = $this->resolveWriteoffVariantTitle($variant);
 
                 $qty = (int) $item['qty'];
                 $price = array_key_exists('price', $item) ? (float) $item['price'] : null;
@@ -508,7 +517,7 @@ class StockInventoryService
                     'product_id' => $product->id,
                     'variant_id' => $variant->id,
                     'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
-                    'variant_title' => $variant->title,
+                    'variant_title' => $variantTitle,
                     'qty' => $qty,
                     'price' => $price,
                     'payload' => array_merge($item['payload'] ?? [], [
@@ -536,7 +545,7 @@ class StockInventoryService
                     'product_id' => $product->id,
                     'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_id' => $variant->id,
-                    'variant_title' => $variant->title,
+                    'variant_title' => $variantTitle,
                     'qty' => $qty,
                     'price' => $price,
                     'warehouse_id' => $warehouseId,
@@ -596,9 +605,9 @@ class StockInventoryService
                 $product = Product::query()->findOrFail((int) $item['product_id']);
                 $variant = ProductVariantLink::query()
                     ->where('product_id', $product->id)
-                    ->with('definition')
                     ->lockForUpdate()
                     ->findOrFail((int) $item['variant_id']);
+                $variantTitle = $this->resolveWriteoffVariantTitle($variant);
 
                 $qty = (int) $item['qty'];
                 $price = array_key_exists('price', $item) ? (float) $item['price'] : null;
@@ -608,7 +617,7 @@ class StockInventoryService
                     'product_id' => $product->id,
                     'variant_id' => $variant->id,
                     'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
-                    'variant_title' => $variant->title,
+                    'variant_title' => $variantTitle,
                     'qty' => $qty,
                     'price' => $price,
                     'payload' => array_merge($item['payload'] ?? [], [
@@ -635,7 +644,7 @@ class StockInventoryService
                     'product_id' => $product->id,
                     'product_name' => \Modules\Catalog\Support\ProductDisplayName::forProduct($product),
                     'variant_id' => $variant->id,
-                    'variant_title' => $variant->title,
+                    'variant_title' => $variantTitle,
                     'qty' => $qty,
                     'price' => $price,
                     'warehouse_id' => $warehouseId,
@@ -1404,6 +1413,181 @@ class StockInventoryService
         ]);
     }
 
+    /**
+     * Заголовок варианта для строки списания/резерва.
+     * Snapshot → title/definition (с fallback на объём/концентрацию).
+     */
+    private function resolveWriteoffVariantTitle(ProductVariantLink $variant, mixed $storedTitle = null): string
+    {
+        $stored = trim((string) ($storedTitle ?? ''));
+        if ($stored !== '') {
+            return $stored;
+        }
+
+        $variant->loadMissing('definition');
+
+        return trim((string) $variant->title);
+    }
+
+    /**
+     * Дозаполняет пустые строки журнального резерва по заказу (старые документы без items).
+     */
+    public function backfillOrderReserveDocumentItems(StockWriteoff $writeoff): bool
+    {
+        if ($writeoff->type !== 'reserve' || ! $writeoff->order_id) {
+            return false;
+        }
+
+        if ($writeoff->items()->exists()) {
+            return false;
+        }
+
+        $order = Order::query()->with('items')->find((int) $writeoff->order_id);
+        if (! $order) {
+            return false;
+        }
+
+        return $this->fillOrderReserveDocumentItems($writeoff, $order) > 0;
+    }
+
+    /**
+     * @return int число созданных строк
+     */
+    private function fillOrderReserveDocumentItems(StockWriteoff $writeoff, Order $order): int
+    {
+        $orderItems = $order->relationLoaded('items')
+            ? $order->items->keyBy('id')
+            : OrderItem::query()->where('order_id', $order->id)->get()->keyBy('id');
+
+        $reservations = StockReservation::query()
+            ->where('order_id', $order->id)
+            ->orderBy('id')
+            ->get();
+
+        $created = 0;
+
+        if ($reservations->isNotEmpty()) {
+            foreach ($reservations->groupBy('order_item_id') as $orderItemId => $group) {
+                $first = $group->first();
+                if (! $first) {
+                    continue;
+                }
+
+                $qty = (int) $group->sum('qty');
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                $orderItem = $orderItems->get((int) $orderItemId);
+                $variant = ProductVariantLink::query()
+                    ->with(['definition', 'product.brand'])
+                    ->find((int) $first->variant_id);
+                if (! $variant) {
+                    continue;
+                }
+
+                $productId = $orderItem
+                    ? (int) $orderItem->product_id
+                    : (int) $variant->product_id;
+                if ($productId <= 0) {
+                    continue;
+                }
+
+                $productName = '';
+                if ($variant->product) {
+                    $productName = ProductDisplayName::forProduct($variant->product);
+                }
+                if ($productName === '' && $orderItem) {
+                    $productName = trim((string) $orderItem->product_name);
+                }
+                if ($productName === '') {
+                    $productName = 'Товар #'.$productId;
+                }
+
+                $variantTitle = $this->resolveWriteoffVariantTitle(
+                    $variant,
+                    $orderItem?->variant_title
+                );
+
+                $warehouseLines = $group->map(static function (StockReservation $reservation): array {
+                    return [
+                        'warehouse_id' => (int) $reservation->warehouse_id,
+                        'qty' => (int) $reservation->qty,
+                        'reservation_id' => (int) $reservation->id,
+                    ];
+                })->values()->all();
+
+                StockWriteoffItem::query()->create([
+                    'stock_writeoff_id' => $writeoff->id,
+                    'product_id' => $productId,
+                    'variant_id' => (int) $variant->id,
+                    'product_name' => $productName,
+                    'variant_title' => $variantTitle,
+                    'qty' => $qty,
+                    'price' => $orderItem?->price,
+                    'payload' => [
+                        'order_item_id' => $orderItem ? (int) $orderItem->id : null,
+                        'order_qty' => $orderItem ? (int) $orderItem->qty : $qty,
+                        'stock_source' => 'reserved',
+                        'reserve_document' => true,
+                        'warehouse_lines' => $warehouseLines,
+                        'backfilled' => true,
+                    ],
+                ]);
+                $created++;
+            }
+
+            return $created;
+        }
+
+        // Нет резерваций — хотя бы строки заказа (для отображения отменённых/пустых журналов).
+        foreach ($orderItems as $orderItem) {
+            if (! $orderItem->variant_id || (int) $orderItem->qty <= 0) {
+                continue;
+            }
+
+            $variant = ProductVariantLink::query()
+                ->with(['definition', 'product.brand'])
+                ->find((int) $orderItem->variant_id);
+
+            $productName = '';
+            if ($variant?->product) {
+                $productName = ProductDisplayName::forProduct($variant->product);
+            }
+            if ($productName === '') {
+                $productName = trim((string) $orderItem->product_name);
+            }
+            if ($productName === '') {
+                $productName = 'Товар #'.(int) $orderItem->product_id;
+            }
+
+            $variantTitle = $variant
+                ? $this->resolveWriteoffVariantTitle($variant, $orderItem->variant_title)
+                : trim((string) $orderItem->variant_title);
+
+            StockWriteoffItem::query()->create([
+                'stock_writeoff_id' => $writeoff->id,
+                'product_id' => (int) $orderItem->product_id,
+                'variant_id' => (int) $orderItem->variant_id,
+                'product_name' => $productName,
+                'variant_title' => $variantTitle,
+                'qty' => (int) $orderItem->qty,
+                'price' => $orderItem->price,
+                'payload' => [
+                    'order_item_id' => (int) $orderItem->id,
+                    'order_qty' => (int) $orderItem->qty,
+                    'stock_source' => 'reserved',
+                    'reserve_document' => true,
+                    'backfilled' => true,
+                    'backfill_source' => 'order_items',
+                ],
+            ]);
+            $created++;
+        }
+
+        return $created;
+    }
+
     private function syncVariantAggregates(int $variantId): void
     {
         $this->markCatalogCacheVariant($variantId);
@@ -1474,6 +1658,10 @@ class StockInventoryService
             ->where('order_id', $order->id)
             ->first();
         if ($existing) {
+            if (! $existing->items()->exists()) {
+                $this->fillOrderReserveDocumentItems($existing, $order);
+            }
+
             return [
                 'document_id' => (int) $existing->id,
                 'created' => false,
@@ -1507,47 +1695,14 @@ class StockInventoryService
         ]);
         $writeoff->update(['document_no' => (string) $writeoff->id]);
 
-        $orderItems = $order->relationLoaded('items')
-            ? $order->items->keyBy('id')
-            : OrderItem::query()->where('order_id', $order->id)->get()->keyBy('id');
+        $createdLines = $this->fillOrderReserveDocumentItems($writeoff, $order);
+        if ($createdLines === 0) {
+            $writeoff->delete();
 
-        $byOrderItem = $reservations->groupBy('order_item_id');
-        foreach ($byOrderItem as $orderItemId => $group) {
-            $orderItem = $orderItems->get((int) $orderItemId);
-            $first = $group->first();
-            if (!$orderItem || !$first) {
-                continue;
-            }
-
-            $qty = (int) $group->sum('qty');
-            if ($qty <= 0) {
-                continue;
-            }
-
-            $warehouseLines = $group->map(static function (StockReservation $reservation): array {
-                return [
-                    'warehouse_id' => (int) $reservation->warehouse_id,
-                    'qty' => (int) $reservation->qty,
-                    'reservation_id' => (int) $reservation->id,
-                ];
-            })->values()->all();
-
-            StockWriteoffItem::query()->create([
-                'stock_writeoff_id' => $writeoff->id,
-                'product_id' => (int) $orderItem->product_id,
-                'variant_id' => (int) $first->variant_id,
-                'product_name' => (string) $orderItem->product_name,
-                'variant_title' => (string) $orderItem->variant_title,
-                'qty' => $qty,
-                'price' => $orderItem->price,
-                'payload' => [
-                    'order_item_id' => (int) $orderItem->id,
-                    'order_qty' => (int) $orderItem->qty,
-                    'stock_source' => 'reserved',
-                    'reserve_document' => true,
-                    'warehouse_lines' => $warehouseLines,
-                ],
-            ]);
+            return [
+                'document_id' => null,
+                'created' => false,
+            ];
         }
 
         $this->writeAudit(

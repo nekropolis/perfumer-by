@@ -4,36 +4,59 @@ import { isExcludedFromPublicSitemap } from "@/lib/sitemap-policy";
 import { getSiteUrl } from "@/lib/seo";
 
 type PostsSlugResponse = {
-    data: { slug: string }[];
+    data: { slug: string; title?: string | null }[];
 };
 
+type SeoSitemapEntryType = "page" | "post" | "product" | "brand";
+
 type SeoSitemapUrlsResponse = {
-    data: { path: string; lastModified: string | null }[];
+    data: {
+        path: string;
+        lastModified: string | null;
+        type?: SeoSitemapEntryType;
+        title?: string | null;
+    }[];
 };
+
+export type BuiltSitemapEntryType = "static" | SeoSitemapEntryType;
 
 export type BuiltSitemapEntry = {
     path: string;
     url: string;
     lastModified: Date;
     priority: number;
+    type: BuiltSitemapEntryType;
+    title: string | null;
 };
 
-function priorityForPath(path: string): number {
-    if (path === "/" || path === "") return 1;
-    if (path.startsWith("/brands/")) return 0.75;
-    if (path.startsWith("/articles/")) return 0.6;
-    if (path.startsWith("/news/")) return 0.6;
-    if (path.startsWith("/reviews/")) return 0.6;
-    if (path.startsWith("/gift-certificates/")) return 0.6;
-    const knownPrefixes = ["/catalog", "/brands", "/articles", "/news", "/reviews", "/gift-certificates", "/admin", "/account", "/cart", "/checkout", "/login", "/search", "/sitemap"];
-    const isProductPath = path.startsWith("/") && !knownPrefixes.some(p => path.startsWith(p + "/"));
-    if (isProductPath) return 0.65;
+/** Статические разделы, всегда добавляемые в sitemap (совпадает с HTML «Разделы»). */
+export const SITEMAP_STATIC_PATHS: { path: string; priority: number; title: string }[] = [
+    { path: "/", priority: 1, title: "Главная" },
+    { path: "/catalog", priority: 0.9, title: "Каталог" },
+    { path: "/brands", priority: 0.85, title: "Бренды" },
+    { path: "/articles", priority: 0.85, title: "Статьи" },
+    { path: "/news", priority: 0.85, title: "Новости" },
+    { path: "/reviews", priority: 0.85, title: "Отзывы о магазине" },
+    { path: "/gift-certificates", priority: 0.7, title: "Подарочные сертификаты" },
+];
+
+function priorityForType(type: BuiltSitemapEntryType, path: string): number {
+    if (type === "static") {
+        return SITEMAP_STATIC_PATHS.find((s) => s.path === path)?.priority ?? 0.6;
+    }
+    if (type === "brand") return 0.75;
+    if (type === "product") return 0.65;
     return 0.6;
+}
+
+function inferTypeFromPath(path: string): BuiltSitemapEntryType {
+    if (path.startsWith("/brands/")) return "brand";
+    return "product";
 }
 
 /**
  * Единый источник URL для XML sitemap и HTML «Карта сайта».
- * Кеш: `getCachedSitemapEntries()` + `revalidate` на route.
+ * Кеш payload: Laravel Redis (`SeoSitemapService`). Route-level ISR — на `/sitemap` и `/sitemap.xml`.
  */
 export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
     const base = getSiteUrl().replace(/\/$/, "");
@@ -42,7 +65,13 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
     const entries: BuiltSitemapEntry[] = [];
     const seenPaths = new Set<string>();
 
-    const pushPath = (path: string, lastModified: Date, priority: number) => {
+    const pushPath = (
+        path: string,
+        lastModified: Date,
+        type: BuiltSitemapEntryType,
+        title: string | null,
+        priority?: number,
+    ) => {
         const normalized = path === "/" ? "/" : path.startsWith("/") ? path : `/${path}`;
         if (isExcludedFromPublicSitemap(normalized)) return;
         if (seenPaths.has(normalized)) return;
@@ -52,22 +81,14 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
             path: normalized,
             url,
             lastModified,
-            priority,
+            priority: priority ?? priorityForType(type, normalized),
+            type,
+            title,
         });
     };
 
-    const staticPaths: { path: string; priority: number }[] = [
-        { path: "/", priority: 1 },
-        { path: "/catalog", priority: 0.9 },
-        { path: "/brands", priority: 0.85 },
-        { path: "/articles", priority: 0.85 },
-        { path: "/news", priority: 0.85 },
-        { path: "/reviews", priority: 0.85 },
-        { path: "/gift-certificates", priority: 0.7 },
-    ];
-
-    for (const { path, priority } of staticPaths) {
-        pushPath(path, now, priority);
+    for (const { path, priority, title } of SITEMAP_STATIC_PATHS) {
+        pushPath(path, now, "static", title, priority);
     }
 
     let usedAggregateEndpoint = false;
@@ -77,7 +98,9 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
             if (!row.path?.trim()) continue;
             const path = row.path.startsWith("/") ? row.path : `/${row.path}`;
             const lm = row.lastModified ? new Date(row.lastModified) : now;
-            pushPath(path, lm, priorityForPath(path));
+            const type = row.type ?? inferTypeFromPath(path);
+            const title = row.title?.trim() || null;
+            pushPath(path, lm, type, title);
         }
         usedAggregateEndpoint = true;
     } catch {
@@ -89,7 +112,7 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
             const brands = await apiFetch<CatalogBrandsResponse>("/catalog/brands");
             for (const b of brands.data ?? []) {
                 if (!b.slug) continue;
-                pushPath(`/brands/${b.slug}`, now, 0.75);
+                pushPath(`/brands/${b.slug}`, now, "brand", b.name?.trim() || null);
             }
         } catch {
             /* */
@@ -103,7 +126,7 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
                 lastPage = res.meta?.last_page ?? 1;
                 for (const p of res.data ?? []) {
                     if (!p.slug) continue;
-                    pushPath(`/${p.slug}`, now, 0.65);
+                    pushPath(`/${p.slug}`, now, "product", p.name?.trim() || null);
                 }
                 page += 1;
             } while (page <= lastPage);
@@ -116,7 +139,7 @@ export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
                 const res = await apiFetch<PostsSlugResponse>(`/posts?type=${type}&limit=24`);
                 for (const row of res.data ?? []) {
                     if (!row.slug) continue;
-                    pushPath(`/${row.slug}`, now, 0.6);
+                    pushPath(`/${row.slug}`, now, "post", row.title?.trim() || null);
                 }
             } catch {
                 /* */

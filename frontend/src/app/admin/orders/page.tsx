@@ -655,18 +655,21 @@ export default function AdminOrdersPage() {
             }
 
             if (updated.length > 0) {
-                const byId = new Map(
-                    updated.map((row) => [row.order_id, row.shipment_status]),
-                );
+                const byId = new Map(updated.map((row) => [row.order_id, row]));
                 setOrders((prev) =>
                     prev.map((order) => {
-                        if (!byId.has(order.id)) {
+                        const row = byId.get(order.id);
+                        if (!row) {
                             return order;
                         }
                         return {
                             ...order,
-                            shipment_status: byId.get(order.id) ?? order.shipment_status,
+                            shipment_status: row.shipment_status ?? order.shipment_status,
                             shipment_status_at: new Date().toISOString(),
+                            shipment_date:
+                                row.shipment_date !== undefined && row.shipment_date !== null
+                                    ? row.shipment_date
+                                    : order.shipment_date,
                         };
                     }),
                 );

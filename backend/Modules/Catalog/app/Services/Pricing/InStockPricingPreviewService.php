@@ -8,6 +8,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Catalog\Support\CatalogSearchScoring;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Models\AllparfumeVariant;
@@ -38,21 +39,33 @@ final class InStockPricingPreviewService
 
         $query = ProductVariantLink::query()
             ->with(['product.brand', 'definition', 'supplierOffers'])
-            ->tap(static fn ($q) => CatalogVariantStockPresenter::applyStorefrontInStockScope($q))
-            ->orderByDesc('id');
+            ->tap(static fn ($q) => CatalogVariantStockPresenter::applyStorefrontInStockScope($q));
 
-        if ($search !== null && trim($search) !== '') {
-            $term = trim($search);
-            $query->where(function ($q) use ($term): void {
-                if (ctype_digit($term)) {
-                    $q->where('id', (int) $term);
+        $searchTerm = $search !== null ? trim((string) preg_replace('/\s+/u', ' ', $search)) : '';
+
+        if ($searchTerm !== '') {
+            $like = '%'.CatalogSearchScoring::escapeLikeValue($searchTerm).'%';
+            $compact = CatalogSearchScoring::compactSearchText($searchTerm);
+            $compactLike = $compact !== ''
+                ? '%'.CatalogSearchScoring::escapeLikeValue($compact).'%'
+                : null;
+            $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
+            $displayExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
+            $compactExpr = "REPLACE(REPLACE(LOWER(CONCAT(COALESCE({$brandNameSub}, ''), COALESCE(`products`.`name`, ''))), '-', ''), ' ', '')";
+            $query->where(function ($q) use ($searchTerm, $like, $compactLike, $displayExpr, $compactExpr): void {
+                if (ctype_digit($searchTerm)) {
+                    $q->where('id', (int) $searchTerm);
                 }
-                $q->orWhereHas('product', static function ($pq) use ($term): void {
-                    $pq->where('name', 'like', "%{$term}%")
-                        ->orWhere('slug', 'like', "%{$term}%")
-                        ->orWhereHas('brand', static function ($bq) use ($term): void {
-                            $bq->where('name', 'like', "%{$term}%");
-                        });
+                $q->orWhereHas('product', static function ($pq) use ($like, $compactLike, $displayExpr, $compactExpr): void {
+                    $pq->where('name', 'like', $like)
+                        ->orWhere('slug', 'like', $like)
+                        ->orWhereHas('brand', static function ($bq) use ($like): void {
+                            $bq->where('name', 'like', $like);
+                        })
+                        ->orWhereRaw("{$displayExpr} LIKE LOWER(?)", [$like]);
+                    if ($compactLike !== null) {
+                        $pq->orWhereRaw("{$compactExpr} LIKE ?", [$compactLike]);
+                    }
                 });
             });
         }
@@ -79,9 +92,49 @@ final class InStockPricingPreviewService
             });
         }
 
-        Paginator::currentPageResolver(static fn (): int => max(1, $page));
-        $paginator = $query->paginate($perPage);
-        assert($paginator instanceof LengthAwarePaginator);
+        if ($searchTerm !== '') {
+            $ranked = (clone $query)
+                ->get()
+                ->sort(function (ProductVariantLink $a, ProductVariantLink $b) use ($searchTerm): int {
+                    $ra = CatalogSearchScoring::productSearchRank(
+                        $searchTerm,
+                        (string) ($a->product?->brand?->name ?? ''),
+                        (string) ($a->product?->name ?? ''),
+                    );
+                    $rb = CatalogSearchScoring::productSearchRank(
+                        $searchTerm,
+                        (string) ($b->product?->brand?->name ?? ''),
+                        (string) ($b->product?->name ?? ''),
+                    );
+                    $cmp = CatalogSearchScoring::compareProductSearchRanks($ra, $rb);
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    return ((int) $b->id) <=> ((int) $a->id);
+                })
+                ->values();
+
+            $total = $ranked->count();
+            $page = max(1, $page);
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            if ($page > $lastPage) {
+                $page = $lastPage;
+            }
+            $pageItems = $ranked->forPage($page, $perPage)->values();
+            $paginator = new LengthAwarePaginator(
+                $pageItems,
+                $total,
+                $perPage,
+                $page,
+                ['path' => Paginator::resolveCurrentPath()],
+            );
+        } else {
+            $query->orderByDesc('id');
+            Paginator::currentPageResolver(static fn (): int => max(1, $page));
+            $paginator = $query->paginate($perPage);
+            assert($paginator instanceof LengthAwarePaginator);
+        }
 
         $variantIds = collect($paginator->items())
             ->map(static fn (ProductVariantLink $v): int => (int) $v->id)
@@ -288,19 +341,31 @@ final class InStockPricingPreviewService
                 $supplierName = 'Поставщик #'.$supplierId;
             }
 
-            $productName = $externalNameByProductSupplier[$linkKey] ?? null;
-            if ($productName === null || $productName === '') {
-                $extProduct = trim((string) ($offer->external_product_name ?? ''));
-                $extVariant = trim((string) ($offer->external_variant_name ?? ''));
-                $productName = $extProduct !== ''
-                    ? ($extVariant !== '' ? $extProduct.' · '.$extVariant : $extProduct)
-                    : ($extVariant !== '' ? $extVariant : null);
+            // Имя/SKU с оффера варианта: у product+supplier несколько SKU, product-level map схлопывает их.
+            $extProduct = trim((string) ($offer->external_product_name ?? ''));
+            $extVariant = trim((string) ($offer->external_variant_name ?? ''));
+            $sku = trim((string) ($offer->sku ?? ''));
+            if ($sku === '') {
+                $sku = trim((string) ($offer->external_id ?? ''));
+            }
+            if ($sku === '') {
+                $sku = trim((string) ($payload['external_code'] ?? ''));
+            }
+
+            $nameParts = [];
+            if ($extProduct !== '') {
+                $nameParts[] = $extProduct;
+            } elseif ($extVariant !== '') {
+                $nameParts[] = $extVariant;
+            }
+            if ($sku !== '' && ! in_array($sku, $nameParts, true)) {
+                $nameParts[] = $sku;
             }
 
             $inputSources[] = [
                 'source' => 'supplier',
                 'source_label' => $supplierName,
-                'product_name' => $productName,
+                'product_name' => $nameParts !== [] ? implode(' · ', $nameParts) : null,
                 'price' => number_format($purchase, 2, '.', ''),
                 'selected' => false,
             ];

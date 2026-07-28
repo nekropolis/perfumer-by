@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ProductVariantSupplierItem } from "@/lib/admin-products-api";
+import { roundMoneyToTenths } from "@/lib/loyalty-pricing";
 
 type Props = {
     variant: ProductVariantSupplierItem;
@@ -9,6 +10,14 @@ type Props = {
 const ON_WAREHOUSE_LABEL = "на складе";
 
 type DetailLine = { key: string; cells: ReactNode[] };
+
+function formatSupplierPurchasePrice(value: string | number | null | undefined): string {
+    if (value == null || value === "") {
+        return "—";
+    }
+    const rounded = roundMoneyToTenths(String(value));
+    return rounded ?? String(value);
+}
 
 function warehouseQtyCell(
     warehouses: Array<{
@@ -56,7 +65,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                     {row.supplier_product_name}
                 </td>,
                 <td key="c4" className={cellClassName}>
-                    {row.supplier_price ?? "—"}
+                    {formatSupplierPurchasePrice(row.supplier_price)}
                 </td>,
                 <td key="c5" className={cellClassName}>
                     {row.qty} шт.
@@ -79,7 +88,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                     {supplier.supplier_product_name || "—"}
                 </td>,
                 <td key="c4" className={cellClassName}>
-                    {supplier.supplier_price ?? "—"}
+                    {formatSupplierPurchasePrice(supplier.supplier_price)}
                 </td>,
                 warehouseQtyCell(supplierWarehouses, cellClassName),
             ],
@@ -102,7 +111,7 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                         {batch.supplier_product_name || "—"}
                     </td>,
                     <td key="c4" className={cellClassName}>
-                        {batch.supplier_price ?? "—"}
+                        {formatSupplierPurchasePrice(batch.supplier_price)}
                     </td>,
                     <td key="c5" className={cellClassName}>
                         {batch.qty} шт.

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogSearchScoring;
 use Modules\ImportExport\Jobs\RunAllparfumeSyncJob;
 use Modules\ImportExport\Models\AllparfumeProduct;
 use Modules\ImportExport\Models\AllparfumeShop;
@@ -56,20 +57,31 @@ class AllparfumeAdminController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = trim($request->string('search')->toString());
-            $tokens = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [$search];
-            foreach ($tokens as $token) {
-                $baseQuery->where(function ($q) use ($token): void {
-                    $q->where('raw_label', 'like', "%{$token}%")
-                        ->orWhere('variant_key', 'like', "%{$token}%")
-                        ->orWhereHas('allparfumeProduct', static function ($pq) use ($token): void {
-                            $pq->where('name', 'like', "%{$token}%")
-                                ->orWhere('title', 'like', "%{$token}%")
-                                ->orWhere('brand_name', 'like', "%{$token}%")
-                                ->orWhere('external_slug', 'like', "%{$token}%");
-                        });
-                });
-            }
+            // Фраза по display (бренд+имя) и compact («Montblanc» ≡ «Mont Blanc»), не AND-токенами.
+            $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
+            $like = '%'.CatalogSearchScoring::escapeLikeValue($search).'%';
+            $compact = CatalogSearchScoring::compactSearchText($search);
+            $compactLike = $compact !== ''
+                ? '%'.CatalogSearchScoring::escapeLikeValue($compact).'%'
+                : null;
+            $displayExpr = "LOWER(TRIM(CONCAT(COALESCE(`brand_name`, ''), ' ', COALESCE(`name`, ''))))";
+            $compactExpr = "REPLACE(REPLACE(LOWER(CONCAT(COALESCE(`brand_name`, ''), COALESCE(`name`, ''))), '-', ''), ' ', '')";
+            $compactTitleExpr = "REPLACE(REPLACE(LOWER(COALESCE(`title`, '')), '-', ''), ' ', '')";
+            $baseQuery->where(function ($q) use ($like, $compactLike, $displayExpr, $compactExpr, $compactTitleExpr): void {
+                $q->where('raw_label', 'like', $like)
+                    ->orWhere('variant_key', 'like', $like)
+                    ->orWhereHas('allparfumeProduct', static function ($pq) use ($like, $compactLike, $displayExpr, $compactExpr, $compactTitleExpr): void {
+                        $pq->where('name', 'like', $like)
+                            ->orWhere('title', 'like', $like)
+                            ->orWhere('brand_name', 'like', $like)
+                            ->orWhere('external_slug', 'like', $like)
+                            ->orWhereRaw("{$displayExpr} LIKE LOWER(?)", [$like]);
+                        if ($compactLike !== null) {
+                            $pq->orWhereRaw("{$compactExpr} LIKE ?", [$compactLike])
+                                ->orWhereRaw("{$compactTitleExpr} LIKE ?", [$compactLike]);
+                        }
+                    });
+            });
         }
 
         $status = trim($request->string('status')->toString());
@@ -83,7 +95,7 @@ class AllparfumeAdminController extends Controller
                     $q->whereNotNull('match_payload->suggested_variant_id')
                         ->orWhereNotNull('match_payload->suggested_product_id');
                 });
-        } elseif ($status === 'unlinked') {
+        } else        if ($status === 'unlinked') {
             $query->whereNull('product_variant_link_id')
                 ->where(function ($q): void {
                     $q->whereNull('match_payload->suggested_variant_id')
@@ -95,8 +107,53 @@ class AllparfumeAdminController extends Controller
         if (! in_array($perPage, [25, 50, 100], true)) {
             $perPage = 50;
         }
+        $page = max(1, (int) $request->integer('page', 1));
 
-        $items = $query->paginate($perPage);
+        $searchForRank = $request->filled('search')
+            ? trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()))
+            : '';
+
+        if ($searchForRank !== '') {
+            $ranked = (clone $query)
+                ->with('allparfumeProduct')
+                ->get()
+                ->sort(function (AllparfumeVariant $a, AllparfumeVariant $b) use ($searchForRank): int {
+                    $pa = $a->allparfumeProduct;
+                    $pb = $b->allparfumeProduct;
+                    $ra = CatalogSearchScoring::productSearchRank(
+                        $searchForRank,
+                        (string) ($pa?->brand_name ?? ''),
+                        (string) ($pa?->name ?: $pa?->title ?: ''),
+                    );
+                    $rb = CatalogSearchScoring::productSearchRank(
+                        $searchForRank,
+                        (string) ($pb?->brand_name ?? ''),
+                        (string) ($pb?->name ?: $pb?->title ?: ''),
+                    );
+                    $cmp = CatalogSearchScoring::compareProductSearchRanks($ra, $rb);
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    return ((int) $b->id) <=> ((int) $a->id);
+                })
+                ->values();
+
+            $total = $ranked->count();
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            if ($page > $lastPage) {
+                $page = $lastPage;
+            }
+            $items = new \Illuminate\Pagination\LengthAwarePaginator(
+                $ranked->forPage($page, $perPage)->values(),
+                $total,
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()],
+            );
+        } else {
+            $items = $query->paginate($perPage);
+        }
 
         $listStatsBase = clone $baseQuery;
         $stats = [

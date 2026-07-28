@@ -849,7 +849,8 @@ export function ManualLinkModal({
                             {!manualLink.definitionsLoading
                                 && !manualLink.variantsLoading
                                 && manualLink.definitionSearch.trim() !== ""
-                                && sortedDefinitions.length === 0 ? (
+                                && sortedDefinitions.length === 0
+                                && sortedVariants.length === 0 ? (
                                 <div className="text-xs text-amber-700">В справочнике ничего не найдено.</div>
                             ) : null}
                             {sortedDefinitions.length > 0 ? (
