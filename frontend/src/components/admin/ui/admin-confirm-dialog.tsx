@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { adminBtnDanger, adminBtnSecondary, adminModalOverlay } from "@/lib/admin-ui-classes";
 
 type Props = {
@@ -25,11 +27,26 @@ export default function AdminConfirmDialog({
     onConfirmAction,
     onCloseAction,
 }: Props) {
-    if (!open) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (!open) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [open]);
+
+    if (!open || !mounted) {
         return null;
     }
 
-    return (
+    return createPortal(
         <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
             <div
                 className="w-full max-w-md rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
@@ -61,6 +78,7 @@ export default function AdminConfirmDialog({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }

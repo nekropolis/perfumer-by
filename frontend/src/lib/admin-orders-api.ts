@@ -215,6 +215,7 @@ export type AdminOrderPayloadItem = {
   price: number;
   availability_source?: string | null;
   waiting_discount?: boolean;
+  stock_lot_allocations?: Array<{ lot_id: number; qty: number }>;
 };
 
 export type AdminOrderPayload = {

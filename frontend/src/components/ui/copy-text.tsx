@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 
 type Props = {
     value: string;
-    label?: string;
+    label?: ReactNode;
     copiedLabel?: string;
     className?: string;
     iconSize?: number;
@@ -76,7 +76,7 @@ export default function CopyText({
         <button
             type="button"
             onClick={handleCopy}
-            aria-label={copied ? copiedLabel : `Скопировать ${label ?? value}`}
+            aria-label={copied ? copiedLabel : `Скопировать ${typeof label === "string" ? label : value}`}
             title={title ?? (copied ? copiedLabel : "Скопировать")}
             className={`inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition select-none hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 active:scale-[0.98] ${
                 copied ? "text-emerald-600" : ""

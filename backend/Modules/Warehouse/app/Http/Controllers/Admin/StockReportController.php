@@ -10,8 +10,9 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Warehouse\Models\StockReceipt;
-use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\StockWriteoff;
+use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseStockLot;
 
 class StockReportController extends Controller
 {
@@ -66,13 +67,19 @@ class StockReportController extends Controller
                 ->get()
                 ->groupBy('product_variant_id');
 
-        $receiptItemsByVariant = $variantIds->isEmpty()
+        $mainWarehouseId = (int) (Warehouse::query()
+            ->where('code', Warehouse::CODE_MAIN)
+            ->value('id') ?? 0);
+
+        $lotsByVariant = ($variantIds->isEmpty() || $mainWarehouseId <= 0)
             ? collect()
-            : StockReceiptItem::query()
-                ->with(['receipt'])
+            : WarehouseStockLot::query()
+                ->where('warehouse_id', $mainWarehouseId)
                 ->whereIn('variant_id', $variantIds->all())
-                ->whereHas('receipt', fn ($receiptQuery) => $receiptQuery->whereNotNull('supplier_name'))
-                ->orderByDesc('id')
+                ->where('qty', '>', 0)
+                ->orderByRaw('supplier_price IS NULL')
+                ->orderBy('supplier_price')
+                ->orderBy('id')
                 ->get()
                 ->groupBy('variant_id');
 
@@ -82,24 +89,22 @@ class StockReportController extends Controller
             $hasMainStock = in_array($availabilitySource, ['main', 'main+supplier'], true);
             $suppliers = [];
 
-            // Складские строки: для товара на нашем складе показываем каждый приход
-            // с ценой закупки, чтобы видеть себестоимость остатка.
+            // Складские строки: открытые партии с ценой закупки.
             if ($hasMainStock) {
-                $receiptItems = $receiptItemsByVariant->get((int) $item->variant_id);
+                $lots = $lotsByVariant->get((int) $item->variant_id, collect());
 
-                if ($receiptItems !== null && $receiptItems->isNotEmpty()) {
-                    foreach ($receiptItems as $receiptItem) {
-                        $payload = is_array($receiptItem->payload) ? $receiptItem->payload : [];
-
+                if ($lots->isNotEmpty()) {
+                    foreach ($lots as $lot) {
                         $suppliers[] = [
                             'name' => 'Склад',
-                            'product_name' => $payload['supplier_product_name']
-                                ?? $payload['name']
-                                ?? $receiptItem->variant_title,
-                            'code' => $receiptItem->supplier_sku,
-                            'price' => $receiptItem->supplier_price !== null
-                                ? number_format((float) $receiptItem->supplier_price, 2, '.', '')
+                            'product_name' => $lot->comment ?: $item->variant_title,
+                            'code' => $lot->supplier_sku,
+                            'price' => $lot->supplier_price !== null
+                                ? number_format((float) $lot->supplier_price, 2, '.', '')
                                 : null,
+                            'qty' => (int) $lot->qty,
+                            'lot_id' => (int) $lot->id,
+                            'comment' => $lot->comment,
                         ];
                     }
                 } else {

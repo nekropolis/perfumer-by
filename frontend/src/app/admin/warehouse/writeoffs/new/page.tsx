@@ -17,6 +17,8 @@ function NewWriteoffPageContent() {
         const availableQty = Number(searchParams.get("available_qty") || 0);
         const reservedQty = Number(searchParams.get("reserved_qty") || 0);
 
+        const stockLotId = Number(searchParams.get("stock_lot_id") || 0);
+
         if (!productId || !variantId || !productName || !variantTitle) {
             return null;
         }
@@ -30,6 +32,7 @@ function NewWriteoffPageContent() {
             price,
             available_qty: availableQty,
             reserved_qty: reservedQty,
+            stock_lot_id: stockLotId > 0 ? stockLotId : null,
         };
     }, [searchParams]);
 

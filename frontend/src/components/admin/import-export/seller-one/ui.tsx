@@ -1,4 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import type {
     SellerOneDuplicateVariantLinksResponse,
@@ -39,6 +41,29 @@ import {
     adminInput,
     adminModalOverlay,
 } from "@/lib/admin-ui-classes";
+
+function usePortalMounted(): boolean {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    return mounted;
+}
+
+function useBodyScrollLock(active: boolean): void {
+    useEffect(() => {
+        if (!active) {
+            return;
+        }
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [active]);
+}
 
 export function AlertMessage({
     message,
@@ -618,6 +643,9 @@ export function ManualLinkModal({
     onPickDefinitionAction: (definitionId: number) => Promise<void>;
     onConfirmAction: (rowId: number, variantId: number) => Promise<void>;
 }) {
+    const mounted = usePortalMounted();
+    useBodyScrollLock(true);
+
     const selectedProduct = manualLink.products.find((p) => p.id === manualLink.selectedProductId);
     const selectedProductLabel = selectedProduct ? formatCatalogProductLabel(selectedProduct) : "";
 
@@ -688,7 +716,11 @@ export function ManualLinkModal({
         });
     };
 
-    return (
+    if (!mounted) {
+        return null;
+    }
+
+    return createPortal(
         <div className={adminModalOverlay}>
             <div className="flex max-h-[min(92dvh,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:max-h-[min(88dvh,760px)] sm:rounded-xl">
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
@@ -916,7 +948,8 @@ export function ManualLinkModal({
                     </div>
                 ) : null}
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 
@@ -945,11 +978,14 @@ export function RulesModal({
     onToggleRuleAction: (rule: SellerOneMatchRule) => Promise<void>;
     onDeleteRuleAction: (rule: SellerOneMatchRule) => Promise<void>;
 }) {
-    if (!open) {
+    const mounted = usePortalMounted();
+    useBodyScrollLock(open);
+
+    if (!open || !mounted) {
         return null;
     }
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
@@ -1018,7 +1054,8 @@ export function RulesModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 
@@ -1037,11 +1074,14 @@ export function PricingSettingsModal({
     onChangeAction: (field: keyof SellerOnePricingSettings, value: number) => void;
     onSaveAction: () => Promise<void>;
 }) {
-    if (!open) {
+    const mounted = usePortalMounted();
+    useBodyScrollLock(open);
+
+    if (!open || !mounted) {
         return null;
     }
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
@@ -1105,7 +1145,8 @@ export function PricingSettingsModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 
@@ -1120,6 +1161,14 @@ export function DuplicateVariantLinksModal({
     error: string;
     onCloseAction: () => void;
 }) {
+    const open = loading || Boolean(error) || Boolean(data);
+    const mounted = usePortalMounted();
+    useBodyScrollLock(open);
+
+    if (!open || !mounted) {
+        return null;
+    }
+
     const rows = (data?.groups ?? []).flatMap((group) =>
         group.entries.map((entry, index) => ({
             key: `${group.variant_id}-${entry.code}-${entry.supplier_product_id}`,
@@ -1132,7 +1181,7 @@ export function DuplicateVariantLinksModal({
         })),
     );
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6" onClick={onCloseAction}>
             <div
                 className="mx-auto flex h-full w-full max-w-5xl items-center justify-center"
@@ -1192,6 +1241,7 @@ export function DuplicateVariantLinksModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }

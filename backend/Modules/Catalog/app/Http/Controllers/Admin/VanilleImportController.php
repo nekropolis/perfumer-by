@@ -639,7 +639,8 @@ class VanilleImportController extends Controller
             $baseQuery->where(function ($q) use ($search) {
                 $q->where('external_name', 'like', "%{$search}%")
                     ->orWhere('external_slug', 'like', "%{$search}%")
-                    ->orWhere('external_url', 'like', "%{$search}%");
+                    ->orWhere('external_url', 'like', "%{$search}%")
+                    ->orWhere('payload->external_code', 'like', "%{$search}%");
             });
         }
 

@@ -127,6 +127,12 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                                                 ?? (payload as { name?: unknown }).name
                                                 ?? "",
                                         ).trim();
+                                        const lineComment = String(
+                                            (payload as { comment?: unknown }).comment ?? "",
+                                        ).trim();
+                                        const supplierLine = [item.supplier_sku, supplierProductName]
+                                            .filter(Boolean)
+                                            .join(" — ");
 
                                         return (
                                         <div
@@ -134,14 +140,23 @@ export default function ReceiptShowPage({ receiptId }: Props) {
                                             className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
-                                                <span className="font-medium">{item.supplier_sku || "Без кода"}</span>
-                                                <span className="mx-2 text-slate-300">-</span>
-                                                <span>{item.product_name}</span>
-                                                <span className="mx-2 text-slate-300">/</span>
-                                                <span>{item.variant_title}</span>
-                                                {supplierProductName ? (
+                                                <div className="font-medium text-slate-900">
+                                                    <span>{item.product_name}</span>
+                                                    {item.variant_title ? (
+                                                        <>
+                                                            <span className="mx-2 font-normal text-slate-300">/</span>
+                                                            <span>{item.variant_title}</span>
+                                                        </>
+                                                    ) : null}
+                                                </div>
+                                                {supplierLine ? (
                                                     <div className="mt-1 text-xs text-slate-500">
-                                                        У поставщика: {supplierProductName}
+                                                        У поставщика: {supplierLine}
+                                                    </div>
+                                                ) : null}
+                                                {lineComment ? (
+                                                    <div className="mt-1 text-xs text-slate-500">
+                                                        Комментарий: {lineComment}
                                                     </div>
                                                 ) : null}
                                             </div>

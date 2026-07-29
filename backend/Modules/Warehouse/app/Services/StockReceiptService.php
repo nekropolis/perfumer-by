@@ -19,6 +19,7 @@ class StockReceiptService
     public function __construct(
         private readonly StockInventoryService $inventoryService,
         private readonly SellerOnePricingService $pricingService,
+        private readonly StockLotService $stockLotService,
     ) {
     }
 
@@ -257,27 +258,21 @@ class StockReceiptService
 
         $qty = (int) $storedItem->qty;
         $supplierPrice = round((float) $storedItem->supplier_price, 2);
-        $retailPrice = $supplierPrice > 0
-            ? round($this->pricingService->calculateRetailPriceForWarehouse(
+        $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
+
+        $retailPrice = null;
+        if ($supplierPrice > 0 && ! $isMainWarehouseReceipt) {
+            $retailPrice = round($this->pricingService->calculateRetailPriceForWarehouse(
                 $variant,
                 (int) $receipt->warehouse_id,
                 $supplierPrice,
-            ), 2)
-            : null;
-
-        $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
-        if ($isMainWarehouseReceipt) {
-            $variant->update([
-                'price' => $retailPrice,
-                'is_preorder' => false,
-                'is_active' => true,
-            ]);
-        } else {
-            $variant->update([
-                'is_preorder' => false,
-                'is_active' => true,
-            ]);
+            ), 2);
         }
+
+        $variant->update([
+            'is_preorder' => false,
+            'is_active' => true,
+        ]);
 
         $variant = ProductVariantLink::query()->lockForUpdate()->findOrFail($variant->id);
         $this->inventoryService->increaseVariantStock(
@@ -295,6 +290,21 @@ class StockReceiptService
             ],
             (int) $receipt->warehouse_id
         );
+
+        $this->stockLotService->createFromReceiptItem($receipt, $storedItem);
+
+        if ($isMainWarehouseReceipt && $supplierPrice > 0) {
+            $variantId = (int) $storedItem->variant_id;
+            $warehouseId = (int) $receipt->warehouse_id;
+            $avgMap = $this->stockLotService->avgPurchaseByVariant([$variantId], $warehouseId);
+            $purchaseForRetail = $avgMap[$variantId] ?? number_format($supplierPrice, 2, '.', '');
+            $retailPrice = round($this->pricingService->calculateRetailPriceForWarehouse(
+                $variant,
+                $warehouseId,
+                (float) $purchaseForRetail,
+            ), 2);
+            $variant->update(['price' => $retailPrice]);
+        }
     }
 
     private function resolveVariant(Product $product, array $item): ProductVariantLink
@@ -382,6 +392,8 @@ class StockReceiptService
             if (!$variant) {
                 continue;
             }
+
+            $this->stockLotService->rollbackReceiptItem($item, (int) $receipt->warehouse_id);
 
             $this->inventoryService->decreaseVariantStock(
                 $variant,

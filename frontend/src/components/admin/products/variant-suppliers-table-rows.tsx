@@ -52,8 +52,12 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
     const lines: DetailLine[] = [];
 
     mainStore.forEach((row) => {
+        const lotKey =
+            typeof row.lot_id === "number" && row.lot_id > 0
+                ? `main-store-lot-${row.lot_id}`
+                : `main-store-${row.receipt_item_id}`;
         lines.push({
-            key: `main-store-${row.receipt_item_id}`,
+            key: lotKey,
             cells: [
                 <td key="c1" className={cellClassName}>
                     {ON_WAREHOUSE_LABEL}
@@ -63,6 +67,11 @@ function buildDetailLines(variant: ProductVariantSupplierItem, cellClassName: st
                 </td>,
                 <td key="c3" className={cellClassName}>
                     {row.supplier_product_name}
+                    {row.comment?.trim() ? (
+                        <span className="mt-0.5 block text-[11px] text-admin-text-secondary">
+                            {row.comment.trim()}
+                        </span>
+                    ) : null}
                 </td>,
                 <td key="c4" className={cellClassName}>
                     {formatSupplierPurchasePrice(row.supplier_price)}

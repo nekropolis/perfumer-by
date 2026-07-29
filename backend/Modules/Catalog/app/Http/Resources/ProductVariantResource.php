@@ -9,6 +9,7 @@ use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockLotService;
 
 class ProductVariantResource extends JsonResource
 {
@@ -57,6 +58,19 @@ class ProductVariantResource extends JsonResource
             ? implode(' / ', $displayParts)
             : 'Нет вариантов';
 
+        $mainAvailable = $mainStock
+            ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+            : 0;
+
+        $mainMinPurchase = null;
+        if ($mainAvailable > 0 && $mainStock) {
+            $mainWarehouseId = (int) ($mainStock->warehouse_id ?? 0);
+            if ($mainWarehouseId > 0) {
+                $minMap = app(StockLotService::class)->minPurchaseByVariant([(int) $variant->id], $mainWarehouseId);
+                $mainMinPurchase = $minMap[(int) $variant->id] ?? null;
+            }
+        }
+
         return [
             'id' => $this->id,
 
@@ -82,7 +96,7 @@ class ProductVariantResource extends JsonResource
             'availability_source' => $presented['availability_source'],
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
-            'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
+            'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock, $mainMinPurchase),
             'can_fulfill_main' => $mainStock
                 ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0
                 : false,
@@ -101,6 +115,7 @@ class ProductVariantResource extends JsonResource
         ProductVariantLink $variant,
         ?WarehouseVariantStock $mainStock,
         ?WarehouseVariantStock $supplierStock,
+        ?string $mainMinPurchasePrice = null,
     ): string {
         $preorder = (bool) $variant->is_preorder;
 
@@ -110,6 +125,9 @@ class ProductVariantResource extends JsonResource
 
         if ($mainAvailable > 0) {
             $core = "Склад · доступно {$mainAvailable} шт.";
+            if ($mainMinPurchasePrice !== null && $mainMinPurchasePrice !== '') {
+                $core .= ' · мин. '.$mainMinPurchasePrice;
+            }
 
             return $preorder ? $core.' · предзаказ' : $core;
         }

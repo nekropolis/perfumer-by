@@ -10,8 +10,8 @@ use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
 use Modules\Checkout\Services\CheckoutDeliveryService;
-use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseStockLot;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class OrderResource extends JsonResource
@@ -27,17 +27,22 @@ class OrderResource extends JsonResource
             ->unique()
             ->values();
 
-        $receiptItemsByVariant = $variantIds->isEmpty()
-            ? collect()
-            : StockReceiptItem::query()
-                ->whereIn('variant_id', $variantIds->all())
-                ->with(['receipt.warehouse'])
-                ->orderByDesc('id')
-                ->get()
-                ->groupBy('variant_id');
-
         $mainWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id') ?? 0);
         $supplierWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id') ?? 0);
+
+        $lotsByVariant = ($variantIds->isEmpty() || $mainWarehouseId <= 0)
+            ? collect()
+            : WarehouseStockLot::query()
+                ->with(['receiptItem.receipt', 'warehouse'])
+                ->where('warehouse_id', $mainWarehouseId)
+                ->whereIn('variant_id', $variantIds->all())
+                ->where('qty', '>', 0)
+                ->orderByRaw('supplier_price IS NULL')
+                ->orderBy('supplier_price')
+                ->orderByRaw("CASE WHEN comment IS NULL OR TRIM(comment) = '' THEN 0 ELSE 1 END")
+                ->orderBy('id')
+                ->get()
+                ->groupBy('variant_id');
         $warehouseIds = array_values(array_filter([$mainWarehouseId, $supplierWarehouseId]));
         $stocksByVariant = $variantIds->isEmpty() || $warehouseIds === []
             ? collect()
@@ -147,7 +152,7 @@ class OrderResource extends JsonResource
             'discount_card_number' => $displayDiscountCardNumber,
             'discount_percent_snapshot' => number_format((float) $displayDiscountPercent, 2, '.', ''),
             'discount_amount' => number_format($discountAmount, 2, '.', ''),
-            'items' => $this->items->map(function ($item) use ($receiptItemsByVariant, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
+            'items' => $this->items->map(function ($item) use ($lotsByVariant, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
                 $data = [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
@@ -162,6 +167,9 @@ class OrderResource extends JsonResource
                     'total' => number_format((float) $item->total, 2, '.', ''),
                     'waiting_discount' => (bool) $item->waiting_discount,
                     'availability_source' => $item->availability_source,
+                    'stock_lot_allocations' => is_array($item->stock_lot_allocations)
+                        ? $item->stock_lot_allocations
+                        : null,
                     'product_country' => $this->productCountry($item),
                     'image' => $item->relationLoaded('product')
                         ? ($item->product?->mainImage?->path ?? null)
@@ -179,7 +187,7 @@ class OrderResource extends JsonResource
                 $data['fulfillment_options'] = $this->fulfillmentOptionsForItem(
                     $item,
                     $stocksByVariant,
-                    $receiptItemsByVariant,
+                    $lotsByVariant,
                     $mainWarehouseId,
                     $supplierWarehouseId,
                 );
@@ -217,26 +225,26 @@ class OrderResource extends JsonResource
                 }
 
                 if ($item->variant_id !== null) {
-                    $receiptItems = $receiptItemsByVariant->get((int) $item->variant_id, collect());
-                    $data['receipt_batches'] = $receiptItems
-                        ->map(function (StockReceiptItem $receiptItem) {
-                            $payload = is_array($receiptItem->payload) ? $receiptItem->payload : [];
-
+                    $lots = $lotsByVariant->get((int) $item->variant_id, collect());
+                    $data['receipt_batches'] = $lots
+                        ->map(function (WarehouseStockLot $lot) {
                             return [
-                                'receipt_item_id' => $receiptItem->id,
-                                'receipt_id' => $receiptItem->stock_receipt_id,
-                                'receipt_document_no' => $receiptItem->receipt?->document_no,
-                                'supplier_name' => $receiptItem->receipt?->supplier_name,
-                                'supplier_code' => $receiptItem->supplier_sku,
-                                'supplier_product_name' => $payload['supplier_product_name']
-                                    ?? $payload['name']
-                                    ?? $receiptItem->variant_title,
-                                'supplier_price' => $receiptItem->supplier_price !== null
-                                    ? number_format((float) $receiptItem->supplier_price, 2, '.', '')
+                                'receipt_item_id' => $lot->stock_receipt_item_id,
+                                'lot_id' => $lot->id,
+                                'receipt_id' => $lot->receiptItem?->stock_receipt_id,
+                                'receipt_document_no' => $lot->receiptItem?->receipt?->document_no,
+                                'supplier_name' => $lot->supplier_name,
+                                'supplier_code' => $lot->supplier_sku,
+                                'supplier_product_name' => $lot->comment
+                                    ?: $lot->receiptItem?->variant_title
+                                    ?: null,
+                                'supplier_price' => $lot->supplier_price !== null
+                                    ? number_format((float) $lot->supplier_price, 2, '.', '')
                                     : null,
-                                'warehouse_name' => $receiptItem->receipt?->warehouse?->name,
-                                'qty' => (int) ($receiptItem->qty ?? 0),
-                                'received_at' => $receiptItem->receipt?->received_at?->toDateString(),
+                                'warehouse_name' => $lot->warehouse?->name,
+                                'qty' => (int) $lot->qty,
+                                'comment' => $lot->comment,
+                                'received_at' => $lot->receiptItem?->receipt?->received_at?->toDateString(),
                             ];
                         })
                         ->values()
@@ -252,13 +260,13 @@ class OrderResource extends JsonResource
      * Краткие строки «где есть / по чём» для менеджера в редактировании заказа.
      *
      * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, WarehouseVariantStock>>  $stocksByVariant
-     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, StockReceiptItem>>  $receiptItemsByVariant
-     * @return list<array{channel: string, label: string, code: string|null, title: string|null, purchase_price: string|null, qty: int}>
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, WarehouseStockLot>>  $lotsByVariant
+     * @return list<array{channel: string, label: string, code: string|null, title: string|null, purchase_price: string|null, qty: int, lot_id?: int|null, comment?: string|null}>
      */
     private function fulfillmentOptionsForItem(
         mixed $item,
         $stocksByVariant,
-        $receiptItemsByVariant,
+        $lotsByVariant,
         int $mainWarehouseId,
         int $supplierWarehouseId,
     ): array {
@@ -272,39 +280,48 @@ class OrderResource extends JsonResource
         $mainStock = $mainWarehouseId > 0
             ? $rows->first(fn (WarehouseVariantStock $row) => (int) $row->warehouse_id === $mainWarehouseId)
             : null;
-        $mainAvailable = $mainStock
-            ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
-            : 0;
         $mainPhysical = $mainStock ? max(0, (int) $mainStock->stock) : 0;
         $storedSource = (string) ($item->availability_source ?? '');
         $showWarehouse = $mainPhysical > 0 || in_array($storedSource, ['main', 'main+supplier'], true);
 
         if ($showWarehouse) {
-            $receipts = $receiptItemsByVariant->get($variantId, collect());
-            /** @var StockReceiptItem|null $latestReceipt */
-            $latestReceipt = $receipts->first();
-            $payload = $latestReceipt && is_array($latestReceipt->payload) ? $latestReceipt->payload : [];
-            $title = $payload['supplier_product_name']
-                ?? $payload['name']
-                ?? $latestReceipt?->variant_title
-                ?? null;
-            $title = is_string($title) ? trim($title) : '';
-            // Не подставляем наше каталожное имя — менеджеру нужно имя поставщика.
-            $qty = $mainAvailable > 0
-                ? $mainAvailable
-                : max(1, (int) ($item->qty ?? 1));
-
-            $options[] = [
-                'channel' => 'main',
-                'label' => 'на складе',
-                'code' => $latestReceipt?->supplier_sku
-                    ?? ($item->product_id !== null ? (string) $item->product_id : null),
-                'title' => $title !== '' ? $title : null,
-                'purchase_price' => $latestReceipt?->supplier_price !== null
-                    ? number_format((float) $latestReceipt->supplier_price, 4, '.', '')
-                    : null,
-                'qty' => $qty,
-            ];
+            $lots = $lotsByVariant->get($variantId, collect());
+            if ($lots->isNotEmpty()) {
+                foreach ($lots as $lot) {
+                    /** @var WarehouseStockLot $lot */
+                    $available = max(0, (int) $lot->qty - (int) $lot->reserved_qty);
+                    if ($available <= 0) {
+                        continue;
+                    }
+                    $options[] = [
+                        'channel' => 'main',
+                        'label' => 'на складе',
+                        'code' => $lot->supplier_sku
+                            ?? ($item->product_id !== null ? (string) $item->product_id : null),
+                        'title' => $lot->comment,
+                        'purchase_price' => $lot->supplier_price !== null
+                            ? number_format((float) $lot->supplier_price, 4, '.', '')
+                            : null,
+                        'qty' => $available,
+                        'lot_id' => (int) $lot->id,
+                        'comment' => $lot->comment,
+                    ];
+                }
+            } else {
+                $mainAvailable = $mainStock
+                    ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
+                    : 0;
+                $options[] = [
+                    'channel' => 'main',
+                    'label' => 'на складе',
+                    'code' => $item->product_id !== null ? (string) $item->product_id : null,
+                    'title' => null,
+                    'purchase_price' => null,
+                    'qty' => $mainAvailable > 0 ? $mainAvailable : max(1, (int) ($item->qty ?? 1)),
+                    'lot_id' => null,
+                    'comment' => null,
+                ];
+            }
         }
 
         $variant = $item->relationLoaded('variant') ? $item->variant : null;

@@ -22,6 +22,7 @@ import {
     fetchStockBalanceVariantSuppliers,
     fetchWarehouses,
     recalculateStockWholesalePrices,
+    updateStockLotComment,
     type StockBalanceItem,
     type StockBalanceVariantSupplierRow,
     type WarehouseOption,
@@ -149,6 +150,8 @@ export default function AdminWarehouseBalancesPage() {
     const [supplierRows, setSupplierRows] = useState<StockBalanceVariantSupplierRow[]>([]);
     const [suppliersLoading, setSuppliersLoading] = useState(false);
     const [suppliersError, setSuppliersError] = useState("");
+    const [lotCommentDrafts, setLotCommentDrafts] = useState<Record<number, string>>({});
+    const [lotCommentSavingId, setLotCommentSavingId] = useState<number | null>(null);
 
     const debouncedSearch = useDebouncedValue(search, 350);
 
@@ -228,6 +231,25 @@ export default function AdminWarehouseBalancesPage() {
         setSuppliersTarget(item);
         setSupplierRows([]);
         setSuppliersError("");
+        setLotCommentDrafts({});
+        setLotCommentSavingId(null);
+    };
+
+    const saveLotComment = async (lotId: number) => {
+        setLotCommentSavingId(lotId);
+        setSuppliersError("");
+        try {
+            await updateStockLotComment(lotId, lotCommentDrafts[lotId] ?? "");
+            setSupplierRows((prev) =>
+                prev.map((row) =>
+                    row.lot_id === lotId ? { ...row, comment: lotCommentDrafts[lotId] ?? "" } : row,
+                ),
+            );
+        } catch (e) {
+            setSuppliersError(e instanceof Error ? e.message : "Не удалось сохранить комментарий");
+        } finally {
+            setLotCommentSavingId(null);
+        }
     };
 
     const handleRecalculateWholesale = async () => {
@@ -281,7 +303,15 @@ export default function AdminWarehouseBalancesPage() {
         })
             .then((response) => {
                 if (!cancelled) {
-                    setSupplierRows(response.data ?? []);
+                    const rows = response.data ?? [];
+                    setSupplierRows(rows);
+                    const drafts: Record<number, string> = {};
+                    rows.forEach((row) => {
+                        if (row.source === "lot" && typeof row.lot_id === "number") {
+                            drafts[row.lot_id] = row.comment ?? "";
+                        }
+                    });
+                    setLotCommentDrafts(drafts);
                 }
             })
             .catch((e: unknown) => {
@@ -441,7 +471,10 @@ export default function AdminWarehouseBalancesPage() {
                                     const brandLabel = item.brand_name || "—";
                                     const productLabel = item.product_name || "—";
                                     const unitPriceLabel = item.price != null ? String(item.price) : null;
-                                    const totalPriceLabel = lineTotalLabel(item.price, item.stock);
+                                    const totalPriceLabel =
+                                        item.line_total != null && String(item.line_total).trim() !== ""
+                                            ? String(item.line_total)
+                                            : lineTotalLabel(item.price, item.stock);
                                     const wholesaleLabel = item.wholesale_price != null ? String(item.wholesale_price) : "—";
                                     const productHref = item.product_slug ? `/${item.product_slug}` : null;
                                     const canWriteOff = item.available_stock > 0 || item.reserved_stock > 0;
@@ -480,9 +513,18 @@ export default function AdminWarehouseBalancesPage() {
                                                 </span>
                                             </td>
                                             <td className="whitespace-nowrap px-2 py-1.5 text-admin-text">
-                                                {unitPriceLabel != null
-                                                    ? highlightAdminSearchTerms(unitPriceLabel, debouncedSearch)
-                                                    : "—"}
+                                                {unitPriceLabel != null ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openSuppliersInfo(item)}
+                                                        className="rounded px-0.5 text-left underline decoration-dotted underline-offset-2 transition hover:bg-admin-muted hover:text-[var(--accent)]"
+                                                        title="Партии и поставщики"
+                                                    >
+                                                        {highlightAdminSearchTerms(unitPriceLabel, debouncedSearch)}
+                                                    </button>
+                                                ) : (
+                                                    "—"
+                                                )}
                                             </td>
                                             <td className="whitespace-nowrap px-2 py-1.5 font-medium text-admin-text">
                                                 {totalPriceLabel ?? "—"}
@@ -531,7 +573,7 @@ export default function AdminWarehouseBalancesPage() {
             <AdminModalShell
                 open={suppliersTarget != null}
                 onCloseAction={() => setSuppliersTarget(null)}
-                title="Поставщики"
+                title="Партии на складе"
                 maxWidthClass="sm:max-w-4xl"
             >
                 {suppliersTarget ? (
@@ -544,14 +586,14 @@ export default function AdminWarehouseBalancesPage() {
                         </div>
 
                         {suppliersLoading ? (
-                            <div className="text-sm text-admin-text-secondary">Загрузка поставщиков...</div>
+                            <div className="text-sm text-admin-text-secondary">Загрузка партий...</div>
                         ) : suppliersError ? (
                             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                                 {suppliersError}
                             </div>
                         ) : supplierRows.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-admin-border p-4 text-sm text-admin-text-secondary">
-                                Для этого варианта нет данных по поставщикам.
+                                Для этого варианта нет открытых партий.
                             </div>
                         ) : (
                             <div className="overflow-x-auto rounded-lg border border-admin-border">
@@ -560,42 +602,79 @@ export default function AdminWarehouseBalancesPage() {
                                         <tr>
                                             <th className="min-w-[9rem] px-3 py-2 font-medium">Поставщик</th>
                                             <th className="px-3 py-2 font-medium">Артикул</th>
-                                            <th className="min-w-[14rem] px-3 py-2 font-medium">Название у поставщика</th>
                                             <th className="px-3 py-2 font-medium">Кол-во</th>
+                                            <th className="px-3 py-2 font-medium">Резерв</th>
+                                            <th className="px-3 py-2 font-medium">Доступно</th>
                                             <th className="px-3 py-2 font-medium">Цена</th>
-                                            <th className="px-3 py-2 font-medium">Дата прихода</th>
+                                            <th className="min-w-[10rem] px-3 py-2 font-medium">Комментарий</th>
+                                            <th className="px-3 py-2 font-medium">Приход</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {supplierRows.map((row, index) => (
-                                            <tr
-                                                key={`${row.source}-${row.supplier_name}-${row.supplier_sku}-${index}`}
-                                                className="border-t border-admin-border"
-                                            >
-                                                <td
-                                                    className="whitespace-normal break-words px-3 py-2 text-admin-text"
-                                                    title={row.supplier_name || undefined}
-                                                >
-                                                    {row.supplier_name || "—"}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">{row.supplier_sku || "—"}</td>
-                                                <td
-                                                    className="whitespace-normal break-words px-3 py-2 text-admin-text"
-                                                    title={row.supplier_product_name || undefined}
-                                                >
-                                                    {row.supplier_product_name || "—"}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">
-                                                    {row.qty != null ? `${row.qty} шт.` : "—"}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">
-                                                    {row.supplier_price != null ? String(row.supplier_price) : "—"}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text">
-                                                    {row.received_at || "—"}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {supplierRows.map((row, index) => {
+                                            const lotId = row.lot_id;
+                                            const isLot = row.source === "lot" && typeof lotId === "number";
+                                            const rowKey = isLot
+                                                ? `lot-${lotId}`
+                                                : `${row.source}-${row.supplier_name}-${row.supplier_sku}-${index}`;
+
+                                            return (
+                                                <tr key={rowKey} className="border-t border-admin-border">
+                                                    <td
+                                                        className="whitespace-normal break-words px-3 py-2 text-admin-text"
+                                                        title={row.supplier_name || undefined}
+                                                    >
+                                                        {row.supplier_name || "—"}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.supplier_sku || "—"}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.qty != null ? `${row.qty} шт.` : "—"}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.reserved_qty != null ? row.reserved_qty : "—"}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.available != null ? row.available : "—"}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.supplier_price != null ? String(row.supplier_price) : "—"}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-admin-text">
+                                                        {isLot ? (
+                                                            <div className="flex min-w-[10rem] items-center gap-1">
+                                                                <input
+                                                                    type="text"
+                                                                    value={lotCommentDrafts[lotId] ?? ""}
+                                                                    onChange={(e) =>
+                                                                        setLotCommentDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [lotId]: e.target.value,
+                                                                        }))
+                                                                    }
+                                                                    className="h-7 min-w-0 flex-1 rounded border border-admin-border bg-white px-2 text-xs"
+                                                                    placeholder="Комментарий партии"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={lotCommentSavingId === lotId}
+                                                                    onClick={() => void saveLotComment(lotId)}
+                                                                    className="shrink-0 rounded border border-admin-border px-2 py-0.5 text-[11px] hover:bg-admin-muted disabled:opacity-60"
+                                                                >
+                                                                    {lotCommentSavingId === lotId ? "…" : "OK"}
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            row.comment?.trim() || row.supplier_product_name || "—"
+                                                        )}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-admin-text">
+                                                        {row.received_at || "—"}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

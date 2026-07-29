@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Eye, Pencil, Trash2 } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -46,11 +47,28 @@ function ReceiptDetailsModal({
     row: StockReceiptListItem | null;
     onCloseAction: () => void;
 }) {
-    if (!row) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (!row) {
+            return;
+        }
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [row]);
+
+    if (!row || !mounted) {
         return null;
     }
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
             <div
                 className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
@@ -80,29 +98,53 @@ function ReceiptDetailsModal({
                                 <tr className="border-b text-left text-admin-text-secondary">
                                     <th className="px-4 py-3">Товар</th>
                                     <th className="px-4 py-3">Вариант</th>
+                                    <th className="px-4 py-3">У поставщика</th>
+                                    <th className="px-4 py-3">Комментарий</th>
                                     <th className="px-4 py-3">Кол-во</th>
                                     <th className="px-4 py-3">Цена</th>
                                     <th className="px-4 py-3">Сумма</th>
-                                    <th className="px-4 py-3">Код</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {(row.items ?? []).map((item) => (
-                                    <tr key={item.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3">{item.product_name}</td>
-                                        <td className="px-4 py-3 text-xs text-admin-text">{item.variant_title}</td>
-                                        <td className="px-4 py-3">{item.qty}</td>
-                                        <td className="px-4 py-3">{item.supplier_price}</td>
-                                        <td className="px-4 py-3">{item.line_total ?? "—"}</td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.supplier_sku || "—"}</td>
-                                    </tr>
-                                ))}
+                                {(row.items ?? []).map((item) => {
+                                    const payload =
+                                        item.payload && typeof item.payload === "object" ? item.payload : {};
+                                    const supplierProductName = String(
+                                        (payload as { supplier_product_name?: unknown }).supplier_product_name
+                                            ?? (payload as { title?: unknown }).title
+                                            ?? (payload as { name?: unknown }).name
+                                            ?? "",
+                                    ).trim();
+                                    const lineComment = String(
+                                        (payload as { comment?: unknown }).comment ?? "",
+                                    ).trim();
+                                    const supplierLine = [item.supplier_sku, supplierProductName]
+                                        .filter(Boolean)
+                                        .join(" — ");
+
+                                    return (
+                                        <tr key={item.id} className="border-b last:border-b-0 align-top">
+                                            <td className="px-4 py-3">{item.product_name}</td>
+                                            <td className="px-4 py-3 text-xs text-admin-text">{item.variant_title}</td>
+                                            <td className="max-w-[260px] px-4 py-3 text-xs text-admin-text-secondary">
+                                                {supplierLine || "—"}
+                                            </td>
+                                            <td className="max-w-[220px] px-4 py-3 text-xs text-admin-text-secondary">
+                                                {lineComment || "—"}
+                                            </td>
+                                            <td className="px-4 py-3">{item.qty}</td>
+                                            <td className="px-4 py-3">{item.supplier_price}</td>
+                                            <td className="px-4 py-3">{item.line_total ?? "—"}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 

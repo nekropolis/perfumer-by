@@ -21,6 +21,25 @@ export function StockReceiptUnresolvedTable({
     onToggleLinkAction,
     onOpenManualLinkAction,
 }: StockReceiptUnresolvedTableProps) {
+    const sortedRows = rows
+        .map((row, idx) => ({ row, idx }))
+        .sort((a, b) => {
+            const aLinkedAndInReceipt =
+                isImportRowLinked(a.row.map_key, mappingByKey) &&
+                (Boolean(a.row.in_receipt) || a.row.receipt_status === "in_receipt");
+            const bLinkedAndInReceipt =
+                isImportRowLinked(b.row.map_key, mappingByKey) &&
+                (Boolean(b.row.in_receipt) || b.row.receipt_status === "in_receipt");
+
+            if (aLinkedAndInReceipt !== bLinkedAndInReceipt) {
+                return aLinkedAndInReceipt ? 1 : -1;
+            }
+
+            // Стабильность: исходный порядок внутри групп.
+            return a.idx - b.idx;
+        })
+        .map(({ row }) => row);
+
     return (
         <div className="mt-4 overflow-x-auto rounded-xl border">
             <table className="min-w-full text-xs">
@@ -35,7 +54,7 @@ export function StockReceiptUnresolvedTable({
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row) => {
+                    {sortedRows.map((row) => {
                         const sellerOneRow = importRowAsSellerOneView(row, mappingByKey);
                         const catalogProductLabel = getRowCatalogProductLabel(sellerOneRow);
                         const nameMatchInfo = catalogProductLabel

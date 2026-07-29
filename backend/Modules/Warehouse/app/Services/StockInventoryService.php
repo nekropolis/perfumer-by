@@ -45,6 +45,37 @@ class StockInventoryService
         return (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
     }
 
+    private function lotService(): StockLotService
+    {
+        return app(StockLotService::class);
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return list<array{lot_id: int, qty: int, price: string|null, reserved_qty?: int}>
+     */
+    private function resolveManualItemLotAllocations(
+        array $item,
+        int $warehouseId,
+        int $variantId,
+        int $qty,
+        bool $forReserve,
+    ): array {
+        $stockLotId = (int) ($item['stock_lot_id'] ?? 0);
+        $explicit = $item['stock_lot_allocations'] ?? null;
+        if ($stockLotId <= 0 && (! is_array($explicit) || $explicit === [])) {
+            throw ValidationException::withMessages([
+                'items' => 'Укажите stock_lot_id или stock_lot_allocations для строки списания/резерва',
+            ]);
+        }
+
+        if ($stockLotId > 0) {
+            $explicit = [['lot_id' => $stockLotId, 'qty' => $qty]];
+        }
+
+        return $this->lotService()->allocateLots($warehouseId, $variantId, $qty, $explicit, $forReserve);
+    }
+
     /**
      * Склад с кодом supplier: для заказов канал «виртуально в наличии» — списание заказа не уменьшает поле stock.
      */
@@ -228,6 +259,12 @@ class StockInventoryService
             $beforeReserved = (int) $warehouseStock->reserved_stock;
             $reservedDelta = -min((int) $reservation->qty, $beforeReserved);
 
+            $reservationPayload = is_array($reservation->payload) ? $reservation->payload : [];
+            $lots = $reservationPayload['lots'] ?? [];
+            if (is_array($lots) && $lots !== []) {
+                $this->lotService()->applyReleaseAllocations($lots);
+            }
+
             $warehouseStock->update([
                 'reserved_stock' => max(0, $beforeReserved + $reservedDelta),
             ]);
@@ -252,6 +289,7 @@ class StockInventoryService
                     'order_id' => $order->id,
                     'order_item_id' => $reservation->order_item_id,
                     'reason' => $reason,
+                    'lots' => is_array($lots) ? $lots : [],
                 ],
                 $beforeStock,
                 $beforeReserved,
@@ -351,6 +389,9 @@ class StockInventoryService
                     continue;
                 }
 
+                $reservationPayload = is_array($reservation->payload) ? $reservation->payload : [];
+                $lots = $reservationPayload['lots'] ?? [];
+
                 $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
                 $beforeStock = (int) $warehouseStock->stock;
                 $beforeReserved = (int) $warehouseStock->reserved_stock;
@@ -387,6 +428,10 @@ class StockInventoryService
                         'stock' => $beforeStock - $lineQty,
                         'reserved_stock' => $beforeReserved - $reservedPart,
                     ]);
+
+                    if (is_array($lots) && $lots !== []) {
+                        $this->lotService()->applyWriteoffAllocations($lots, true);
+                    }
                 }
 
                 $reservation->update([
@@ -409,6 +454,7 @@ class StockInventoryService
                         'order_item_id' => $item->id,
                         'reservation_id' => $reservation->id,
                         'writeoff_type' => 'order',
+                        'lots' => is_array($lots) ? $lots : [],
                     ], $supplierChannelWriteoff ? ['supplier_virtual_writeoff' => true] : []),
                     $beforeStock,
                     $beforeReserved,
@@ -512,6 +558,11 @@ class StockInventoryService
                     $stockSource = 'available';
                 }
 
+                $lots = $this->resolveManualItemLotAllocations($item, $warehouseId, (int) $variant->id, $qty, false);
+                if ($price === null && isset($lots[0]['price']) && $lots[0]['price'] !== null) {
+                    $price = (float) $lots[0]['price'];
+                }
+
                 StockWriteoffItem::query()->create([
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $product->id,
@@ -523,6 +574,7 @@ class StockInventoryService
                     'payload' => array_merge($item['payload'] ?? [], [
                         'warehouse_id' => $warehouseId,
                         'stock_source' => $stockSource,
+                        'lots' => $lots,
                     ]),
                 ]);
 
@@ -537,6 +589,7 @@ class StockInventoryService
                         'comment' => $validated['comment'] ?? null,
                         'warehouse_id' => $warehouseId,
                         'stock_source' => $stockSource,
+                        'lots' => $lots,
                     ],
                     $warehouseId
                 );
@@ -612,6 +665,11 @@ class StockInventoryService
                 $qty = (int) $item['qty'];
                 $price = array_key_exists('price', $item) ? (float) $item['price'] : null;
 
+                $lots = $this->resolveManualItemLotAllocations($item, $warehouseId, (int) $variant->id, $qty, true);
+                if ($price === null && isset($lots[0]['price']) && $lots[0]['price'] !== null) {
+                    $price = (float) $lots[0]['price'];
+                }
+
                 StockWriteoffItem::query()->create([
                     'stock_writeoff_id' => $writeoff->id,
                     'product_id' => $product->id,
@@ -624,6 +682,7 @@ class StockInventoryService
                         'warehouse_id' => $warehouseId,
                         'stock_source' => 'available',
                         'reserve_document' => true,
+                        'lots' => $lots,
                     ]),
                 ]);
 
@@ -636,6 +695,7 @@ class StockInventoryService
                         'reserve_type' => 'manual',
                         'comment' => $validated['comment'] ?? null,
                         'warehouse_id' => $warehouseId,
+                        'lots' => $lots,
                     ],
                     $warehouseId
                 );
@@ -780,6 +840,18 @@ class StockInventoryService
                     'reserved_stock' => $afterReserved,
                 ]);
 
+                $movementPayload = is_array($movement->payload) ? $movement->payload : [];
+                $lots = $movementPayload['lots'] ?? [];
+                if (is_array($lots) && $lots !== []) {
+                    $this->lotService()->restoreWriteoffAllocations(
+                        $lots,
+                        $warehouseId,
+                        (int) $variant->product_id,
+                        (int) $variant->id,
+                        (int) $movement->reserved_delta < 0,
+                    );
+                }
+
                 $this->createMovement(
                     self::MOVEMENT_WRITEOFF_REVERSAL,
                     'stock_writeoff',
@@ -845,6 +917,12 @@ class StockInventoryService
             $beforeReserved = (int) $warehouseStock->reserved_stock;
             $reservedDelta = (int) $movement->reserved_delta;
             $afterReserved = max(0, $beforeReserved - $reservedDelta);
+
+            $movementPayload = is_array($movement->payload) ? $movement->payload : [];
+            $lots = $movementPayload['lots'] ?? [];
+            if (is_array($lots) && $lots !== []) {
+                $this->lotService()->applyReleaseAllocations($lots);
+            }
 
             $warehouseStock->update([
                 'reserved_stock' => $afterReserved,
@@ -1068,6 +1146,11 @@ class StockInventoryService
             return;
         }
 
+        $lots = $payload['lots'] ?? null;
+        if (is_array($lots) && $lots !== []) {
+            $this->lotService()->applyWriteoffAllocations($lots, $stockSource === 'reserved');
+        }
+
         if ($stockSource === 'reserved') {
             $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
             $beforeStock = (int) $warehouseStock->stock;
@@ -1126,6 +1209,11 @@ class StockInventoryService
     ): void {
         if ($qty <= 0) {
             return;
+        }
+
+        $lots = $payload['lots'] ?? null;
+        if (is_array($lots) && $lots !== []) {
+            $this->lotService()->applyReserveAllocations($lots);
         }
 
         $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
@@ -1307,6 +1395,20 @@ class StockInventoryService
             ],
         ]);
 
+        $explicitLots = $item->getAttribute('stock_lot_allocations');
+        $explicit = is_array($explicitLots) && $explicitLots !== [] ? $explicitLots : null;
+        $lots = $this->lotService()->allocateLots(
+            $warehouseId,
+            (int) $variant->id,
+            $qty,
+            $explicit,
+            true,
+        );
+        $this->lotService()->applyReserveAllocations($lots);
+        $reservation->update([
+            'payload' => array_merge($reservation->payload ?? [], ['lots' => $lots]),
+        ]);
+
         $warehouseStock->update([
             'reserved_stock' => $beforeReserved + $qty,
         ]);
@@ -1324,6 +1426,7 @@ class StockInventoryService
                 'order_id' => $order->id,
                 'order_item_id' => $item->id,
                 'reservation_id' => $reservation->id,
+                'lots' => $lots,
             ],
             $beforeStock,
             $beforeReserved,

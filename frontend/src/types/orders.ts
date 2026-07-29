@@ -59,6 +59,13 @@ export type OrderItemFulfillmentOption = {
     title: string | null;
     purchase_price: string | null;
     qty: number;
+    lot_id?: number | null;
+    comment?: string | null;
+};
+
+export type OrderItemStockLotAllocation = {
+    lot_id: number;
+    qty: number;
 };
 
 export type OrderItem = {
@@ -82,6 +89,7 @@ export type OrderItem = {
     image?: string | null;
     supplier_offers?: OrderItemSupplierOffer[];
     receipt_batches?: OrderItemReceiptBatch[];
+    stock_lot_allocations?: OrderItemStockLotAllocation[];
 };
 
 export type OrderData = {

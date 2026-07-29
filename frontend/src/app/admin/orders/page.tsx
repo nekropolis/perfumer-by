@@ -948,6 +948,7 @@ export default function AdminOrdersPage() {
                         onStatusFilterChangeAction={setStatusFilter}
                         selectedOrderIds={selectedOrderIds}
                         onSelectedOrderIdsChangeAction={setSelectedOrderIds}
+                        hideTerminalStatuses={!hasOrdersFilters}
                     />
                     {ordersMeta.total === 0 ? (
                         <AdminEmptyState

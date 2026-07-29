@@ -8,6 +8,8 @@ import { orderStatusPillStyle } from "@/constants/order-statuses";
 type Option = {
     value: string;
     label: string;
+    triggerLabel?: string;
+    menuLabel?: string;
     color?: string;
 };
 
@@ -58,7 +60,7 @@ export default function AdminStatusDropdown({
         () => options.find((item) => item.value === value),
         [options, value],
     );
-    const currentLabel = currentOption?.label ?? value;
+    const currentLabel = currentOption?.triggerLabel ?? currentOption?.label ?? value;
     const resolvedTriggerColor = triggerColor?.trim() || currentOption?.color?.trim() || undefined;
     const pillStyle = resolvedTriggerColor ? orderStatusPillStyle(resolvedTriggerColor) : null;
     const pillClassName =
@@ -252,7 +254,7 @@ export default function AdminStatusDropdown({
                                           className="whitespace-nowrap"
                                           style={optionColor ? { color: optionColor } : undefined}
                                       >
-                                          {item.label}
+                                          {item.menuLabel ?? item.label}
                                       </span>
                                   </span>
                                   {isActive ? (

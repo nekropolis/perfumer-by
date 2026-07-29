@@ -22,6 +22,8 @@ class StockReceiptController extends Controller
     {
         $search = trim((string) $request->input('search', ''));
         $warehouseId = (int) $request->input('warehouse_id', 0);
+        $supplierId = (int) $request->input('supplier_id', 0);
+        $status = trim((string) $request->input('status', ''));
 
         $receipts = StockReceipt::query()
             ->with(['supplier', 'warehouse', 'items'])
@@ -33,6 +35,11 @@ class StockReceiptController extends Controller
                 });
             })
             ->when($warehouseId > 0, fn ($query) => $query->where('warehouse_id', $warehouseId))
+            ->when($supplierId > 0, fn ($query) => $query->where('supplier_id', $supplierId))
+            ->when(
+                $status !== '' && in_array($status, [StockReceipt::STATUS_DRAFT, StockReceipt::STATUS_POSTED], true),
+                fn ($query) => $query->where('status', $status)
+            )
             ->orderByDesc('id')
             ->paginate(20);
 
@@ -400,7 +407,7 @@ class StockReceiptController extends Controller
     private function validatePayload(Request $request): array
     {
         return $request->validate([
-            'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'supplier_code' => ['nullable', 'string', 'max:100'],
             'supplier_name' => ['required', 'string', 'max:255'],

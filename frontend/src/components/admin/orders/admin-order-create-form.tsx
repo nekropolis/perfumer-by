@@ -21,6 +21,10 @@ import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import { normalizeGiftCertificateCodeInput } from "@/lib/cart-api";
 import type { OrderData, OrderItemFulfillmentOption } from "@/types/orders";
 import {
+  fetchStockBalanceVariantSuppliers,
+  type StockBalanceVariantSupplierRow,
+} from "@/lib/admin-warehouse-api";
+import {
   fetchProductById,
   flattenProductSmartSearchHits,
   productSmartSearchAvailabilityClass,
@@ -192,7 +196,7 @@ const surfaceFieldCompactClass =
 const orderLineTableRow =
   "flex min-w-[52rem] items-start gap-x-3";
 const orderLineColName = "min-w-0 flex-1 overflow-hidden";
-const orderLineColFrom = "w-[7.5rem] shrink-0";
+const orderLineColFrom = "w-[6.25rem] shrink-0";
 const orderLineColQty = "w-11 shrink-0";
 const orderLineColPrice = "w-[5.75rem] shrink-0";
 const orderLineColTotal = "w-[6.5rem] shrink-0";
@@ -202,6 +206,40 @@ type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]["value"];
 
 type FulfillmentChannel = "main" | "offer";
+
+type MainLotChoice = {
+  lot_id: number;
+  label: string;
+  qty: number;
+  comment?: string | null;
+  purchase_price?: string | null;
+};
+
+function normalizeLotPrice(value: string | null | undefined): number {
+  if (value == null) return Number.POSITIVE_INFINITY;
+  const normalized = String(value).trim().replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function compareMainLotChoice(a: MainLotChoice, b: MainLotChoice): number {
+  const byPrice = normalizeLotPrice(a.purchase_price) - normalizeLotPrice(b.purchase_price);
+  if (byPrice !== 0) {
+    return byPrice;
+  }
+  const aNoComment = (a.comment ?? "").trim() === "";
+  const bNoComment = (b.comment ?? "").trim() === "";
+  if (aNoComment !== bNoComment) {
+    return aNoComment ? -1 : 1;
+  }
+  return a.lot_id - b.lot_id;
+}
+
+function pickPreferredLotId(choices: MainLotChoice[]): number | null {
+  if (choices.length === 0) return null;
+  const sorted = [...choices].sort(compareMainLotChoice);
+  return sorted[0]?.lot_id ?? null;
+}
 
 type OrderLine = {
   product_id: number | null;
@@ -221,7 +259,74 @@ type OrderLine = {
   can_fulfill_main: boolean;
   can_fulfill_offer: boolean;
   fulfillment_options: OrderItemFulfillmentOption[];
+  main_lot_choices: MainLotChoice[];
+  selected_lot_id: number | null;
 };
+
+function mainLotChoicesFromFulfillment(options: OrderItemFulfillmentOption[]): MainLotChoice[] {
+  return options
+    .filter((o) => o.channel === "main" && typeof o.lot_id === "number" && o.lot_id > 0)
+    .map((o) => {
+      const detail = [
+        o.code,
+        o.title,
+        o.purchase_price != null && o.purchase_price !== "" ? o.purchase_price : null,
+        o.comment?.trim() || null,
+        o.qty !== 0 ? `${o.qty} шт.` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return {
+        lot_id: o.lot_id!,
+        label: detail ? `${o.label} · ${detail}` : o.label,
+        qty: o.qty,
+        comment: o.comment ?? null,
+        purchase_price: o.purchase_price,
+      };
+    })
+    .sort(compareMainLotChoice);
+}
+
+function lotChoiceLabelFromSupplierRow(row: StockBalanceVariantSupplierRow): string {
+  const parts = [
+    row.supplier_name,
+    row.supplier_sku,
+    row.supplier_price != null ? String(row.supplier_price) : null,
+    row.comment?.trim() || null,
+    row.available != null ? `дост. ${row.available}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ") || `Партия #${row.lot_id}`;
+}
+
+async function resolveMainLotChoices(
+  variantId: number,
+  fulfillmentOptions: OrderItemFulfillmentOption[],
+): Promise<{ choices: MainLotChoice[]; selected_lot_id: number | null }> {
+  const fromOptions = mainLotChoicesFromFulfillment(fulfillmentOptions);
+  if (fromOptions.length > 0) {
+    return {
+      choices: fromOptions,
+      selected_lot_id: pickPreferredLotId(fromOptions),
+    };
+  }
+
+  const response = await fetchStockBalanceVariantSuppliers({ variant_id: variantId });
+  const choices = (response.data ?? [])
+    .filter((row) => row.source === "lot" && typeof row.lot_id === "number" && row.lot_id > 0)
+    .map((row) => ({
+      lot_id: row.lot_id!,
+      label: lotChoiceLabelFromSupplierRow(row),
+      qty: Math.max(0, Number(row.available ?? row.qty ?? 0)),
+      comment: row.comment ?? null,
+      purchase_price: row.supplier_price != null ? String(row.supplier_price) : null,
+    }))
+    .sort(compareMainLotChoice);
+
+  return {
+    choices,
+    selected_lot_id: pickPreferredLotId(choices),
+  };
+}
 
 function digitsOnly(s: string): string {
   return s.replace(/\D+/g, "");
@@ -410,6 +515,8 @@ function emptyLine(): OrderLine {
     can_fulfill_main: false,
     can_fulfill_offer: false,
     fulfillment_options: [],
+    main_lot_choices: [],
+    selected_lot_id: null,
   };
 }
 
@@ -497,6 +604,9 @@ function linesFromOrderItems(order: OrderData): OrderLine[] {
     const waiting = Boolean(item.waiting_discount) || channel === "offer";
     const price = Number(item.price) || 0;
     const basePrice = waiting && price > 0 ? estimateBaseFromWaitingPrice(price) : price;
+    const fulfillmentOptions = item.fulfillment_options ?? [];
+    const mainChoices = mainLotChoicesFromFulfillment(fulfillmentOptions);
+    const allocationLotId = item.stock_lot_allocations?.[0]?.lot_id ?? null;
     return {
       product_id: item.product_id ?? null,
       variant_id: item.variant_id ?? null,
@@ -512,7 +622,9 @@ function linesFromOrderItems(order: OrderData): OrderLine[] {
       waiting_discount: waiting,
       can_fulfill_main: canMain,
       can_fulfill_offer: canOffer,
-      fulfillment_options: item.fulfillment_options ?? [],
+      fulfillment_options: fulfillmentOptions,
+      main_lot_choices: mainChoices,
+      selected_lot_id: allocationLotId ?? pickPreferredLotId(mainChoices),
     };
   });
 }
@@ -798,6 +910,48 @@ export default function AdminOrderCreateForm({
   const [orderQuoteLoading, setOrderQuoteLoading] = useState(false);
   const [lines, setLines] = useState<OrderLine[]>(() => (initialOrder ? linesFromOrderItems(initialOrder) : [emptyLine()]));
   const [saving, setSaving] = useState(false);
+
+  const syncMainLotsForLine = useCallback(
+    async (lineIdx: number, variantId: number, fulfillmentOptions: OrderItemFulfillmentOption[]) => {
+      try {
+        const { choices, selected_lot_id } = await resolveMainLotChoices(variantId, fulfillmentOptions);
+        if (choices.length === 0) {
+          return;
+        }
+        setLines((prev) =>
+          prev.map((row, i) =>
+            i === lineIdx
+              ? {
+                  ...row,
+                  main_lot_choices: choices,
+                  selected_lot_id: row.selected_lot_id ?? selected_lot_id,
+                }
+              : row,
+          ),
+        );
+      } catch {
+        // партии опциональны до сохранения
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!initialOrder) {
+      return;
+    }
+    lines.forEach((line, idx) => {
+      if (!line.variant_id || channelFromSource(line.availability_source) !== "main") {
+        return;
+      }
+      if (line.main_lot_choices.length > 0) {
+        return;
+      }
+      void syncMainLotsForLine(idx, line.variant_id, line.fulfillment_options);
+    });
+    // только при открытии заказа на редактирование
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOrder?.id, syncMainLotsForLine]);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState("");
@@ -1642,6 +1796,8 @@ export default function AdminOrderCreateForm({
               base_price: catalogPrice,
               price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
               fulfillment_options: row.fulfillment_options,
+              main_lot_choices: [],
+              selected_lot_id: null,
               ...fulfillment,
             }
             : row,
@@ -1649,6 +1805,10 @@ export default function AdminOrderCreateForm({
       );
       setActiveLine(null);
       setPickerProductId(null);
+      if (variant.can_fulfill_main ?? variantPreview.can_fulfill_main) {
+        const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
+        void syncMainLotsForLine(lineIdx, variant.id, priorOptions);
+      }
     } finally {
       setLoadingProductLineIdx(null);
     }
@@ -1671,11 +1831,17 @@ export default function AdminOrderCreateForm({
             sku: v.display_name ?? row.sku,
             base_price: catalogPrice,
             price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
+            main_lot_choices: [],
+            selected_lot_id: null,
             ...fulfillment,
           }
           : row,
       ),
     );
+    if (v.can_fulfill_main) {
+      const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
+      void syncMainLotsForLine(lineIdx, v.id, priorOptions);
+    }
     setActiveLine(null);
     setPickerProductId(null);
     setProductHits([]);
@@ -1684,6 +1850,13 @@ export default function AdminOrderCreateForm({
   const setLineQty = (idx: number, qty: number) => {
     if (itemsLocked) return;
     setLines((prev) => prev.map((row, i) => (i === idx ? { ...row, qty: Math.max(1, qty) } : row)));
+  };
+
+  const setLineSelectedLot = (idx: number, lotId: number | null) => {
+    if (itemsLocked) return;
+    setLines((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, selected_lot_id: lotId } : row)),
+    );
   };
 
   const setLineChannel = (idx: number, channel: FulfillmentChannel) => {
@@ -1706,6 +1879,9 @@ export default function AdminOrderCreateForm({
           waiting_discount: waiting,
           base_price: base,
           price: priceWithOptionalWaiting(base, waiting),
+          selected_lot_id: channel === "main"
+            ? (row.selected_lot_id ?? pickPreferredLotId(row.main_lot_choices))
+            : null,
         };
       }),
     );
@@ -1774,6 +1950,16 @@ export default function AdminOrderCreateForm({
       setError("Добавьте хотя бы одну позицию: выберите товар и вариант");
       return;
     }
+    const missingLotLine = filledLines.find(
+      (line) =>
+        channelFromSource(line.availability_source) === "main" &&
+        line.main_lot_choices.length > 0 &&
+        !line.selected_lot_id,
+    );
+    if (missingLotLine) {
+      setError("Для позиций со склада выберите партию для списания");
+      return;
+    }
     if (deliveryMethod !== "pickup") {
       if (!deliveryAddress.trim()) {
         setError("Укажите адрес доставки");
@@ -1840,6 +2026,13 @@ export default function AdminOrderCreateForm({
         price: Math.max(0, item.price),
         availability_source: item.availability_source,
         waiting_discount: item.waiting_discount,
+        ...(channelFromSource(item.availability_source) === "main" && item.selected_lot_id
+          ? {
+              stock_lot_allocations: [
+                { lot_id: item.selected_lot_id, qty: Math.max(1, item.qty) },
+              ],
+            }
+          : {}),
       })),
     };
 
@@ -2288,6 +2481,7 @@ export default function AdminOrderCreateForm({
                   if (!isCompleteOrderLine(line)) return null;
                   const channel = channelFromSource(line.availability_source);
                   const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
+                  const selectedLot = line.main_lot_choices.find((lot) => lot.lot_id === line.selected_lot_id) ?? null;
                   const selectValue: FulfillmentChannel =
                     channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
                       ? "offer"
@@ -2313,6 +2507,8 @@ export default function AdminOrderCreateForm({
                                   ? Number(opt.purchase_price).toFixed(2)
                                   : null,
                                 opt.qty !== 0 ? `${opt.qty} шт.` : null,
+                                opt.comment?.trim() || null,
+                                opt.lot_id ? `#${opt.lot_id}` : null,
                               ].filter(Boolean);
                               const detailText = detailParts.join(" · ");
                               const fullText = detailText ? `${opt.label} · ${detailText}` : opt.label;
@@ -2329,8 +2525,17 @@ export default function AdminOrderCreateForm({
                             })}
                           </ul>
                         ) : null}
+                        {selectValue === "main" && selectedLot ? (
+                          <div
+                            className="truncate text-[11px] leading-snug text-admin-text-secondary"
+                            title={`Партия #${selectedLot.lot_id} · ${selectedLot.label}`}
+                          >
+                            <span className="font-medium text-admin-text">Партия:</span>{" "}
+                            {`#${selectedLot.lot_id} · ${selectedLot.label}`}
+                          </div>
+                        ) : null}
                       </div>
-                      <div className={`${orderLineColFrom} self-start pt-0.5`}>
+                      <div className={`${orderLineColFrom} self-start space-y-1 pt-0.5`}>
                         {!canPickChannel && !channel ? (
                           <p className="text-xs leading-snug text-admin-text-secondary">
                             Нет склада и офера — выбирать не из чего
@@ -2340,16 +2545,45 @@ export default function AdminOrderCreateForm({
                             {channel === "main" ? "Склад" : channel === "offer" ? "Офер" : "—"}
                           </p>
                         ) : (
-                          <select
+                          <AdminStatusDropdown
                             value={selectValue}
-                            onChange={(e) => setLineChannel(idx, e.target.value as FulfillmentChannel)}
-                            className="h-8 w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 text-xs text-admin-text outline-none focus:ring-2 focus:ring-admin-primary/20"
-                            aria-label={`Откуда: ${formatOrderLineProductLabel(line)}`}
-                          >
-                            {line.can_fulfill_main ? <option value="main">Склад</option> : null}
-                            {line.can_fulfill_offer ? <option value="offer">Офер</option> : null}
-                          </select>
+                            onChangeAction={(value) => setLineChannel(idx, value as FulfillmentChannel)}
+                            options={[
+                              ...(line.can_fulfill_main
+                                ? [{ value: "main", label: "Склад", triggerLabel: "Склад", menuLabel: "Склад" }]
+                                : []),
+                              ...(line.can_fulfill_offer
+                                ? [{ value: "offer", label: "Офер", triggerLabel: "Офер", menuLabel: "Офер" }]
+                                : []),
+                            ]}
+                            triggerVariant="text"
+                            triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
+                            widthClassName="w-[6.25rem]"
+                            menuWidthClassName="w-[180px]"
+                          />
                         )}
+                        {selectValue === "main" && line.main_lot_choices.length > 0 ? (
+                          itemsLocked ? (
+                            null
+                          ) : (
+                            <AdminStatusDropdown
+                              value={line.selected_lot_id != null ? String(line.selected_lot_id) : ""}
+                              onChangeAction={(nextValue) =>
+                                setLineSelectedLot(idx, nextValue ? Number(nextValue) : null)
+                              }
+                              options={line.main_lot_choices.map((lot) => ({
+                                value: String(lot.lot_id),
+                                label: `#${lot.lot_id}`,
+                                triggerLabel: `#${lot.lot_id}`,
+                                menuLabel: `#${lot.lot_id} · ${lot.label}`,
+                              }))}
+                              triggerVariant="text"
+                              triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
+                              widthClassName="w-[6.25rem]"
+                              menuWidthClassName="w-[360px] max-w-[min(90vw,420px)]"
+                            />
+                          )
+                        ) : null}
                       </div>
                       <div className={`${orderLineColQty} self-start pt-0.5`}>
                         {itemsLocked ? (

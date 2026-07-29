@@ -83,6 +83,10 @@ class StockWriteoffController extends Controller
             'items.*.price' => ['nullable', 'numeric', 'min:0'],
             'items.*.payload' => ['nullable', 'array'],
             'items.*.stock_source' => ['nullable', 'string', 'in:available,reserved'],
+            'items.*.stock_lot_id' => ['nullable', 'integer', 'min:1'],
+            'items.*.stock_lot_allocations' => ['nullable', 'array'],
+            'items.*.stock_lot_allocations.*.lot_id' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
+            'items.*.stock_lot_allocations.*.qty' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
         ]);
 
         $documentKind = (string) ($validated['document_kind'] ?? 'writeoff');

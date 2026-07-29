@@ -76,6 +76,9 @@ class OrderController extends Controller
                 'in:main,main+supplier,supplier_only,supplier_warehouse,unavailable',
             ],
             'items.*.waiting_discount' => ['sometimes', 'boolean'],
+            'items.*.stock_lot_allocations' => ['nullable', 'array'],
+            'items.*.stock_lot_allocations.*.lot_id' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
+            'items.*.stock_lot_allocations.*.qty' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
         ];
     }
 
@@ -292,6 +295,14 @@ class OrderController extends Controller
             $toBoundary = $tmp->endOfDay();
         }
 
+        // Один день: period=today или from=to — выполненные/отменённые в конец списка.
+        $isSingleDayFilter = (! $useCustomDateRange && $period === 'today')
+            || (
+                $fromBoundary !== null
+                && $toBoundary !== null
+                && $fromBoundary->toDateString() === $toBoundary->toDateString()
+            );
+
         $perPage = (int) $request->input('per_page', 25);
         if (! in_array($perPage, [25, 50, 100], true)) {
             $perPage = 25;
@@ -361,9 +372,38 @@ class OrderController extends Controller
                     now()->copy()->endOfYear()->toDateString(),
                 ]);
             })
-            ->orderByRaw('shipment_date is null')
-            ->orderBy('shipment_date')
-            ->orderBy('id')
+            ->when($isSingleDayFilter, function ($query) {
+                $query->orderByRaw("CASE WHEN status IN ('done', 'cancelled', 'completed') THEN 1 ELSE 0 END");
+            })
+            ->orderByRaw(
+                "CASE
+                    WHEN shipment_date IS NOT NULL
+                     AND shipment_date < ?
+                     AND status NOT IN ('done', 'cancelled', 'completed')
+                    THEN 0 ELSE 1
+                END ASC,
+                CASE
+                    WHEN shipment_date IS NOT NULL
+                     AND shipment_date < ?
+                     AND status NOT IN ('done', 'cancelled', 'completed')
+                    THEN shipment_date
+                END ASC,
+                CASE
+                    WHEN NOT (
+                        shipment_date IS NOT NULL
+                        AND shipment_date < ?
+                        AND status NOT IN ('done', 'cancelled', 'completed')
+                    )
+                    THEN shipment_date
+                END DESC,
+                shipment_date IS NULL ASC,
+                id DESC",
+                [
+                    now('Europe/Minsk')->toDateString(),
+                    now('Europe/Minsk')->toDateString(),
+                    now('Europe/Minsk')->toDateString(),
+                ]
+            )
             ->paginate($perPage);
 
         return response()->json([
@@ -937,6 +977,7 @@ class OrderController extends Controller
                 'availability_source' => isset($item['availability_source']) && is_string($item['availability_source'])
                     ? $item['availability_source']
                     : null,
+                'stock_lot_allocations' => $this->normalizeStockLotAllocations($item['stock_lot_allocations'] ?? null),
             ]);
 
             $itemsQty += $qty;
@@ -1101,6 +1142,32 @@ class OrderController extends Controller
             'discount_percent_after' => $after,
             'percent_increment' => $appliedIncrement,
         ]);
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<array{lot_id: int, qty: int}>|null
+     */
+    private function normalizeStockLotAllocations(mixed $raw): ?array
+    {
+        if (! is_array($raw) || $raw === []) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $lotId = (int) ($row['lot_id'] ?? 0);
+            $qty = (int) ($row['qty'] ?? 0);
+            if ($lotId <= 0 || $qty <= 0) {
+                continue;
+            }
+            $out[] = ['lot_id' => $lotId, 'qty' => $qty];
+        }
+
+        return $out !== [] ? $out : null;
     }
 
 }

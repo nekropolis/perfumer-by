@@ -10,6 +10,7 @@ use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
 use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockLotService;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -31,6 +32,7 @@ final class WholesalePriceService
 
     public function __construct(
         private readonly WarehousePurchasePriceResolver $purchasePriceResolver,
+        private readonly StockLotService $stockLotService,
     ) {
     }
 
@@ -65,7 +67,7 @@ final class WholesalePriceService
         foreach (array_chunk($variantIds, self::CHUNK_SIZE) as $chunkIds) {
             $offerPurchaseByVariant = $this->minOfferPurchaseByVariant($chunkIds);
             $entryByVariant = $mainWarehouseId > 0
-                ? $this->purchasePriceResolver->lastPostedPricesForMainWarehouse($chunkIds, $mainWarehouseId)
+                ? $this->entryPurchaseByVariant($chunkIds, $mainWarehouseId)
                 : [];
 
             $variants = ProductVariantLink::query()
@@ -211,6 +213,35 @@ final class WholesalePriceService
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array<int, float>
+     */
+    private function entryPurchaseByVariant(array $variantIds, int $mainWarehouseId): array
+    {
+        $avgMap = $this->stockLotService->avgPurchaseByVariant($variantIds, $mainWarehouseId);
+        if (count($avgMap) === count($variantIds)) {
+            $map = [];
+            foreach ($avgMap as $variantId => $price) {
+                $map[$variantId] = (float) $price;
+            }
+
+            return $map;
+        }
+
+        $fallback = $this->purchasePriceResolver->lastPostedPricesForMainWarehouse($variantIds, $mainWarehouseId);
+        $map = [];
+        foreach ($variantIds as $variantId) {
+            if (isset($avgMap[$variantId])) {
+                $map[$variantId] = (float) $avgMap[$variantId];
+            } elseif (isset($fallback[$variantId])) {
+                $map[$variantId] = $fallback[$variantId];
+            }
+        }
+
+        return $map;
     }
 
     /**

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -40,6 +41,7 @@ type ReceiptFormItem = {
     supplier_price: string;
     supplier_sku: string;
     supplier_product_name: string;
+    line_comment: string;
 };
 
 type ReceiptFormState = {
@@ -62,6 +64,7 @@ type DraftReceiptItem = {
     supplier_price: string;
     supplier_sku: string;
     supplier_product_name: string;
+    line_comment: string;
 };
 
 const emptyDraftItem = (): DraftReceiptItem => ({
@@ -74,6 +77,7 @@ const emptyDraftItem = (): DraftReceiptItem => ({
     supplier_price: "",
     supplier_sku: "",
     supplier_product_name: "",
+    line_comment: "",
 });
 
 const emptyForm = (): ReceiptFormState => ({
@@ -106,6 +110,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [posting, setPosting] = useState(false);
     const [error, setError] = useState("");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
     const [receiptStatus, setReceiptStatus] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState("");
     const [skuLookupPending, setSkuLookupPending] = useState(false);
@@ -206,6 +211,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 ?? (payload as { name?: unknown }).name
                                 ?? "",
                         );
+                        const lineComment = String((payload as { comment?: unknown }).comment ?? "");
 
                         return {
                             product_id: item.product_id,
@@ -217,6 +223,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             supplier_price: String(item.supplier_price ?? ""),
                             supplier_sku: item.supplier_sku ?? "",
                             supplier_product_name: supplierProductName,
+                            line_comment: lineComment,
                         };
                     }),
                 };
@@ -293,7 +300,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         setError("");
 
         try {
-            if (!form.supplier_name.trim()) {
+            if (!form.supplier_id || !form.supplier_name.trim()) {
                 throw new Error("Выберите поставщика");
             }
             if (!form.warehouse_id) {
@@ -321,17 +328,26 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 supplier_name: form.supplier_name.trim(),
                 received_at: form.received_at || null,
                 comment: form.comment.trim(),
-                items: form.items.map((item) => ({
-                    product_id: Number(item.product_id),
-                    variant_id: item.variant_id ? Number(item.variant_id) : null,
-                    variant_definition_id: item.variant_definition_id ? Number(item.variant_definition_id) : null,
-                    qty: Number(item.qty),
-                    supplier_price: Number(item.supplier_price),
-                    supplier_sku: item.supplier_sku.trim(),
-                    payload: item.supplier_product_name.trim()
-                        ? { supplier_product_name: item.supplier_product_name.trim() }
-                        : undefined,
-                })),
+                items: form.items.map((item) => {
+                    const payloadBody: NonNullable<StockReceiptPayload["items"][number]["payload"]> = {};
+                    const supplierName = item.supplier_product_name.trim();
+                    const lineComment = item.line_comment.trim();
+                    if (supplierName) {
+                        payloadBody.supplier_product_name = supplierName;
+                    }
+                    if (lineComment) {
+                        payloadBody.comment = lineComment;
+                    }
+                    return {
+                        product_id: Number(item.product_id),
+                        variant_id: item.variant_id ? Number(item.variant_id) : null,
+                        variant_definition_id: item.variant_definition_id ? Number(item.variant_definition_id) : null,
+                        qty: Number(item.qty),
+                        supplier_price: Number(item.supplier_price),
+                        supplier_sku: item.supplier_sku.trim(),
+                        payload: Object.keys(payloadBody).length > 0 ? payloadBody : undefined,
+                    };
+                }),
             };
 
             if (isEdit && receiptId) {
@@ -379,28 +395,84 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
             return;
         }
 
+        const nextItem: ReceiptFormItem = {
+            product_id: draftItem.product_id,
+            variant_id: draftItem.variant_id,
+            variant_definition_id: null,
+            product_name: draftItem.product_name,
+            variant_title: draftItem.variant_title,
+            qty: draftItem.qty,
+            supplier_price: draftItem.supplier_price,
+            supplier_sku: draftItem.supplier_sku,
+            supplier_product_name: draftItem.supplier_product_name.trim(),
+            line_comment: draftItem.line_comment.trim(),
+        };
+
         setError("");
-        setForm((prev) => ({
-            ...prev,
-            items: [
-                ...prev.items.filter((item) => item.product_id !== null),
-                {
-                    product_id: draftItem.product_id,
-                    variant_id: draftItem.variant_id,
-                    variant_definition_id: null,
-                    product_name: draftItem.product_name,
-                    variant_title: draftItem.variant_title,
-                    qty: draftItem.qty,
-                    supplier_price: draftItem.supplier_price,
-                    supplier_sku: draftItem.supplier_sku,
-                    supplier_product_name: draftItem.supplier_product_name.trim(),
-                },
-            ],
-        }));
+        setForm((prev) => {
+            if (editingItemIndex !== null) {
+                const items = [...prev.items];
+                items[editingItemIndex] = nextItem;
+                return { ...prev, items };
+            }
+
+            return {
+                ...prev,
+                items: [...prev.items.filter((item) => item.product_id !== null), nextItem],
+            };
+        });
         supplierProductNameTouchedRef.current = false;
         setDraftItem(emptyDraftItem());
         setProductHits([]);
+        setEditingItemIndex(null);
         setIsAddModalOpen(false);
+    };
+
+    const openAddItemModal = () => {
+        if (!form.supplier_id) {
+            setError("Сначала выберите поставщика");
+            return;
+        }
+        supplierProductNameTouchedRef.current = false;
+        setEditingItemIndex(null);
+        setDraftItem(emptyDraftItem());
+        setProductHits([]);
+        setIsAddModalOpen(true);
+    };
+
+    const openEditItemModal = (index: number) => {
+        if (readOnlyPosted) {
+            return;
+        }
+        const item = form.items[index];
+        if (!item?.product_id || !item.variant_id) {
+            return;
+        }
+
+        supplierProductNameTouchedRef.current = Boolean(item.supplier_product_name.trim());
+        setEditingItemIndex(index);
+        setDraftItem({
+            product_id: item.product_id,
+            variant_id: item.variant_id,
+            product_query: `${item.product_id} — ${item.product_name} ${item.variant_title}`.trim(),
+            product_name: item.product_name,
+            variant_title: item.variant_title,
+            qty: item.qty,
+            supplier_price: item.supplier_price,
+            supplier_sku: item.supplier_sku,
+            supplier_product_name: item.supplier_product_name,
+            line_comment: item.line_comment,
+        });
+        setProductHits([]);
+        setIsAddModalOpen(true);
+    };
+
+    const closeItemModal = () => {
+        setIsAddModalOpen(false);
+        setEditingItemIndex(null);
+        setDraftItem(emptyDraftItem());
+        setProductHits([]);
+        supplierProductNameTouchedRef.current = false;
     };
 
     const pickProductVariant = async (
@@ -424,15 +496,16 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 return;
             }
 
-            const label = `${detail.id} — ${[hit.brand_name, detail.name].filter(Boolean).join(" ")} ${variant.title || variant.display_name || variantPreview.title}`.trim();
+            const productName = [hit.brand_name, detail.name].filter(Boolean).join(" ").trim() || detail.name;
+            const variantTitle = variant.title || variant.display_name || variantPreview.title;
 
             setDraftItem((prev) => ({
                 ...prev,
                 product_id: detail.id,
                 variant_id: variant.id,
-                product_name: detail.name,
-                variant_title: variant.title || variant.display_name || variantPreview.title,
-                product_query: label,
+                product_name: productName,
+                variant_title: variantTitle,
+                product_query: `${detail.id} — ${productName} ${variantTitle}`.trim(),
             }));
             setProductHits([]);
         } catch (e) {
@@ -541,8 +614,11 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 </select>
                             </label>
                             <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm">
-                                <span className="text-slate-600">Поставщик</span>
+                                <span className="text-slate-600">
+                                    Поставщик <span className="text-red-600">*</span>
+                                </span>
                                 <select
+                                    required
                                     value={form.supplier_id ?? ""}
                                     disabled={readOnlyPosted}
                                     onChange={(e) => {
@@ -595,12 +671,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                             <div className="text-sm font-semibold text-slate-900">Документ</div>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    supplierProductNameTouchedRef.current = false;
-                                    setDraftItem(emptyDraftItem());
-                                    setProductHits([]);
-                                    setIsAddModalOpen(true);
-                                }}
+                                onClick={openAddItemModal}
                                 disabled={readOnlyPosted}
                                 className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
                             >
@@ -618,26 +689,48 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                     {form.items.map((item, index) => (
                                         <div
                                             key={`${item.product_id}-${item.variant_id ?? item.variant_definition_id}-${index}`}
-                                            className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                            className="flex flex-col gap-2 overflow-visible rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-start md:justify-between"
                                         >
-                                            <div className="min-w-0">
-                                                <span className="font-medium">{item.supplier_sku || "Без кода"}</span>
-                                                <span className="mx-2 text-slate-300">-</span>
-                                                <span>{item.product_name}</span>
-                                                <span className="mx-2 text-slate-300">/</span>
-                                                <span>{item.variant_title}</span>
-                                                {item.supplier_product_name ? (
-                                                    <div className="mt-1 text-xs text-slate-500">
-                                                        У поставщика: {item.supplier_product_name}
+                                            <div className="min-w-0 flex-1 break-words">
+                                                <div className="font-medium text-slate-900">
+                                                    <span>{item.product_name}</span>
+                                                    {item.variant_title ? (
+                                                        <>
+                                                            <span className="mx-2 font-normal text-slate-300">/</span>
+                                                            <span>{item.variant_title}</span>
+                                                        </>
+                                                    ) : null}
+                                                </div>
+                                                {item.supplier_sku || item.supplier_product_name ? (
+                                                    <div className="mt-1 text-xs leading-snug text-slate-500">
+                                                        У поставщика:{" "}
+                                                        {[item.supplier_sku, item.supplier_product_name]
+                                                            .filter(Boolean)
+                                                            .join(" — ")}
+                                                    </div>
+                                                ) : null}
+                                                {item.line_comment ? (
+                                                    <div className="mt-1 text-xs leading-snug text-slate-500">
+                                                        Комментарий: {item.line_comment}
                                                     </div>
                                                 ) : null}
                                             </div>
-                                            <div className="flex items-center gap-3 text-sm">
-                                                <span>{item.qty} шт.</span>
-                                                <span>{item.supplier_price}</span>
+                                            <div className="flex shrink-0 items-center gap-2 text-sm">
+                                                <span className="tabular-nums">{item.qty} шт.</span>
+                                                <span className="tabular-nums">{item.supplier_price}</span>
                                                 <button
                                                     type="button"
                                                     disabled={readOnlyPosted}
+                                                    title="Редактировать"
+                                                    onClick={() => openEditItemModal(index)}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={readOnlyPosted}
+                                                    title="Удалить"
                                                     onClick={() =>
                                                         setForm((prev) => ({
                                                             ...prev,
@@ -670,11 +763,13 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     >
                         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                             <div>
-                                <h2 className="text-base font-semibold text-slate-900">Добавить товар</h2>
+                                <h2 className="text-base font-semibold text-slate-900">
+                                    {editingItemIndex !== null ? "Редактировать товар" : "Добавить товар"}
+                                </h2>
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setIsAddModalOpen(false)}
+                                onClick={closeItemModal}
                                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-lg text-slate-500 hover:bg-slate-50"
                             >
                                 ×
@@ -682,140 +777,187 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         </div>
 
                         <div className="space-y-3 p-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                                <div className="min-w-0 flex-1">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Товар и вариант
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            value={draftItem.product_query}
-                                            onChange={(e) => {
-                                                const nextQuery = e.target.value;
+                            <div className="w-full min-w-0">
+                                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    Товар и вариант
+                                </label>
+                                {draftItem.product_id != null ? (
+                                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
+                                        <div className="min-w-0 flex-1 break-words text-sm leading-snug text-slate-900">
+                                            <span className="tabular-nums text-slate-500">
+                                                {draftItem.product_id}
+                                            </span>
+                                            <span className="text-slate-400"> — </span>
+                                            <span className="font-medium">{draftItem.product_name}</span>
+                                            {draftItem.variant_title ? (
+                                                <>
+                                                    <span className="text-slate-400"> / </span>
+                                                    <span>{draftItem.variant_title}</span>
+                                                </>
+                                            ) : null}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
                                                 setDraftItem((prev) => ({
                                                     ...prev,
-                                                    product_query: nextQuery,
+                                                    product_query: "",
                                                     product_id: null,
                                                     variant_id: null,
                                                     product_name: "",
                                                     variant_title: "",
                                                 }));
+                                                setProductHits([]);
                                             }}
-                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                            placeholder="Название, бренд или артикул"
-                                        />
-                                        {draftItem.product_query ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
+                                            className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-emerald-200 bg-white px-2 text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            Сменить
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="relative">
+                                            <input
+                                                value={draftItem.product_query}
+                                                onChange={(e) => {
+                                                    const nextQuery = e.target.value;
                                                     setDraftItem((prev) => ({
                                                         ...prev,
-                                                        product_query: "",
+                                                        product_query: nextQuery,
                                                         product_id: null,
                                                         variant_id: null,
                                                         product_name: "",
                                                         variant_title: "",
                                                     }));
-                                                    setProductHits([]);
                                                 }}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                                            >
-                                                ×
-                                            </button>
-                                        ) : null}
-                                    </div>
+                                                className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                                placeholder="Название, бренд или артикул"
+                                            />
+                                            {draftItem.product_query ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDraftItem((prev) => ({
+                                                            ...prev,
+                                                            product_query: "",
+                                                            product_id: null,
+                                                            variant_id: null,
+                                                            product_name: "",
+                                                            variant_title: "",
+                                                        }));
+                                                        setProductHits([]);
+                                                    }}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                                >
+                                                    ×
+                                                </button>
+                                            ) : null}
+                                        </div>
 
-                                    {draftItem.product_id == null
-                                    && (productHitsLoading
+                                        {productHitsLoading
                                         || pickingProduct
                                         || productHits.length > 0
-                                        || debouncedProductQuery.trim().length >= 2) ? (
-                                        <div className="mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                            {productHitsLoading || pickingProduct ? (
-                                                <div className="px-3 py-2 text-xs text-slate-500">Поиск…</div>
-                                            ) : flattenProductSmartSearchHits(productHits).length === 0 ? (
-                                                <div className="px-3 py-2 text-xs text-slate-500">Ничего не найдено</div>
-                                            ) : (
-                                                flattenProductSmartSearchHits(productHits).map((option) => {
-                                                    const hit = option.hit;
-                                                    const q = draftItem.product_query;
-                                                    const productLabel = [hit.brand_name, hit.name].filter(Boolean).join(" ");
+                                        || debouncedProductQuery.trim().length >= 2 ? (
+                                            <div className="mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                {productHitsLoading || pickingProduct ? (
+                                                    <div className="px-3 py-2 text-xs text-slate-500">Поиск…</div>
+                                                ) : flattenProductSmartSearchHits(productHits).length === 0 ? (
+                                                    <div className="px-3 py-2 text-xs text-slate-500">Ничего не найдено</div>
+                                                ) : (
+                                                    flattenProductSmartSearchHits(productHits).map((option) => {
+                                                        const hit = option.hit;
+                                                        const q = draftItem.product_query;
+                                                        const productLabel = [hit.brand_name, hit.name].filter(Boolean).join(" ");
 
-                                                    if (option.kind === "no-variants") {
+                                                        if (option.kind === "no-variants") {
+                                                            return (
+                                                                <div
+                                                                    key={option.key}
+                                                                    className="border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-500 last:border-b-0"
+                                                                >
+                                                                    <span className="tabular-nums text-slate-400">
+                                                                        {highlightAdminSearchTerms(String(hit.id), q)}
+                                                                    </span>
+                                                                    <span className="text-slate-300"> — </span>
+                                                                    <span>{highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}</span>
+                                                                    <span className="text-slate-400"> — нет вариантов</span>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        const variant = option.variant;
                                                         return (
-                                                            <div
+                                                            <button
                                                                 key={option.key}
-                                                                className="border-b border-slate-100 px-3 py-2 text-left text-xs text-slate-500 last:border-b-0"
+                                                                type="button"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => void pickProductVariant(hit, variant)}
+                                                                className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-slate-50"
                                                             >
                                                                 <span className="tabular-nums text-slate-400">
                                                                     {highlightAdminSearchTerms(String(hit.id), q)}
                                                                 </span>
                                                                 <span className="text-slate-300"> — </span>
-                                                                <span>{highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}</span>
-                                                                <span className="text-slate-400"> — нет вариантов</span>
-                                                            </div>
+                                                                <span className="font-medium text-slate-900">
+                                                                    {highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}
+                                                                </span>
+                                                                <span className="text-slate-300"> </span>
+                                                                <span className="text-slate-700">
+                                                                    {highlightAdminSearchTerms(variant.title, q, hit.brand_name)}
+                                                                </span>
+                                                            </button>
                                                         );
-                                                    }
+                                                    })
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </>
+                                )}
+                            </div>
 
-                                                    const variant = option.variant;
-                                                    return (
-                                                        <button
-                                                            key={option.key}
-                                                            type="button"
-                                                            onMouseDown={(e) => e.preventDefault()}
-                                                            onClick={() => void pickProductVariant(hit, variant)}
-                                                            className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-slate-50"
-                                                        >
-                                                            <span className="tabular-nums text-slate-400">
-                                                                {highlightAdminSearchTerms(String(hit.id), q)}
-                                                            </span>
-                                                            <span className="text-slate-300"> — </span>
-                                                            <span className="font-medium text-slate-900">
-                                                                {highlightAdminSearchTerms(productLabel || "—", q, hit.brand_name)}
-                                                            </span>
-                                                            <span className="text-slate-300"> </span>
-                                                            <span className="text-slate-700">
-                                                                {highlightAdminSearchTerms(variant.title, q, hit.brand_name)}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
-                                    ) : null}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <div className="w-full sm:w-[88px] sm:min-w-[88px] sm:shrink-0">
+                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                        Кол-во
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={draftItem.qty}
+                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                    />
                                 </div>
-
-                                <div className="flex shrink-0 gap-3">
-                                    <div className="w-[88px] min-w-[88px]">
-                                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                            Кол-во
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            value={draftItem.qty}
-                                            onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
-                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                        />
-                                    </div>
-                                    <div className="w-[104px] min-w-[104px]">
-                                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                            Цена
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            step="0.01"
-                                            value={draftItem.supplier_price}
-                                            onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_price: e.target.value }))}
-                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                        />
-                                    </div>
+                                <div className="w-full sm:w-[120px] sm:min-w-[120px] sm:shrink-0">
+                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                        Цена
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={draftItem.supplier_price}
+                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, supplier_price: e.target.value }))}
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                    />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                        Комментарий к партии (необязательно)
+                                    </label>
+                                    <input
+                                        value={draftItem.line_comment}
+                                        onChange={(e) =>
+                                            setDraftItem((prev) => ({ ...prev, line_comment: e.target.value }))
+                                        }
+                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                        placeholder="Например: брак, акция, особая партия"
+                                    />
                                 </div>
                             </div>
 
-                            <div className="flex items-end gap-3">
-                                <div className="w-[7.25rem] shrink-0 sm:w-32">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <div className="w-full sm:w-32 sm:shrink-0">
                                     <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Код поставщика
                                     </label>
@@ -856,7 +998,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                         <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end">
                             <button
                                 type="button"
-                                onClick={() => setIsAddModalOpen(false)}
+                                onClick={closeItemModal}
                                 className="inline-flex h-10 items-center justify-center rounded-lg border border-admin-border px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
                             >
                                 Отмена
@@ -866,7 +1008,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                 onClick={addDraftItem}
                                 className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                             >
-                                Добавить
+                                {editingItemIndex !== null ? "Сохранить" : "Добавить"}
                             </button>
                         </div>
                     </div>

@@ -12,6 +12,7 @@ use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 use Modules\Catalog\Support\CatalogSearchScoring;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockLotService;
 
 /**
  * Поиск товара для ручной/полуавтоматической связи с прайсом: AND по значимым токенам,
@@ -20,6 +21,11 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 class CatalogProductLinkSearchService
 {
     private const int POOL_LIMIT = 220;
+
+    public function __construct(
+        private readonly StockLotService $stockLotService,
+    ) {
+    }
 
     /**
      * Ответ в формате админского smart-search (варианты + score).
@@ -433,6 +439,14 @@ class CatalogProductLinkSearchService
         int $mainWarehouseId,
         int $supplierWarehouseId,
     ): array {
+        $variantIds = [];
+        foreach ($variants as $link) {
+            $variantIds[] = (int) $link->id;
+        }
+        $minPurchaseByVariant = $mainWarehouseId > 0 && $variantIds !== []
+            ? $this->stockLotService->minPurchaseByVariant($variantIds, $mainWarehouseId)
+            : [];
+
         $out = [];
         foreach ($variants as $link) {
             $byW = $stocksByVariant->get($link->id, collect());
@@ -449,7 +463,12 @@ class CatalogProductLinkSearchService
             $out[] = [
                 'id' => (int) $link->id,
                 'title' => (string) $link->title,
-                'fulfillment_tooltip' => \Modules\Catalog\Http\Resources\ProductVariantResource::adminFulfillmentTooltip($link, $mainStock, $supplierStock),
+                'fulfillment_tooltip' => \Modules\Catalog\Http\Resources\ProductVariantResource::adminFulfillmentTooltip(
+                    $link,
+                    $mainStock,
+                    $supplierStock,
+                    $minPurchaseByVariant[(int) $link->id] ?? null,
+                ),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
                 'is_preorder' => (bool) $presented['is_preorder'],

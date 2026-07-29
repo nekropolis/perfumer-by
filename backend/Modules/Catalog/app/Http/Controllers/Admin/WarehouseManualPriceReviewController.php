@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\WarehouseManualPriceReview;
 use Modules\Catalog\Services\ListingMinPriceService;
-use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
-use Modules\Warehouse\Models\StockReceiptItem;
 
 class WarehouseManualPriceReviewController extends Controller
 {
@@ -55,7 +53,6 @@ class WarehouseManualPriceReviewController extends Controller
         Request $request,
         int $id,
         ListingMinPriceService $listingMinPrice,
-        WarehousePurchasePriceResolver $purchasePriceResolver,
     ): JsonResponse {
         $review = WarehouseManualPriceReview::query()->active()->findOrFail($id);
 
@@ -76,18 +73,13 @@ class WarehouseManualPriceReviewController extends Controller
 
         $variant = ProductVariantLink::query()->findOrFail((int) $review->variant_id);
 
-        DB::transaction(function () use ($review, $variant, $validated, $listingMinPrice, $purchasePriceResolver): void {
+        DB::transaction(function () use ($review, $variant, $validated, $listingMinPrice): void {
             $reviewPatch = [];
             $variantPatch = [];
 
             if (array_key_exists('warehouse_purchase', $validated)) {
                 $warehousePurchase = number_format((float) $validated['warehouse_purchase'], 2, '.', '');
                 $reviewPatch['warehouse_purchase'] = $warehousePurchase;
-                $this->syncLastPostedReceiptPurchase(
-                    $purchasePriceResolver,
-                    (int) $review->variant_id,
-                    $warehousePurchase,
-                );
             }
 
             if (array_key_exists('manual_retail_price', $validated)) {
@@ -120,42 +112,6 @@ class WarehouseManualPriceReviewController extends Controller
         return response()->json([
             'message' => 'Цена сохранена',
             'data' => $review->fresh(['receiptSupplier:id,name,code']),
-        ]);
-    }
-
-    private function syncLastPostedReceiptPurchase(
-        WarehousePurchasePriceResolver $purchasePriceResolver,
-        int $variantId,
-        string $warehousePurchase,
-    ): void {
-        $mainWarehouseId = $purchasePriceResolver->resolveMainWarehouseId();
-        if ($mainWarehouseId <= 0 || $variantId <= 0) {
-            return;
-        }
-
-        $meta = $purchasePriceResolver->lastPostedReceiptMetaForMainWarehouse(
-            [$variantId],
-            $mainWarehouseId,
-        )[$variantId] ?? null;
-
-        if ($meta === null) {
-            return;
-        }
-
-        $item = StockReceiptItem::query()
-            ->where('stock_receipt_id', $meta['stock_receipt_id'])
-            ->where('variant_id', $variantId)
-            ->where('supplier_price', '>', 0)
-            ->orderByDesc('id')
-            ->first();
-
-        if ($item === null) {
-            return;
-        }
-
-        $item->update([
-            'supplier_price' => $warehousePurchase,
-            'line_total' => round((float) $item->qty * (float) $warehousePurchase, 2),
         ]);
     }
 }

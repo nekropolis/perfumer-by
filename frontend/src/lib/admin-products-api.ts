@@ -266,6 +266,7 @@ export type ProductVariantSupplierItem = {
     }>;
     /** Приходы на основной склад: канал «Магазин», цена и количество из прихода. */
     main_store_rows?: Array<{
+        lot_id?: number;
         receipt_item_id: number;
         receipt_id: number;
         receipt_document_no: string | null;
@@ -276,6 +277,7 @@ export type ProductVariantSupplierItem = {
         warehouse_name: string | null;
         qty: number;
         received_at: string | null;
+        comment?: string | null;
     }>;
     suppliers: Array<{
         offer_id: number;

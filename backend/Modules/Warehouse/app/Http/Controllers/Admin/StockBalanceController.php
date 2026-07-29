@@ -5,11 +5,9 @@ namespace Modules\Warehouse\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Catalog\Models\Supplier;
-use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
-use Modules\Warehouse\Models\StockReceipt;
-use Modules\Warehouse\Models\StockReceiptItem;
+use Modules\Warehouse\Models\WarehouseStockLot;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockLotService;
 use Modules\Warehouse\Services\WholesalePriceService;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -17,7 +15,7 @@ class StockBalanceController extends Controller
 {
     public function __construct(
         private readonly WholesalePriceService $wholesalePriceService,
-        private readonly WarehousePurchasePriceResolver $purchasePriceResolver,
+        private readonly StockLotService $stockLotService,
     ) {
     }
 
@@ -103,9 +101,11 @@ class StockBalanceController extends Controller
         }
 
         $balances = $balancesQuery->paginate($perPage);
-        $entryPriceMap = $this->purchasePriceResolver->lastPostedPurchasePriceMapForRows($balances->getCollection());
+        $collection = $balances->getCollection();
+        $minPriceMap = $this->stockLotService->minPurchasePriceMapForRows($collection);
+        $lineTotalMap = $this->stockLotService->lineTotalMapForRows($collection);
 
-        $balances->through(function (WarehouseVariantStock $row) use ($entryPriceMap) {
+        $balances->through(function (WarehouseVariantStock $row) use ($minPriceMap, $lineTotalMap) {
             $warehouseId = (int) ($row->warehouse_id ?? 0);
             $variantId = (int) ($row->variant_id ?? 0);
             $entryKey = $warehouseId.':'.$variantId;
@@ -123,8 +123,8 @@ class StockBalanceController extends Controller
                 'stock' => (int) $row->stock,
                 'reserved_stock' => (int) $row->reserved_stock,
                 'available_stock' => (int) $row->available_stock,
-                // Вход: последняя posted-цена прихода на склад этой строки.
-                'price' => $entryPriceMap[$entryKey] ?? null,
+                'price' => $minPriceMap[$entryKey] ?? null,
+                'line_total' => $lineTotalMap[$entryKey] ?? null,
                 'wholesale_price' => $row->variant?->wholesale_price,
                 'is_active' => (bool) ($row->variant?->is_active ?? false),
             ];
@@ -154,83 +154,40 @@ class StockBalanceController extends Controller
         }
 
         $warehouseId = (int) $request->input('warehouse_id', 0);
-        $stock = max(0, (int) $request->input('stock', 0));
 
-        $receiptItems = StockReceiptItem::query()
-            ->with(['receipt.supplier'])
-            ->where('variant_id', $variantId)
-            ->whereHas('receipt', function ($receiptQuery) use ($warehouseId) {
-                $receiptQuery->where('status', StockReceipt::STATUS_POSTED);
-                if ($warehouseId > 0) {
-                    $receiptQuery->where('warehouse_id', $warehouseId);
-                }
-            })
-            ->orderByDesc('id')
-            ->get();
-
-        // Последние приходы, пока не наберём текущий остаток.
-        if ($stock > 0) {
-            $covered = 0;
-            $limited = collect();
-            foreach ($receiptItems as $item) {
-                $limited->push($item);
-                $covered += max(0, (int) ($item->qty ?? 0));
-                if ($covered >= $stock) {
-                    break;
-                }
-            }
-            $receiptItems = $limited;
+        if ($warehouseId > 0) {
+            $lots = $this->stockLotService
+                ->openLotsForVariant($warehouseId, $variantId)
+                ->load(['receiptItem.receipt']);
+        } else {
+            $lots = WarehouseStockLot::query()
+                ->where('variant_id', $variantId)
+                ->where('qty', '>', 0)
+                ->orderByRaw('supplier_price IS NULL')
+                ->orderBy('supplier_price')
+                ->orderByRaw("CASE WHEN comment IS NULL OR TRIM(comment) = '' THEN 0 ELSE 1 END")
+                ->orderBy('id')
+                ->with(['receiptItem.receipt'])
+                ->get();
         }
 
-        $supplierCodes = $receiptItems
-            ->map(fn (StockReceiptItem $item) => trim((string) ($item->receipt?->supplier_code ?? '')))
-            ->filter(fn (string $code) => $code !== '')
-            ->unique()
-            ->values();
-
-        $suppliersByCode = $supplierCodes->isEmpty()
-            ? collect()
-            : Supplier::query()
-                ->whereIn('code', $supplierCodes->all())
-                ->get(['id', 'code', 'name'])
-                ->keyBy(fn (Supplier $supplier) => (string) $supplier->code);
-
-        $rows = $receiptItems
-            ->map(function (StockReceiptItem $item) use ($suppliersByCode) {
-                $payload = is_array($item->payload) ? $item->payload : [];
-                $code = trim((string) ($item->receipt?->supplier_code ?? ''));
-                $supplierName = trim((string) (
-                    $item->receipt?->supplier?->name
-                    ?: ($code !== '' ? ($suppliersByCode->get($code)?->name ?? '') : '')
-                    ?: $item->receipt?->supplier_name
-                    ?: $code
-                    ?: ''
-                ));
-
-                $supplierProductName = trim((string) (
-                    $payload['supplier_product_name']
-                    ?? $payload['title']
-                    ?? $payload['name']
-                    ?? ''
-                ));
-
-                // Как в карточке прихода: «название / вариант», если у поставщика имя не сохраняли.
-                if ($supplierProductName === '') {
-                    $productName = trim((string) ($item->product_name ?? ''));
-                    $variantTitle = trim((string) ($item->variant_title ?? ''));
-                    $supplierProductName = $productName !== '' && $variantTitle !== ''
-                        ? "{$productName} / {$variantTitle}"
-                        : ($productName !== '' ? $productName : $variantTitle);
-                }
+        $rows = $lots
+            ->map(function (WarehouseStockLot $lot) {
+                $receivedAt = $lot->receiptItem?->receipt?->received_at;
 
                 return [
-                    'source' => 'receipt',
-                    'supplier_name' => $supplierName !== '' ? $supplierName : '—',
-                    'supplier_sku' => $item->supplier_sku,
-                    'supplier_product_name' => $supplierProductName !== '' ? $supplierProductName : null,
-                    'supplier_price' => $item->supplier_price,
-                    'qty' => (int) ($item->qty ?? 0),
-                    'received_at' => $item->receipt?->received_at?->toDateString(),
+                    'source' => 'lot',
+                    'lot_id' => (int) $lot->id,
+                    'qty' => (int) $lot->qty,
+                    'reserved_qty' => (int) $lot->reserved_qty,
+                    'available' => (int) $lot->available_qty,
+                    'supplier_price' => $lot->supplier_price,
+                    'supplier_sku' => $lot->supplier_sku,
+                    'supplier_name' => $lot->supplier_name !== null && trim((string) $lot->supplier_name) !== ''
+                        ? trim((string) $lot->supplier_name)
+                        : '—',
+                    'comment' => $lot->comment,
+                    'received_at' => $receivedAt?->toDateString(),
                 ];
             })
             ->values();
@@ -238,5 +195,25 @@ class StockBalanceController extends Controller
         return response()->json([
             'data' => $rows,
         ]);
+    }
+
+    public function updateLotComment(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'comment' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        /** @var WarehouseStockLot $lot */
+        $lot = WarehouseStockLot::query()->findOrFail($id);
+
+        $commentRaw = $validated['comment'] ?? null;
+        $comment = $commentRaw === null || trim((string) $commentRaw) === ''
+            ? null
+            : trim((string) $commentRaw);
+
+        $lot->update(['comment' => $comment]);
+        $lot->refresh();
+
+        return response()->json(['data' => $lot]);
     }
 }

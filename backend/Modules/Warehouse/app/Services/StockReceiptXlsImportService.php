@@ -892,33 +892,28 @@ class StockReceiptXlsImportService
 
     private function aggregateRows(array $rows): array
     {
-        $grouped = [];
+        $result = [];
 
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
             $code = trim((string) ($row['code'] ?? ''));
             $title = trim((string) ($row['title'] ?? ''));
             $normalizedTitle = $this->normalizeExactTitle($title);
-            $key = $code !== ''
-                ? "sku:{$code}"
-                : 'title:' . $normalizedTitle;
+            $priceKey = $row['supplier_price'] ?? '';
+            $priceSuffix = '|p:' . (is_numeric($priceKey) ? number_format((float) $priceKey, 2, '.', '') : '');
+            $baseKey = $code !== ''
+                ? "sku:{$code}{$priceSuffix}"
+                : 'title:' . $normalizedTitle . $priceSuffix;
 
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = [
-                    'code' => $code,
-                    'title' => $title,
-                    'supplier_price' => $row['supplier_price'],
-                    'qty' => 0,
-                    'map_key' => $key,
-                ];
-            }
-
-            $grouped[$key]['qty'] += (int) ($row['qty'] ?? 0);
-            if (($row['supplier_price'] ?? null) !== null) {
-                $grouped[$key]['supplier_price'] = $row['supplier_price'];
-            }
+            $result[] = [
+                'code' => $code,
+                'title' => $title,
+                'supplier_price' => $row['supplier_price'],
+                'qty' => (int) ($row['qty'] ?? 0),
+                'map_key' => $baseKey . '|row:' . ($index + 1),
+            ];
         }
 
-        return array_values($grouped);
+        return $result;
     }
 
     /**

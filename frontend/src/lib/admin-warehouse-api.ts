@@ -109,7 +109,11 @@ export type StockReceiptPayload = {
         qty: number;
         supplier_price: number;
         supplier_sku?: string;
-        payload?: Record<string, unknown>;
+        payload?: {
+            supplier_product_name?: string;
+            comment?: string;
+            [key: string]: unknown;
+        };
         variant_definition?: {
             volume_ml: number;
             concentration_code: string;
@@ -248,6 +252,7 @@ export type StockWriteoffPayload = {
         price?: number | null;
         payload?: Record<string, unknown>;
         stock_source?: "available" | "reserved";
+        stock_lot_id?: number;
     }>;
 };
 
@@ -270,6 +275,7 @@ export type StockBalanceItem = {
     reserved_stock: number;
     available_stock: number;
     price?: string | number | null;
+    line_total?: string | null;
     wholesale_price?: string | number | null;
     is_active: boolean;
 };
@@ -417,6 +423,9 @@ export async function fetchStockReceipts(params?: {
     page?: number;
     search?: string;
     warehouse_id?: number;
+    supplier_id?: number;
+    status?: string;
+    per_page?: number;
 }): Promise<StockReceiptsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) {
@@ -427,6 +436,15 @@ export async function fetchStockReceipts(params?: {
     }
     if (params?.warehouse_id) {
         searchParams.set("warehouse_id", String(params.warehouse_id));
+    }
+    if (params?.supplier_id) {
+        searchParams.set("supplier_id", String(params.supplier_id));
+    }
+    if (params?.status) {
+        searchParams.set("status", params.status);
+    }
+    if (params?.per_page) {
+        searchParams.set("per_page", String(params.per_page));
     }
 
     const query = searchParams.toString();
@@ -895,14 +913,37 @@ export async function exportStockWholesalePriceList(): Promise<void> {
 }
 
 export type StockBalanceVariantSupplierRow = {
-    source: "receipt" | "offer";
+    source: "receipt" | "offer" | "lot";
+    lot_id?: number;
     supplier_name: string;
     supplier_sku: string | null;
     supplier_product_name: string | null;
     supplier_price: string | number | null;
     qty?: number;
+    reserved_qty?: number;
+    available?: number;
+    comment?: string | null;
     received_at?: string | null;
 };
+
+export async function updateStockLotComment(
+    lotId: number,
+    comment: string,
+): Promise<{ message?: string; data?: { id: number; comment: string | null } }> {
+    const res = await fetch(`${API_BASE}/admin/stock/balances/lots/${lotId}`, {
+        method: "PATCH",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ comment }),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Update stock lot comment API error: ${res.status}`);
+    }
+
+    return res.json();
+}
 
 export async function fetchStockBalanceVariantSuppliers(params: {
     variant_id: number;

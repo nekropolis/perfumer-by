@@ -5,9 +5,33 @@ namespace Modules\Catalog\Services\Pricing;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Services\StockLotService;
 
 final class WarehousePurchasePriceResolver
 {
+    private function lotService(): StockLotService
+    {
+        return app(StockLotService::class);
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array<int, string>
+     */
+    public function avgPurchaseByVariant(array $variantIds, int $warehouseId): array
+    {
+        return $this->lotService()->avgPurchaseByVariant($variantIds, $warehouseId);
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array<int, string>
+     */
+    public function minPurchaseByVariant(array $variantIds, int $warehouseId): array
+    {
+        return $this->lotService()->minPurchaseByVariant($variantIds, $warehouseId);
+    }
+
     /**
      * @param  list<int>  $variantIds
      * @return array<int, array{
@@ -86,6 +110,13 @@ final class WarehousePurchasePriceResolver
             ];
         }
 
+        $avgMap = $this->lotService()->avgPurchaseByVariant($variantIds, $warehouseId);
+        foreach ($map as $variantId => $meta) {
+            if (isset($avgMap[$variantId])) {
+                $map[$variantId]['warehouse_purchase'] = $avgMap[$variantId];
+            }
+        }
+
         return $map;
     }
 
@@ -130,6 +161,15 @@ final class WarehousePurchasePriceResolver
         }
 
         return $map;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, object{warehouse_id?: mixed, variant_id?: mixed}>  $rows
+     * @return array<string, string>
+     */
+    public function minPurchasePriceMapForRows($rows): array
+    {
+        return $this->lotService()->minPurchasePriceMapForRows($rows);
     }
 
     public function resolveMainWarehouseId(): int

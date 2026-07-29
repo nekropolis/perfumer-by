@@ -25,6 +25,12 @@ class OrderItem extends Model
         'total',
         'waiting_discount',
         'availability_source',
+        'stock_lot_allocations',
+    ];
+
+    protected $casts = [
+        'waiting_discount' => 'boolean',
+        'stock_lot_allocations' => 'array',
     ];
 
     public function order(): BelongsTo

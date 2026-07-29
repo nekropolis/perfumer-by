@@ -9,8 +9,10 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import {
     createStockWriteoff,
     fetchStockBalances,
+    fetchStockBalanceVariantSuppliers,
     fetchWarehouses,
     type StockBalanceItem,
+    type StockBalanceVariantSupplierRow,
     type StockWriteoffPayload,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
@@ -18,8 +20,10 @@ import {
 type WriteoffFormItem = {
     product_id: number;
     variant_id: number;
+    stock_lot_id: number;
     product_name: string;
     variant_title: string;
+    lot_comment?: string | null;
     qty: number;
     price: string;
     available_qty: number;
@@ -38,6 +42,7 @@ type WriteoffFormState = {
 type DraftWriteoffItem = {
     product_id: number | null;
     variant_id: number | null;
+    stock_lot_id: number | null;
     product_query: string;
     variant_query: string;
     qty: number;
@@ -53,6 +58,7 @@ type ProductOption = {
 const emptyDraftItem = (): DraftWriteoffItem => ({
     product_id: null,
     variant_id: null,
+    stock_lot_id: null,
     product_query: "",
     variant_query: "",
     qty: 1,
@@ -77,6 +83,7 @@ type PrefillItem = {
     price?: string | number | null;
     available_qty?: number;
     reserved_qty?: number;
+    stock_lot_id?: number | null;
 };
 
 type Props = {
@@ -94,6 +101,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [lotOptions, setLotOptions] = useState<StockBalanceVariantSupplierRow[]>([]);
+    const [lotsLoading, setLotsLoading] = useState(false);
 
     const totalWriteoffAmount = useMemo(
         () => form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.price || 0), 0),
@@ -116,43 +125,6 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         };
         void loadWarehouses();
     }, [prefillItem?.warehouse_id]);
-
-    useEffect(() => {
-        if (!prefillItem) {
-            return;
-        }
-
-        setForm((prev) => {
-            const alreadyExists = prev.items.some(
-                (item) => item.product_id === prefillItem.product_id && item.variant_id === prefillItem.variant_id
-            );
-
-            if (alreadyExists) {
-                return prev;
-            }
-
-            const availableQty = Math.max(0, Number(prefillItem.available_qty ?? 0));
-            const reservedQty = Math.max(0, Number(prefillItem.reserved_qty ?? 0));
-
-            return {
-                ...prev,
-                items: [
-                    ...prev.items,
-                    {
-                        product_id: prefillItem.product_id,
-                        variant_id: prefillItem.variant_id,
-                        product_name: prefillItem.product_name,
-                        variant_title: prefillItem.variant_title,
-                        qty: 1,
-                        price: prefillItem.price != null ? String(prefillItem.price) : "",
-                        available_qty: availableQty,
-                        reserved_qty: reservedQty,
-                        stock_source: availableQty > 0 ? "available" : reservedQty > 0 ? "reserved" : "available",
-                    },
-                ],
-            };
-        });
-    }, [prefillItem]);
 
     const searchProducts = useCallback(async (query: string) => {
         try {
@@ -211,6 +183,108 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         [form.warehouse_id]
     );
 
+    const loadLotsForDraft = useCallback(
+        async (variantId: number, stockSource: "available" | "reserved", preselectLotId?: number | null) => {
+            setLotsLoading(true);
+            try {
+                const response = await fetchStockBalanceVariantSuppliers({
+                    variant_id: variantId,
+                    warehouse_id: form.warehouse_id,
+                });
+                const lots = (response.data ?? []).filter(
+                    (row) => row.source === "lot" && typeof row.lot_id === "number",
+                );
+                setLotOptions(lots);
+
+                if (lots.length === 1) {
+                    const lot = lots[0];
+                    setDraftItem((prev) => ({
+                        ...prev,
+                        stock_lot_id: lot.lot_id ?? null,
+                        price:
+                            lot.supplier_price != null
+                                ? String(lot.supplier_price)
+                                : prev.price,
+                    }));
+                } else if (preselectLotId && lots.some((l) => l.lot_id === preselectLotId)) {
+                    const lot = lots.find((l) => l.lot_id === preselectLotId);
+                    setDraftItem((prev) => ({
+                        ...prev,
+                        stock_lot_id: preselectLotId,
+                        price:
+                            lot?.supplier_price != null ? String(lot.supplier_price) : prev.price,
+                    }));
+                } else {
+                    setDraftItem((prev) => ({ ...prev, stock_lot_id: null }));
+                }
+            } catch (e) {
+                setLotOptions([]);
+                setError(e instanceof Error ? e.message : "Не удалось загрузить партии");
+            } finally {
+                setLotsLoading(false);
+            }
+        },
+        [form.warehouse_id],
+    );
+
+    useEffect(() => {
+        if (!isAddModalOpen || !draftItem.variant_id || form.document_kind === "reserve") {
+            if (!isAddModalOpen) {
+                setLotOptions([]);
+            }
+            return;
+        }
+        void loadLotsForDraft(draftItem.variant_id, draftItem.stock_source);
+    }, [
+        isAddModalOpen,
+        draftItem.variant_id,
+        draftItem.stock_source,
+        form.document_kind,
+        form.warehouse_id,
+        loadLotsForDraft,
+    ]);
+
+    useEffect(() => {
+        if (!prefillItem) {
+            return;
+        }
+
+        const availableQty = Math.max(0, Number(prefillItem.available_qty ?? 0));
+        const reservedQty = Math.max(0, Number(prefillItem.reserved_qty ?? 0));
+        const stockSource = availableQty > 0 ? "available" : reservedQty > 0 ? "reserved" : "available";
+
+        setDraftItem({
+            product_id: prefillItem.product_id,
+            variant_id: prefillItem.variant_id,
+            stock_lot_id:
+                typeof prefillItem.stock_lot_id === "number" && prefillItem.stock_lot_id > 0
+                    ? prefillItem.stock_lot_id
+                    : null,
+            product_query: prefillItem.product_name,
+            variant_query: prefillItem.variant_title,
+            qty: 1,
+            price: prefillItem.price != null ? String(prefillItem.price) : "",
+            stock_source: stockSource,
+        });
+        setIsAddModalOpen(true);
+        void loadLotsForDraft(prefillItem.variant_id, stockSource, prefillItem.stock_lot_id);
+    }, [prefillItem, loadLotsForDraft]);
+
+    const selectedDraftLot = useMemo(
+        () => lotOptions.find((row) => row.lot_id === draftItem.stock_lot_id) ?? null,
+        [lotOptions, draftItem.stock_lot_id],
+    );
+
+    const draftLotMaxQty = useMemo(() => {
+        if (!selectedDraftLot) {
+            return 0;
+        }
+        if (draftItem.stock_source === "reserved") {
+            return Math.max(0, Number(selectedDraftLot.reserved_qty ?? 0));
+        }
+        return Math.max(0, Number(selectedDraftLot.available ?? 0));
+    }, [selectedDraftLot, draftItem.stock_source]);
+
     const addDraftItem = () => {
         if (!draftItem.product_id) {
             setError("Выберите товар");
@@ -222,6 +296,11 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             return;
         }
 
+        if (form.document_kind === "writeoff" && !draftItem.stock_lot_id) {
+            setError("Выберите партию (лот) для списания");
+            return;
+        }
+
         if (draftItem.qty <= 0) {
             setError("Укажите количество");
             return;
@@ -230,12 +309,16 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         const selectedVariant = variantOptions.find(
             (item) => (item.variant_id ?? item.id) === draftItem.variant_id
         );
-        const availableQty = Math.max(0, Number(selectedVariant?.available_stock ?? 0));
-        const reservedQty = Math.max(0, Number(selectedVariant?.reserved_stock ?? 0));
+        const availableQty = Math.max(0, Number(selectedDraftLot?.available ?? selectedVariant?.available_stock ?? 0));
+        const reservedQty = Math.max(0, Number(selectedDraftLot?.reserved_qty ?? selectedVariant?.reserved_stock ?? 0));
         const effectiveSource: "available" | "reserved" =
             form.document_kind === "reserve" ? "available" : draftItem.stock_source;
         const maxForSource =
-            effectiveSource === "reserved" ? reservedQty : availableQty;
+            form.document_kind === "writeoff" && selectedDraftLot
+                ? draftLotMaxQty
+                : effectiveSource === "reserved"
+                  ? reservedQty
+                  : availableQty;
         if (maxForSource <= 0) {
             setError(
                 draftItem.stock_source === "reserved"
@@ -258,8 +341,10 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 {
                     product_id: draftItem.product_id!,
                     variant_id: draftItem.variant_id!,
+                    stock_lot_id: draftItem.stock_lot_id ?? 0,
                     product_name: draftItem.product_query,
                     variant_title: selectedVariant?.variant_title || draftItem.variant_query,
+                    lot_comment: selectedDraftLot?.comment ?? null,
                     qty: draftItem.qty,
                     price: draftItem.price,
                     available_qty: availableQty,
@@ -291,6 +376,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 if (item.qty <= 0) {
                     throw new Error(`Строка ${index + 1}: укажите количество`);
                 }
+                if (form.document_kind === "writeoff" && !item.stock_lot_id) {
+                    throw new Error(`Строка ${index + 1}: укажите партию`);
+                }
                 const cap = item.stock_source === "reserved" ? item.reserved_qty : item.available_qty;
                 if (cap > 0 && item.qty > cap) {
                     throw new Error(
@@ -310,6 +398,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     qty: item.qty,
                     price: item.price === "" ? null : Number(item.price),
                     stock_source: item.stock_source,
+                    ...(form.document_kind === "writeoff" && item.stock_lot_id
+                        ? { stock_lot_id: item.stock_lot_id }
+                        : {}),
                 })),
             };
 
@@ -466,13 +557,21 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
                                     return (
                                         <div
-                                            key={`${item.product_id}-${item.variant_id}-${index}`}
+                                            key={`${item.product_id}-${item.variant_id}-${item.stock_lot_id}-${index}`}
                                             className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
                                         >
                                             <div className="min-w-0">
                                                 <span>{item.product_name}</span>
                                                 <span className="mx-2 text-slate-300">/</span>
                                                 <span>{item.variant_title}</span>
+                                                {item.stock_lot_id ? (
+                                                    <span className="ml-2 text-xs text-slate-500">
+                                                        лот #{item.stock_lot_id}
+                                                        {item.lot_comment?.trim()
+                                                            ? ` · ${item.lot_comment.trim()}`
+                                                            : ""}
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 text-sm md:gap-3">
                                                 <label className="flex items-center gap-1 text-xs text-slate-600">
@@ -707,6 +806,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                             ...prev,
                                                             variant_id: variant.variant_id ?? variant.id,
                                                             variant_query: variant.variant_title,
+                                                            stock_lot_id: null,
                                                             price: variant.price != null ? String(variant.price) : prev.price,
                                                         }));
                                                         setVariantOptions([]);
@@ -723,6 +823,73 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                     ) : null}
                                 </div>
                             </div>
+
+                            {form.document_kind === "writeoff" && draftItem.variant_id ? (
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                                        Партия (лот)
+                                    </p>
+                                    {lotsLoading ? (
+                                        <p className="text-sm text-slate-500">Загрузка партий…</p>
+                                    ) : lotOptions.length === 0 ? (
+                                        <p className="text-sm text-amber-800">Нет открытых партий для этого варианта.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {lotOptions.map((lot) => {
+                                                const lotId = lot.lot_id!;
+                                                const maxQty =
+                                                    draftItem.stock_source === "reserved"
+                                                        ? Math.max(0, Number(lot.reserved_qty ?? 0))
+                                                        : Math.max(0, Number(lot.available ?? 0));
+                                                const selected = draftItem.stock_lot_id === lotId;
+                                                return (
+                                                    <label
+                                                        key={`lot-${lotId}`}
+                                                        className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2 text-sm ${
+                                                            selected
+                                                                ? "border-admin-primary bg-white"
+                                                                : "border-slate-200 bg-white/80"
+                                                        }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <input
+                                                                type="radio"
+                                                                name="writeoff-lot"
+                                                                checked={selected}
+                                                                onChange={() =>
+                                                                    setDraftItem((prev) => ({
+                                                                        ...prev,
+                                                                        stock_lot_id: lotId,
+                                                                        price:
+                                                                            lot.supplier_price != null
+                                                                                ? String(lot.supplier_price)
+                                                                                : prev.price,
+                                                                        qty: Math.min(prev.qty, Math.max(1, maxQty || 1)),
+                                                                    }))
+                                                                }
+                                                            />
+                                                            <span className="font-medium">#{lotId}</span>
+                                                            <span className="text-slate-600">
+                                                                {lot.supplier_price != null
+                                                                    ? String(lot.supplier_price)
+                                                                    : "—"}{" "}
+                                                                · св. {lot.available ?? "—"} / рез.{" "}
+                                                                {lot.reserved_qty ?? "—"}
+                                                            </span>
+                                                        </span>
+                                                        <span className="pl-6 text-xs text-slate-600">
+                                                            {[lot.supplier_name, lot.supplier_sku]
+                                                                .filter(Boolean)
+                                                                .join(" · ") || "—"}
+                                                            {lot.comment?.trim() ? ` · ${lot.comment.trim()}` : ""}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
 
                             <div className="flex flex-nowrap items-end gap-3">
                                 <div className="min-w-0 flex-1">
@@ -745,8 +912,15 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                     <input
                                         type="number"
                                         min={1}
+                                        max={Math.max(1, draftLotMaxQty || 1)}
                                         value={draftItem.qty}
-                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, qty: Math.max(1, Number(e.target.value || 1)) }))}
+                                        onChange={(e) => {
+                                            const cap = Math.max(1, draftLotMaxQty || 1);
+                                            setDraftItem((prev) => ({
+                                                ...prev,
+                                                qty: Math.min(Math.max(1, Number(e.target.value || 1)), cap),
+                                            }));
+                                        }}
                                         className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
                                     />
                                 </div>

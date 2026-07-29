@@ -27,8 +27,9 @@ export default function AdminPricingLogicPage() {
             <section className="space-y-2">
                 <h2 className="text-base font-semibold">1. Склад</h2>
                 <p>
-                    «Офер» здесь — вход поставщика (listing / прайс), не магазины Allparfume. Курс BYN и
-                    формулы — как в шапке админки / «Формулы цен».
+                    «Склад» — среднее арифметическое цен открытых партий на основном складе (не цена
+                    последнего прихода). «Офер» — вход поставщика (listing / прайс), не магазины
+                    Allparfume. Курс BYN и формулы — как в шапке админки / «Формулы цен».
                 </p>
                 <ul className="list-disc space-y-1 pl-5">
                     <li>Нет офера поставщика → ручная очередь («Нет поставщика»).</li>

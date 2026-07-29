@@ -24,7 +24,9 @@ use Modules\ImportExport\Support\LegacyProductDetector;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\WarehouseStockLot;
 use Modules\Warehouse\Services\StockInventoryService;
+use Modules\Warehouse\Services\StockLotService;
 
 class ProductAdminController extends Controller
 {
@@ -393,7 +395,7 @@ class ProductAdminController extends Controller
         return 'Не удалось уникализировать описание: '.$error;
     }
 
-    public function variantSuppliers(Request $request, int $id): JsonResponse
+    public function variantSuppliers(Request $request, int $id, StockLotService $stockLotService): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
 
@@ -430,6 +432,8 @@ class ProductAdminController extends Controller
 
         $variants = VariantDefinitionVolume::sortVariantLinks($variants);
 
+        $variantIds = $variants->pluck('id')->all();
+
         $receiptItemsByVariant = StockReceiptItem::query()
             ->whereIn('variant_id', $variants->pluck('id')->all())
             ->with(['receipt.warehouse'])
@@ -445,8 +449,28 @@ class ProductAdminController extends Controller
         $supplierWarehouseName = (string) ($supplierWarehouseRow?->name ?: 'Поставщик');
         $productName = ProductDisplayName::forProduct($product);
 
+        $openLotsByVariant = collect();
+        if ($mainWarehouseId > 0 && $variantIds !== []) {
+            $openLotsByVariant = WarehouseStockLot::query()
+                ->where('warehouse_id', $mainWarehouseId)
+                ->whereIn('variant_id', $variantIds)
+                ->where('qty', '>', 0)
+                ->with(['receiptItem.receipt.warehouse'])
+                ->orderByRaw('supplier_price IS NULL')
+                ->orderBy('supplier_price')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('variant_id');
+        }
+
+        $minPurchaseByVariant = $mainWarehouseId > 0 && $variantIds !== []
+            ? $stockLotService->minPurchaseByVariant($variantIds, $mainWarehouseId)
+            : [];
+
         $data = $variants->map(function (ProductVariantLink $variant) use (
             $receiptItemsByVariant,
+            $openLotsByVariant,
+            $minPurchaseByVariant,
             $productName,
             $mainWarehouseId,
             $supplierWarehouseId,
@@ -456,27 +480,26 @@ class ProductAdminController extends Controller
             $variantTitle = (string) ($variant->title ?? '');
             $catalogLine = trim($variantTitle) !== '' ? "{$productName} — {$variantTitle}" : $productName;
 
-            $mainStoreRows = $receiptItems
-                ->filter(function (StockReceiptItem $item) use ($mainWarehouseId) {
-                    if ($mainWarehouseId <= 0) {
-                        return false;
-                    }
-                    $wid = (int) ($item->receipt?->warehouse_id ?? 0);
+            $mainStoreRows = $openLotsByVariant
+                ->get($variant->id, collect())
+                ->map(function (WarehouseStockLot $lot) use ($variant, $catalogLine) {
+                    $receiptItem = $lot->receiptItem;
 
-                    return $wid === $mainWarehouseId && (int) ($item->qty ?? 0) > 0;
-                })
-                ->map(function (StockReceiptItem $item) use ($variant, $catalogLine) {
                     return [
-                        'receipt_item_id' => $item->id,
-                        'receipt_id' => $item->stock_receipt_id,
-                        'receipt_document_no' => $item->receipt?->document_no,
+                        'lot_id' => (int) $lot->id,
+                        'receipt_item_id' => $lot->stock_receipt_item_id !== null
+                            ? (int) $lot->stock_receipt_item_id
+                            : null,
+                        'receipt_id' => $receiptItem?->stock_receipt_id,
+                        'receipt_document_no' => $receiptItem?->receipt?->document_no,
                         'supplier_name' => 'Магазин',
                         'supplier_code' => (string) $variant->id,
                         'supplier_product_name' => $catalogLine,
-                        'supplier_price' => $item->supplier_price,
-                        'warehouse_name' => $item->receipt?->warehouse?->name ?? 'Основной',
-                        'qty' => (int) ($item->qty ?? 0),
-                        'received_at' => $item->receipt?->received_at?->toDateString(),
+                        'supplier_price' => $lot->supplier_price,
+                        'warehouse_name' => $receiptItem?->receipt?->warehouse?->name ?? 'Основной',
+                        'qty' => (int) $lot->qty,
+                        'comment' => $lot->comment,
+                        'received_at' => $receiptItem?->receipt?->received_at?->toDateString(),
                     ];
                 })
                 ->values();
@@ -550,7 +573,12 @@ class ProductAdminController extends Controller
                 'stock' => (int) ($variant->stock ?? 0),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
-                'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
+                'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip(
+                    $variant,
+                    $mainStock,
+                    $supplierStock,
+                    $minPurchaseByVariant[(int) $variant->id] ?? null,
+                ),
                 'can_fulfill_main' => $mainStock
                     ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock) > 0
                     : false,

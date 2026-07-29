@@ -42,11 +42,17 @@ type Props = {
     onStatusFilterChangeAction?: (status: string) => void;
     selectedOrderIds?: number[];
     onSelectedOrderIdsChangeAction?: (ids: number[]) => void;
+    /**
+     * Дефолтный список без фильтров: done/cancelled на API не отдаются —
+     * после смены статуса убираем строку из таблицы сразу.
+     */
+    hideTerminalStatuses?: boolean;
 };
 
 const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-max max-w-[11.5rem]";
 
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
+const DEFAULT_LIST_HIDDEN_STATUSES = new Set(["done", "cancelled", "completed"]);
 
 function isOrderDeliveryOverdue(order: OrderData, todayIso: string): boolean {
     const status = (order.status ?? "").trim();
@@ -1232,6 +1238,7 @@ export default function AdminOrdersTable({
     onStatusFilterChangeAction,
     selectedOrderIds = [],
     onSelectedOrderIdsChangeAction,
+    hideTerminalStatuses = false,
 }: Props) {
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
@@ -1395,16 +1402,30 @@ export default function AdminOrdersTable({
                 onSuccessMessageAction?.("");
 
                 const response = await updateOrderStatus(orderId, status);
+                const nextStatus = (response.data.status ?? status).trim();
+                const shouldHide =
+                    hideTerminalStatuses && DEFAULT_LIST_HIDDEN_STATUSES.has(nextStatus);
 
                 setOrders((prev) =>
-                    prev.map((order) =>
-                        order.id === orderId ? { ...order, ...response.data } : order
-                    )
+                    shouldHide
+                        ? prev.filter((order) => order.id !== orderId)
+                        : prev.map((order) =>
+                              order.id === orderId ? { ...order, ...response.data } : order,
+                          ),
                 );
 
-                setSelectedOrder((prev) =>
-                    prev && prev.id === orderId ? { ...prev, ...response.data } : prev
-                );
+                setSelectedOrder((prev) => {
+                    if (!prev || prev.id !== orderId) {
+                        return prev;
+                    }
+                    return shouldHide ? null : { ...prev, ...response.data };
+                });
+
+                if (shouldHide && selectedOrderIds.includes(orderId)) {
+                    onSelectedOrderIdsChangeAction?.(
+                        selectedOrderIds.filter((id) => id !== orderId),
+                    );
+                }
 
                 onSuccessMessageAction?.("Статус заказа обновлён");
                 setTerminalConfirm(null);

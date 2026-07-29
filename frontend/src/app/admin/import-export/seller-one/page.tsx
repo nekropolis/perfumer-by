@@ -7,9 +7,11 @@ import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
+import { PackagePlus } from "lucide-react";
 import CopyText from "@/components/ui/copy-text";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import {
     createSellerOneRule,
     deleteSellerOneRule,
@@ -25,6 +27,7 @@ import {
     updateSellerOneSupplierProductParsingActive,
     updateSellerOneRule,
 } from "@/lib/admin-vanille-api";
+import AddToReceiptModal from "@/components/admin/import-export/seller-one/add-to-receipt-modal";
 import type {
     SellerOneDuplicateVariantLinksResponse,
     SellerOneMatchRule,
@@ -282,6 +285,7 @@ export default function SellerOneImportPage() {
     const [page, setPage] = useUrlPage();
 
     const [manualLink, setManualLink] = useState<ManualLinkState | null>(null);
+    const [addToReceiptRow, setAddToReceiptRow] = useState<SellerOneSupplierProductItem | null>(null);
     const [linkingRowId, setLinkingRowId] = useState<number | null>(null);
     const [rulesOpen, setRulesOpen] = useState(false);
     const [rules, setRules] = useState<SellerOneMatchRule[]>([]);
@@ -948,30 +952,30 @@ export default function SellerOneImportPage() {
                             </div>
                         </div>
                         <div className="min-w-0 overflow-x-auto rounded-xl border">
-                            <table className="w-full min-w-[1000px] table-fixed text-sm">
+                            <table className="w-full min-w-[960px] table-fixed text-sm">
                                 <colgroup>
-                                    <col style={{ width: "64px" }} />
-                                    <col style={{ width: "72px" }} />
-                                    <col style={{ width: "88px" }} />
-                                    <col style={{ width: "28%" }} />
-                                    <col style={{ width: "150px" }} />
-                                    <col style={{ width: "72px" }} />
-                                    <col style={{ width: "32%" }} />
+                                    <col style={{ width: "44px" }} />
+                                    <col style={{ width: "56px" }} />
+                                    <col style={{ width: "128px" }} />
+                                    <col />
+                                    <col style={{ width: "132px" }} />
+                                    <col style={{ width: "56px" }} />
+                                    <col />
                                 </colgroup>
                                 <thead className="bg-admin-muted">
                                     <tr className="text-left text-xs">
-                                        <th className="px-2 py-2 text-center font-medium whitespace-nowrap">Связь</th>
+                                        <th className="px-1 py-2 text-center font-medium whitespace-nowrap">Связь</th>
                                         <th
-                                            className="px-2 py-2 text-center font-medium whitespace-nowrap"
+                                            className="px-1 py-2 text-center font-medium whitespace-nowrap"
                                             title="Участие в парсинге прайса"
                                         >
                                             Парсинг
                                         </th>
-                                        <th className="px-2 py-2 font-medium whitespace-nowrap">Код</th>
-                                        <th className="px-3 py-2 font-medium">Товар поставщика</th>
+                                        <th className="px-1.5 py-2 font-medium whitespace-nowrap">Код</th>
+                                        <th className="px-2 py-2 font-medium">Товар поставщика</th>
                                         <th className="px-2 py-2 font-medium whitespace-nowrap">Статус</th>
-                                        <th className="px-2 py-2 text-center font-medium whitespace-nowrap">Наличие</th>
-                                        <th className="px-3 py-2 font-medium">Продукт каталога</th>
+                                        <th className="px-1 py-2 text-center font-medium whitespace-nowrap">Наличие</th>
+                                        <th className="px-2 py-2 font-medium">Продукт каталога</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -989,7 +993,7 @@ export default function SellerOneImportPage() {
 
                                         return (
                                             <tr key={row.id} className="border-t align-top">
-                                                <td className="px-2 py-3 text-center">
+                                                <td className="px-1 py-3 text-center">
                                                     <input
                                                         type="checkbox"
                                                         checked={Boolean(row.is_linked)}
@@ -1003,7 +1007,7 @@ export default function SellerOneImportPage() {
                                                         className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed"
                                                     />
                                                 </td>
-                                                <td className="px-2 py-3 text-center">
+                                                <td className="px-1 py-3 text-center">
                                                     <input
                                                         type="checkbox"
                                                         checked={row.link_parsing_active !== false}
@@ -1013,18 +1017,35 @@ export default function SellerOneImportPage() {
                                                         className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
                                                     />
                                                 </td>
-                                                <td className="whitespace-nowrap px-2 py-3 font-medium">
+                                                <td className="whitespace-nowrap px-1.5 py-3 font-medium">
                                                     {row.code ? (
-                                                        <CopyText
-                                                            value={row.code}
-                                                            title="Скопировать код поставщика"
-                                                            iconSize={12}
-                                                        />
+                                                        <span className="inline-flex items-center gap-0.5">
+                                                            <CopyText
+                                                                value={row.code}
+                                                                label={highlightAdminSearchTerms(
+                                                                    row.code,
+                                                                    debouncedSearch,
+                                                                )}
+                                                                title="Скопировать код поставщика"
+                                                                iconSize={12}
+                                                                className="!px-1"
+                                                            />
+                                                            {row.is_linked && row.linked_variant ? (
+                                                                <button
+                                                                    type="button"
+                                                                    title="Добавить в приход"
+                                                                    onClick={() => setAddToReceiptRow(row)}
+                                                                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50"
+                                                                >
+                                                                    <PackagePlus size={14} />
+                                                                </button>
+                                                            ) : null}
+                                                        </span>
                                                     ) : (
                                                         "—"
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-3">
+                                                <td className="px-2 py-3">
                                                     <HighlightedNameText
                                                         text={row.external_name}
                                                         matchInfo={nameMatchInfo}
@@ -1043,7 +1064,7 @@ export default function SellerOneImportPage() {
                                                         <ConfidenceBadge label="Не связан" confidence={row.match_confidence} />
                                                     )}
                                                 </td>
-                                                <td className="px-2 py-3 text-center text-xs text-admin-text">
+                                                <td className="px-1 py-3 text-center text-xs text-admin-text">
                                                     {row.price_file_in_stock === true ? (
                                                         <span className="font-medium text-green-700">Да</span>
                                                     ) : (
@@ -1051,7 +1072,7 @@ export default function SellerOneImportPage() {
                                                     )}
                                                 </td>
                                                 <td
-                                                    className="cursor-pointer px-3 py-3 text-xs whitespace-normal break-words"
+                                                    className="cursor-pointer px-2 py-3 text-xs whitespace-normal break-words"
                                                     onClick={() => {
                                                         openManualLink(row);
                                                     }}
@@ -1160,6 +1181,13 @@ export default function SellerOneImportPage() {
                         linkingRowId={linkingRowId}
                         onConfirmAction={doForceLink}
                         onPickVariantAction={pickManualVariant}
+                    />
+                ) : null}
+
+                {addToReceiptRow ? (
+                    <AddToReceiptModal
+                        row={addToReceiptRow}
+                        onClose={() => setAddToReceiptRow(null)}
                     />
                 ) : null}
 
