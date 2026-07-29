@@ -12,6 +12,7 @@ use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReceiptItem;
+use Modules\Warehouse\Models\StockReservation;
 use Modules\Warehouse\Models\Warehouse;
 
 class StockReceiptService
@@ -207,6 +208,39 @@ class StockReceiptService
                 ],
                 (int) $receipt->warehouse_id
             );
+            });
+        });
+    }
+
+    /**
+     * Принудительное удаление: откатывает только оставшиеся qty партий прихода
+     * (уже списанное не вычитается повторно). Резерв с партий снимается вместе с ними.
+     */
+    public function destroyHard(StockReceipt $receipt): void
+    {
+        $this->inventoryService->runWithCatalogCacheCommit(function () use ($receipt): void {
+            DB::transaction(function () use ($receipt): void {
+                $receipt->load('items');
+                if ($receipt->status === StockReceipt::STATUS_POSTED) {
+                    $this->hardRollbackItems($receipt);
+                }
+                $receipt->items()->delete();
+                $receiptId = $receipt->id;
+                $documentNo = $receipt->document_no;
+                $receipt->delete();
+
+                $this->writeAudit(
+                    AuditLogService::ENTITY_STOCK_RECEIPT,
+                    $receiptId,
+                    AuditLogService::ACTION_DELETED,
+                    "Принудительно удалён приход #{$documentNo}",
+                    [
+                        'receipt_id' => $receiptId,
+                        'warehouse_id' => $receipt->warehouse_id,
+                        'hard' => true,
+                    ],
+                    (int) $receipt->warehouse_id
+                );
             });
         });
     }
@@ -410,6 +444,122 @@ class StockReceiptService
 
             $variant->refresh();
             $this->cleanupVariantIfUnused($variant);
+        }
+    }
+
+    private function hardRollbackItems(StockReceipt $receipt): void
+    {
+        $warehouseId = (int) $receipt->warehouse_id;
+        $detachedLotIds = [];
+
+        foreach ($receipt->items as $item) {
+            $variant = ProductVariantLink::query()->lockForUpdate()->find($item->variant_id);
+            if (!$variant) {
+                continue;
+            }
+
+            $detached = $this->stockLotService->forceDetachReceiptLot($item, $warehouseId);
+            $qty = (int) ($detached['qty'] ?? 0);
+            $reserved = (int) ($detached['reserved'] ?? 0);
+            if (!empty($detached['lot_id'])) {
+                $detachedLotIds[] = (int) $detached['lot_id'];
+            }
+
+            if ($reserved > 0) {
+                $this->inventoryService->forceReleaseReservedQty(
+                    $variant,
+                    $reserved,
+                    'stock_receipt_hard_purge',
+                    (int) $receipt->id,
+                    [
+                        'receipt_id' => $receipt->id,
+                        'receipt_item_id' => $item->id,
+                        'warehouse_id' => $warehouseId,
+                        'lot_id' => $detached['lot_id'] ?? null,
+                        'hard' => true,
+                    ],
+                    $warehouseId
+                );
+            }
+
+            if ($qty > 0) {
+                $this->inventoryService->forceDecreaseVariantStock(
+                    $variant,
+                    $qty,
+                    'stock_receipt_hard_purge',
+                    (int) $receipt->id,
+                    [
+                        'receipt_id' => $receipt->id,
+                        'receipt_item_id' => $item->id,
+                        'warehouse_id' => $warehouseId,
+                        'lot_id' => $detached['lot_id'] ?? null,
+                        'hard' => true,
+                    ],
+                    $warehouseId
+                );
+            }
+
+            $variant->refresh();
+            $this->cleanupVariantIfUnused($variant);
+        }
+
+        $this->releaseReservationsFullyCoveredByLots($detachedLotIds, $warehouseId, (int) $receipt->id);
+    }
+
+    /**
+     * @param  list<int>  $detachedLotIds
+     */
+    private function releaseReservationsFullyCoveredByLots(array $detachedLotIds, int $warehouseId, int $receiptId): void
+    {
+        if ($detachedLotIds === []) {
+            return;
+        }
+
+        $detachedSet = array_fill_keys($detachedLotIds, true);
+
+        $reservations = StockReservation::query()
+            ->where('warehouse_id', $warehouseId)
+            ->where('status', 'active')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($reservations as $reservation) {
+            $payload = is_array($reservation->payload) ? $reservation->payload : [];
+            $lots = $payload['lots'] ?? null;
+            if (!is_array($lots) || $lots === []) {
+                continue;
+            }
+
+            $lotIds = [];
+            foreach ($lots as $row) {
+                $lotId = (int) ($row['lot_id'] ?? 0);
+                if ($lotId > 0) {
+                    $lotIds[] = $lotId;
+                }
+            }
+            if ($lotIds === []) {
+                continue;
+            }
+
+            $allDetached = true;
+            foreach ($lotIds as $lotId) {
+                if (!isset($detachedSet[$lotId])) {
+                    $allDetached = false;
+                    break;
+                }
+            }
+            if (!$allDetached) {
+                continue;
+            }
+
+            $reservation->update([
+                'status' => 'released',
+                'released_at' => now(),
+                'payload' => array_merge($payload, [
+                    'release_reason' => 'stock_receipt_hard_purge',
+                    'purged_receipt_id' => $receiptId,
+                ]),
+            ]);
         }
     }
 

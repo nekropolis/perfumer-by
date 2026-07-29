@@ -1086,6 +1086,104 @@ class StockInventoryService
         $this->decreaseVariantStockInternal($variant, $qty, $documentType, $documentId, $payload, $warehouseId);
     }
 
+    /**
+     * Снять резерв без проверки бизнес-блокеров (для hard-purge прихода).
+     */
+    public function forceReleaseReservedQty(
+        ProductVariantLink $variant,
+        int $qty,
+        string $documentType,
+        int $documentId,
+        array $payload = [],
+        ?int $warehouseId = null,
+    ): void {
+        if ($qty <= 0) {
+            return;
+        }
+
+        $warehouseId = $warehouseId ?: (int) ($payload['warehouse_id'] ?? $this->getDefaultSupplierWarehouseId());
+        $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+        $beforeStock = (int) $warehouseStock->stock;
+        $beforeReserved = (int) $warehouseStock->reserved_stock;
+        $release = min($qty, $beforeReserved);
+
+        if ($release <= 0) {
+            return;
+        }
+
+        $warehouseStock->update([
+            'reserved_stock' => max(0, $beforeReserved - $release),
+        ]);
+
+        $this->createMovement(
+            self::MOVEMENT_RELEASE,
+            $documentType,
+            $documentId,
+            $warehouseId,
+            $variant,
+            0,
+            -$release,
+            $payload,
+            $beforeStock,
+            $beforeReserved,
+            (int) $warehouseStock->stock,
+            (int) $warehouseStock->reserved_stock,
+        );
+
+        $this->syncVariantAggregates((int) $variant->id);
+        $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+    }
+
+    /**
+     * Уменьшить остаток без падения в минус (для hard-purge прихода).
+     * Списывает min(qty, stock - reserved).
+     */
+    public function forceDecreaseVariantStock(
+        ProductVariantLink $variant,
+        int $qty,
+        string $documentType,
+        int $documentId,
+        array $payload = [],
+        ?int $warehouseId = null,
+    ): void {
+        if ($qty <= 0) {
+            return;
+        }
+
+        $warehouseId = $warehouseId ?: (int) ($payload['warehouse_id'] ?? $this->getDefaultSupplierWarehouseId());
+        $warehouseStock = $this->getWarehouseStock($warehouseId, (int) $variant->product_id, (int) $variant->id, true);
+        $beforeStock = (int) $warehouseStock->stock;
+        $beforeReserved = (int) $warehouseStock->reserved_stock;
+        $available = max(0, $beforeStock - $beforeReserved);
+        $take = min($qty, $available);
+
+        if ($take <= 0) {
+            return;
+        }
+
+        $warehouseStock->update([
+            'stock' => $beforeStock - $take,
+        ]);
+
+        $this->createMovement(
+            self::MOVEMENT_WRITEOFF,
+            $documentType,
+            $documentId,
+            $warehouseId,
+            $variant,
+            -$take,
+            0,
+            $payload,
+            $beforeStock,
+            $beforeReserved,
+            (int) $warehouseStock->stock,
+            (int) $warehouseStock->reserved_stock,
+        );
+
+        $this->syncVariantAggregates((int) $variant->id);
+        $this->syncProductStockFlagsByProductId((int) $variant->product_id);
+    }
+
     private function decreaseVariantStockInternal(
         ProductVariantLink $variant,
         int $qty,

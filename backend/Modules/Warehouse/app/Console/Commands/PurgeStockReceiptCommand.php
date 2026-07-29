@@ -8,6 +8,7 @@ use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockReservation;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Models\StockWriteoffItem;
+use Modules\Warehouse\Models\WarehouseStockLot;
 use Modules\Warehouse\Services\StockReceiptService;
 use Modules\Warehouse\Services\StockReceiptXlsImportService;
 
@@ -15,7 +16,8 @@ class PurgeStockReceiptCommand extends Command
 {
     protected $signature = 'warehouse:purge-stock-receipt
         {id : ID прихода}
-        {--force : Выполнить удаление (без флага — только отчёт)}';
+        {--force : Выполнить удаление (без флага — только отчёт)}
+        {--hard : Принудительно: откатить только оставшееся на партиях, игнорируя блокеры}';
 
     protected $description = 'Безопасно удалить приход с откатом остатков и сбросом строк XLS-импорта';
 
@@ -25,6 +27,7 @@ class PurgeStockReceiptCommand extends Command
     ): int {
         $id = (int) $this->argument('id');
         $force = (bool) $this->option('force');
+        $hard = (bool) $this->option('hard');
 
         $receipt = StockReceipt::query()->with('items')->find($id);
         if (!$receipt) {
@@ -35,6 +38,12 @@ class PurgeStockReceiptCommand extends Command
 
         $variantIds = $receipt->items->pluck('variant_id')->map(static fn ($v) => (int) $v)->unique()->values()->all();
         $warehouseId = (int) $receipt->warehouse_id;
+        $itemIds = $receipt->items->pluck('id')->map(static fn ($v) => (int) $v)->all();
+
+        $lots = WarehouseStockLot::query()
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('stock_receipt_item_id', $itemIds)
+            ->get(['id', 'stock_receipt_item_id', 'qty', 'reserved_qty']);
 
         $blockers = [];
 
@@ -60,6 +69,11 @@ class PurgeStockReceiptCommand extends Command
             $blockers[] = "Проведённые списания по вариантам склада: {$writeoffItems}";
         }
 
+        $lotsWithReserve = $lots->filter(static fn ($lot) => (int) $lot->reserved_qty > 0)->count();
+        if ($lotsWithReserve > 0) {
+            $blockers[] = "Партии прихода с резервом: {$lotsWithReserve}";
+        }
+
         $receiptMovements = StockMovement::query()
             ->where('document_type', 'stock_receipt')
             ->where('document_id', $receipt->id)
@@ -68,39 +82,62 @@ class PurgeStockReceiptCommand extends Command
         $this->info("Приход #{$receipt->id} ({$receipt->document_no}) status={$receipt->status}");
         $this->line('Склад: ' . $warehouseId);
         $this->line('Строк: ' . $receipt->items->count());
+        $this->line('Открытых партий: ' . $lots->count() . ' (qty=' . $lots->sum('qty') . ', reserved=' . $lots->sum('reserved_qty') . ')');
         $this->line('Движений receipt: ' . $receiptMovements->count());
         $this->line('Сумма stock_delta: ' . $receiptMovements->sum('stock_delta'));
 
         foreach ($receipt->items as $item) {
+            $lot = $lots->firstWhere('stock_receipt_item_id', $item->id);
             $this->line(sprintf(
-                '  - item #%d variant=%d qty=%d sku=%s',
+                '  - item #%d variant=%d qty=%d sku=%s lot=%s',
                 $item->id,
                 $item->variant_id,
                 $item->qty,
-                $item->supplier_sku ?? '—'
+                $item->supplier_sku ?? '—',
+                $lot
+                    ? "#{$lot->id} left={$lot->qty}/res={$lot->reserved_qty}"
+                    : 'нет (уже израсходована)'
             ));
         }
 
-        if ($blockers !== []) {
+        if ($blockers !== [] && ! $hard) {
             $this->warn('Блокеры:');
             foreach ($blockers as $blocker) {
                 $this->warn('  • ' . $blocker);
             }
-            $this->error('Удаление запрещено. Сначала снимите резервы/списания/чужие движения.');
+            $this->error('Удаление запрещено. Снимите резервы/списания или запустите с --hard --force.');
+            $this->comment('Пример: php artisan warehouse:purge-stock-receipt '.$id.' --hard --force');
 
             return self::FAILURE;
         }
 
+        if ($hard) {
+            $this->warn('Режим --hard: откатим только оставшееся на партиях прихода (уже списанное не трогаем).');
+            if ($blockers !== []) {
+                $this->warn('Игнорируемые блокеры:');
+                foreach ($blockers as $blocker) {
+                    $this->warn('  • ' . $blocker);
+                }
+            }
+        }
+
         if (!$force) {
             $this->comment('Dry-run: добавьте --force для удаления с откатом остатков.');
+            if ($blockers !== []) {
+                $this->comment('С блокерами: php artisan warehouse:purge-stock-receipt '.$id.' --hard --force');
+            }
 
             return self::SUCCESS;
         }
 
-        $receiptService->destroy($receipt);
+        if ($hard) {
+            $receiptService->destroyHard($receipt);
+        } else {
+            $receiptService->destroy($receipt);
+        }
         $reset = $importService->resetRowsForPurgedReceipt($id);
 
-        $this->info("Приход #{$id} удалён. Строк импорта сброшено: {$reset}");
+        $this->info("Приход #{$id} удалён".($hard ? ' (hard)' : '').". Строк импорта сброшено: {$reset}");
 
         return self::SUCCESS;
     }

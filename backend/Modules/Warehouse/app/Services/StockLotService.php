@@ -484,6 +484,36 @@ final class StockLotService
     }
 
     /**
+     * Жёсткий откат: снимаем только то, что ещё осталось на партии прихода.
+     * Уже списанное/израсходованное не трогаем (лота может не быть).
+     *
+     * @return array{lot_id: int|null, qty: int, reserved: int}
+     */
+    public function forceDetachReceiptLot(StockReceiptItem $item, int $warehouseId): array
+    {
+        $lot = WarehouseStockLot::query()
+            ->where('stock_receipt_item_id', $item->id)
+            ->where('warehouse_id', $warehouseId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $lot) {
+            return ['lot_id' => null, 'qty' => 0, 'reserved' => 0];
+        }
+
+        $qty = max(0, (int) $lot->qty);
+        $reserved = max(0, (int) $lot->reserved_qty);
+        $lotId = (int) $lot->id;
+        $lot->delete();
+
+        return [
+            'lot_id' => $lotId,
+            'qty' => $qty,
+            'reserved' => $reserved,
+        ];
+    }
+
+    /**
      * @param  list<int|string>  $ids
      * @return list<int>
      */
