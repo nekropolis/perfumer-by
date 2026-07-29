@@ -624,7 +624,12 @@ export default function AdminWarehouseBalancesPage() {
                                                         className="whitespace-normal break-words px-3 py-2 text-admin-text"
                                                         title={row.supplier_name || undefined}
                                                     >
-                                                        {row.supplier_name || "—"}
+                                                        <div>{row.supplier_name || "—"}</div>
+                                                        {row.supplier_product_name ? (
+                                                            <div className="mt-0.5 text-[11px] text-admin-text-secondary">
+                                                                {row.supplier_product_name}
+                                                            </div>
+                                                        ) : null}
                                                     </td>
                                                     <td className="whitespace-nowrap px-3 py-2 text-admin-text">
                                                         {row.supplier_sku || "—"}

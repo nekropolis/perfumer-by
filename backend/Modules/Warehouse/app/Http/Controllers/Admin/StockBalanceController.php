@@ -174,6 +174,13 @@ class StockBalanceController extends Controller
         $rows = $lots
             ->map(function (WarehouseStockLot $lot) {
                 $receivedAt = $lot->receiptItem?->receipt?->received_at;
+                $payload = is_array($lot->receiptItem?->payload) ? $lot->receiptItem->payload : [];
+                $supplierProductName = trim((string) (
+                    $payload['supplier_product_name']
+                    ?? $payload['title']
+                    ?? $payload['name']
+                    ?? ''
+                ));
 
                 return [
                     'source' => 'lot',
@@ -186,6 +193,7 @@ class StockBalanceController extends Controller
                     'supplier_name' => $lot->supplier_name !== null && trim((string) $lot->supplier_name) !== ''
                         ? trim((string) $lot->supplier_name)
                         : '—',
+                    'supplier_product_name' => $supplierProductName !== '' ? $supplierProductName : null,
                     'comment' => $lot->comment,
                     'received_at' => $receivedAt?->toDateString(),
                 ];
