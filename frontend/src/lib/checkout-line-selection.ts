@@ -97,11 +97,38 @@ export function waitingDiscountAmountForLines(items: CartData["items"]): string 
     return (cents / 100).toFixed(2);
 }
 
-export function breakdownSubtotalFromQuote(quote: CheckoutQuote): string {
-    const giftPurchase = quote.gift_certificates_purchase_subtotal
-        ? parseCheckoutMoney(quote.gift_certificates_purchase_subtotal)
-        : 0;
-    return Math.max(0, parseCheckoutMoney(quote.subtotal) + giftPurchase).toFixed(2);
+/**
+ * Полная (зачёркнутая) цена единицы: base_price при ожидании, иначе old_price при акции, иначе price.
+ * Совпадает с логикой отображения в строке корзины.
+ */
+export function cartItemListUnitPrice(item: CartData["items"][number]): string {
+    if (item.waiting_discount && item.base_price) {
+        return item.base_price;
+    }
+    if (item.old_price) {
+        const oldCents = Math.round(parseCheckoutMoney(item.old_price) * 100);
+        const priceCents = Math.round(parseCheckoutMoney(item.price) * 100);
+        if (oldCents > priceCents) {
+            return item.old_price;
+        }
+    }
+    return item.price;
+}
+
+/** Сумма товаров по полным (зачёркнутым) ценам + подарочные сертификаты к покупке. */
+export function listSubtotalForLines(
+    items: CartData["items"],
+    giftItems: NonNullable<CartData["gift_certificate_items"]> = [],
+): string {
+    let cents = 0;
+    for (const item of items) {
+        const unitCents = Math.round(parseCheckoutMoney(cartItemListUnitPrice(item)) * 100);
+        cents += unitCents * item.qty;
+    }
+    for (const row of giftItems) {
+        cents += Math.round(parseCheckoutMoney(row.total) * 100);
+    }
+    return (cents / 100).toFixed(2);
 }
 
 export function merchandisePayFromQuote(quote: CheckoutQuote): string {

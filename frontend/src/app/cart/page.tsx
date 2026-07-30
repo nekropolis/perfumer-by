@@ -21,10 +21,10 @@ import {
 } from "@/lib/cart-api";
 import { CHECKOUT_LINE_SELECTION_STORAGE_KEY, fetchCheckoutQuote, type CheckoutQuote } from "@/lib/checkout-api";
 import {
-    breakdownSubtotalFromQuote,
     buildPartialCheckoutSelection,
     discountCardForBreakdownFromQuote,
     giftForBreakdownFromQuote,
+    listSubtotalForLines,
     merchandisePayFromQuote,
     waitingDiscountAmountForLines,
 } from "@/lib/checkout-line-selection";
@@ -186,6 +186,14 @@ export default function CartPage() {
         return sumMoneyStrings(totals);
     }, [cart, selectedCartItemIds, selectedGiftLineIds]);
 
+    const selectedLinesListSubtotalStr = useMemo(() => {
+        if (!cart) return "0.00";
+        return listSubtotalForLines(
+            cart.items.filter((item) => selectedCartItemIds.has(item.id)),
+            (cart.gift_certificate_items ?? []).filter((row) => selectedGiftLineIds.has(row.id)),
+        );
+    }, [cart, selectedCartItemIds, selectedGiftLineIds]);
+
     const selectedLinesQty = useMemo(() => {
         if (!cart) return 0;
         let n = 0;
@@ -255,7 +263,7 @@ export default function CartPage() {
         if (!partialLineSelection) {
             return {
                 itemsQty: cart.qty,
-                subtotal: cart.subtotal,
+                subtotal: listSubtotalForLines(cart.items, cart.gift_certificate_items ?? []),
                 total: cart.total ?? cart.subtotal,
                 discountCard: cart.discount_card ?? null,
                 giftCertificate: cart.gift_certificate ?? null,
@@ -264,7 +272,7 @@ export default function CartPage() {
         if (partialQuote) {
             return {
                 itemsQty: selectedLinesQty,
-                subtotal: breakdownSubtotalFromQuote(partialQuote),
+                subtotal: selectedLinesListSubtotalStr,
                 total: merchandisePayFromQuote(partialQuote),
                 discountCard: discountCardForBreakdownFromQuote(cart, partialQuote),
                 giftCertificate: giftForBreakdownFromQuote(cart, partialQuote),
@@ -272,12 +280,19 @@ export default function CartPage() {
         }
         return {
             itemsQty: selectedLinesQty,
-            subtotal: selectedLinesSubtotalStr,
+            subtotal: selectedLinesListSubtotalStr,
             total: selectedLinesSubtotalStr,
             discountCard: cart.discount_card ?? null,
             giftCertificate: cart.gift_certificate ?? null,
         };
-    }, [cart, partialLineSelection, partialQuote, selectedLinesQty, selectedLinesSubtotalStr]);
+    }, [
+        cart,
+        partialLineSelection,
+        partialQuote,
+        selectedLinesQty,
+        selectedLinesListSubtotalStr,
+        selectedLinesSubtotalStr,
+    ]);
 
     const checkoutTotalStr = partialLineSelection
         ? partialQuote

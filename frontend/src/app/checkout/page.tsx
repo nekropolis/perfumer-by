@@ -41,11 +41,11 @@ import PhoneInput, {
 } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
-    breakdownSubtotalFromQuote,
     countCheckoutLinesQty,
     discountCardForBreakdownFromQuote,
     filterCartLinesForCheckout,
     giftForBreakdownFromQuote,
+    listSubtotalForLines,
     merchandisePayFromQuote,
     parseCheckoutMoney,
     sanitizeCheckoutLineSelectionForCart,
@@ -502,7 +502,7 @@ export default function CheckoutPage() {
 
     const giftForBreakdown = giftForBreakdownFromQuote(cart, quote);
 
-    const breakdownSubtotal = quote != null ? breakdownSubtotalFromQuote(quote) : cart.subtotal;
+    const breakdownSubtotal = listSubtotalForLines(checkoutCartLines.items, checkoutCartLines.giftItems);
 
     const merchandisePayStr = quote != null ? merchandisePayFromQuote(quote) : (cart.total ?? cart.subtotal);
 
