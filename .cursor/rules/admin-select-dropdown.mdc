@@ -1,0 +1,28 @@
+---
+description: Admin filter/select UI — use custom dropdown, never native select for filters
+globs: frontend/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# Admin select / filter dropdowns
+
+Owner preference (strong): **do not use native `<select>` for admin filters and choice menus.**
+
+Native `<select>` opens the OS system menu (dark on macOS) and looks wrong next to the light admin UI.
+
+## Use instead
+
+- Prefer existing custom dropdowns:
+  - `AdminStatusDropdown` (`frontend/src/components/admin/ui/admin-status-dropdown.tsx`) — bordered trigger + light portal menu with checkmark (same look as order status).
+  - Column/header filter pattern from `admin-orders-table.tsx` (light `bg-admin-surface` listbox + `Check`).
+- Trigger: bordered, `min-h-10`, light surface — match search inputs / orders toolbar.
+- Open menu: light background (`bg-white` / `bg-admin-surface`), border, shadow, checkmark on selected — **never** rely on native OS popup.
+
+## Allowed native `<select>`
+
+Only for low-emphasis controls that already use native selects in the project (e.g. «На странице» / per-page), or when matching an existing adjacent native control.
+
+## Checklist before shipping a filter
+
+1. Is this a filter / reason / status / choice menu? → custom dropdown, not `<select>`.
+2. Does the open menu look light like orders status filter? If not — wrong component.

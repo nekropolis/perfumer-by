@@ -15,6 +15,7 @@ final class WarehouseManualPriceReviewSyncService
      *     reason: string,
      *     warehouse_purchase: string,
      *     supplier_purchase: ?string,
+     *     formula_input?: ?string,
      *     receipt_supplier_id: ?int,
      *     supplier_sku: ?string,
      *     supplier_external_code: ?string,
@@ -43,6 +44,9 @@ final class WarehouseManualPriceReviewSyncService
             'resolved_at' => null,
         ];
 
+        if (array_key_exists('formula_input', $payload)) {
+            $data['formula_input'] = $payload['formula_input'];
+        }
         if (array_key_exists('manual_retail_price', $payload)) {
             $data['manual_retail_price'] = $payload['manual_retail_price'];
         }
@@ -51,6 +55,18 @@ final class WarehouseManualPriceReviewSyncService
         }
 
         if ($existing instanceof WarehouseManualPriceReview) {
+            // Активный + зафиксированная цена: не перезаписывать, пока та же причина.
+            $locked = $existing->list_on_storefront
+                && $existing->manual_set_at !== null
+                && (string) $existing->reason === (string) $payload['reason'];
+            if ($locked) {
+                unset(
+                    $data['manual_retail_price'],
+                    $data['list_on_storefront'],
+                    $data['formula_input'],
+                );
+            }
+
             $existing->update($data);
 
             return $existing->fresh() ?? $existing;

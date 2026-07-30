@@ -57,6 +57,8 @@ export default function AdminProductsPage() {
     const [variantsLoading, setVariantsLoading] = useState(false);
     const [variantPriceDrafts, setVariantPriceDrafts] = useState<Record<number, string>>({});
     const [variantPriceSavingId, setVariantPriceSavingId] = useState<number | null>(null);
+    const [variantOldPriceDrafts, setVariantOldPriceDrafts] = useState<Record<number, string>>({});
+    const [variantOldPriceSavingId, setVariantOldPriceSavingId] = useState<number | null>(null);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -103,6 +105,8 @@ export default function AdminProductsPage() {
         setVariantSuppliers([]);
         setVariantPriceDrafts({});
         setVariantPriceSavingId(null);
+        setVariantOldPriceDrafts({});
+        setVariantOldPriceSavingId(null);
         setVariantsLoading(true);
         setError("");
         try {
@@ -130,17 +134,38 @@ export default function AdminProductsPage() {
         return String(variant.site_price);
     };
 
+    const getVariantOldPriceInputValue = (variant: ProductVariantSupplierItem): string => {
+        const draft = variantOldPriceDrafts[variant.id];
+        if (draft !== undefined) {
+            return draft;
+        }
+
+        if (variant.old_price === null || variant.old_price === undefined || variant.old_price === "") {
+            return "";
+        }
+
+        return String(variant.old_price);
+    };
+
+    const normalizeMoneyInput = (value: string): string => value.trim().replace(",", ".");
+
+    const moneyFieldOriginal = (
+        value: ProductVariantSupplierItem["site_price"] | ProductVariantSupplierItem["old_price"],
+    ): string => {
+        if (value === null || value === undefined || value === "") {
+            return "";
+        }
+
+        return String(value).trim();
+    };
+
     const saveVariantSitePriceOnBlur = async (variant: ProductVariantSupplierItem) => {
         if (!variantsTarget) {
             return;
         }
 
-        const currentValue = getVariantPriceInputValue(variant).trim();
-        const normalizedCurrent = currentValue.replace(",", ".");
-        const originalValue = variant.site_price === null || variant.site_price === undefined || variant.site_price === ""
-            ? ""
-            : String(variant.site_price).trim();
-        const normalizedOriginal = originalValue.replace(",", ".");
+        const normalizedCurrent = normalizeMoneyInput(getVariantPriceInputValue(variant));
+        const normalizedOriginal = normalizeMoneyInput(moneyFieldOriginal(variant.site_price));
 
         if (normalizedCurrent === normalizedOriginal) {
             setVariantPriceDrafts((prev) => {
@@ -160,7 +185,7 @@ export default function AdminProductsPage() {
                 setError("Цена должна быть числом больше или равным 0");
                 setVariantPriceDrafts((prev) => ({
                     ...prev,
-                    [variant.id]: originalValue,
+                    [variant.id]: moneyFieldOriginal(variant.site_price),
                 }));
                 return;
             }
@@ -207,10 +232,77 @@ export default function AdminProductsPage() {
             setError(e instanceof Error ? e.message : "Ошибка обновления цены варианта");
             setVariantPriceDrafts((prev) => ({
                 ...prev,
-                [variant.id]: originalValue,
+                [variant.id]: moneyFieldOriginal(variant.site_price),
             }));
         } finally {
             setVariantPriceSavingId((prev) => (prev === variant.id ? null : prev));
+        }
+    };
+
+    const saveVariantOldPriceOnBlur = async (variant: ProductVariantSupplierItem) => {
+        if (!variantsTarget) {
+            return;
+        }
+
+        const normalizedCurrent = normalizeMoneyInput(getVariantOldPriceInputValue(variant));
+        const normalizedOriginal = normalizeMoneyInput(moneyFieldOriginal(variant.old_price));
+
+        if (normalizedCurrent === normalizedOriginal) {
+            setVariantOldPriceDrafts((prev) => {
+                if (!(variant.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[variant.id];
+                return next;
+            });
+            return;
+        }
+
+        if (normalizedCurrent !== "") {
+            const numeric = Number(normalizedCurrent);
+            if (!Number.isFinite(numeric) || numeric < 0) {
+                setError("Старая цена должна быть числом больше или равным 0");
+                setVariantOldPriceDrafts((prev) => ({
+                    ...prev,
+                    [variant.id]: moneyFieldOriginal(variant.old_price),
+                }));
+                return;
+            }
+        }
+
+        setVariantOldPriceSavingId(variant.id);
+        setError("");
+        setSuccess("");
+        try {
+            await updateProductVariant(variantsTarget.id, variant.id, {
+                old_price: normalizedCurrent === "" ? null : normalizedCurrent,
+            });
+
+            setVariantSuppliers((prev) =>
+                prev.map((row) =>
+                    row.id === variant.id
+                        ? { ...row, old_price: normalizedCurrent === "" ? null : normalizedCurrent }
+                        : row,
+                ),
+            );
+            setVariantOldPriceDrafts((prev) => {
+                if (!(variant.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[variant.id];
+                return next;
+            });
+            setSuccess("Старая цена варианта обновлена");
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка обновления старой цены варианта");
+            setVariantOldPriceDrafts((prev) => ({
+                ...prev,
+                [variant.id]: moneyFieldOriginal(variant.old_price),
+            }));
+        } finally {
+            setVariantOldPriceSavingId((prev) => (prev === variant.id ? null : prev));
         }
     };
 
@@ -365,6 +457,14 @@ export default function AdminProductsPage() {
                             })),
                         onVariantPriceBlur: (variant) => void saveVariantSitePriceOnBlur(variant),
                         variantPriceSavingId,
+                        getVariantOldPriceInputValue: getVariantOldPriceInputValue,
+                        onVariantOldPriceChange: (variantId, value) =>
+                            setVariantOldPriceDrafts((prev) => ({
+                                ...prev,
+                                [variantId]: value,
+                            })),
+                        onVariantOldPriceBlur: (variant) => void saveVariantOldPriceOnBlur(variant),
+                        variantOldPriceSavingId,
                     }}
                 />
             ) : null}

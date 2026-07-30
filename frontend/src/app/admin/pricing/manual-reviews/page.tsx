@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FilterX } from "lucide-react";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
-import ManualPriceReviewsTable from "@/components/admin/pricing/manual-price-reviews-table";
+import ManualPriceReviewsTable, {
+    MANUAL_PRICE_REASON_LABELS,
+} from "@/components/admin/pricing/manual-price-reviews-table";
 import { useAdminPricingShell } from "@/components/admin/pricing/admin-pricing-shell";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
@@ -20,12 +24,22 @@ import {
 const PER_PAGE_OPTIONS = [25, 50, 100, 2000] as const;
 const PER_PAGE_ALL = 2000;
 
+const REASON_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: "", label: "Все причины" },
+    { value: "no_supplier_match", label: MANUAL_PRICE_REASON_LABELS.no_supplier_match },
+    { value: "warehouse_offer_gap", label: MANUAL_PRICE_REASON_LABELS.warehouse_offer_gap },
+    { value: "warehouse_blend_gap", label: MANUAL_PRICE_REASON_LABELS.warehouse_blend_gap },
+    { value: "allparfume_no_match", label: MANUAL_PRICE_REASON_LABELS.allparfume_no_match },
+    { value: "allparfume_no_input", label: MANUAL_PRICE_REASON_LABELS.allparfume_no_input },
+];
+
 export default function AdminManualPriceReviewsPage() {
     const { contentEpoch, bumpContent } = useAdminPricingShell();
     const [page, setPage] = useUrlPage();
     const [perPage, setPerPage] = useState<(typeof PER_PAGE_OPTIONS)[number]>(25);
     const [searchInput, setSearchInput] = useState("");
     const debouncedSearch = useDebouncedValue(searchInput, 400);
+    const [reason, setReason] = useState("");
     const [items, setItems] = useState<ManualPriceReviewItem[]>([]);
     const [meta, setMeta] = useState<{ current_page: number; last_page: number; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -33,48 +47,66 @@ export default function AdminManualPriceReviewsPage() {
     const [success, setSuccess] = useState("");
     const [savingId, setSavingId] = useState<number | null>(null);
 
-    useResetPageOnChange(setPage, [debouncedSearch, perPage]);
+    useResetPageOnChange(setPage, [debouncedSearch, perPage, reason]);
 
-    const loadItems = useCallback(async (targetPage: number, search: string, targetPerPage: number) => {
-        setLoading(true);
-        setError("");
-        try {
-            const res = await fetchManualPriceReviews({
-                page: targetPage,
-                per_page: targetPerPage,
-                search: search.trim() || undefined,
-            });
-            setItems(res.data || []);
-            setMeta({
-                current_page: res.current_page,
-                last_page: res.last_page,
-                total: res.total,
-            });
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка загрузки");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const loadItems = useCallback(
+        async (targetPage: number, search: string, targetPerPage: number, reasonFilter: string) => {
+            setLoading(true);
+            setError("");
+            try {
+                const res = await fetchManualPriceReviews({
+                    page: targetPage,
+                    per_page: targetPerPage,
+                    search: search.trim() || undefined,
+                    reason: reasonFilter || undefined,
+                });
+                setItems(res.data || []);
+                setMeta({
+                    current_page: res.current_page,
+                    last_page: res.last_page,
+                    total: res.total,
+                });
+            } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : "Ошибка загрузки");
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
 
     useEffect(() => {
-        void loadItems(page, debouncedSearch, perPage);
-    }, [loadItems, page, debouncedSearch, perPage, contentEpoch]);
+        void loadItems(page, debouncedSearch, perPage, reason);
+    }, [loadItems, page, debouncedSearch, perPage, reason, contentEpoch]);
+
+    const hasActiveFilters = useMemo(
+        () => searchInput.trim() !== "" || reason !== "",
+        [searchInput, reason],
+    );
 
     const handleSave = async (
         item: ManualPriceReviewItem,
-        state: { warehousePurchase: string; price: string; listOnStorefront: boolean },
+        state: {
+            warehousePurchase: string;
+            formulaInput: string;
+            price: string;
+            listOnStorefront: boolean;
+        },
     ) => {
         setSavingId(item.id);
         setError("");
         try {
             await saveManualPriceReview(item.id, {
                 manual_retail_price: Number(state.price),
+                formula_input:
+                    state.formulaInput.trim() !== "" && Number.isFinite(Number(state.formulaInput))
+                        ? Number(state.formulaInput)
+                        : undefined,
                 list_on_storefront: state.listOnStorefront,
             });
             setSuccess("Цена сохранена");
             bumpContent();
-            await loadItems(page, debouncedSearch, perPage);
+            await loadItems(page, debouncedSearch, perPage, reason);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка сохранения");
         } finally {
@@ -113,10 +145,6 @@ export default function AdminManualPriceReviewsPage() {
                     «Обновить цены», если вход станет меньше прайса поставщика — строка исчезнет и цена
                     пересчитается автоматически.
                 </p>
-                <p className="text-sm text-admin-text-secondary">
-                    Чекбокс «В наличии» включает вариант на витрине (<code className="text-xs">is_active</code>).
-                    Смена «Вход склад» также обновляет цену в последнем проведённом приходе.
-                </p>
             </div>
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
@@ -125,11 +153,35 @@ export default function AdminManualPriceReviewsPage() {
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={
-                    <AdminSearchInput
-                        value={searchInput}
-                        onChangeAction={setSearchInput}
-                        placeholder="Поиск по товару или коду"
-                    />
+                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
+                        <AdminStatusDropdown
+                            value={reason}
+                            options={REASON_FILTER_OPTIONS}
+                            onChangeAction={setReason}
+                            widthClassName="w-full max-w-full shrink-0 sm:w-56"
+                            menuWidthClassName="w-max min-w-[14rem]"
+                        />
+                        <AdminSearchInput
+                            value={searchInput}
+                            onChangeAction={setSearchInput}
+                            placeholder="Поиск по товару или коду"
+                            className="min-w-0 w-full max-w-full sm:w-72"
+                        />
+                        {hasActiveFilters ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchInput("");
+                                    setReason("");
+                                }}
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                title="Сбросить фильтры"
+                                aria-label="Сбросить фильтры"
+                            >
+                                <FilterX size={16} strokeWidth={2} />
+                            </button>
+                        ) : null}
+                    </div>
                 }
                 footer={
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -143,7 +195,7 @@ export default function AdminManualPriceReviewsPage() {
                                         setPerPage(v);
                                     }
                                 }}
-                                className="rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
+                                className="cursor-pointer rounded-lg border border-admin-border bg-white px-2 py-1.5 text-sm"
                             >
                                 {PER_PAGE_OPTIONS.map((n) => (
                                     <option key={n} value={n}>

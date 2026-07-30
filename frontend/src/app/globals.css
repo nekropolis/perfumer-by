@@ -418,7 +418,8 @@ body:not(.admin-shell-body) .ProseMirror a {
     font-weight: 700;
   }
 
-  .admin-order-receipt-total-row .admin-order-receipt-total-empty {
+  .admin-order-receipt-total-row .admin-order-receipt-total-empty,
+  .admin-order-receipt-summary-row .admin-order-receipt-total-empty {
     border: 0;
   }
 

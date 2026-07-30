@@ -266,20 +266,19 @@ export function buildCatalogFacetedFiltersResetPath(
 ): string {
     const menuParam = getActiveCatalogMenuParam(searchParams);
 
-    if (!menuParam) {
-        return basePath;
-    }
-
-    if (menuParam === "gender") {
-        const gender = getActiveCatalogGender(searchParams);
-        if (gender) {
-            return buildCatalogSectionChipPath(basePath, searchParams, gender);
-        }
-    }
-
+    // Акции / Новинки / Хиты — разделы меню: сброс фасетов их сохраняет.
+    // gender («Для кого») — и раздел, и фильтр: сброс должен его очищать
+    // (иначе /catalog?gender=female → attr_2 → reset снова ставит gender).
     if (menuParam === "sale" || menuParam === "new" || menuParam === "hit") {
         return buildCatalogSectionChipPath(basePath, searchParams, menuParam);
     }
 
-    return basePath;
+    const params = new URLSearchParams();
+    const sort = searchParams.get("sort");
+    if (sort && sort !== "popular") {
+        params.set("sort", sort);
+    }
+
+    const qs = params.toString();
+    return qs ? `${basePath}?${qs}` : basePath;
 }

@@ -32,6 +32,11 @@ final class PriceFormulaMatcher
                 return false;
             }
 
+            // JSON/MySQL may store booleans as 0/1 — compare as bool for flag fields.
+            if (is_bool($actual)) {
+                $expected = filter_var($expected, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool) $expected;
+            }
+
             $matches = match ($op) {
                 'neq' => $actual !== $expected,
                 default => $actual === $expected,

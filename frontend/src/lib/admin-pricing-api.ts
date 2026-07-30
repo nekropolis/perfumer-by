@@ -297,9 +297,7 @@ export async function fetchActivePriceRefresh() {
 }
 
 export type ManualPriceReviewReason =
-    | "no_receipt_supplier"
     | "no_supplier_match"
-    | "warehouse_not_lower"
     | "warehouse_offer_gap"
     | "warehouse_blend_gap"
     | "allparfume_no_match"
@@ -312,6 +310,7 @@ export type ManualPriceReviewItem = {
     reason: ManualPriceReviewReason;
     warehouse_purchase: string | number;
     supplier_purchase: string | number | null;
+    formula_input: string | number | null;
     receipt_supplier_id: number | null;
     supplier_sku: string | null;
     supplier_external_code: string | null;
@@ -327,11 +326,13 @@ export async function fetchManualPriceReviews(params?: {
     page?: number;
     per_page?: number;
     search?: string;
+    reason?: string;
 }) {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
     if (params?.per_page) query.set("per_page", String(params.per_page));
     if (params?.search) query.set("search", params.search);
+    if (params?.reason) query.set("reason", params.reason);
 
     const res = await fetch(`${API_BASE}/admin/pricing/manual-reviews?${query}`, {
         headers: getAdminHeaders(),
@@ -361,6 +362,7 @@ export async function saveManualPriceReview(
     payload: {
         manual_retail_price?: number;
         warehouse_purchase?: number;
+        formula_input?: number;
         list_on_storefront?: boolean;
     },
 ) {
@@ -372,6 +374,19 @@ export async function saveManualPriceReview(
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Ошибка сохранения");
     return data as { message: string; data: ManualPriceReviewItem };
+}
+
+export async function previewManualPriceRetail(id: number, formulaInput: number) {
+    const res = await fetch(`${API_BASE}/admin/pricing/manual-reviews/${id}/preview-retail`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ formula_input: formulaInput }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Ошибка пересчёта розницы");
+    return data as {
+        data: { formula_input: string; manual_retail_price: string };
+    };
 }
 
 export async function fetchBynRate(): Promise<{ data: { rate: string } }> {

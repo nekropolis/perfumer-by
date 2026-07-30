@@ -18,6 +18,8 @@ type ReceiptDraft = {
     orderId: number;
     deliveryLabel: string;
     deliveryFee: string;
+    /** Скидка по дисконтной карте, руб. (не %). */
+    discountAmount: string;
     total: string;
     items: ReceiptItemDraft[];
 };
@@ -117,6 +119,7 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
         orderId: order.id,
         deliveryLabel: deliveryLabel(order),
         deliveryFee: order.delivery_fee ?? "0.00",
+        discountAmount: order.discount_amount ?? "0.00",
         total: order.total,
         items: order.items.map((item) => ({
             key: `${order.id}-${item.id}`,
@@ -358,19 +361,34 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                         ))}
 
                                         {moneyToCents(draft.deliveryFee) > 0 ? (
-                                            <tr>
-                                                <td>{draft.items.length + 1}</td>
-                                                <td>{draft.deliveryLabel}</td>
-                                                <td>шт</td>
-                                                <td>1</td>
-                                                <td>{normalizeMoneyForDisplay(draft.deliveryFee)}</td>
-                                                <td>{normalizeMoneyForDisplay(draft.deliveryFee)}</td>
+                                            <tr className="admin-order-receipt-summary-row">
+                                                <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                                <td colSpan={3} className="admin-order-receipt-total-label">
+                                                    {draft.deliveryLabel}:
+                                                </td>
+                                                <td className="admin-order-receipt-total-value">
+                                                    {normalizeMoneyForDisplay(draft.deliveryFee)}
+                                                </td>
+                                            </tr>
+                                        ) : null}
+
+                                        {moneyToCents(draft.discountAmount) > 0 ? (
+                                            <tr className="admin-order-receipt-summary-row">
+                                                <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                                <td colSpan={3} className="admin-order-receipt-total-label">
+                                                    Скидка по дисконтной карте:
+                                                </td>
+                                                <td className="admin-order-receipt-total-value">
+                                                    −{normalizeMoneyForDisplay(draft.discountAmount)}
+                                                </td>
                                             </tr>
                                         ) : null}
 
                                         <tr className="admin-order-receipt-total-row">
-                                            <td colSpan={4} className="admin-order-receipt-total-empty" />
-                                            <td className="admin-order-receipt-total-label">ИТОГО:</td>
+                                            <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                            <td colSpan={3} className="admin-order-receipt-total-label">
+                                                ИТОГО:
+                                            </td>
                                             <td className="admin-order-receipt-total-value">
                                                 {normalizeMoneyForDisplay(draft.total)}
                                             </td>

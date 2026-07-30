@@ -162,6 +162,9 @@ final class AllparfumeRetailPriceApplyService
                         'warehouse_purchase' => $meta['warehouse_purchase']
                             ?? ($warehousePurchase !== null ? MoneyDecimal::normalize($warehousePurchase) : '0.00'),
                         'supplier_purchase' => $decision['input_price'],
+                        'formula_input' => $decision['warehouse']['formula_input']
+                            ?? $decision['input_price']
+                            ?? null,
                         'receipt_supplier_id' => $meta['receipt_supplier_id'] ?? null,
                         'supplier_sku' => $meta['supplier_sku'] ?? null,
                         'supplier_external_code' => null,

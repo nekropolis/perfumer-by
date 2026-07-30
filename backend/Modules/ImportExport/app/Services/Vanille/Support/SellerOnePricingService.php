@@ -117,6 +117,17 @@ class SellerOnePricingService
             return $resolved;
         }
 
+        // skip_when_match (напр. акция) — не подменять формулой поставщика.
+        if ($this->formulaResolver->shouldSkipVariantPrice(
+            $variant,
+            PriceFormula::SOURCE_WAREHOUSE,
+            $warehouseId,
+        )) {
+            if ($variant->price !== null) {
+                return (float) $variant->price;
+            }
+        }
+
         return $this->calculateRetailPrice($purchasePrice);
     }
 

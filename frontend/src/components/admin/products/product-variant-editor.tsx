@@ -14,6 +14,8 @@ import {
 } from "@/lib/admin-product-variants-api";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
+import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     productId: number;
@@ -63,14 +65,6 @@ function toFormState(item: AdminProductVariantItem): VariantFormState {
     };
 }
 
-function formatMoney(value?: string | null) {
-    if (!value) {
-        return "—";
-    }
-
-    return `${value} BYN`;
-}
-
 function buildDisplayName(item: AdminProductVariantItem) {
     return item.title || item.display_name || "Без параметров";
 }
@@ -113,10 +107,7 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
 }
 
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
-    const hasStock = Number(item.main_available_stock ?? 0) > 0;
     const storefrontAvailable = Boolean(item.is_available);
-    const hasSupplierChannel =
-        !hasStock && Number(item.active_supplier_offers_count ?? 0) > 0;
     const hasPreorder = Boolean(item.is_preorder);
     const onListingSwitch = Boolean(item.is_active);
     const onStorefront = hasPreorder || (onListingSwitch && storefrontAvailable);
@@ -126,7 +117,7 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             label: "Предзаказ",
             className: "bg-amber-50 text-amber-800",
             title:
-                "Витрина: предзаказ (может отображаться в каталоге даже при выключенном «Активен»). Каналы отгрузки — см. чипы справа.",
+                "Витрина: предзаказ (может отображаться в каталоге даже при выключенном «Активен»). Каналы отгрузки — колонка «Наличие».",
         }
         : onStorefront
             ? {
@@ -149,47 +140,14 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
                     "Витрина: «Активен» выключен — вариант не отдаётся в публичный API каталога.",
             };
 
-    const supplierTitle =
-        !onListingSwitch && !hasPreorder && hasSupplierChannel
-            ? "Есть активные офферы, но на сайте вариант скрыт: включите «Активен»."
-            : "Активные офферы поставщика (по прайсу, без блокирующих флагов в payload).";
-
-    const channelTags: Array<{ key: string; label: string; className: string; title: string }> = [];
-    if (hasStock) {
-        channelTags.push({
-            key: "stock",
-            label: "Остаток",
-            className: "bg-emerald-50 text-emerald-700",
-            title: "На основном складе есть доступное количество.",
-        });
-    }
-    if (hasSupplierChannel) {
-        channelTags.push({
-            key: "supplier",
-            label: "Поставщик",
-            className: "bg-blue-50 text-blue-700",
-            title: supplierTitle,
-        });
-    }
-
     return (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-nowrap items-center gap-1">
             <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${primary.className}`}
+                className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${primary.className}`}
                 title={primary.title}
             >
                 {primary.label}
             </span>
-
-            {channelTags.map((tag) => (
-                <span
-                    key={tag.key}
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tag.className}`}
-                    title={tag.title}
-                >
-                    {tag.label}
-                </span>
-            ))}
         </div>
     );
 }
@@ -258,6 +216,7 @@ function VariantFormFields({
                         onChange={(e) =>
                             setForm((prev) => ({ ...prev, is_preorder: e.target.checked }))
                         }
+                        className={adminCheckbox}
                     />
                     <span>Предзаказ</span>
                 </label>
@@ -269,6 +228,7 @@ function VariantFormFields({
                         onChange={(e) =>
                             setForm((prev) => ({ ...prev, is_active: e.target.checked }))
                         }
+                        className={adminCheckbox}
                     />
                     <span>Активен</span>
                 </label>
@@ -280,6 +240,7 @@ function VariantFormFields({
                         onChange={(e) =>
                             setForm((prev) => ({ ...prev, is_promotion: e.target.checked }))
                         }
+                        className={adminCheckbox}
                     />
                     <span>Акция</span>
                 </label>
@@ -313,6 +274,10 @@ export default function ProductVariantsEditor({
     const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
     const [suppliersModalFocusId, setSuppliersModalFocusId] = useState<number | null>(null);
     const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
+    const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
+    const [priceSavingId, setPriceSavingId] = useState<number | null>(null);
+    const [oldPriceDrafts, setOldPriceDrafts] = useState<Record<number, string>>({});
+    const [oldPriceSavingId, setOldPriceSavingId] = useState<number | null>(null);
 
     const loadVariants = useCallback(async () => {
         const response = await fetchProductVariants(productId);
@@ -356,6 +321,168 @@ export default function ProductVariantsEditor({
     const closeSuppliersModal = () => {
         setSuppliersModalOpen(false);
         setSuppliersModalFocusId(null);
+    };
+
+    const getPriceInputValue = (item: AdminProductVariantItem): string => {
+        const draft = priceDrafts[item.id];
+        if (draft !== undefined) {
+            return draft;
+        }
+
+        if (item.price != null && item.price !== "") {
+            return String(item.price);
+        }
+
+        if (item.catalog_list_price != null) {
+            return String(item.catalog_list_price);
+        }
+
+        return "";
+    };
+
+    const getOldPriceInputValue = (item: AdminProductVariantItem): string => {
+        const draft = oldPriceDrafts[item.id];
+        if (draft !== undefined) {
+            return draft;
+        }
+
+        return item.old_price != null ? String(item.old_price) : "";
+    };
+
+    const savePriceOnBlur = async (item: AdminProductVariantItem) => {
+        const normalizedCurrent = getPriceInputValue(item).trim().replace(",", ".");
+        const original =
+            item.price != null && item.price !== ""
+                ? String(item.price)
+                : item.catalog_list_price != null
+                    ? String(item.catalog_list_price)
+                    : "";
+        const normalizedOriginal = original.trim().replace(",", ".");
+
+        if (normalizedCurrent === normalizedOriginal) {
+            setPriceDrafts((prev) => {
+                if (!(item.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
+            return;
+        }
+
+        if (normalizedCurrent !== "") {
+            const numeric = Number(normalizedCurrent);
+            if (!Number.isFinite(numeric) || numeric < 0) {
+                setError("Цена должна быть числом больше или равным 0");
+                setPriceDrafts((prev) => ({
+                    ...prev,
+                    [item.id]: original,
+                }));
+                return;
+            }
+        }
+
+        setPriceSavingId(item.id);
+        setError("");
+        setSuccess("");
+        try {
+            const nextPrice = normalizedCurrent === "" ? null : normalizedCurrent;
+            await updateProductVariant(productId, item.id, {
+                price: nextPrice,
+            });
+            setRuntimeItems((prev) =>
+                prev.map((row) =>
+                    row.id === item.id
+                        ? {
+                              ...row,
+                              price: nextPrice,
+                              catalog_list_price: nextPrice != null ? Number(nextPrice) : null,
+                          }
+                        : row,
+                ),
+            );
+            setPriceDrafts((prev) => {
+                if (!(item.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
+            setSuccess("Цена обновлена");
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось обновить цену");
+            setPriceDrafts((prev) => ({
+                ...prev,
+                [item.id]: original,
+            }));
+        } finally {
+            setPriceSavingId((prev) => (prev === item.id ? null : prev));
+        }
+    };
+
+    const saveOldPriceOnBlur = async (item: AdminProductVariantItem) => {
+        const normalizedCurrent = getOldPriceInputValue(item).trim().replace(",", ".");
+        const normalizedOriginal =
+            item.old_price != null ? String(item.old_price).trim().replace(",", ".") : "";
+
+        if (normalizedCurrent === normalizedOriginal) {
+            setOldPriceDrafts((prev) => {
+                if (!(item.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
+            return;
+        }
+
+        if (normalizedCurrent !== "") {
+            const numeric = Number(normalizedCurrent);
+            if (!Number.isFinite(numeric) || numeric < 0) {
+                setError("Старая цена должна быть числом больше или равным 0");
+                setOldPriceDrafts((prev) => ({
+                    ...prev,
+                    [item.id]: item.old_price != null ? String(item.old_price) : "",
+                }));
+                return;
+            }
+        }
+
+        setOldPriceSavingId(item.id);
+        setError("");
+        setSuccess("");
+        try {
+            await updateProductVariant(productId, item.id, {
+                old_price: normalizedCurrent === "" ? null : normalizedCurrent,
+            });
+            setRuntimeItems((prev) =>
+                prev.map((row) =>
+                    row.id === item.id
+                        ? { ...row, old_price: normalizedCurrent === "" ? null : normalizedCurrent }
+                        : row,
+                ),
+            );
+            setOldPriceDrafts((prev) => {
+                if (!(item.id in prev)) {
+                    return prev;
+                }
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
+            setSuccess("Старая цена обновлена");
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось обновить старую цену");
+            setOldPriceDrafts((prev) => ({
+                ...prev,
+                [item.id]: item.old_price != null ? String(item.old_price) : "",
+            }));
+        } finally {
+            setOldPriceSavingId((prev) => (prev === item.id ? null : prev));
+        }
     };
 
     const openCreate = () => {
@@ -514,36 +641,86 @@ export default function ProductVariantsEditor({
                         У товара пока нет вариантов
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {sortedItems.map((item) => (
-                            <div
-                                key={item.id}
-                                className="rounded-lg border px-3 py-3 transition-colors hover:border-gray-300 hover:bg-admin-muted/60"
-                            >
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-                                    <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[78px_minmax(0,1.8fr)_minmax(110px,1fr)_96px_88px_56px] sm:items-center sm:gap-3">
-                                        <div className="min-w-0">
+                    <div className="overflow-x-auto rounded-xl border">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-admin-muted text-left text-[11px] uppercase tracking-wide text-admin-text-secondary">
+                                <tr>
+                                    <th className="whitespace-nowrap px-2 py-2">Код</th>
+                                    <th className="whitespace-nowrap px-2 py-2">Статус</th>
+                                    <th className="px-2 py-2">Вариант</th>
+                                    <th className="whitespace-nowrap px-2 py-2">Цена</th>
+                                    <th className="whitespace-nowrap px-2 py-2">Старая цена</th>
+                                    <th className="whitespace-nowrap px-2 py-2">Наличие</th>
+                                    <th className="whitespace-nowrap px-2 py-2">Акция</th>
+                                    <th className="whitespace-nowrap px-2 py-2 text-right">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedItems.map((item) => (
+                                    <tr
+                                        key={item.id}
+                                        className="border-t bg-white hover:bg-admin-muted/40"
+                                    >
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle tabular-nums text-xs text-admin-text-secondary">
+                                            {item.id}
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                                             <VariantBadges item={item} />
-                                        </div>
-
-                                        <div className="min-w-0 text-sm font-medium leading-5 text-admin-text break-words">
-                                            {buildDisplayName(item)}
-                                        </div>
-
-                                        <div className="text-sm font-medium text-admin-text whitespace-nowrap">
-                                            {item.catalog_list_price != null
-                                                ? formatMoney(String(item.catalog_list_price))
-                                                : "—"}
-                                        </div>
-
-                                        <div
-                                            className="text-sm text-admin-text-secondary whitespace-nowrap"
-                                            title={item.fulfillment_tooltip?.trim() || undefined}
-                                        >
-                                            {item.available_stock ?? item.main_available_stock ?? 0} шт.
-                                        </div>
-
-                                        <div className="flex items-center">
+                                        </td>
+                                        <td className="max-w-[18rem] px-2 py-1.5 align-middle">
+                                            <div className="truncate text-sm font-medium text-admin-text">
+                                                {buildDisplayName(item)}
+                                            </div>
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
+                                                <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={getPriceInputValue(item)}
+                                                    onChange={(e) =>
+                                                        setPriceDrafts((prev) => ({
+                                                            ...prev,
+                                                            [item.id]: e.target.value,
+                                                        }))
+                                                    }
+                                                    onBlur={() => void savePriceOnBlur(item)}
+                                                    disabled={priceSavingId === item.id}
+                                                    placeholder="—"
+                                                    className="w-[4.5rem] rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
+                                                    aria-label="Цена"
+                                                />
+                                                <span className="shrink-0">{priceSavingId === item.id ? "…" : "BYN"}</span>
+                                            </span>
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800">
+                                                <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={getOldPriceInputValue(item)}
+                                                    onChange={(e) =>
+                                                        setOldPriceDrafts((prev) => ({
+                                                            ...prev,
+                                                            [item.id]: e.target.value,
+                                                        }))
+                                                    }
+                                                    onBlur={() => void saveOldPriceOnBlur(item)}
+                                                    disabled={oldPriceSavingId === item.id}
+                                                    placeholder="—"
+                                                    className="w-[4.5rem] rounded border border-amber-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-amber-800 outline-none focus:border-amber-300"
+                                                    aria-label="Старая цена"
+                                                />
+                                                <span className="shrink-0">{oldPriceSavingId === item.id ? "…" : "BYN"}</span>
+                                            </span>
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                                            <VariantAvailabilityChannelBadge
+                                                hasWarehouse={Number(item.main_available_stock ?? 0) > 0}
+                                                hasOffer={Number(item.active_supplier_offers_count ?? 0) > 0}
+                                            />
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                                             <VariantPromotionToggle
                                                 productId={productId}
                                                 variantId={item.id}
@@ -559,147 +736,77 @@ export default function ProductVariantsEditor({
                                                 }}
                                                 onErrorAction={setError}
                                             />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:w-[124px] sm:justify-end sm:pt-0.5">
-                                        <div className="flex items-center gap-1.5 sm:hidden">
-                                            <button
-                                                type="button"
-                                                onClick={() => openInfo(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 transition hover:bg-blue-50"
-                                                title="Информация о привязках"
-                                                aria-label="Информация о привязках"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openInfo(item)}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-blue-200 text-blue-700 transition hover:bg-blue-50"
+                                                    title="Информация о привязках"
+                                                    aria-label="Информация о привязках"
                                                 >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v4h1M12 3a9 9 0 100 18 9 9 0 000-18z" />
-                                                </svg>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
-                                                title="Редактировать"
-                                                aria-label="Редактировать"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.8"
+                                                        className="h-3.5 w-3.5"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v4h1M12 3a9 9 0 100 18 9 9 0 000-18z" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEdit(item)}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
+                                                    title="Редактировать"
+                                                    aria-label="Редактировать"
                                                 >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
-                                                    />
-                                                </svg>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeleteTarget(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
-                                                title="Удалить"
-                                                aria-label="Удалить"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.8"
+                                                        className="h-3.5 w-3.5"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(item)}
+                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                    title="Удалить"
+                                                    aria-label="Удалить"
                                                 >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        d="M18 6L6 18M6 6l12 12"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </div>
-
-                                        <div className="hidden w-full items-center justify-end gap-1.5 sm:flex">
-                                            <button
-                                                type="button"
-                                                onClick={() => openInfo(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 transition hover:bg-blue-50"
-                                                title="Информация о привязках"
-                                                aria-label="Информация о привязках"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
-                                                >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v4h1M12 3a9 9 0 100 18 9 9 0 000-18z" />
-                                                </svg>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => openEdit(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
-                                                title="Редактировать"
-                                                aria-label="Редактировать"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
-                                                    />
-                                                </svg>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeleteTarget(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
-                                                title="Удалить"
-                                                aria-label="Удалить"
-                                            >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.8"
-                                                    className="h-3.5 w-3.5"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        d="M18 6L6 18M6 6l12 12"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.8"
+                                                        className="h-3.5 w-3.5"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M18 6L6 18M6 6l12 12"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

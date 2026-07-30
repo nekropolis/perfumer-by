@@ -23,6 +23,7 @@ use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Rules\ValidUploadedSpreadsheet;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\CatalogSearchScoring;
 use Throwable;
 
 
@@ -290,12 +291,20 @@ class VanilleImportController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = trim($request->string('search')->toString());
+            $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
+            $like = '%'.CatalogSearchScoring::escapeLikeValue($search).'%';
+            $compact = CatalogSearchScoring::compactSearchText($search);
+            $compactLike = $compact !== ''
+                ? '%'.CatalogSearchScoring::escapeLikeValue($compact).'%'
+                : null;
 
-            $query->where(function ($q) use ($search) {
-                $q->where('external_name', 'like', "%{$search}%")
-                    ->orWhere('external_slug', 'like', "%{$search}%")
-                    ->orWhere('external_url', 'like', "%{$search}%");
+            $query->where(function ($q) use ($like, $compactLike) {
+                $q->where('external_name', 'like', $like)
+                    ->orWhere('external_slug', 'like', $like)
+                    ->orWhere('external_url', 'like', $like);
+                if ($compactLike !== null) {
+                    $q->orWhereRaw("REPLACE(LOWER(COALESCE(`external_name`, '')), ' ', '') LIKE ?", [$compactLike]);
+                }
             });
         }
 
@@ -635,12 +644,20 @@ class VanilleImportController extends Controller
             ->orderByDesc('id');
 
         if ($request->filled('search')) {
-            $search = trim($request->string('search')->toString());
-            $baseQuery->where(function ($q) use ($search) {
-                $q->where('external_name', 'like', "%{$search}%")
-                    ->orWhere('external_slug', 'like', "%{$search}%")
-                    ->orWhere('external_url', 'like', "%{$search}%")
-                    ->orWhere('payload->external_code', 'like', "%{$search}%");
+            $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
+            $like = '%'.CatalogSearchScoring::escapeLikeValue($search).'%';
+            $compact = CatalogSearchScoring::compactSearchText($search);
+            $compactLike = $compact !== ''
+                ? '%'.CatalogSearchScoring::escapeLikeValue($compact).'%'
+                : null;
+            $baseQuery->where(function ($q) use ($like, $compactLike) {
+                $q->where('external_name', 'like', $like)
+                    ->orWhere('external_slug', 'like', $like)
+                    ->orWhere('external_url', 'like', $like)
+                    ->orWhere('payload->external_code', 'like', $like);
+                if ($compactLike !== null) {
+                    $q->orWhereRaw("REPLACE(LOWER(COALESCE(`external_name`, '')), ' ', '') LIKE ?", [$compactLike]);
+                }
             });
         }
 

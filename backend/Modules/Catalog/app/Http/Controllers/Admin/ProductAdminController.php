@@ -570,6 +570,7 @@ class ProductAdminController extends Controller
                 'is_preorder' => (bool) $variant->is_preorder,
                 'is_promotion' => (bool) $variant->is_promotion,
                 'site_price' => $variant->price,
+                'old_price' => $variant->old_price,
                 'stock' => (int) ($variant->stock ?? 0),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],

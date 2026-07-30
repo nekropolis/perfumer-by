@@ -19,11 +19,19 @@ import {
     type PriceFormulaVariantRule,
     type PricingSourceOption,
 } from "@/lib/admin-pricing-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 const RULE_MODE_LABELS: Record<PriceFormulaItem["variant_rule_mode"], string> = {
     apply_to_all: "Все варианты",
     apply_when_match: "Только при совпадении",
     skip_when_match: "Пропуск при совпадении",
+};
+
+const VARIANT_RULE_FIELD_LABELS: Record<PriceFormulaVariantRule["field"], string> = {
+    is_promotion: "Акция",
+    is_vial: "Пробник / виалка",
+    is_tester: "Тестер",
+    is_preorder: "Предзаказ",
 };
 
 const EMPTY_FORM: PriceFormulaPayload = {
@@ -194,87 +202,99 @@ export default function AdminPricingFormulasPage() {
                 )}
 
             {modalOpen ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
-                    <div className="mx-auto flex h-full max-w-2xl items-center justify-center">
-                        <div className="max-h-full w-full overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-                            <h2 className="text-lg font-semibold">{editing ? "Редактирование" : "Новая формула"}</h2>
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                <label className="space-y-1 text-sm md:col-span-2">
-                                    <span>Название</span>
-                                    <input className="w-full rounded-lg border px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
+                    <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
+                        <div className="flex shrink-0 items-center justify-between border-b border-admin-border px-4 py-2.5">
+                            <h2 className="text-sm font-semibold">{editing ? "Редактирование" : "Новая формула"}</h2>
+                            <button
+                                type="button"
+                                className="rounded-md px-2 py-1 text-xs text-admin-text-secondary hover:bg-admin-muted"
+                                onClick={() => setModalOpen(false)}
+                            >
+                                Закрыть
+                            </button>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <label className="space-y-0.5 text-xs sm:col-span-2">
+                                    <span className="text-admin-text-secondary">Название</span>
+                                    <input className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                                 </label>
-                                <label className="space-y-1 text-sm">
-                                    <span>Тип источника</span>
-                                    <select className="w-full rounded-lg border px-3 py-2" value={form.source_type} onChange={(e) => setForm({ ...form, source_type: e.target.value as PriceFormulaPayload["source_type"], source_id: 0 })}>
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Тип источника</span>
+                                    <select className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.source_type} onChange={(e) => setForm({ ...form, source_type: e.target.value as PriceFormulaPayload["source_type"], source_id: 0 })}>
                                         <option value="supplier">Поставщик</option>
                                         <option value="warehouse">Склад</option>
                                     </select>
                                 </label>
-                                <label className="space-y-1 text-sm">
-                                    <span>Источник</span>
-                                    <select className="w-full rounded-lg border px-3 py-2" value={form.source_id || ""} onChange={(e) => setForm({ ...form, source_id: Number(e.target.value) })}>
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Источник</span>
+                                    <select className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.source_id || ""} onChange={(e) => setForm({ ...form, source_id: Number(e.target.value) })}>
                                         <option value="">Выберите</option>
                                         {sourceOptions.map((opt) => (
                                             <option key={opt.id} value={opt.id}>{opt.name}</option>
                                         ))}
                                     </select>
                                 </label>
-                                <label className="space-y-1 text-sm">
-                                    <span>Коэффициент умножения</span>
-                                    <input type="number" step="0.01" className="w-full rounded-lg border px-3 py-2" value={form.multiplier} onChange={(e) => setForm({ ...form, multiplier: Number(e.target.value) })} />
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Коэфф. умножения</span>
+                                    <input type="number" step="0.01" className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.multiplier} onChange={(e) => setForm({ ...form, multiplier: Number(e.target.value) })} />
                                 </label>
-                                <div className="space-y-1 text-sm">
-                                    <span className="block">Курс BYN</span>
-                                    <div className="rounded-lg border bg-admin-muted px-3 py-2 tabular-nums text-admin-text">
+                                <div className="space-y-0.5 text-xs">
+                                    <span className="block text-admin-text-secondary">Курс BYN</span>
+                                    <div className="rounded-md border bg-admin-muted px-2.5 py-1.5 tabular-nums text-sm text-admin-text">
                                         {bynRate ?? form.rub_rate}р
                                     </div>
                                 </div>
-                                <label className="space-y-1 text-sm">
-                                    <span>Коэффициент сложения</span>
-                                    <input type="number" step="0.1" className="w-full rounded-lg border px-3 py-2" value={form.addend} onChange={(e) => setForm({ ...form, addend: Number(e.target.value) })} />
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Сложение</span>
+                                    <input type="number" step="0.1" className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.addend} onChange={(e) => setForm({ ...form, addend: Number(e.target.value) })} />
                                 </label>
-                                <label className="space-y-1 text-sm">
-                                    <span>Округление до</span>
-                                    <input type="number" min={0} max={4} className="w-full rounded-lg border px-3 py-2" value={form.round_precision} onChange={(e) => setForm({ ...form, round_precision: Number(e.target.value) })} />
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Округление</span>
+                                    <input type="number" min={0} max={4} className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.round_precision} onChange={(e) => setForm({ ...form, round_precision: Number(e.target.value) })} />
                                 </label>
-                                <label className="space-y-1 text-sm md:col-span-2">
-                                    <span>Режим правил варианта</span>
-                                    <select className="w-full rounded-lg border px-3 py-2" value={form.variant_rule_mode} onChange={(e) => setForm({ ...form, variant_rule_mode: e.target.value as PriceFormulaPayload["variant_rule_mode"] })}>
+                                <label className="space-y-0.5 text-xs sm:col-span-2">
+                                    <span className="text-admin-text-secondary">Режим правил</span>
+                                    <select className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.variant_rule_mode} onChange={(e) => setForm({ ...form, variant_rule_mode: e.target.value as PriceFormulaPayload["variant_rule_mode"] })}>
                                         {Object.entries(RULE_MODE_LABELS).map(([value, label]) => (
                                             <option key={value} value={value}>{label}</option>
                                         ))}
                                     </select>
                                 </label>
                                 {form.variant_rule_mode !== "apply_to_all" ? (
-                                    <div className="space-y-2 md:col-span-2">
-                                        <div className="text-sm font-medium">Условия (все должны совпасть)</div>
-                                        {(["is_promotion", "is_vial", "is_tester", "is_preorder"] as const).map((field) => (
-                                            <label key={field} className="flex items-center gap-2 text-sm">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={Boolean(form.variant_rules?.some((r) => r.field === field && r.value))}
-                                                    onChange={(e) => toggleRuleFlag(field, e.target.checked)}
-                                                />
-                                                <span>{field}</span>
-                                            </label>
-                                        ))}
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <div className="text-xs font-medium text-admin-text-secondary">Условия (все должны совпасть)</div>
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                            {(["is_promotion", "is_vial", "is_tester", "is_preorder"] as const).map((field) => (
+                                                <label key={field} className="flex items-center gap-1.5 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        className={adminCheckbox}
+                                                        checked={Boolean(form.variant_rules?.some((r) => r.field === field && r.value))}
+                                                        onChange={(e) => toggleRuleFlag(field, e.target.checked)}
+                                                    />
+                                                    <span>{VARIANT_RULE_FIELD_LABELS[field]}</span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
                                 ) : null}
-                                <label className="space-y-1 text-sm">
-                                    <span>Порядок (sort_order)</span>
-                                    <input type="number" className="w-full rounded-lg border px-3 py-2" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })} />
+                                <label className="space-y-0.5 text-xs">
+                                    <span className="text-admin-text-secondary">Приоритет</span>
+                                    <input type="number" className="w-full rounded-md border px-2.5 py-1.5 text-sm" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })} />
                                 </label>
-                                <label className="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+                                <label className="flex items-end gap-1.5 pb-1.5 text-sm">
+                                    <input type="checkbox" className={adminCheckbox} checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
                                     <span>Активна</span>
                                 </label>
                             </div>
-                            <div className="mt-4 flex justify-end gap-2">
-                                <button type="button" className="rounded-lg border px-4 py-2 text-sm" onClick={() => setModalOpen(false)}>Отмена</button>
-                                <button type="button" className="rounded-lg border bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50" disabled={saving} onClick={() => void save()}>
-                                    {saving ? "Сохранение..." : "Сохранить"}
-                                </button>
-                            </div>
+                        </div>
+                        <div className="flex shrink-0 justify-end gap-2 border-t border-admin-border px-4 py-2.5">
+                            <button type="button" className="rounded-md border px-3 py-1.5 text-sm" onClick={() => setModalOpen(false)}>Отмена</button>
+                            <button type="button" className="rounded-md border bg-admin-primary px-3 py-1.5 text-sm text-white disabled:opacity-50" disabled={saving} onClick={() => void save()}>
+                                {saving ? "Сохранение..." : "Сохранить"}
+                            </button>
                         </div>
                     </div>
                 </div>

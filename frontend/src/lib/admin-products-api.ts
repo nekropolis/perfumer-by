@@ -246,11 +246,14 @@ export type ProductVariantSupplierItem = {
     is_preorder?: boolean;
     is_promotion?: boolean;
     site_price?: number | string | null;
+    old_price?: number | string | null;
     stock: number;
     /** Как на витрине (CatalogVariantStockPresenter::forListing). */
     available_stock?: number;
     is_available?: boolean;
     fulfillment_tooltip?: string;
+    can_fulfill_main?: boolean;
+    can_fulfill_offer?: boolean;
     warehouses: Array<{
         warehouse_name: string | null;
         stock: number;

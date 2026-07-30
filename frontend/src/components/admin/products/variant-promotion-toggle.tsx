@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { updateProductVariant } from "@/lib/admin-product-variants-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     productId: number;
@@ -53,7 +54,7 @@ export default function VariantPromotionToggle({
                 checked={value}
                 disabled={disabled || saving}
                 onChange={(e) => void handleChange(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-gray-300"
+                className={adminCheckbox}
                 aria-label="Акция на витрине"
             />
         </label>

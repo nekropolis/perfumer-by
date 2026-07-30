@@ -7,9 +7,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Models\PriceFormula;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\WarehouseManualPriceReview;
 use Modules\Catalog\Services\ListingMinPriceService;
+use Modules\Catalog\Services\Pricing\PriceFormulaResolver;
+use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
+use Modules\Catalog\Support\MoneyDecimal;
+use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 
 class WarehouseManualPriceReviewController extends Controller
 {
@@ -37,6 +42,20 @@ class WarehouseManualPriceReviewController extends Controller
             });
         }
 
+        if ($request->filled('reason')) {
+            $reason = trim($request->string('reason')->toString());
+            $allowed = [
+                WarehouseManualPriceReview::REASON_NO_SUPPLIER_MATCH,
+                WarehouseManualPriceReview::REASON_WAREHOUSE_OFFER_GAP,
+                WarehouseManualPriceReview::REASON_WAREHOUSE_BLEND_GAP,
+                WarehouseManualPriceReview::REASON_ALLPARFUME_NO_MATCH,
+                WarehouseManualPriceReview::REASON_ALLPARFUME_NO_INPUT,
+            ];
+            if (in_array($reason, $allowed, true)) {
+                $query->where('reason', $reason);
+            }
+        }
+
         $items = $query->paginate($perPage);
 
         return response()->json($items);
@@ -49,6 +68,43 @@ class WarehouseManualPriceReviewController extends Controller
         return response()->json(['data' => ['active_count' => $count]]);
     }
 
+    public function previewRetail(
+        Request $request,
+        int $id,
+        PriceFormulaResolver $formulaResolver,
+        WarehousePurchasePriceResolver $purchasePriceResolver,
+        SellerOnePricingService $sellerOnePricing,
+    ): JsonResponse {
+        $review = WarehouseManualPriceReview::query()->active()->findOrFail($id);
+        $validated = $request->validate([
+            'formula_input' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $variant = ProductVariantLink::query()->findOrFail((int) $review->variant_id);
+        $formulaInput = (float) $validated['formula_input'];
+        $mainWarehouseId = $purchasePriceResolver->resolveMainWarehouseId();
+
+        $retail = null;
+        if ($mainWarehouseId > 0) {
+            $retail = $formulaResolver->calculateRetailPrice(
+                $variant,
+                $formulaInput,
+                PriceFormula::SOURCE_WAREHOUSE,
+                $mainWarehouseId,
+            );
+        }
+        if ($retail === null) {
+            $retail = $sellerOnePricing->calculateRetailPrice($formulaInput, $variant, null);
+        }
+
+        return response()->json([
+            'data' => [
+                'formula_input' => number_format(round($formulaInput, 1), 2, '.', ''),
+                'manual_retail_price' => MoneyDecimal::normalize($retail),
+            ],
+        ]);
+    }
+
     public function update(
         Request $request,
         int $id,
@@ -59,27 +115,39 @@ class WarehouseManualPriceReviewController extends Controller
         $validated = $request->validate([
             'manual_retail_price' => ['sometimes', 'numeric', 'min:0'],
             'warehouse_purchase' => ['sometimes', 'numeric', 'min:0'],
+            'formula_input' => ['sometimes', 'numeric', 'min:0'],
             'list_on_storefront' => ['sometimes', 'boolean'],
         ]);
 
         if (
             ! array_key_exists('manual_retail_price', $validated)
             && ! array_key_exists('warehouse_purchase', $validated)
+            && ! array_key_exists('formula_input', $validated)
+            && ! array_key_exists('list_on_storefront', $validated)
         ) {
             return response()->json([
-                'message' => 'Нужно передать manual_retail_price или warehouse_purchase',
+                'message' => 'Нужно передать manual_retail_price, warehouse_purchase, formula_input или list_on_storefront',
             ], 422);
         }
 
         $variant = ProductVariantLink::query()->findOrFail((int) $review->variant_id);
 
-        DB::transaction(function () use ($review, $variant, $validated, $listingMinPrice): void {
+        DB::transaction(function () use (
+            $review,
+            $variant,
+            $validated,
+            $listingMinPrice,
+        ): void {
             $reviewPatch = [];
             $variantPatch = [];
 
             if (array_key_exists('warehouse_purchase', $validated)) {
                 $warehousePurchase = number_format((float) $validated['warehouse_purchase'], 2, '.', '');
                 $reviewPatch['warehouse_purchase'] = $warehousePurchase;
+            }
+
+            if (array_key_exists('formula_input', $validated)) {
+                $reviewPatch['formula_input'] = number_format(round((float) $validated['formula_input'], 1), 2, '.', '');
             }
 
             if (array_key_exists('manual_retail_price', $validated)) {
@@ -94,6 +162,10 @@ class WarehouseManualPriceReviewController extends Controller
                 $listOnStorefront = (bool) $validated['list_on_storefront'];
                 $variantPatch['is_active'] = $listOnStorefront;
                 $reviewPatch['list_on_storefront'] = $listOnStorefront;
+                if ($listOnStorefront) {
+                    $reviewPatch['manual_set_by'] = Auth::id();
+                    $reviewPatch['manual_set_at'] = now();
+                }
             }
 
             if ($variantPatch !== []) {

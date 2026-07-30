@@ -49,7 +49,7 @@ export default function AdminSearchInput({
 
     return (
         <div className={className}>
-            <div className="relative w-full md:w-72">
+            <div className="relative w-full max-w-full md:max-w-72">
                 <Search
                     size={16}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-admin-text-muted"

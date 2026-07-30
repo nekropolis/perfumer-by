@@ -9,11 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WarehouseManualPriceReview extends Model
 {
-    public const REASON_NO_RECEIPT_SUPPLIER = 'no_receipt_supplier';
-
     public const REASON_NO_SUPPLIER_MATCH = 'no_supplier_match';
-
-    public const REASON_WAREHOUSE_NOT_LOWER = 'warehouse_not_lower';
 
     public const REASON_WAREHOUSE_OFFER_GAP = 'warehouse_offer_gap';
 
@@ -29,6 +25,7 @@ class WarehouseManualPriceReview extends Model
         'reason',
         'warehouse_purchase',
         'supplier_purchase',
+        'formula_input',
         'receipt_supplier_id',
         'supplier_sku',
         'supplier_external_code',
@@ -45,6 +42,7 @@ class WarehouseManualPriceReview extends Model
     protected $casts = [
         'warehouse_purchase' => 'decimal:2',
         'supplier_purchase' => 'decimal:2',
+        'formula_input' => 'decimal:2',
         'manual_retail_price' => 'decimal:2',
         'list_on_storefront' => 'boolean',
         'manual_set_at' => 'datetime',

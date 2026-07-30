@@ -13,6 +13,16 @@ final class MoneyDecimal
         return number_format((float) $value, 2, '.', '');
     }
 
+    /** Округление до десятых с нулём в сотых: 23.30 → 23.30, 45.38 → 45.40 */
+    public static function normalizeTenths(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '0.00';
+        }
+
+        return number_format(round((float) $value, 1), 2, '.', '');
+    }
+
     public static function compare(string $left, string $right): int
     {
         return bccomp($left, $right, 4);

@@ -17,7 +17,7 @@ export default function AdminTableShell({ total, children, footer, search }: Pro
                 </div>
 
                 {search ? (
-                    <div className="flex min-w-0 w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="flex min-w-0 w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:max-w-full sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                         {search}
                     </div>
                 ) : null}

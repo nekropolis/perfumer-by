@@ -43,6 +43,10 @@ export type ProductVariantSuppliersModalProps = {
         onVariantPriceChange?: (variantId: number, value: string) => void;
         onVariantPriceBlur?: (variant: ProductVariantSupplierItem) => void;
         variantPriceSavingId?: number | null;
+        getVariantOldPriceInputValue?: (variant: ProductVariantSupplierItem) => string;
+        onVariantOldPriceChange?: (variantId: number, value: string) => void;
+        onVariantOldPriceBlur?: (variant: ProductVariantSupplierItem) => void;
+        variantOldPriceSavingId?: number | null;
     };
 };
 

@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/pricing')->group(
 
     Route::get('/manual-reviews/stats', [WarehouseManualPriceReviewController::class, 'stats']);
     Route::get('/manual-reviews', [WarehouseManualPriceReviewController::class, 'index']);
+    Route::post('/manual-reviews/{id}/preview-retail', [WarehouseManualPriceReviewController::class, 'previewRetail']);
     Route::patch('/manual-reviews/{id}', [WarehouseManualPriceReviewController::class, 'update']);
 });
 

@@ -80,6 +80,27 @@ final class VariantRetailPriceDecisionService
             'warehouse' => null,
         ];
 
+        $resolvedMainId = $mainWarehouseId ?? $this->purchasePriceResolver->resolveMainWarehouseId();
+        if ($resolvedMainId > 0
+            && $this->formulaResolver->shouldSkipVariantPrice(
+                $variant,
+                PriceFormula::SOURCE_WAREHOUSE,
+                $resolvedMainId,
+            )
+        ) {
+            return [
+                ...$empty,
+                'warehouse' => [
+                    'warehouse_purchase' => $warehousePurchase !== null && $warehousePurchase > 0
+                        ? MoneyDecimal::normalize($warehousePurchase)
+                        : null,
+                    'supplier_purchase' => null,
+                    'formula_input' => null,
+                    'path' => 'skipped_by_rule',
+                ],
+            ];
+        }
+
         $offers = $this->qualifyingAllparfumeOffers($allparfumeVariant, $preloadedOffers);
         if ($offers !== []) {
             return $this->decideAllparfume(
@@ -124,7 +145,7 @@ final class VariantRetailPriceDecisionService
             'warehouse' => [
                 'warehouse_purchase' => null,
                 'supplier_purchase' => MoneyDecimal::normalize($input),
-                'formula_input' => MoneyDecimal::normalize($input),
+                'formula_input' => MoneyDecimal::normalizeTenths($input),
                 'path' => 'listing_only',
             ],
         ];
@@ -317,7 +338,7 @@ final class VariantRetailPriceDecisionService
 
         // Warehouse <= offer: blend (w + 2o)/3
         if (MoneyDecimal::isLessOrEqual($w, $o)) {
-            $formulaInput = MoneyDecimal::warehouseOfferBlend($w, $o);
+            $formulaInput = MoneyDecimal::normalizeTenths(MoneyDecimal::warehouseOfferBlend($w, $o));
             $base['warehouse']['formula_input'] = $formulaInput;
             $base['input_price'] = $formulaInput;
             $retail = $this->formulaResolver->calculateRetailPrice(
@@ -326,6 +347,19 @@ final class VariantRetailPriceDecisionService
                 PriceFormula::SOURCE_WAREHOUSE,
                 $mainWarehouseId ?? $this->purchasePriceResolver->resolveMainWarehouseId(),
             );
+            $warehouseId = $mainWarehouseId ?? $this->purchasePriceResolver->resolveMainWarehouseId();
+            if ($retail === null
+                && $warehouseId > 0
+                && $this->formulaResolver->shouldSkipVariantPrice(
+                    $variant,
+                    PriceFormula::SOURCE_WAREHOUSE,
+                    $warehouseId,
+                )
+            ) {
+                $base['warehouse']['path'] = 'skipped_by_rule';
+
+                return $base;
+            }
             if ($retail === null) {
                 $retail = $this->sellerOnePricing->calculateRetailPrice((float) $formulaInput, $variant, null);
             }
@@ -351,10 +385,35 @@ final class VariantRetailPriceDecisionService
 
         // Warehouse > offer
         if ($diffPct > 10.0) {
-            $proposed = MoneyDecimal::percentOff($w, 10.0);
-            $base['proposed_site_price'] = $proposed;
-            $base['warehouse']['formula_input'] = $w;
+            // Расчётная = склад − 10% (до десятых); розница через формулу (BYN).
+            $formulaInput = MoneyDecimal::normalizeTenths(MoneyDecimal::percentOff($w, 10.0));
+            $base['warehouse']['formula_input'] = $formulaInput;
+            $base['input_price'] = $formulaInput;
             $base['warehouse']['path'] = 'warehouse_minus_10';
+            $warehouseId = $mainWarehouseId ?? $this->purchasePriceResolver->resolveMainWarehouseId();
+            $retail = $this->formulaResolver->calculateRetailPrice(
+                $variant,
+                (float) $formulaInput,
+                PriceFormula::SOURCE_WAREHOUSE,
+                $warehouseId,
+            );
+            if ($retail === null
+                && $warehouseId > 0
+                && $this->formulaResolver->shouldSkipVariantPrice(
+                    $variant,
+                    PriceFormula::SOURCE_WAREHOUSE,
+                    $warehouseId,
+                )
+            ) {
+                $base['warehouse']['path'] = 'skipped_by_rule';
+
+                return $base;
+            }
+            if ($retail === null) {
+                $retail = $this->sellerOnePricing->calculateRetailPrice((float) $formulaInput, $variant, null);
+            }
+            $proposed = MoneyDecimal::normalize($retail);
+            $base['proposed_site_price'] = $proposed;
             $base['manual'] = [
                 'reason' => WarehouseManualPriceReview::REASON_WAREHOUSE_OFFER_GAP,
                 'manual_retail_price' => $proposed,
@@ -366,21 +425,33 @@ final class VariantRetailPriceDecisionService
 
         // Diff <= 10%: formula from offer purchase
         $base['input_price'] = $o;
-        $base['warehouse']['formula_input'] = $o;
+        $base['warehouse']['formula_input'] = MoneyDecimal::normalizeTenths($o);
         $base['warehouse']['path'] = 'offer_formula';
-        $retail = $this->sellerOnePricing->calculateRetailPrice((float) $o, $variant, null);
-        if ($mainWarehouseId !== null && $mainWarehouseId > 0) {
+        $warehouseId = $mainWarehouseId ?? $this->purchasePriceResolver->resolveMainWarehouseId();
+        $resolved = null;
+        if ($warehouseId > 0) {
             $resolved = $this->formulaResolver->calculateRetailPrice(
                 $variant,
                 (float) $o,
                 PriceFormula::SOURCE_WAREHOUSE,
-                $mainWarehouseId,
+                $warehouseId,
             );
-            if ($resolved !== null) {
-                $retail = $resolved;
+            if ($resolved === null
+                && $this->formulaResolver->shouldSkipVariantPrice(
+                    $variant,
+                    PriceFormula::SOURCE_WAREHOUSE,
+                    $warehouseId,
+                )
+            ) {
+                $base['warehouse']['path'] = 'skipped_by_rule';
+
+                return $base;
             }
         }
-        $base['proposed_site_price'] = MoneyDecimal::normalize($retail);
+        if ($resolved === null) {
+            $resolved = $this->sellerOnePricing->calculateRetailPrice((float) $o, $variant, null);
+        }
+        $base['proposed_site_price'] = MoneyDecimal::normalize($resolved);
         $base['apply'] = true;
 
         return $base;
@@ -402,6 +473,15 @@ final class VariantRetailPriceDecisionService
             );
             if ($resolved !== null) {
                 return $resolved;
+            }
+            if ($this->formulaResolver->shouldSkipVariantPrice(
+                $variant,
+                PriceFormula::SOURCE_WAREHOUSE,
+                $mainWarehouseId,
+            )) {
+                return $variant->price !== null
+                    ? (float) $variant->price
+                    : $this->sellerOnePricing->calculateRetailPrice($input, $variant, $sellerOneSupplierId);
             }
         }
 

@@ -136,13 +136,17 @@ final class WarehousePriceRefreshService
                     }
 
                     $warehousePurchase = (float) $receiptMeta['warehouse_purchase'];
-                    $listingMin = CatalogVariantStockPresenter::minListingPurchasePrice($variant);
                     $matchedSupplier = $supplierPurchaseMap[$variantId] ?? null;
+                    // Офер для ветки склада — из прайса (resolver), не только listing-eligible
+                    // (deferred/out_of_stock блокируют minListing и давали ложное «Нет поставщика»).
+                    $supplierPurchase = $matchedSupplier !== null
+                        ? (float) $matchedSupplier['supplier_purchase']
+                        : CatalogVariantStockPresenter::minListingPurchasePrice($variant);
 
                     $decision = $this->priceDecision->decide(
                         $variant,
                         $warehousePurchase,
-                        $listingMin,
+                        $supplierPurchase,
                         null,
                         null,
                         $mainWarehouseId,
@@ -169,6 +173,7 @@ final class WarehousePriceRefreshService
                                 'warehouse_purchase' => $receiptMeta['warehouse_purchase'],
                                 'supplier_purchase' => $decision['warehouse']['supplier_purchase']
                                     ?? ($matchedSupplier['supplier_purchase'] ?? null),
+                                'formula_input' => $decision['warehouse']['formula_input'] ?? null,
                                 'receipt_supplier_id' => $receiptSupplierId,
                                 'supplier_sku' => $receiptMeta['supplier_sku'],
                                 'supplier_external_code' => $matchedSupplier['external_code'] ?? null,

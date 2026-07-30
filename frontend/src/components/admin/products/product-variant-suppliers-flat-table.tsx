@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ProductVariantSupplierItem } from "@/lib/admin-products-api";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
 import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
+import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
 
 export const SUPPLIER_TABLE_HEAD = (
     <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
@@ -25,6 +26,10 @@ type FlatTableOptions = {
     onVariantPriceChange?: (variantId: number, value: string) => void;
     onVariantPriceBlur?: (variant: ProductVariantSupplierItem) => void;
     variantPriceSavingId?: number | null;
+    getVariantOldPriceInputValue?: (variant: ProductVariantSupplierItem) => string;
+    onVariantOldPriceChange?: (variantId: number, value: string) => void;
+    onVariantOldPriceBlur?: (variant: ProductVariantSupplierItem) => void;
+    variantOldPriceSavingId?: number | null;
 };
 
 type Props = {
@@ -33,7 +38,9 @@ type Props = {
     flatTableOptions?: FlatTableOptions;
 };
 
-function formatSitePrice(value: ProductVariantSupplierItem["site_price"]): string | null {
+function formatMoneyField(
+    value: ProductVariantSupplierItem["site_price"] | ProductVariantSupplierItem["old_price"],
+): string | null {
     if (value === null || value === undefined || value === "") {
         return null;
     }
@@ -75,43 +82,80 @@ function isVariantOutOfStock(variant: ProductVariantSupplierItem): boolean {
     return !variant.is_preorder && Boolean(variant.fulfillment_tooltip) && !variant.is_available;
 }
 
-function VariantPriceCell({
+function VariantMoneyInputCell({
     variant,
     flatTableOptions,
+    mode,
 }: {
     variant: ProductVariantSupplierItem;
     flatTableOptions?: FlatTableOptions;
+    mode: "price" | "old_price";
 }) {
-    const sitePrice = formatSitePrice(variant.site_price);
+    const rawValue = mode === "price" ? variant.site_price : variant.old_price;
+    const displayValue = formatMoneyField(rawValue);
     const editable =
-        flatTableOptions?.getVariantPriceInputValue &&
-        flatTableOptions.onVariantPriceChange &&
-        flatTableOptions.onVariantPriceBlur;
+        mode === "price"
+            ? Boolean(
+                  flatTableOptions?.getVariantPriceInputValue &&
+                      flatTableOptions.onVariantPriceChange &&
+                      flatTableOptions.onVariantPriceBlur,
+              )
+            : Boolean(
+                  flatTableOptions?.getVariantOldPriceInputValue &&
+                      flatTableOptions.onVariantOldPriceChange &&
+                      flatTableOptions.onVariantOldPriceBlur,
+              );
 
     if (!editable) {
         return (
             <span className="inline-flex items-center gap-1 tabular-nums">
-                <span>{sitePrice ?? "—"}</span>
-                {sitePrice ? <span className="text-admin-text-secondary">BYN</span> : null}
+                <span>{displayValue ?? "—"}</span>
+                {displayValue ? <span className="text-admin-text-secondary">BYN</span> : null}
             </span>
         );
     }
 
-    const saving = flatTableOptions.variantPriceSavingId === variant.id;
+    const saving =
+        mode === "price"
+            ? flatTableOptions!.variantPriceSavingId === variant.id
+            : flatTableOptions!.variantOldPriceSavingId === variant.id;
+    const inputValue =
+        mode === "price"
+            ? flatTableOptions!.getVariantPriceInputValue!(variant)
+            : flatTableOptions!.getVariantOldPriceInputValue!(variant);
+    const tone =
+        mode === "price"
+            ? {
+                  wrap: "bg-emerald-50 text-emerald-700",
+                  input: "border-emerald-200 text-emerald-700 focus:border-emerald-300",
+              }
+            : {
+                  wrap: "bg-amber-50 text-amber-800",
+                  input: "border-amber-200 text-amber-800 focus:border-amber-300",
+              };
 
     return (
-        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+        <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs ${tone.wrap}`}>
             <input
                 type="text"
                 inputMode="decimal"
-                value={flatTableOptions.getVariantPriceInputValue!(variant)}
-                onChange={(e) => flatTableOptions.onVariantPriceChange!(variant.id, e.target.value)}
-                onBlur={() => flatTableOptions.onVariantPriceBlur!(variant)}
+                value={inputValue}
+                onChange={(e) =>
+                    mode === "price"
+                        ? flatTableOptions!.onVariantPriceChange!(variant.id, e.target.value)
+                        : flatTableOptions!.onVariantOldPriceChange!(variant.id, e.target.value)
+                }
+                onBlur={() =>
+                    mode === "price"
+                        ? flatTableOptions!.onVariantPriceBlur!(variant)
+                        : flatTableOptions!.onVariantOldPriceBlur!(variant)
+                }
                 disabled={saving}
                 placeholder="—"
-                className="w-24 rounded border border-emerald-200 bg-white px-2 py-0.5 text-xs tabular-nums text-emerald-700 outline-none focus:border-emerald-300"
+                className={`w-[4.5rem] rounded border bg-white px-1.5 py-0.5 text-xs tabular-nums outline-none ${tone.input}`}
+                aria-label={mode === "price" ? "Цена" : "Старая цена"}
             />
-            <span>{saving ? "…" : "BYN"}</span>
+            <span className="shrink-0">{saving ? "…" : "BYN"}</span>
         </span>
     );
 }
@@ -142,13 +186,15 @@ export default function ProductVariantSuppliersFlatTable({
     return (
         <div className="overflow-x-auto rounded-xl border">
             <table className="min-w-full text-sm">
-                <thead className="bg-admin-muted text-left text-xs uppercase tracking-wide text-admin-text-secondary">
+                <thead className="bg-admin-muted text-left text-[11px] uppercase tracking-wide text-admin-text-secondary">
                     <tr>
-                        <th className="px-3 py-2.5">Код</th>
-                        <th className="px-3 py-2.5">Наличие</th>
-                        <th className="px-3 py-2.5">Акция</th>
-                        <th className="px-3 py-2.5">Вариант</th>
-                        <th className="px-3 py-2.5 text-right">Цена</th>
+                        <th className="whitespace-nowrap px-2 py-2">Код</th>
+                        <th className="whitespace-nowrap px-2 py-2">Статус</th>
+                        <th className="px-2 py-2">Вариант</th>
+                        <th className="whitespace-nowrap px-2 py-2">Цена</th>
+                        <th className="whitespace-nowrap px-2 py-2">Старая цена</th>
+                        <th className="whitespace-nowrap px-2 py-2">Наличие</th>
+                        <th className="whitespace-nowrap px-2 py-2">Акция</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -193,11 +239,52 @@ function VariantFlatTableRows({
     return (
         <>
             <tr className={`border-t ${rowClass}`}>
-                <td className="px-3 py-2 tabular-nums text-admin-text-secondary">{variant.id}</td>
-                <td className="px-3 py-2">
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle tabular-nums text-xs text-admin-text-secondary">
+                    {variant.id}
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                     <AvailabilityBadge variant={variant} />
                 </td>
-                <td className="px-3 py-2">
+                <td className="max-w-[22rem] px-2 py-1.5 align-middle">
+                    {outOfStock ? (
+                        <span className="block truncate text-sm font-medium text-admin-text">
+                            {variant.title || "—"}
+                        </span>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onToggleSuppliersAction}
+                            className={`block max-w-full truncate text-left text-sm underline decoration-admin-primary/40 underline-offset-2 transition-[transform,text-decoration-color] duration-150 ease-out hover:scale-[1.02] hover:decoration-admin-primary ${
+                                expanded ? "font-bold text-admin-text" : "font-medium text-admin-text"
+                            }`}
+                            aria-expanded={expanded}
+                            title="Поставщики и склады"
+                        >
+                            {variant.title || "—"}
+                        </button>
+                    )}
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                    <VariantMoneyInputCell
+                        variant={variant}
+                        flatTableOptions={flatTableOptions}
+                        mode="price"
+                    />
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                    <VariantMoneyInputCell
+                        variant={variant}
+                        flatTableOptions={flatTableOptions}
+                        mode="old_price"
+                    />
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle">
+                    <VariantAvailabilityChannelBadge
+                        hasWarehouse={Boolean(variant.can_fulfill_main)}
+                        hasOffer={Boolean(variant.can_fulfill_offer)}
+                    />
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                     {flatTableOptions?.productId ? (
                         <VariantPromotionToggle
                             productId={flatTableOptions.productId}
@@ -214,32 +301,10 @@ function VariantFlatTableRows({
                         <span className="text-xs text-admin-text-secondary">—</span>
                     )}
                 </td>
-                <td className="px-3 py-2">
-                    {outOfStock ? (
-                        <span className="block truncate text-sm font-medium text-admin-text">
-                            {variant.title || "—"}
-                        </span>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={onToggleSuppliersAction}
-                            className={`inline-block max-w-full origin-left text-left text-sm underline decoration-admin-primary/40 underline-offset-2 transition-[transform,text-decoration-color] duration-150 ease-out hover:scale-105 hover:decoration-admin-primary ${
-                                expanded ? "font-bold text-admin-text" : "font-medium text-admin-text"
-                            }`}
-                            aria-expanded={expanded}
-                            title="Поставщики и склады"
-                        >
-                            <span className="block truncate">{variant.title || "—"}</span>
-                        </button>
-                    )}
-                </td>
-                <td className="px-3 py-2 text-right">
-                    <VariantPriceCell variant={variant} flatTableOptions={flatTableOptions} />
-                </td>
             </tr>
             {expanded && !outOfStock ? (
                 <tr className={`border-t ${rowClass}`}>
-                    <td colSpan={5} className="px-3 py-2">
+                    <td colSpan={7} className="px-2 py-2">
                         <SupplierDetailsPanel variant={variant} />
                     </td>
                 </tr>

@@ -16,16 +16,13 @@ final class VariantPromotionService
             return false;
         }
 
-        $row = WarehouseVariantStock::query()
+        // Акция живёт, пока есть остаток на основном складе (как в refresh склада).
+        // Не смотрим available (stock−reserved): полный резерв не должен снимать флаг.
+        return WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
             ->where('variant_id', $variantId)
-            ->first(['stock', 'reserved_stock']);
-
-        if (!$row) {
-            return false;
-        }
-
-        return max(0, (int) $row->stock - (int) $row->reserved_stock) > 0;
+            ->where('stock', '>', 0)
+            ->exists();
     }
 
     /**
@@ -47,13 +44,12 @@ final class VariantPromotionService
         $rows = WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
             ->whereIn('variant_id', $variantIds)
-            ->get(['variant_id', 'stock', 'reserved_stock']);
+            ->where('stock', '>', 0)
+            ->pluck('variant_id');
 
         $map = [];
-        foreach ($rows as $row) {
-            if (max(0, (int) $row->stock - (int) $row->reserved_stock) > 0) {
-                $map[(int) $row->variant_id] = true;
-            }
+        foreach ($rows as $variantId) {
+            $map[(int) $variantId] = true;
         }
 
         return $map;

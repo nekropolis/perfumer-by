@@ -49,6 +49,17 @@ class PricingLogicRulesTest extends TestCase
         $this->assertSame('87.00', MoneyDecimal::percentOff('100.00', 13.0));
     }
 
+    public function test_warehouse_minus_ten_formula_input_is_purchase_not_raw_retail(): void
+    {
+        // Расчётная для ветки «склад > офер >10%» — закуп −10%, не готовая розница в BYN.
+        $this->assertSame('514.80', MoneyDecimal::percentOff('572.00', 10.0));
+        $this->assertSame('287.10', MoneyDecimal::percentOff('319.00', 10.0));
+        $this->assertSame('23.30', MoneyDecimal::normalizeTenths('23.30'));
+        $this->assertSame('23.00', MoneyDecimal::normalizeTenths('23'));
+        $this->assertSame('30.40', MoneyDecimal::normalizeTenths('30.38'));
+        $this->assertSame('45.40', MoneyDecimal::normalizeTenths('45.4'));
+    }
+
     public function test_allparfume_snap_below_min_uses_min(): void
     {
         $snap = AllparfumeOfferSnap::select('80.00', ['100.00', '120.00', '150.00']);

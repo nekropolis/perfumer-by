@@ -1,0 +1,24 @@
+---
+description: Admin checkboxes use adminCheckbox (black/primary accent)
+globs: frontend/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# Admin checkboxes
+
+Owner preference: native checkboxes in admin must use project styling — black / primary accent, not browser default blue.
+
+## Use
+
+```tsx
+import { adminCheckbox } from "@/lib/admin-ui-classes";
+
+<input type="checkbox" className={adminCheckbox} ... />
+```
+
+Defined in `frontend/src/lib/admin-ui-classes.ts` (`accent-admin-primary`).
+
+## Do not
+
+- Leave bare `<input type="checkbox">` without `adminCheckbox` in admin UI
+- Invent a one-off accent color for checkboxes
