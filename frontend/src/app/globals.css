@@ -262,7 +262,7 @@ body:not(.admin-shell-body) .ProseMirror a {
   body.admin-order-receipts-printing .admin-order-receipts-print-root {
     display: flex;
     flex-direction: column;
-    gap: 6mm;
+    gap: 16mm;
     position: absolute;
     inset: 0 auto auto 0;
     width: 100%;
@@ -412,7 +412,7 @@ body:not(.admin-shell-body) .ProseMirror a {
     grid-template-columns: 18mm 39mm 39mm;
     align-items: end;
     gap: 3mm;
-    padding: 4mm 2mm 0;
+    padding: 10mm 2mm 0;
   }
 
   .admin-order-receipt-signature span:not(:first-child) {
