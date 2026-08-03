@@ -39,6 +39,8 @@ class AuditLogService
 
     public const ENTITY_VETER_TICKET = 'veter_ticket';
 
+    public const ENTITY_PRODUCT_VARIANT = 'product_variant';
+
     public function record(
         string $entityType,
         ?int $entityId,

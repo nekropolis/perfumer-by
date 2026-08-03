@@ -21,7 +21,7 @@ final class CheckoutDeliveryService
     ) {}
 
     /**
-     * @param  int[]|null  $checkoutCartItemIds  null — все строки товаров в корзине; иначе только id cart_items для подсчёта «наименований» по РБ.
+     * @param  int[]|null  $checkoutCartItemIds  null — все строки товаров в корзине; иначе только id cart_items для подсчёта единиц по РБ.
      */
     public function deliveryFee(Cart $cart, string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount, ?array $checkoutCartItemIds = null): float
     {
@@ -36,14 +36,14 @@ final class CheckoutDeliveryService
     /**
      * Расчёт доставки для админского заказа (без корзины).
      *
-     * @param  list<int|null>  $lineVariantIds  variant_id по каждой позиции заказа (qty не влияет на порог РБ).
+     * @param  list<array{variant_id: int|null, qty: int}>  $lines
      */
-    public function deliveryFeeForOrderLines(string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount, array $lineVariantIds): float
+    public function deliveryFeeForOrderLines(string $deliveryMethod, float $merchandiseAfterLoyaltyDiscount, array $lines): float
     {
         return match ($deliveryMethod) {
             self::METHOD_PICKUP => 0.0,
             self::METHOD_MINSK => $this->minskCourierFee($merchandiseAfterLoyaltyDiscount),
-            self::METHOD_BELARUS => $this->belarusCourierFeeForVariantIds($lineVariantIds),
+            self::METHOD_BELARUS => $this->belarusCourierFeeForLines($lines),
             default => 0.0,
         };
     }
@@ -71,25 +71,28 @@ final class CheckoutDeliveryService
             }
         }
 
-        $lineVariantIds = [];
+        $lines = [];
         foreach ($rows as $item) {
-            $lineVariantIds[] = $item->variant ? (int) $item->variant->id : null;
+            $lines[] = [
+                'variant_id' => $item->variant ? (int) $item->variant->id : null,
+                'qty' => max(0, (int) $item->qty),
+            ];
         }
 
-        return $this->belarusCourierFeeForVariantIds($lineVariantIds);
+        return $this->belarusCourierFeeForLines($lines);
     }
 
     /**
-     * @param  list<int|null>  $lineVariantIds
+     * @param  list<array{variant_id: int|null, qty: int}>  $lines
      */
-    private function belarusCourierFeeForVariantIds(array $lineVariantIds): float
+    private function belarusCourierFeeForLines(array $lines): float
     {
-        $minLines = max(1, $this->shopSettings->getInt('delivery_belarus_free_min_lines', 2));
+        $minUnits = max(1, $this->shopSettings->getInt('delivery_belarus_free_min_lines', 2));
         $fee = $this->shopSettings->getDecimal('delivery_belarus_fee', 6);
 
         $ids = [];
-        foreach ($lineVariantIds as $variantId) {
-            $id = (int) ($variantId ?? 0);
+        foreach ($lines as $line) {
+            $id = (int) ($line['variant_id'] ?? 0);
             if ($id > 0) {
                 $ids[$id] = true;
             }
@@ -105,9 +108,9 @@ final class CheckoutDeliveryService
                 ->all();
         }
 
-        $eligibleLines = 0;
-        foreach ($lineVariantIds as $variantId) {
-            $id = (int) ($variantId ?? 0);
+        $eligibleUnits = 0;
+        foreach ($lines as $line) {
+            $id = (int) ($line['variant_id'] ?? 0);
             $variant = $variantsById[$id] ?? null;
             if (! $variant) {
                 continue;
@@ -115,10 +118,10 @@ final class CheckoutDeliveryService
             if ((bool) ($variant->definition?->excludes_from_free_delivery_threshold ?? false)) {
                 continue;
             }
-            $eligibleLines++;
+            $eligibleUnits += max(0, (int) ($line['qty'] ?? 0));
         }
 
-        if ($eligibleLines >= $minLines) {
+        if ($eligibleUnits >= $minUnits) {
             return 0.0;
         }
 

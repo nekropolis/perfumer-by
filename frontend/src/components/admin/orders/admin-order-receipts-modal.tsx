@@ -16,6 +16,7 @@ type ReceiptItemDraft = {
 
 type ReceiptDraft = {
     orderId: number;
+    printDate: string;
     deliveryLabel: string;
     deliveryFee: string;
     /** Скидка по дисконтной карте, руб. (не %). */
@@ -32,7 +33,6 @@ type Props = {
 
 const COMPANY_NAME = "ИП Гришкевич П.А.";
 const COMPANY_UNP = "191168408";
-const RECEIPTS_PER_PAGE = 4;
 
 function normalizeMoneyForDisplay(value?: string | null): string {
     const text = String(value ?? "0.00").trim();
@@ -114,9 +114,22 @@ function deliveryLabel(order: OrderData): string {
     return `Доставка ${label.toLocaleLowerCase("ru-RU")}`;
 }
 
+/** Дата на чеке: delivery_date, иначе shipment_date, иначе сегодня. */
+function receiptPrintDate(order: OrderData): string {
+    const raw = order.delivery_date?.trim() || order.shipment_date?.trim() || "";
+    if (raw) {
+        const d = new Date(`${raw}T12:00:00`);
+        if (!Number.isNaN(d.getTime())) {
+            return d.toLocaleDateString("ru-RU");
+        }
+    }
+    return new Date().toLocaleDateString("ru-RU");
+}
+
 function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
     return orders.map((order) => ({
         orderId: order.id,
+        printDate: receiptPrintDate(order),
         deliveryLabel: deliveryLabel(order),
         deliveryFee: order.delivery_fee ?? "0.00",
         discountAmount: order.discount_amount ?? "0.00",
@@ -130,14 +143,6 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
             country: item.product_country?.trim() ?? "",
         })),
     }));
-}
-
-function chunkReceipts(receipts: ReceiptDraft[]): ReceiptDraft[][] {
-    const pages: ReceiptDraft[][] = [];
-    for (let i = 0; i < receipts.length; i += RECEIPTS_PER_PAGE) {
-        pages.push(receipts.slice(i, i + RECEIPTS_PER_PAGE));
-    }
-    return pages;
 }
 
 export default function AdminOrderReceiptsModal({ orders, countryOptions, onCloseAction }: Props) {
@@ -157,11 +162,6 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
         };
     }, []);
 
-    const printDate = useMemo(
-        () => new Date().toLocaleDateString("ru-RU"),
-        [],
-    );
-
     const countryList = useMemo(() => {
         const values = new Set(countryOptions.map((country) => country.trim()).filter(Boolean));
         drafts.forEach((draft) => {
@@ -173,8 +173,6 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
         });
         return Array.from(values).sort((a, b) => a.localeCompare(b, "ru-RU"));
     }, [countryOptions, drafts]);
-
-    const pages = useMemo(() => chunkReceipts(drafts), [drafts]);
 
     const updateItemCountry = (orderId: number, itemKey: string, country: string) => {
         setDrafts((prev) =>
@@ -311,99 +309,95 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
             </div>
 
             <div className="admin-order-receipts-print-root">
-                {pages.map((page, pageIndex) => (
-                    <div key={pageIndex} className="admin-order-receipts-print-page">
-                        {page.map((draft) => (
-                            <article key={draft.orderId} className="admin-order-receipt-print-card">
-                                <div className="admin-order-receipt-header">
-                                    <div className="admin-order-receipt-logo" aria-label="Perfumer">
-                                        <div>PERFUMER</div>
-                                        <span>ORIGINAL PERFUMES</span>
-                                    </div>
-                                    <div className="admin-order-receipt-seller">
-                                        <div className="admin-order-receipt-company">
-                                            <span>Продавец:</span> {COMPANY_NAME}
-                                        </div>
-                                        <div className="admin-order-receipt-unp">
-                                            <span>УНП:</span> {COMPANY_UNP}
-                                        </div>
-                                    </div>
+                {drafts.map((draft) => (
+                    <article key={draft.orderId} className="admin-order-receipt-print-card">
+                        <div className="admin-order-receipt-header">
+                            <div className="admin-order-receipt-logo" aria-label="Perfumer">
+                                <div>PERFUMER</div>
+                                <span>ORIGINAL PERFUMES</span>
+                            </div>
+                            <div className="admin-order-receipt-seller">
+                                <div className="admin-order-receipt-company">
+                                    <span>Продавец:</span> {COMPANY_NAME}
                                 </div>
-
-                                <div className="admin-order-receipt-title">
-                                    <span>Товарный чек</span>
-                                    <span>от {printDate} г.</span>
+                                <div className="admin-order-receipt-unp">
+                                    <span>УНП:</span> {COMPANY_UNP}
                                 </div>
+                            </div>
+                        </div>
 
-                                <table className="admin-order-receipt-table">
-                                    <thead>
-                                        <tr>
-                                            <th>№ п/п</th>
-                                            <th>Наименование, характеристика товара</th>
-                                            <th>Ед</th>
-                                            <th>Кол-во</th>
-                                            <th>Цена, руб</th>
-                                            <th>Сумма, руб</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {draft.items.map((item, index) => (
-                                            <tr key={item.key}>
-                                                <td>{index + 1}</td>
-                                                <td>
-                                                    {[item.name, item.country].filter(Boolean).join(" - ")}
-                                                </td>
-                                                <td>шт</td>
-                                                <td>{item.qty}</td>
-                                                <td>{normalizeMoneyForDisplay(item.price)}</td>
-                                                <td>{normalizeMoneyForDisplay(item.total)}</td>
-                                            </tr>
-                                        ))}
+                        <div className="admin-order-receipt-title">
+                            <span>Товарный чек</span>
+                            <span>от {draft.printDate} г.</span>
+                        </div>
 
-                                        {moneyToCents(draft.deliveryFee) > 0 ? (
-                                            <tr className="admin-order-receipt-summary-row">
-                                                <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                                <td colSpan={3} className="admin-order-receipt-total-label">
-                                                    {draft.deliveryLabel}:
-                                                </td>
-                                                <td className="admin-order-receipt-total-value">
-                                                    {normalizeMoneyForDisplay(draft.deliveryFee)}
-                                                </td>
-                                            </tr>
-                                        ) : null}
+                        <table className="admin-order-receipt-table">
+                            <thead>
+                                <tr>
+                                    <th>№ п/п</th>
+                                    <th>Наименование, характеристика товара</th>
+                                    <th>Ед</th>
+                                    <th>Кол-во</th>
+                                    <th>Цена, руб</th>
+                                    <th>Сумма, руб</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {draft.items.map((item, index) => (
+                                    <tr key={item.key}>
+                                        <td>{index + 1}</td>
+                                        <td>
+                                            {[item.name, item.country].filter(Boolean).join(" - ")}
+                                        </td>
+                                        <td>шт</td>
+                                        <td>{item.qty}</td>
+                                        <td>{normalizeMoneyForDisplay(item.price)}</td>
+                                        <td>{normalizeMoneyForDisplay(item.total)}</td>
+                                    </tr>
+                                ))}
 
-                                        {moneyToCents(draft.discountAmount) > 0 ? (
-                                            <tr className="admin-order-receipt-summary-row">
-                                                <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                                <td colSpan={3} className="admin-order-receipt-total-label">
-                                                    Скидка по дисконтной карте:
-                                                </td>
-                                                <td className="admin-order-receipt-total-value">
-                                                    −{normalizeMoneyForDisplay(draft.discountAmount)}
-                                                </td>
-                                            </tr>
-                                        ) : null}
+                                {moneyToCents(draft.deliveryFee) > 0 ? (
+                                    <tr className="admin-order-receipt-summary-row">
+                                        <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                        <td colSpan={3} className="admin-order-receipt-total-label">
+                                            {draft.deliveryLabel}:
+                                        </td>
+                                        <td className="admin-order-receipt-total-value">
+                                            {normalizeMoneyForDisplay(draft.deliveryFee)}
+                                        </td>
+                                    </tr>
+                                ) : null}
 
-                                        <tr className="admin-order-receipt-total-row">
-                                            <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                            <td colSpan={3} className="admin-order-receipt-total-label">
-                                                ИТОГО:
-                                            </td>
-                                            <td className="admin-order-receipt-total-value">
-                                                {normalizeMoneyForDisplay(draft.total)}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                {moneyToCents(draft.discountAmount) > 0 ? (
+                                    <tr className="admin-order-receipt-summary-row">
+                                        <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                        <td colSpan={3} className="admin-order-receipt-total-label">
+                                            Скидка по дисконтной карте:
+                                        </td>
+                                        <td className="admin-order-receipt-total-value">
+                                            −{normalizeMoneyForDisplay(draft.discountAmount)}
+                                        </td>
+                                    </tr>
+                                ) : null}
 
-                                <div className="admin-order-receipt-signature">
-                                    <span>Продавец</span>
-                                    <span>подпись</span>
-                                    <span>ф.и.о.</span>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
+                                <tr className="admin-order-receipt-total-row">
+                                    <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                    <td colSpan={3} className="admin-order-receipt-total-label">
+                                        ИТОГО:
+                                    </td>
+                                    <td className="admin-order-receipt-total-value">
+                                        {normalizeMoneyForDisplay(draft.total)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div className="admin-order-receipt-signature">
+                            <span>Продавец</span>
+                            <span>подпись</span>
+                            <span>ф.и.о.</span>
+                        </div>
+                    </article>
                 ))}
             </div>
         </>,

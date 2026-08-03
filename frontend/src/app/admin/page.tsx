@@ -24,6 +24,8 @@ const STATUS_LABEL: Record<string, string> = {
     new: "Новый",
     confirmed: "Подтвержден",
     processing: "В обработке",
+    assembled: "Собран",
+    in_delivery: "В доставке",
     notified: "Подтвержден",
     done: "Выполнен",
     completed: "Выполнен",

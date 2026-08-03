@@ -11,7 +11,7 @@ class SyncVeterTicketStatusesCommand extends Command
 {
     protected $signature = 'veter:sync-ticket-statuses';
 
-    protected $description = 'Sync Veter ticket statuses (getStatus) for orders in_delivery with shipment_id';
+    protected $description = 'Sync Veter ticket statuses (getStatus) for orders assembled/in_delivery with shipment_id';
 
     public function handle(VeterTicketStatusSyncService $sync): int
     {

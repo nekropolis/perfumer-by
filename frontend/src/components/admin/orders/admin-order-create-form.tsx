@@ -258,6 +258,8 @@ type OrderLine = {
   waiting_discount: boolean;
   can_fulfill_main: boolean;
   can_fulfill_offer: boolean;
+  /** Причина подсветки: нет склада/офера или исходный канал недоступен. */
+  availability_issue: string | null;
   fulfillment_options: OrderItemFulfillmentOption[];
   main_lot_choices: MainLotChoice[];
   selected_lot_id: number | null;
@@ -514,6 +516,7 @@ function emptyLine(): OrderLine {
     waiting_discount: false,
     can_fulfill_main: false,
     can_fulfill_offer: false,
+    availability_issue: null,
     fulfillment_options: [],
     main_lot_choices: [],
     selected_lot_id: null,
@@ -526,6 +529,23 @@ function orderLineMerchandiseTotal(line: OrderLine): number {
 
 function isCompleteOrderLine(l: OrderLine): boolean {
   return Boolean(l.product_id && l.variant_id && l.product_name.trim());
+}
+
+function availabilityIssueForLine(
+  channel: FulfillmentChannel | null,
+  canMainLive: boolean,
+  canOfferLive: boolean,
+): string | null {
+  if (!canMainLive && !canOfferLive) {
+    return "Нет склада и офера";
+  }
+  if (channel === "main" && !canMainLive) {
+    return canOfferLive ? "Нет склада — канал недоступен" : "Нет склада";
+  }
+  if (channel === "offer" && !canOfferLive) {
+    return canMainLive ? "Нет офера — канал недоступен" : "Нет офера";
+  }
+  return null;
 }
 
 /** Строка «Позиция N», в которую ничего не ввели — не валидируем и не отправляем. */
@@ -594,13 +614,23 @@ function priceWithOptionalWaiting(basePrice: number, waiting: boolean): number {
   return next != null ? Number(next) : basePrice;
 }
 
-function linesFromOrderItems(order: OrderData): OrderLine[] {
+function linesFromOrderItems(
+  order: OrderData,
+  opts?: { strictLive?: boolean },
+): OrderLine[] {
   if (!order.items?.length) return [emptyLine()];
+  const strictLive = Boolean(opts?.strictLive);
   return order.items.map((item) => {
     const source = item.availability_source ?? null;
     const channel = channelFromSource(source);
-    const canMain = Boolean(item.can_fulfill_main) || channel === "main";
-    const canOffer = Boolean(item.can_fulfill_offer) || channel === "offer";
+    const liveMain = Boolean(item.can_fulfill_main_live ?? item.can_fulfill_main);
+    const liveOffer = Boolean(item.can_fulfill_offer_live ?? item.can_fulfill_offer);
+    const canMain = strictLive
+      ? liveMain
+      : Boolean(item.can_fulfill_main) || channel === "main";
+    const canOffer = strictLive
+      ? liveOffer
+      : Boolean(item.can_fulfill_offer) || channel === "offer";
     const waiting = Boolean(item.waiting_discount) || channel === "offer";
     const price = Number(item.price) || 0;
     const basePrice = waiting && price > 0 ? estimateBaseFromWaitingPrice(price) : price;
@@ -622,6 +652,9 @@ function linesFromOrderItems(order: OrderData): OrderLine[] {
       waiting_discount: waiting,
       can_fulfill_main: canMain,
       can_fulfill_offer: canOffer,
+      availability_issue: strictLive
+        ? availabilityIssueForLine(channel, liveMain, liveOffer)
+        : null,
       fulfillment_options: fulfillmentOptions,
       main_lot_choices: mainChoices,
       selected_lot_id: allocationLotId ?? pickPreferredLotId(mainChoices),
@@ -724,6 +757,8 @@ function formatOrderLineProductLabel(line: {
 export type AdminOrderCreateFormProps = {
   mode?: "create" | "edit";
   initialOrder?: OrderData;
+  /** Исходный заказ для копии (create + предзаполнение, новый ID после сохранения). */
+  copyFromOrder?: OrderData;
   initialPhone?: string;
   initialCustomerName?: string;
 };
@@ -771,44 +806,49 @@ function CertificatesPanel<T>({
 export default function AdminOrderCreateForm({
   mode = "create",
   initialOrder,
+  copyFromOrder,
   initialPhone,
   initialCustomerName,
 }: AdminOrderCreateFormProps) {
   const router = useRouter();
   const isEdit = mode === "edit" && initialOrder != null;
+  const isCopy = mode === "create" && copyFromOrder != null;
+  const seedOrder = isEdit ? initialOrder : copyFromOrder ?? undefined;
   const initialOrderId = initialOrder?.id ?? null;
   const itemsLocked = Boolean(
-    isEdit && initialOrder && (initialOrder.status === "done" || initialOrder.status === "cancelled"),
+    isEdit && initialOrder && ["done", "completed"].includes(String(initialOrder.status)),
   );
+  const useStrictLiveAvailability =
+    isCopy || Boolean(isEdit && initialOrder && initialOrder.status === "cancelled");
 
   /** Полный номер цифрами (375… или международный). */
   const [phoneDigits, setPhoneDigits] = useState(() =>
-    phoneDigitsFromStored(initialOrder?.phone ?? initialPhone ?? ""),
+    phoneDigitsFromStored(seedOrder?.phone ?? initialPhone ?? ""),
   );
   const [plainPhoneMode, setPlainPhoneMode] = useState(() =>
-    shouldUsePlainPhoneUi(initialOrder?.phone ?? initialPhone ?? ""),
+    shouldUsePlainPhoneUi(seedOrder?.phone ?? initialPhone ?? ""),
   );
   const [customerFirstName, setCustomerFirstName] = useState(
     () =>
       parseCustomerNameParts(
-        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
       ).first,
   );
   const [customerLastName, setCustomerLastName] = useState(
     () =>
       parseCustomerNameParts(
-        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
       ).last,
   );
   const [customerPatronymic, setCustomerPatronymic] = useState(
     () =>
       parseCustomerNameParts(
-        initialOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
+        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
       ).patronymic,
   );
-  const [comment, setComment] = useState(() => initialOrder?.comment ?? "");
-  const [managerComment, setManagerComment] = useState(() => initialOrder?.manager_comment ?? "");
-  const [orderStatus, setOrderStatus] = useState(() => initialOrder?.status ?? "new");
+  const [comment, setComment] = useState(() => seedOrder?.comment ?? "");
+  const [managerComment, setManagerComment] = useState(() => seedOrder?.manager_comment ?? "");
+  const [orderStatus, setOrderStatus] = useState(() => (isCopy ? "new" : seedOrder?.status ?? "new"));
   const { options: statusOptions } = useOrderStatusOptions(true);
   const statusDropdownOptions = useMemo(() => {
     if (statusOptions.some((item) => item.value === orderStatus)) {
@@ -818,61 +858,61 @@ export default function AdminOrderCreateForm({
       ...statusOptions,
       {
         value: orderStatus,
-        label: getOrderStatusLabel(orderStatus, initialOrder?.status_label),
-        color: getOrderStatusColor(orderStatus, initialOrder?.status_color),
+        label: getOrderStatusLabel(orderStatus, seedOrder?.status_label),
+        color: getOrderStatusColor(orderStatus, seedOrder?.status_color),
       },
     ];
-  }, [statusOptions, orderStatus, initialOrder?.status_label, initialOrder?.status_color]);
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(initialOrder?.delivery_method));
+  }, [statusOptions, orderStatus, seedOrder?.status_label, seedOrder?.status_color]);
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryValue>(() => normalizeDelivery(seedOrder?.delivery_method));
   const [deliveryCity, setDeliveryCity] = useState(() => {
-    const method = normalizeDelivery(initialOrder?.delivery_method);
+    const method = normalizeDelivery(seedOrder?.delivery_method);
     if (method === "minsk_courier") return MINSK_COURIER_CITY;
     if (method === "belarus_courier") {
-      const id = initialOrder?.delivery_city_id;
+      const id = seedOrder?.delivery_city_id;
       if (typeof id === "number" && id > 0) {
-        return initialOrder?.delivery_city ?? "";
+        return seedOrder?.delivery_city ?? "";
       }
       return "";
     }
-    return initialOrder?.delivery_city ?? "";
+    return seedOrder?.delivery_city ?? "";
   });
   const [deliveryCityId, setDeliveryCityId] = useState<number | null>(() => {
-    const method = normalizeDelivery(initialOrder?.delivery_method);
+    const method = normalizeDelivery(seedOrder?.delivery_method);
     if (method !== "belarus_courier") return null;
-    const id = initialOrder?.delivery_city_id;
+    const id = seedOrder?.delivery_city_id;
     return typeof id === "number" && id > 0 ? id : null;
   });
   const [belarusDeliveryDays, setBelarusDeliveryDays] = useState<CheckoutCityHit["delivery_days"] | null>(null);
   const [citySelect, setCitySelect] = useState<string>("");
-  const [deliveryAddress, setDeliveryAddress] = useState(() => initialOrder?.delivery_address ?? "");
+  const [deliveryAddress, setDeliveryAddress] = useState(() => seedOrder?.delivery_address ?? "");
   const [deliveryStreetPrefix, setDeliveryStreetPrefix] = useState(
-    () => initialOrder?.delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
+    () => seedOrder?.delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
   );
-  const [deliveryHouse, setDeliveryHouse] = useState(() => initialOrder?.delivery_house ?? "");
-  const [deliveryKorpus, setDeliveryKorpus] = useState(() => initialOrder?.delivery_korpus ?? "");
+  const [deliveryHouse, setDeliveryHouse] = useState(() => seedOrder?.delivery_house ?? "");
+  const [deliveryKorpus, setDeliveryKorpus] = useState(() => seedOrder?.delivery_korpus ?? "");
   const [deliveryApartment, setDeliveryApartment] = useState(
-    () => initialOrder?.delivery_apartment ?? "",
+    () => seedOrder?.delivery_apartment ?? "",
   );
   const [deliveryComment, setDeliveryComment] = useState(
-    () => initialOrder?.delivery_comment ?? "",
+    () => seedOrder?.delivery_comment ?? "",
   );
-  const [shipmentId, setShipmentId] = useState(() => initialOrder?.shipment_id ?? "");
+  const [shipmentId, setShipmentId] = useState(() => (isCopy ? "" : seedOrder?.shipment_id ?? ""));
   const [deliveryTimeFrom, setDeliveryTimeFrom] = useState(
-    () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_from),
+    () => snapDeliveryClockToTenMinutes(seedOrder?.delivery_time_from),
   );
   const [deliveryTimeTo, setDeliveryTimeTo] = useState(
-    () => snapDeliveryClockToTenMinutes(initialOrder?.delivery_time_to),
+    () => snapDeliveryClockToTenMinutes(seedOrder?.delivery_time_to),
   );
   const [shipmentDate, setShipmentDate] = useState(
     () =>
-      initialOrder?.shipment_date?.trim() ||
+      seedOrder?.shipment_date?.trim() ||
       format(new Date(), "yyyy-MM-dd"),
   );
   const [courierDeliveryDate, setCourierDeliveryDate] = useState(
-    () => initialOrder?.delivery_date?.trim() || "",
+    () => seedOrder?.delivery_date?.trim() || "",
   );
   const [selectedTags, setSelectedTags] = useState<OrderTag[]>(() =>
-    (initialOrder?.tags ?? []).map((t) => ({
+    (seedOrder?.tags ?? []).map((t) => ({
       id: t.id,
       name: t.name,
       color: t.color,
@@ -881,35 +921,41 @@ export default function AdminOrderCreateForm({
   const [deliveryTimeModalOpen, setDeliveryTimeModalOpen] = useState(false);
   const [draftDeliveryTimeFrom, setDraftDeliveryTimeFrom] = useState("");
   const [belarusCityQuery, setBelarusCityQuery] = useState(() => {
-    const method = normalizeDelivery(initialOrder?.delivery_method);
+    const method = normalizeDelivery(seedOrder?.delivery_method);
     if (method !== "belarus_courier") return "";
-    const id = initialOrder?.delivery_city_id;
+    const id = seedOrder?.delivery_city_id;
     if (typeof id === "number" && id > 0) return "";
-    const city = (initialOrder?.delivery_city ?? "").trim();
+    const city = (seedOrder?.delivery_city ?? "").trim();
     if (!city) return "";
     return city.includes(",") ? city.slice(0, city.indexOf(",")).trim() : city;
   });
   const [draftDeliveryTimeTo, setDraftDeliveryTimeTo] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(initialOrder?.payment_method));
-  const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(initialOrder?.delivery_fee ?? 0) || 0));
-  const [discountCardInput, setDiscountCardInput] = useState(() => initialOrder?.discount_card_number?.trim() ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(seedOrder?.payment_method));
+  const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(seedOrder?.delivery_fee ?? 0) || 0));
+  const [discountCardInput, setDiscountCardInput] = useState(() => seedOrder?.discount_card_number?.trim() ?? "");
   const [appliedDiscountCardNumber, setAppliedDiscountCardNumber] = useState(
-    () => initialOrder?.discount_card_number?.trim() ?? "",
+    () => seedOrder?.discount_card_number?.trim() ?? "",
   );
   /** Пользователь явно убрал карту — не подставлять снова, пока не сменится телефон. */
   const [discountCardManuallyCleared, setDiscountCardManuallyCleared] = useState(false);
   const [discountCardError, setDiscountCardError] = useState("");
   const [giftCertificateInput, setGiftCertificateInput] = useState(
-    () => initialOrder?.gift_certificate_code?.trim() ?? "",
+    () => seedOrder?.gift_certificate_code?.trim() ?? "",
   );
   const [appliedGiftCertificateCode, setAppliedGiftCertificateCode] = useState(
-    () => initialOrder?.gift_certificate_code?.trim() ?? "",
+    () => seedOrder?.gift_certificate_code?.trim() ?? "",
   );
   const [giftCertificateError, setGiftCertificateError] = useState("");
   const [orderQuote, setOrderQuote] = useState<AdminOrderQuote | null>(null);
   const [orderQuoteLoading, setOrderQuoteLoading] = useState(false);
-  const [lines, setLines] = useState<OrderLine[]>(() => (initialOrder ? linesFromOrderItems(initialOrder) : [emptyLine()]));
+  const [lines, setLines] = useState<OrderLine[]>(() =>
+    seedOrder
+      ? linesFromOrderItems(seedOrder, { strictLive: useStrictLiveAvailability })
+      : [emptyLine()],
+  );
   const [saving, setSaving] = useState(false);
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
+  const [pendingRestoreStatus, setPendingRestoreStatus] = useState<string | null>(null);
 
   const syncMainLotsForLine = useCallback(
     async (lineIdx: number, variantId: number, fulfillmentOptions: OrderItemFulfillmentOption[]) => {
@@ -972,7 +1018,8 @@ export default function AdminOrderCreateForm({
   } | null>(null);
 
   /** Сохранённый ID отправки блокирует смену на Минск / самовывоз. */
-  const shipmentBlocksNonRbDelivery = (initialOrder?.shipment_id ?? "").trim() !== "";
+  const shipmentBlocksNonRbDelivery =
+    !isCopy && (initialOrder?.shipment_id ?? "").trim() !== "";
 
   const [phoneHits, setPhoneHits] = useState<AdminClient[]>([]);
   const [phoneHitsOpen, setPhoneHitsOpen] = useState(false);
@@ -1582,6 +1629,61 @@ export default function AdminOrderCreateForm({
     [appliedGiftCertificateCode, deliveryMethod, filledLinesForQuote, initialOrderId, isEdit, paymentMethod],
   );
 
+  const seedCardValidatedRef = useRef(false);
+  useEffect(() => {
+    if (seedCardValidatedRef.current) return;
+    if (itemsLocked) return;
+    if (!isCopy && !(isEdit && initialOrder?.status === "cancelled")) return;
+    const card = appliedDiscountCardNumber.trim();
+    if (!card || filledLinesForQuote.length === 0) return;
+    seedCardValidatedRef.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetchAdminOrderQuote({
+          payment_method: paymentMethod,
+          delivery_method: deliveryMethod,
+          discount_card_number: card,
+          gift_certificate_code: appliedGiftCertificateCode.trim() || null,
+          order_id: isEdit ? initialOrderId : null,
+          items: filledLinesForQuote.map((l) => ({
+            qty: Math.max(1, l.qty),
+            price: Math.max(0, l.price),
+            variant_id: l.variant_id,
+          })),
+        });
+        if (cancelled) return;
+        const confirmed = response.data.discount_card_number?.trim() ?? "";
+        if (confirmed === "") {
+          setDiscountCardError("Скидочная карта не найдена или неактивна.");
+          return;
+        }
+        setOrderQuote(response.data);
+      } catch (err) {
+        if (cancelled) return;
+        setDiscountCardError(
+          err instanceof Error ? err.message : "Скидочная карта не найдена или неактивна.",
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    appliedDiscountCardNumber,
+    appliedGiftCertificateCode,
+    deliveryMethod,
+    filledLinesForQuote,
+    initialOrder?.status,
+    initialOrderId,
+    isCopy,
+    isEdit,
+    itemsLocked,
+    paymentMethod,
+  ]);
+
   const applyGiftCertificateToOrder = useCallback(
     async (codeRaw: string) => {
       const normalized = normalizeGiftCertificateCodeInput(codeRaw);
@@ -1799,6 +1901,11 @@ export default function AdminOrderCreateForm({
               main_lot_choices: [],
               selected_lot_id: null,
               ...fulfillment,
+              availability_issue: availabilityIssueForLine(
+                channelFromSource(fulfillment.availability_source),
+                fulfillment.can_fulfill_main,
+                fulfillment.can_fulfill_offer,
+              ),
             }
             : row,
         ),
@@ -1834,6 +1941,11 @@ export default function AdminOrderCreateForm({
             main_lot_choices: [],
             selected_lot_id: null,
             ...fulfillment,
+            availability_issue: availabilityIssueForLine(
+              channelFromSource(fulfillment.availability_source),
+              fulfillment.can_fulfill_main,
+              fulfillment.can_fulfill_offer,
+            ),
           }
           : row,
       ),
@@ -1882,6 +1994,11 @@ export default function AdminOrderCreateForm({
           selected_lot_id: channel === "main"
             ? (row.selected_lot_id ?? pickPreferredLotId(row.main_lot_choices))
             : null,
+          availability_issue: availabilityIssueForLine(
+            channel,
+            row.can_fulfill_main,
+            row.can_fulfill_offer,
+          ),
         };
       }),
     );
@@ -2457,10 +2574,20 @@ export default function AdminOrderCreateForm({
 
       <SectionCard>
         <h2 className="text-sm font-semibold text-admin-text">Товары *</h2>
+        {isCopy ? (
+          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            Копия заказа #{copyFromOrder?.id}. Новый номер появится после сохранения. Недоступные позиции подсвечены.
+          </p>
+        ) : null}
         {itemsLocked ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Заказ в статусе «Выполнен» или «Отменён» — состав строк и цены нельзя менять. Можно править контакты, доставку
-            и комментарий.
+            Заказ в статусе «Выполнен» — состав строк и цены нельзя менять. Можно править контакты, доставку и
+            комментарий.
+          </p>
+        ) : null}
+        {!itemsLocked && appliedDiscountCardNumber.trim() && discountCardError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            Скидочная карта {appliedDiscountCardNumber}: {discountCardError}
           </p>
         ) : null}
         <div className="space-y-2">
@@ -2486,8 +2613,16 @@ export default function AdminOrderCreateForm({
                     channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
                       ? "offer"
                       : "main";
+                  const hasAvailabilityIssue = Boolean(line.availability_issue);
                   return (
-                    <div key={`line-${idx}`} className={`${orderLineTableRow} bg-admin-muted/25 px-3 py-2`}>
+                    <div
+                      key={`line-${idx}`}
+                      className={`${orderLineTableRow} px-3 py-2 ${
+                        hasAvailabilityIssue
+                          ? "border-l-4 border-l-amber-500 bg-amber-50/80"
+                          : "bg-admin-muted/25"
+                      }`}
+                    >
                       <div className={`${orderLineColName} space-y-1`}>
                         <p className="truncate text-sm leading-snug text-admin-text">
                           <span className="font-medium">
@@ -2497,6 +2632,11 @@ export default function AdminOrderCreateForm({
                             <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
                           ) : null}
                         </p>
+                        {line.availability_issue ? (
+                          <p className="text-[11px] font-medium leading-snug text-amber-800">
+                            {line.availability_issue}
+                          </p>
+                        ) : null}
                         {line.fulfillment_options.length > 0 ? (
                           <ul className="min-w-0 space-y-0.5 text-[11px] leading-snug text-admin-text-secondary">
                             {line.fulfillment_options.map((opt, optIdx) => {
@@ -2884,7 +3024,18 @@ export default function AdminOrderCreateForm({
               <AdminStatusDropdown
                 value={orderStatus}
                 options={statusDropdownOptions}
-                onChangeAction={setOrderStatus}
+                onChangeAction={(nextStatus) => {
+                  if (
+                    initialOrder?.status === "cancelled" &&
+                    nextStatus !== "cancelled" &&
+                    orderStatus === "cancelled"
+                  ) {
+                    setPendingRestoreStatus(nextStatus);
+                    setConfirmRestoreOpen(true);
+                    return;
+                  }
+                  setOrderStatus(nextStatus);
+                }}
                 disabled={itemsLocked}
                 triggerVariant="text"
                 triggerColor={getOrderStatusColor(orderStatus, initialOrder?.status_color)}
@@ -3783,6 +3934,25 @@ export default function AdminOrderCreateForm({
         onConfirmAction={() => void handleDeleteOrder()}
         onCloseAction={() => {
           if (!deleting) setConfirmDeleteOpen(false);
+        }}
+      />
+
+      <AdminConfirmDialog
+        open={confirmRestoreOpen}
+        title="Вернуть заказ из отменённых?"
+        message="Заказ снова станет активным: резервы на складе будут выставлены заново (если применимо). Проверьте наличие товаров и скидочную карту."
+        confirmText="Вернуть"
+        cancelText="Отмена"
+        onConfirmAction={() => {
+          if (pendingRestoreStatus) {
+            setOrderStatus(pendingRestoreStatus);
+          }
+          setPendingRestoreStatus(null);
+          setConfirmRestoreOpen(false);
+        }}
+        onCloseAction={() => {
+          setPendingRestoreStatus(null);
+          setConfirmRestoreOpen(false);
         }}
       />
     </form>

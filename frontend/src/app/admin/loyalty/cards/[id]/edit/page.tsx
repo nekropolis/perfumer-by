@@ -7,7 +7,10 @@ import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import LoyaltyCardForm, { type LoyaltyCardFormState } from "@/components/admin/loyalty/loyalty-card-form";
+import LoyaltyCardForm, {
+    type LoyaltyCardFormState,
+    validateLoyaltyCardDiscountPercent,
+} from "@/components/admin/loyalty/loyalty-card-form";
 import LoyaltyCardUserSearchPanel, {
     LoyaltyUserSelectionChips,
 } from "@/components/admin/loyalty/loyalty-card-user-search-panel";
@@ -45,6 +48,7 @@ export default function AdminLoyaltyCardEditPage() {
                     id: item.id,
                     number: loyaltyCardDisplayNumber(item),
                     discount_percent: String(item.discount_percent),
+                    is_manual_discount: Boolean(item.is_manual_discount),
                     status: (item.status ?? (item.is_active ? "active" : "blocked")) as LoyaltyCardFormState["status"],
                 });
                 setAttachedUsers((item.users || []) as AdminClient[]);
@@ -61,9 +65,21 @@ export default function AdminLoyaltyCardEditPage() {
         if (!form?.id) return;
         setSubmitting(true);
         setError("");
+
+        const discountError = validateLoyaltyCardDiscountPercent(
+            form.discount_percent,
+            form.is_manual_discount,
+        );
+        if (discountError) {
+            setError(discountError);
+            setSubmitting(false);
+            return;
+        }
+
         try {
             await updateLoyaltyCard(form.id, {
                 discount_percent: Number(form.discount_percent),
+                is_manual_discount: form.is_manual_discount,
                 status: form.status,
             });
             router.push("/admin/loyalty/cards");

@@ -60,6 +60,7 @@ export type LoyaltyCardItem = {
     card_number?: string;
     number?: string;
     discount_percent: string;
+    is_manual_discount?: boolean;
     spent_total: string;
     status?: string;
     is_active?: boolean;
@@ -189,6 +190,7 @@ export async function createLoyaltyCard(payload: {
     card_number?: string;
     number?: string;
     discount_percent?: number;
+    is_manual_discount?: boolean;
     status?: "active" | "blocked" | "expired";
 }) {
     const res = await fetch(`${API_BASE}/admin/loyalty/cards`, {
@@ -212,7 +214,15 @@ export async function fetchAdminLoyaltyCard(id: number): Promise<{ data: Loyalty
 
 export async function updateLoyaltyCard(
     id: number,
-    payload: { discount_percent?: number; status?: "active" | "blocked" | "expired"; issued_at?: string; owner_name?: string; phone?: string; notes?: string }
+    payload: {
+        discount_percent?: number;
+        is_manual_discount?: boolean;
+        status?: "active" | "blocked" | "expired";
+        issued_at?: string;
+        owner_name?: string;
+        phone?: string;
+        notes?: string;
+    }
 ) {
     const res = await fetch(`${API_BASE}/admin/loyalty/cards/${id}`, {
         method: "PATCH",

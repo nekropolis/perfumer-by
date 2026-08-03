@@ -13,6 +13,11 @@ class VeterTicketStatusSyncService
 
     public const SOURCE_CRON = 'cron';
 
+    /** Заказы с shipment_id, по которым опрашиваем getStatus. */
+    public const SYNCABLE_LOCAL_STATUSES = ['assembled', 'in_delivery'];
+
+    public const LOCAL_STATUS_AT_WAREHOUSE = 'in_delivery';
+
     public function __construct(
         private readonly VeterTicketApiClient $client,
         private readonly AuditLogService $audit,
@@ -20,7 +25,7 @@ class VeterTicketStatusSyncService
 
     /**
      * @return array{
-     *     updated: list<array{order_id: int, shipment_id: string, shipment_status: string|null, shipment_date: string|null}>,
+     *     updated: list<array{order_id: int, shipment_id: string, shipment_status: string|null, shipment_date: string|null, status: string}>,
      *     failed: list<array{order_id: int, shipment_id: string, reason: string}>,
      *     total: int
      * }
@@ -28,12 +33,13 @@ class VeterTicketStatusSyncService
     public function syncAllInDelivery(string $source = self::SOURCE_MANUAL): array
     {
         $orders = Order::query()
-            ->where('status', 'in_delivery')
+            ->whereIn('status', self::SYNCABLE_LOCAL_STATUSES)
             ->whereNotNull('shipment_id')
             ->where('shipment_id', '!=', '')
             ->orderBy('id')
             ->get([
                 'id',
+                'status',
                 'shipment_id',
                 'shipment_status',
                 'shipment_status_at',
@@ -59,13 +65,17 @@ class VeterTicketStatusSyncService
                 $order->shipment_status = $lastStatus;
                 $order->shipment_status_at = $statusAt;
 
-                // Курьер принял посылку на склад → дата отправки = дата доставки.
+                // Курьер принял посылку на склад → локально «В доставке», дата отправки = дата доставки.
                 if (
                     $this->isAtWarehouseStatus($lastStatus)
                     && ! $this->isAtWarehouseStatus($previousStatus)
-                    && $order->delivery_date !== null
                 ) {
-                    $order->shipment_date = $order->delivery_date->copy()->startOfDay();
+                    if ((string) $order->status === VeterTicketPreviewService::STATUS_AFTER_SEND) {
+                        $order->status = self::LOCAL_STATUS_AT_WAREHOUSE;
+                    }
+                    if ($order->delivery_date !== null) {
+                        $order->shipment_date = $order->delivery_date->copy()->startOfDay();
+                    }
                 }
 
                 $order->save();
@@ -75,6 +85,7 @@ class VeterTicketStatusSyncService
                     'shipment_id' => $shipmentId,
                     'shipment_status' => $lastStatus,
                     'shipment_date' => $order->shipment_date?->format('Y-m-d'),
+                    'status' => (string) $order->status,
                 ];
             } catch (Throwable $e) {
                 $reason = $e->getMessage();

@@ -84,6 +84,10 @@ export type OrderItem = {
     availability_source?: ProductAvailabilitySource | string | null;
     can_fulfill_main?: boolean;
     can_fulfill_offer?: boolean;
+    /** Живая доступность склада без учёта уже выбранного канала заказа. */
+    can_fulfill_main_live?: boolean;
+    /** Живая доступность офера без учёта уже выбранного канала заказа. */
+    can_fulfill_offer_live?: boolean;
     fulfillment_options?: OrderItemFulfillmentOption[];
     product_country?: string | null;
     image?: string | null;

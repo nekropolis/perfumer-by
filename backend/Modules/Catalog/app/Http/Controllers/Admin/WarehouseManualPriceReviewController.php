@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -131,6 +132,8 @@ class WarehouseManualPriceReviewController extends Controller
         }
 
         $variant = ProductVariantLink::query()->findOrFail((int) $review->variant_id);
+        $priceBefore = $variant->price;
+        $manualPriceTouched = array_key_exists('manual_retail_price', $validated);
 
         DB::transaction(function () use (
             $review,
@@ -181,9 +184,76 @@ class WarehouseManualPriceReviewController extends Controller
             }
         });
 
+        if ($manualPriceTouched) {
+            $freshVariant = $variant->fresh();
+            $priceAfter = $freshVariant?->price;
+            $priceChanged = ! $this->nullableMoneyEquals($priceBefore, $priceAfter);
+
+            if ($priceChanged && $freshVariant !== null) {
+                $variantTitle = trim((string) ($review->variant_title ?: $freshVariant->title ?: ''));
+                if ($variantTitle === '') {
+                    $variantTitle = '#' . $freshVariant->id;
+                }
+
+                app(AuditLogService::class)->record(
+                    AuditLogService::ENTITY_PRODUCT_VARIANT,
+                    (int) $freshVariant->id,
+                    AuditLogService::ACTION_UPDATED,
+                    sprintf(
+                        'Ручное изменение цены варианта «%s» (товар #%d): цена %s → %s',
+                        $variantTitle,
+                        (int) $freshVariant->product_id,
+                        $this->formatMoneyLabel($priceBefore),
+                        $this->formatMoneyLabel($priceAfter),
+                    ),
+                    [
+                        'product_id' => (int) $freshVariant->product_id,
+                        'product_name' => $review->product_name,
+                        'variant_id' => (int) $freshVariant->id,
+                        'variant_title' => $variantTitle,
+                        'source' => 'manual_price_review',
+                        'manual_review_id' => (int) $review->id,
+                        'price_before' => $this->formatNullableMoney($priceBefore),
+                        'price_after' => $this->formatNullableMoney($priceAfter),
+                        'price_changed' => true,
+                        'old_price_changed' => false,
+                    ],
+                );
+            }
+        }
+
         return response()->json([
             'message' => 'Цена сохранена',
             'data' => $review->fresh(['receiptSupplier:id,name,code']),
         ]);
+    }
+
+    private function nullableMoneyEquals(mixed $left, mixed $right): bool
+    {
+        $leftEmpty = $left === null || $left === '';
+        $rightEmpty = $right === null || $right === '';
+
+        if ($leftEmpty || $rightEmpty) {
+            return $leftEmpty && $rightEmpty;
+        }
+
+        return MoneyDecimal::compare(
+            MoneyDecimal::normalize($left),
+            MoneyDecimal::normalize($right),
+        ) === 0;
+    }
+
+    private function formatNullableMoney(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return MoneyDecimal::normalize($value);
+    }
+
+    private function formatMoneyLabel(mixed $value): string
+    {
+        return $this->formatNullableMoney($value) ?? 'пусто';
     }
 }

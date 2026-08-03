@@ -109,7 +109,7 @@ function deliveryHint(
     }
     const minLines = shopSettings?.delivery_belarus_free_min_lines ?? 2;
     const fee = formatMoneyRub(String(shopSettings?.delivery_belarus_fee ?? 6));
-    return `Доставка по РБ курьерской службой осуществляется бесплатно при заказе от ${minLines} наименований. В остальных случаях стоимость такой доставки составляет всего ${fee} Сроки доставки 1-2 дня. Оплата курьеру при получении товара.`;
+    return `Доставка по РБ курьерской службой осуществляется бесплатно при заказе от ${minLines} единиц. В остальных случаях стоимость такой доставки составляет всего ${fee} Сроки доставки 1-2 дня. Оплата курьеру при получении товара.`;
 }
 
 const PAYMENT_HINTS: Record<CheckoutPaymentMethod, string> = {

@@ -51,7 +51,7 @@ type Props = {
 
 const STATUS_DROPDOWN_MENU_WIDTH_CLASS = "w-max max-w-[11.5rem]";
 
-const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
+const COMPLETED_STATUSES = new Set(["done", "completed"]);
 const DEFAULT_LIST_HIDDEN_STATUSES = new Set(["done", "cancelled", "completed"]);
 
 function isOrderDeliveryOverdue(order: OrderData, todayIso: string): boolean {
@@ -609,14 +609,14 @@ function AdminOrderQtyCell({
     return (
         <button
             type="button"
-            className="w-full min-w-0 cursor-default text-right tabular-nums lg:text-left"
+            className="block w-full min-w-0 cursor-default truncate text-center tabular-nums lg:text-left"
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
             aria-label={`Товары заказа #${order.id}`}
         >
-            <span className="lg:hidden">{order.items_qty}</span>
+            <span className="inline-block max-w-full truncate lg:hidden">{order.items_qty}</span>
             <span className="hidden min-w-0 space-y-0.5 lg:block">
                 {items.length === 0 ? (
                     <span className="tabular-nums">{order.items_qty || "—"}</span>
@@ -1243,9 +1243,11 @@ export default function AdminOrdersTable({
     const [orders, setOrders] = useState<OrderData[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
     const [orderDetailLoading, setOrderDetailLoading] = useState(false);
-    const [terminalConfirm, setTerminalConfirm] = useState<{ orderId: number; nextStatus: "done" | "cancelled" } | null>(
-        null,
-    );
+    const [terminalConfirm, setTerminalConfirm] = useState<{
+        orderId: number;
+        nextStatus: string;
+        kind: "done" | "cancelled" | "restore";
+    } | null>(null);
     const [addressTooltip, setAddressTooltip] = useState<AddressTooltipState>(null);
     const [itemsTooltip, setItemsTooltip] = useState<ItemsTooltipState>(null);
     const tooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1441,10 +1443,30 @@ export default function AdminOrdersTable({
         if (nextStatus === currentStatus) {
             return;
         }
-        if (TERMINAL_STATUSES.has(nextStatus)) {
+        if (COMPLETED_STATUSES.has(currentStatus)) {
+            return;
+        }
+        if (nextStatus === "done" || nextStatus === "completed") {
             setTerminalConfirm({
                 orderId,
-                nextStatus: nextStatus as "done" | "cancelled",
+                nextStatus,
+                kind: "done",
+            });
+            return;
+        }
+        if (nextStatus === "cancelled") {
+            setTerminalConfirm({
+                orderId,
+                nextStatus,
+                kind: "cancelled",
+            });
+            return;
+        }
+        if (currentStatus === "cancelled") {
+            setTerminalConfirm({
+                orderId,
+                nextStatus,
+                kind: "restore",
             });
             return;
         }
@@ -1493,10 +1515,18 @@ export default function AdminOrdersTable({
                         <col style={{ width: "6.75rem" }} />
                         <col style={{ width: "9rem" }} />
                         <col
+                            className={
+                                productsColWidth === null
+                                    ? "w-11 lg:w-auto"
+                                    : undefined
+                            }
                             style={
                                 productsColWidth === null
                                     ? undefined
-                                    : { minWidth: `${productsColWidth}px` }
+                                    : {
+                                          width: `${productsColWidth}px`,
+                                          minWidth: `${productsColWidth}px`,
+                                      }
                             }
                         />
                         <col style={{ width: "5.75rem" }} />
@@ -1553,7 +1583,7 @@ export default function AdminOrdersTable({
                             </th>
                             <th
                                 ref={productsThRef}
-                                className="relative border-r border-black/[0.06] px-2 py-2.5 pr-3"
+                                className="relative border-r border-black/[0.06] px-1 py-2.5 text-center lg:px-2 lg:pr-3 lg:text-left"
                             >
                                 <span className="lg:hidden">Кол.</span>
                                 <span className="hidden lg:inline">Товары</span>
@@ -1684,13 +1714,13 @@ export default function AdminOrdersTable({
                                         onChangeAction={(nextStatus) =>
                                             requestStatusChange(order.id, order.status, nextStatus)
                                         }
-                                        disabled={order.status === "done" || order.status === "cancelled"}
+                                        disabled={COMPLETED_STATUSES.has(order.status)}
                                         triggerVariant="text"
                                         triggerColor={statusColor}
                                         menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
                                     />
                                 </td>
-                                <td className="border-r border-black/[0.05] px-2 py-2 text-right tabular-nums lg:min-w-0 lg:overflow-hidden lg:text-left">
+                                <td className="min-w-0 overflow-hidden border-r border-black/[0.05] px-1 py-2 text-center tabular-nums lg:px-2 lg:text-left">
                                     <AdminOrderQtyCell
                                         order={order}
                                         onShowAction={showItemsTooltip}
@@ -1739,16 +1769,26 @@ export default function AdminOrdersTable({
             <AdminConfirmDialog
                 open={terminalConfirm !== null}
                 title={
-                    terminalConfirm?.nextStatus === "done"
+                    terminalConfirm?.kind === "done"
                         ? "Перевести заказ в «Выполнен»?"
-                        : "Перевести заказ в «Отменён»?"
+                        : terminalConfirm?.kind === "cancelled"
+                          ? "Перевести заказ в «Отменён»?"
+                          : "Вернуть заказ из отменённых?"
                 }
                 message={
-                    terminalConfirm?.nextStatus === "done"
+                    terminalConfirm?.kind === "done"
                         ? "Для статуса «Выполнен» будет создано складское списание по резервам, начисление по карте лояльности и выпуск купленных подарочных сертификатов (если применимо). Позже состав заказа изменить будет нельзя."
-                        : "Для статуса «Отменён» будут сняты резервы на складе и выполнен возврат по подарочным сертификатам заказа (если применимо). Позже состав заказа изменить будет нельзя."
+                        : terminalConfirm?.kind === "cancelled"
+                          ? "Для статуса «Отменён» будут сняты резервы на складе и выполнен возврат по подарочным сертификатам заказа (если применимо)."
+                          : "Заказ снова станет активным: резервы на складе будут выставлены заново (если применимо). Проверьте наличие товаров и скидочную карту."
                 }
-                confirmText={terminalConfirm?.nextStatus === "done" ? "Выполнить" : "Отменить заказ"}
+                confirmText={
+                    terminalConfirm?.kind === "done"
+                        ? "Выполнить"
+                        : terminalConfirm?.kind === "cancelled"
+                          ? "Отменить заказ"
+                          : "Вернуть"
+                }
                 confirmLoadingText="Сохранение..."
                 cancelText="Назад"
                 loading={isStatusPending}

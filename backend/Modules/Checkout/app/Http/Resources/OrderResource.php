@@ -184,6 +184,8 @@ class OrderResource extends JsonResource
                 );
                 $data['can_fulfill_main'] = $fulfillment['can_fulfill_main'];
                 $data['can_fulfill_offer'] = $fulfillment['can_fulfill_offer'];
+                $data['can_fulfill_main_live'] = $fulfillment['can_fulfill_main_live'];
+                $data['can_fulfill_offer_live'] = $fulfillment['can_fulfill_offer_live'];
                 $data['fulfillment_options'] = $this->fulfillmentOptionsForItem(
                     $item,
                     $stocksByVariant,
@@ -367,7 +369,12 @@ class OrderResource extends JsonResource
 
     /**
      * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, WarehouseVariantStock>>  $stocksByVariant
-     * @return array{can_fulfill_main: bool, can_fulfill_offer: bool}
+     * @return array{
+     *     can_fulfill_main: bool,
+     *     can_fulfill_offer: bool,
+     *     can_fulfill_main_live: bool,
+     *     can_fulfill_offer_live: bool
+     * }
      */
     private function fulfillmentFlagsForItem(
         mixed $item,
@@ -375,9 +382,15 @@ class OrderResource extends JsonResource
         int $mainWarehouseId,
         int $supplierWarehouseId,
     ): array {
+        $empty = [
+            'can_fulfill_main' => false,
+            'can_fulfill_offer' => false,
+            'can_fulfill_main_live' => false,
+            'can_fulfill_offer_live' => false,
+        ];
         $variantId = $item->variant_id !== null ? (int) $item->variant_id : 0;
         if ($variantId <= 0) {
-            return ['can_fulfill_main' => false, 'can_fulfill_offer' => false];
+            return $empty;
         }
 
         $variant = $item->relationLoaded('variant') ? $item->variant : null;
@@ -385,7 +398,7 @@ class OrderResource extends JsonResource
             $variant = ProductVariantLink::query()->with('supplierOffers')->find($variantId);
         }
         if (! $variant) {
-            return ['can_fulfill_main' => false, 'can_fulfill_offer' => false];
+            return $empty;
         }
 
         $rows = $stocksByVariant->get($variantId, collect());
@@ -405,17 +418,21 @@ class OrderResource extends JsonResource
         $offerActive = CatalogVariantStockPresenter::supplierListingActive($variant);
         $storedSource = (string) ($item->availability_source ?? '');
 
+        $canMainLive = $mainAvailable > 0;
+        $canOfferLive = $offerActive || $supplierAvailable > 0;
+
         // Уже выбранный канал заказа остаётся доступным даже если free-stock = 0
         // (товар зарезервирован этим же заказом).
-        $canMain = $mainAvailable > 0
+        $canMain = $canMainLive
             || in_array($storedSource, ['main', 'main+supplier'], true);
-        $canOffer = $offerActive
-            || $supplierAvailable > 0
+        $canOffer = $canOfferLive
             || in_array($storedSource, ['supplier_only', 'supplier_warehouse'], true);
 
         return [
             'can_fulfill_main' => $canMain,
             'can_fulfill_offer' => $canOffer,
+            'can_fulfill_main_live' => $canMainLive,
+            'can_fulfill_offer_live' => $canOfferLive,
         ];
     }
 

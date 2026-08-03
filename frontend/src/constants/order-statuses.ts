@@ -1,4 +1,4 @@
-/** Статусы, из которых можно отправить заказ в ветерОК. После отправки → in_delivery. */
+/** Статусы, из которых можно отправить заказ в ветерОК. После отправки → assembled (Собран). */
 export const VETER_SEND_ALLOWED_STATUSES = [
     "new",
     "confirmed",
@@ -19,6 +19,7 @@ const FALLBACK_LABELS: Record<string, string> = {
     new: "Новый",
     confirmed: "Подтверждён",
     processing: "В обработке",
+    assembled: "Собран",
     in_delivery: "В доставке",
     preorder: "Предзаказ",
     done: "Выполнен",
@@ -30,6 +31,7 @@ const FALLBACK_COLORS: Record<string, string> = {
     new: "#15803D",
     confirmed: "#1D4ED8",
     processing: "#4338CA",
+    assembled: "#B45309",
     in_delivery: "#0E7490",
     preorder: "#7E22CE",
     done: "#6B7280",
@@ -68,6 +70,8 @@ export function getOrderStatusStyle(status: string): string {
             return "bg-blue-100 text-blue-800";
         case "processing":
             return "bg-indigo-100 text-indigo-800";
+        case "assembled":
+            return "bg-amber-100 text-amber-800";
         case "in_delivery":
             return "bg-cyan-100 text-cyan-800";
         case "preorder":

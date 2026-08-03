@@ -142,10 +142,10 @@ class AuthController extends Controller
                 ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
                 ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->orderByDesc('discount_percent')
-                ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
+                ->get(['discount_cards.id', 'card_number', 'discount_percent', 'is_manual_discount', 'status']);
 
             $cardsPayload = $verifiedCards->map(static function ($card) {
-                $pct = DiscountCard::effectiveDiscountPercent((float) $card->discount_percent);
+                $pct = $card->resolvedDiscountPercent();
 
                 return [
                     'id' => (int) $card->id,
@@ -251,10 +251,10 @@ class AuthController extends Controller
             ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
             ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
             ->orderByDesc('discount_percent')
-            ->get(['discount_cards.id', 'card_number', 'discount_percent', 'status']);
+            ->get(['discount_cards.id', 'card_number', 'discount_percent', 'is_manual_discount', 'status']);
 
         $cardsPayload = $verifiedCards->map(static function ($card) {
-            $pct = DiscountCard::effectiveDiscountPercent((float) $card->discount_percent);
+            $pct = $card->resolvedDiscountPercent();
 
             return [
                 'id' => (int) $card->id,

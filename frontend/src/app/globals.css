@@ -260,26 +260,14 @@ body:not(.admin-shell-body) .ProseMirror a {
   }
 
   body.admin-order-receipts-printing .admin-order-receipts-print-root {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 6mm;
     position: absolute;
     inset: 0 auto auto 0;
     width: 100%;
     color: #000;
     font-family: Arial, Helvetica, sans-serif;
-  }
-
-  .admin-order-receipts-print-page {
-    display: flex;
-    flex-direction: column;
-    gap: 20mm;
-    min-height: auto;
-    break-after: page;
-    page-break-after: always;
-  }
-
-  .admin-order-receipts-print-page:last-child {
-    break-after: auto;
-    page-break-after: auto;
   }
 
   .admin-order-receipt-print-card {
@@ -291,15 +279,6 @@ body:not(.admin-shell-body) .ProseMirror a {
     page-break-inside: avoid;
     font-size: 9pt;
     line-height: 1.2;
-  }
-
-  .admin-order-receipt-print-card::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: -10mm;
-    left: 0;
-    border-bottom: 1px dashed #777;
   }
 
   .admin-order-receipt-header {
@@ -433,7 +412,7 @@ body:not(.admin-shell-body) .ProseMirror a {
     grid-template-columns: 18mm 39mm 39mm;
     align-items: end;
     gap: 3mm;
-    padding: 9mm 2mm 0;
+    padding: 4mm 2mm 0;
   }
 
   .admin-order-receipt-signature span:not(:first-child) {

@@ -539,7 +539,7 @@ export default function AdminOrdersPage() {
                 const byId = new Map(
                     sent.map((row) => [
                         row.order_id,
-                        { shipment_id: row.shipment_id, status: row.status || "in_delivery" },
+                        { shipment_id: row.shipment_id, status: row.status || "assembled" },
                     ]),
                 );
                 setOrders((prev) =>
@@ -619,7 +619,7 @@ export default function AdminOrdersPage() {
 
     const handleVeterStatusSync = async () => {
         const ok = window.confirm(
-            "Обновить статусы курьерской службы для всех заказов «В доставке» с ID отправки?",
+            "Обновить статусы курьерской службы для заказов «Собран» / «В доставке» с ID отправки?",
         );
         if (!ok) {
             return;
@@ -667,6 +667,7 @@ export default function AdminOrdersPage() {
                         }
                         return {
                             ...order,
+                            status: row.status ?? order.status,
                             shipment_status: row.shipment_status ?? order.shipment_status,
                             shipment_status_at: new Date().toISOString(),
                             shipment_date:

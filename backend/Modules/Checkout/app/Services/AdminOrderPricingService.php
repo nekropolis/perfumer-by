@@ -42,7 +42,7 @@ final class AdminOrderPricingService
         $applyCardDiscount = $paymentMethod !== 'card';
         $card = $this->resolveDiscountCard($discountCardNumber);
         $percent = $card && $applyCardDiscount
-            ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent)
+            ? $card->resolvedDiscountPercent()
             : 0.0;
         $loyaltyAmount = $card && $applyCardDiscount
             ? $this->loyaltyDiscountAmount($items, $percent)

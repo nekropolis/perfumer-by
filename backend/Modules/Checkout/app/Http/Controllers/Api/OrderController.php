@@ -201,11 +201,16 @@ class OrderController extends Controller
                 ->where('discount_cards.status', DiscountCard::STATUS_ACTIVE)
                 ->wherePivot('link_status', ClientDiscountCard::LINK_VERIFIED)
                 ->orderByDesc('discount_cards.discount_percent')
-                ->get(['discount_cards.id', 'discount_cards.card_number', 'discount_cards.discount_percent'])
+                ->get([
+                    'discount_cards.id',
+                    'discount_cards.card_number',
+                    'discount_cards.discount_percent',
+                    'discount_cards.is_manual_discount',
+                ])
                 ->map(static function ($c) {
                     return [
                         'number' => $c->card_number,
-                        'discount_percent' => (string) DiscountCard::effectiveDiscountPercent((float) $c->discount_percent),
+                        'discount_percent' => (string) $c->resolvedDiscountPercent(),
                     ];
                 })
                 ->values()
@@ -487,15 +492,18 @@ class OrderController extends Controller
 
         $deliveryMethod = (string) ($validated['delivery_method'] ?? '');
         if ($deliveryMethod !== '') {
-            $lineVariantIds = [];
+            $lines = [];
             foreach ($validated['items'] as $item) {
                 $variantId = (int) ($item['variant_id'] ?? 0);
-                $lineVariantIds[] = $variantId > 0 ? $variantId : null;
+                $lines[] = [
+                    'variant_id' => $variantId > 0 ? $variantId : null,
+                    'qty' => max(0, (int) ($item['qty'] ?? 0)),
+                ];
             }
             $deliveryFee = round($delivery->deliveryFeeForOrderLines(
                 $deliveryMethod,
                 $quote['merchandise_total'],
-                $lineVariantIds,
+                $lines,
             ), 2);
         } else {
             $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
@@ -607,7 +615,8 @@ class OrderController extends Controller
         $previousStatus = (string) $order->status;
         $nextStatusCandidate = (string) ($validated['status'] ?? $previousStatus);
         $this->assertAssignableOrderStatus($nextStatusCandidate, $previousStatus);
-        $isTerminal = in_array($order->status, ['done', 'cancelled'], true);
+        $this->assertCanLeaveCompletedStatus($previousStatus, $nextStatusCandidate);
+        $isTerminal = in_array($order->status, ['done', 'completed'], true);
 
         $giftCertificateCode = trim((string) ($validated['gift_certificate_code'] ?? ''));
         if (! $isTerminal && $giftCertificateCode !== '') {
@@ -622,7 +631,7 @@ class OrderController extends Controller
 
         if ($isTerminal && ! $this->terminalOrderItemsPayloadMatchesExisting($order, $validated['items'])) {
             return response()->json([
-                'message' => 'По заказам со статусом «Выполнен» или «Отменён» нельзя менять состав товаров, количества и цены строк.',
+                'message' => 'По заказам со статусом «Выполнен» нельзя менять состав товаров, количества и цены строк.',
             ], 422);
         }
 
@@ -671,7 +680,7 @@ class OrderController extends Controller
 
                 // Склад → резерв; офер/ожидание → без резерва (reserveOrderItem сам решает по availability_source).
                 if (
-                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'in_delivery', 'preorder', 'done', 'completed'], true)
+                    in_array($nextStatus, ['new', 'confirmed', 'processing', 'assembled', 'in_delivery', 'preorder', 'done', 'completed'], true)
                     && $nextStatus !== 'cancelled'
                 ) {
                     $stockService->reserveForOrder($order);
@@ -845,13 +854,14 @@ class OrderController extends Controller
 
         $order = Order::query()->findOrFail($id);
         $previousStatus = (string) $order->status;
-        $this->assertAssignableOrderStatus((string) $validated['status'], $previousStatus);
+        $nextStatus = (string) $validated['status'];
+        $this->assertAssignableOrderStatus($nextStatus, $previousStatus);
+        $this->assertCanLeaveCompletedStatus($previousStatus, $nextStatus);
 
-        DB::transaction(function () use ($order, $validated, $previousStatus) {
+        DB::transaction(function () use ($order, $nextStatus, $previousStatus) {
             $order->update([
-                'status' => $validated['status'],
+                'status' => $nextStatus,
             ]);
-            $nextStatus = (string) $validated['status'];
             $this->applyStatusTransitionEffects($order, $previousStatus, $nextStatus);
         });
 
@@ -879,6 +889,20 @@ class OrderController extends Controller
 
         throw ValidationException::withMessages([
             'status' => ['Недопустимый или отключённый статус заказа'],
+        ]);
+    }
+
+    private function assertCanLeaveCompletedStatus(string $previousStatus, string $nextStatus): void
+    {
+        if (! in_array($previousStatus, ['done', 'completed'], true)) {
+            return;
+        }
+        if (in_array($nextStatus, ['done', 'completed'], true)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'status' => ['Статус «Выполнен» нельзя изменить.'],
         ]);
     }
 
@@ -1010,21 +1034,8 @@ class OrderController extends Controller
             $order,
         );
 
-        $deliveryMethod = (string) ($order->delivery_method ?? '');
-        if ($deliveryMethod !== '') {
-            $lineVariantIds = [];
-            foreach ($pricingItems as $item) {
-                $variantId = (int) ($item['variant_id'] ?? 0);
-                $lineVariantIds[] = $variantId > 0 ? $variantId : null;
-            }
-            $deliveryFee = round(app(CheckoutDeliveryService::class)->deliveryFeeForOrderLines(
-                $deliveryMethod,
-                $pricing['merchandise_total'],
-                $lineVariantIds,
-            ), 2);
-        } else {
-            $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
-        }
+        // Ручная стоимость доставки из payload (store/update уже записали её в order) — не пересчитывать.
+        $deliveryFee = round((float) ($order->delivery_fee ?? 0), 2);
 
         $order->update([
             'items_qty' => $itemsQty,
@@ -1049,7 +1060,13 @@ class OrderController extends Controller
         $order->loadMissing('items');
         $stockService = app(StockInventoryService::class);
 
-        if (($previousStatus === null && $nextStatus === 'new') || ($previousStatus !== null && $previousStatus !== 'new' && $nextStatus === 'new')) {
+        $leavingCancelled = $previousStatus === 'cancelled' && $nextStatus !== 'cancelled';
+        $enteringNew = ($previousStatus === null && $nextStatus === 'new')
+            || ($previousStatus !== null && $previousStatus !== 'new' && $nextStatus === 'new');
+
+        // При возврате из отменённых и при входе в new — резерв.
+        // Для done/completed резерв нужен до completeOrder (списания).
+        if ($enteringNew || $leavingCancelled) {
             $stockService->reserveForOrder($order);
         }
 
@@ -1122,10 +1139,16 @@ class OrderController extends Controller
         }
 
         $subtotal = (float) $order->subtotal;
-        $increment = $subtotal > 100 ? 1.0 : 0.5;
         $before = (float) $card->discount_percent;
-        $after = DiscountCard::effectiveDiscountPercent($before + $increment);
-        $appliedIncrement = round($after - $before, 2);
+        $after = $before;
+        $appliedIncrement = 0.0;
+
+        // Ручная установка скидки отключает правило накопления процента.
+        if (! $card->is_manual_discount) {
+            $increment = $subtotal > 100 ? 1.0 : 0.5;
+            $after = DiscountCard::effectiveDiscountPercent($before + $increment);
+            $appliedIncrement = round($after - $before, 2);
+        }
 
         $card->update([
             'discount_percent' => $after,

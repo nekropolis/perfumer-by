@@ -322,7 +322,7 @@ export default function AdminShopSettingsPage() {
                             </div>
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-admin-text">
-                                    РБ: бесплатно от числа позиций (наименований)
+                                    РБ: бесплатно от числа единиц (штук)
                                 </label>
                                 <input
                                     type="number"

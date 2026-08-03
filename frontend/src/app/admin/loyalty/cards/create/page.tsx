@@ -6,7 +6,10 @@ import { useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import LoyaltyCardForm, { type LoyaltyCardFormState } from "@/components/admin/loyalty/loyalty-card-form";
+import LoyaltyCardForm, {
+    type LoyaltyCardFormState,
+    validateLoyaltyCardDiscountPercent,
+} from "@/components/admin/loyalty/loyalty-card-form";
 import LoyaltyCardUserSearchPanel, { LoyaltyUserSelectionChips } from "@/components/admin/loyalty/loyalty-card-user-search-panel";
 import { attachUserToLoyaltyCard, createLoyaltyCard } from "@/lib/admin-loyalty-api";
 import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
@@ -14,6 +17,7 @@ import { fetchAdminClients, type AdminClient } from "@/lib/admin-clients-api";
 const emptyForm: LoyaltyCardFormState = {
     number: "",
     discount_percent: "3.00",
+    is_manual_discount: false,
     status: "active",
 };
 
@@ -36,10 +40,21 @@ export default function AdminLoyaltyCardCreatePage() {
             return;
         }
 
+        const discountError = validateLoyaltyCardDiscountPercent(
+            form.discount_percent,
+            form.is_manual_discount,
+        );
+        if (discountError) {
+            setError(discountError);
+            setSubmitting(false);
+            return;
+        }
+
         try {
             const created = await createLoyaltyCard({
                 card_number: form.number.trim(),
                 discount_percent: Number(form.discount_percent),
+                is_manual_discount: form.is_manual_discount,
                 status: form.status,
             });
 

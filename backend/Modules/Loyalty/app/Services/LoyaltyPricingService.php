@@ -76,7 +76,7 @@ class LoyaltyPricingService
         $resolvedCard = $this->resolveDiscountCard($cart, $client);
         $cardForDiscount = $applyCardDiscount ? $resolvedCard : null;
         $cardPercent = $cardForDiscount
-            ? DiscountCard::effectiveDiscountPercent((float) $cardForDiscount->discount_percent)
+            ? $cardForDiscount->resolvedDiscountPercent()
             : 0.0;
         $loyaltyDiscount = $cardForDiscount
             ? $this->loyaltyDiscountAmount($cart, $client, true, $options['checkout_cart_item_ids'] ?? null)
@@ -204,7 +204,7 @@ class LoyaltyPricingService
         }
 
         $card = $this->resolveDiscountCard($cart, $client);
-        $cardPercent = $card ? DiscountCard::effectiveDiscountPercent((float) $card->discount_percent) : 0.0;
+        $cardPercent = $card ? $card->resolvedDiscountPercent() : 0.0;
         if ($cardPercent <= 0) {
             return 0.0;
         }

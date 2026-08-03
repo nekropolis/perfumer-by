@@ -9,7 +9,8 @@ class VeterTicketPreviewService
     /** Статусы, из которых разрешена отправка в Ветер. */
     public const SENDABLE_STATUSES = ['new', 'confirmed', 'processing', 'preorder'];
 
-    public const STATUS_AFTER_SEND = 'in_delivery';
+    /** Локальный статус после успешной отправки в Ветер (получен shipment_id). */
+    public const STATUS_AFTER_SEND = 'assembled';
 
     public function __construct(
         private readonly VeterTicketPayloadBuilder $builder,

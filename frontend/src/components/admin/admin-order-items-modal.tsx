@@ -367,18 +367,26 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                             </h3>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={onCloseAction}
-                            className="
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Link
+                                href={`/admin/orders/create?from=${order.id}`}
+                                className="inline-flex h-9 items-center justify-center rounded-lg border border-admin-border bg-white px-3 text-sm font-medium text-admin-text transition hover:bg-admin-muted"
+                            >
+                                Копировать
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={onCloseAction}
+                                className="
                                 inline-flex h-9 w-9 shrink-0 items-center justify-center
                                 rounded-lg border border-admin-border bg-white text-xl leading-none
                                 text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text
                             "
-                            aria-label="Закрыть"
-                        >
-                            ×
-                        </button>
+                                aria-label="Закрыть"
+                            >
+                                ×
+                            </button>
+                        </div>
                     </div>
                 </div>
 

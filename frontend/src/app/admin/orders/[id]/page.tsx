@@ -27,6 +27,12 @@ export default async function AdminOrderPage({ params }: Props) {
                     iconSize={16}
                     className="text-2xl font-semibold text-admin-text"
                 />
+                <Link
+                    href={`/admin/orders/create?from=${order.id}`}
+                    className="ml-auto inline-flex h-9 items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-3 text-sm font-medium text-admin-text transition hover:bg-admin-muted"
+                >
+                    Копировать заказ
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">

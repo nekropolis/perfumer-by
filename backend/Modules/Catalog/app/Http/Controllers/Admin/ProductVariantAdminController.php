@@ -3,6 +3,7 @@
 namespace Modules\Catalog\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -11,6 +12,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -351,6 +353,8 @@ class ProductVariantAdminController extends Controller
         }
 
         $updates = [];
+        $priceBefore = $variant->price;
+        $oldPriceBefore = $variant->old_price;
 
         if (array_key_exists('variant_definition_id', $validated)) {
             $updates['variant_definition_id'] = $validated['variant_definition_id'] ?? $variant->variant_definition_id;
@@ -381,11 +385,22 @@ class ProductVariantAdminController extends Controller
             $variant->update($updates);
         }
 
+        $freshVariant = $variant->fresh()->load('definition');
+
+        $this->recordManualPriceChangeAudit(
+            $product,
+            $freshVariant,
+            $priceBefore,
+            $oldPriceBefore,
+            array_key_exists('price', $validated),
+            array_key_exists('old_price', $validated),
+        );
+
         $this->syncProductStockFlags($product->fresh());
 
         return response()->json([
             'message' => 'Вариант обновлен',
-            'data' => $variant->fresh()->load('definition'),
+            'data' => $freshVariant,
         ]);
     }
 
@@ -409,6 +424,97 @@ class ProductVariantAdminController extends Controller
     private function syncProductStockFlags(Product $product): void
     {
         app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
+    }
+
+    private function recordManualPriceChangeAudit(
+        Product $product,
+        ProductVariantLink $variant,
+        mixed $priceBefore,
+        mixed $oldPriceBefore,
+        bool $priceTouched,
+        bool $oldPriceTouched,
+    ): void {
+        $priceChanged = $priceTouched && ! $this->nullableMoneyEquals($priceBefore, $variant->price);
+        $oldPriceChanged = $oldPriceTouched && ! $this->nullableMoneyEquals($oldPriceBefore, $variant->old_price);
+
+        if (! $priceChanged && ! $oldPriceChanged) {
+            return;
+        }
+
+        $parts = [];
+        if ($priceChanged) {
+            $parts[] = sprintf(
+                'цена %s → %s',
+                $this->formatMoneyLabel($priceBefore),
+                $this->formatMoneyLabel($variant->price),
+            );
+        }
+        if ($oldPriceChanged) {
+            $parts[] = sprintf(
+                'старая цена %s → %s',
+                $this->formatMoneyLabel($oldPriceBefore),
+                $this->formatMoneyLabel($variant->old_price),
+            );
+        }
+
+        $variantTitle = trim((string) ($variant->title ?? ''));
+        if ($variantTitle === '') {
+            $variantTitle = '#' . $variant->id;
+        }
+
+        app(AuditLogService::class)->record(
+            AuditLogService::ENTITY_PRODUCT_VARIANT,
+            (int) $variant->id,
+            AuditLogService::ACTION_UPDATED,
+            sprintf(
+                'Ручное изменение цены варианта «%s» (товар #%d): %s',
+                $variantTitle,
+                (int) $product->id,
+                implode(', ', $parts),
+            ),
+            [
+                'product_id' => (int) $product->id,
+                'product_name' => $product->name,
+                'variant_id' => (int) $variant->id,
+                'variant_title' => $variantTitle,
+                'source' => 'admin_variant_update',
+                'price_before' => $this->formatNullableMoney($priceBefore),
+                'price_after' => $this->formatNullableMoney($variant->price),
+                'old_price_before' => $this->formatNullableMoney($oldPriceBefore),
+                'old_price_after' => $this->formatNullableMoney($variant->old_price),
+                'price_changed' => $priceChanged,
+                'old_price_changed' => $oldPriceChanged,
+            ],
+        );
+    }
+
+    private function nullableMoneyEquals(mixed $left, mixed $right): bool
+    {
+        $leftEmpty = $left === null || $left === '';
+        $rightEmpty = $right === null || $right === '';
+
+        if ($leftEmpty || $rightEmpty) {
+            return $leftEmpty && $rightEmpty;
+        }
+
+        return MoneyDecimal::compare(
+            MoneyDecimal::normalize($left),
+            MoneyDecimal::normalize($right),
+        ) === 0;
+    }
+
+    private function formatNullableMoney(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return MoneyDecimal::normalize($value);
+    }
+
+    private function formatMoneyLabel(mixed $value): string
+    {
+        return $this->formatNullableMoney($value) ?? 'пусто';
     }
 
     private function assertVariantFlagsCompatible(bool $isTester, bool $isVial, bool $isMiniature = false): void

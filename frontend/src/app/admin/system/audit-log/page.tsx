@@ -17,6 +17,7 @@ const ENTITY_LABELS: Record<string, string> = {
     vanille_import: "Импорт Vanille",
     brand_sync: "Синхронизация брендов",
     veter_ticket: "ветерОК (курьер)",
+    product_variant: "Вариант товара",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -168,6 +169,7 @@ const ENTITY_FILTER_OPTIONS = [
     { value: "", label: "Все сущности" },
     { value: "vanille_import", label: "Импорт Vanille" },
     { value: "brand_sync", label: "Синхронизация брендов" },
+    { value: "product_variant", label: "Вариант товара" },
 ];
 
 const ACTION_FILTER_OPTIONS = [

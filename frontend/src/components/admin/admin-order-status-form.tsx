@@ -17,7 +17,7 @@ type Props = {
     statusColor?: string | null;
 };
 
-const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
+const COMPLETED_STATUSES = new Set(["done", "completed"]);
 
 export default function AdminOrderStatusForm({
     orderId,
@@ -32,7 +32,7 @@ export default function AdminOrderStatusForm({
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
     const [isPending, startTransition] = useTransition();
-    const [confirmTerminal, setConfirmTerminal] = useState<"done" | "cancelled" | null>(null);
+    const [confirmTerminal, setConfirmTerminal] = useState<"done" | "cancelled" | "restore" | null>(null);
 
     useEffect(() => {
         setSavedStatus(currentStatus);
@@ -53,7 +53,7 @@ export default function AdminOrderStatusForm({
         ];
     }, [options, status, statusLabel, statusColor]);
 
-    const isTerminal = TERMINAL_STATUSES.has(savedStatus);
+    const isCompletedLocked = COMPLETED_STATUSES.has(savedStatus);
 
     const performSave = () => {
         setMessage("");
@@ -77,7 +77,7 @@ export default function AdminOrderStatusForm({
     };
 
     const handleSave = () => {
-        if (isTerminal) {
+        if (isCompletedLocked) {
             return;
         }
 
@@ -88,6 +88,11 @@ export default function AdminOrderStatusForm({
 
         if (status === "cancelled" && savedStatus !== "cancelled") {
             setConfirmTerminal("cancelled");
+            return;
+        }
+
+        if (savedStatus === "cancelled" && status !== "cancelled") {
+            setConfirmTerminal("restore");
             return;
         }
 
@@ -103,7 +108,7 @@ export default function AdminOrderStatusForm({
                     value={status}
                     options={dropdownOptions}
                     onChangeAction={setStatus}
-                    disabled={isTerminal}
+                    disabled={isCompletedLocked}
                     widthClassName="w-full"
                     menuWidthClassName="w-full"
                 />
@@ -112,15 +117,15 @@ export default function AdminOrderStatusForm({
             <button
                 type="button"
                 onClick={handleSave}
-                disabled={isPending || isTerminal || status === savedStatus}
+                disabled={isPending || isCompletedLocked || status === savedStatus}
                 className={`${adminBtnPrimary} w-full`}
             >
                 {isPending ? "Сохранение..." : "Сохранить"}
             </button>
 
-            {isTerminal ? (
+            {isCompletedLocked ? (
                 <p className="mt-3 text-xs text-admin-text-secondary">
-                    Статус финальный — изменить нельзя. Списание и резервы уже отражены по складу (для «Выполнен»).
+                    Статус «Выполнен» изменить нельзя. Списание и резервы уже отражены по складу.
                 </p>
             ) : null}
 
@@ -134,16 +139,26 @@ export default function AdminOrderStatusForm({
                         ? "Завершить заказ?"
                         : confirmTerminal === "cancelled"
                           ? "Отменить заказ?"
-                          : "Подтверждение"
+                          : confirmTerminal === "restore"
+                            ? "Вернуть заказ из отменённых?"
+                            : "Подтверждение"
                 }
                 message={
                     confirmTerminal === "done"
                         ? "Статус «Выполнен» спишет товар со склада по активным резервам. Состав заказа после этого изменить будет нельзя. Откат — только отдельными складскими документами при необходимости."
                         : confirmTerminal === "cancelled"
-                          ? "Статус «Отменён» снимет резервы на складе и выполнит возврат по подарочным сертификатам заказа (если применимо). Состав заказа после этого изменить будет нельзя."
-                          : ""
+                          ? "Статус «Отменён» снимет резервы на складе и выполнит возврат по подарочным сертификатам заказа (если применимо)."
+                          : confirmTerminal === "restore"
+                            ? "Заказ снова станет активным: резервы на складе будут выставлены заново (если применимо). Проверьте наличие товаров и скидочную карту."
+                            : ""
                 }
-                confirmText={confirmTerminal === "done" ? "Выполнить заказ" : "Да, отменить заказ"}
+                confirmText={
+                    confirmTerminal === "done"
+                        ? "Выполнить заказ"
+                        : confirmTerminal === "cancelled"
+                          ? "Да, отменить заказ"
+                          : "Вернуть"
+                }
                 confirmLoadingText="Сохранение..."
                 cancelText="Назад"
                 loading={isPending}
