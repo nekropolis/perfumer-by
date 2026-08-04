@@ -31,6 +31,7 @@ import {
     vanilleSingleUrlMediaFollowUp,
 } from "@/lib/admin-vanille-api";
 import Link from "next/link";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 
 const LINKED_OPTIONS = [
@@ -628,7 +629,7 @@ export default function VanilleProductsPage() {
                                             checked={singleUrlChainCatalog}
                                             onChange={(e) => setSingleUrlChainCatalog(e.target.checked)}
                                             disabled={singleUrlBusy || hasActiveParse}
-                                            className="rounded border-gray-300"
+                                            className={adminCheckbox}
                                         />
                                         Затем: каталожные фото (листинг)
                                     </label>
@@ -638,7 +639,7 @@ export default function VanilleProductsPage() {
                                             checked={singleUrlChainDescriptions}
                                             onChange={(e) => setSingleUrlChainDescriptions(e.target.checked)}
                                             disabled={singleUrlBusy || hasActiveParse}
-                                            className="rounded border-gray-300"
+                                            className={adminCheckbox}
                                         />
                                         Затем: уникализация описаний
                                     </label>

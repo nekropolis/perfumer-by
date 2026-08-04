@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import Image from "next/image";
 import { useRef, useState } from "react";
@@ -67,7 +67,7 @@ export default function AdminPostForm({
                                     type="checkbox"
                                     checked={Boolean(form.is_active)}
                                     onChange={(e) => onChangeAction({ ...form, is_active: e.target.checked })}
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className={adminCheckbox}
                                 />
                                 Активна
                             </label>

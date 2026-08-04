@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import type { AttributeType } from "@/lib/admin-attributes-api";
 
@@ -41,7 +41,7 @@ export default function AttributeForm({
                                     is_active: e.target.checked,
                                 })
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Активен
                     </label>
@@ -56,7 +56,7 @@ export default function AttributeForm({
                                     is_filterable: e.target.checked,
                                 })
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Участвует в фильтре каталога
                     </label>

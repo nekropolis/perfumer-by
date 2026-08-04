@@ -9,7 +9,7 @@ import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import { adminBtnSm } from "@/lib/admin-ui-classes";
+import { adminBtnSm, adminCheckbox } from "@/lib/admin-ui-classes";
 import {
     fetchAllparfumeShops,
     updateAllparfumeShopActive,
@@ -180,7 +180,7 @@ export default function AdminAllparfumeShopsPage() {
                                                     checked={row.is_active}
                                                     disabled={busyId === row.id}
                                                     onChange={() => void toggleActive(row)}
-                                                    className="h-3.5 w-3.5 cursor-pointer rounded border border-admin-border accent-emerald-600 shadow-none focus:ring-1 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    className={adminCheckbox}
                                                     title={row.is_active ? "Активен" : "Выключен"}
                                                     aria-label={row.is_active ? "Активен" : "Выключен"}
                                                 />

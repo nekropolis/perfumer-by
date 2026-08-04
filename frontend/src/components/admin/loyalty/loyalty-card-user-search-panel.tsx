@@ -2,6 +2,7 @@
 
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import { formatAdminClientPrimary, type AdminClient } from "@/lib/admin-clients-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 export function formatAdminUserPrimary(u: AdminClient) {
     return formatAdminClientPrimary(u);
@@ -52,7 +53,7 @@ export default function LoyaltyCardUserSearchPanel({
                             <li key={user.id} className="flex items-start gap-3 px-4 py-3 text-sm">
                                 <input
                                     type="checkbox"
-                                    className="mt-0.5 shrink-0"
+                                    className={`${adminCheckbox} mt-0.5`}
                                     disabled={linked}
                                     checked={linked || selected}
                                     onChange={(e) => onToggleUserAction(user, e.target.checked)}

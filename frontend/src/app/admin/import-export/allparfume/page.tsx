@@ -10,7 +10,7 @@ import AdminSearchableSelect from "@/components/admin/ui/admin-searchable-select
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import { adminBtnSecondary } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminCheckbox } from "@/lib/admin-ui-classes";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 const PER_PAGE_OPTIONS = [25, 50, 100] as const;
@@ -926,7 +926,7 @@ export default function AllparfumeImportPage() {
                                                                 : undefined
                                                         }
                                                         onChange={(e) => void handleToggleLink(row, e.target.checked)}
-                                                        className="h-3.5 w-3.5 cursor-pointer rounded border border-admin-border accent-emerald-600 shadow-none focus:ring-1 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        className={adminCheckbox}
                                                     />
                                                 </td>
                                                 <td className="px-3 py-3">

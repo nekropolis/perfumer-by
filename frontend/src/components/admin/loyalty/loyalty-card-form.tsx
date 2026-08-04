@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 export type LoyaltyCardFormState = {
     id?: number;
@@ -88,7 +88,7 @@ export default function LoyaltyCardForm({ form, submitting = false, onChangeActi
                                 is_manual_discount: e.target.checked,
                             })
                         }
-                        className="h-4 w-4 rounded border-gray-300"
+                        className={adminCheckbox}
                     />
                     Ручная установка скидки
                 </label>

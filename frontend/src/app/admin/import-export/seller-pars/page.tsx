@@ -11,6 +11,7 @@ import { PackagePlus } from "lucide-react";
 import CopyText from "@/components/ui/copy-text";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import {
     createSellerOneRule,
@@ -1070,7 +1071,7 @@ export default function SellerParsImportPage() {
                                                                 : undefined
                                                         }
                                                         onChange={(e) => void handleToggleLink(row, e.target.checked)}
-                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed"
+                                                        className={adminCheckbox}
                                                     />
                                                 </td>
                                                 <td className="px-1 py-3 text-center">
@@ -1080,7 +1081,7 @@ export default function SellerParsImportPage() {
                                                         disabled={linkingRowId === row.id}
                                                         title="Активное участие в парсинге (код из файла обрабатывается)"
                                                         onChange={(e) => void handleToggleParsingActive(row, e.target.checked)}
-                                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200"
+                                                        className={adminCheckbox}
                                                     />
                                                 </td>
                                                 <td className="whitespace-nowrap px-1.5 py-3 font-medium">

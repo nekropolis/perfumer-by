@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import type { VariantDefinitionItem } from "@/lib/admin-product-variants-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     items: VariantDefinitionItem[];
@@ -18,7 +19,7 @@ function FlagCell({ checked, label }: { checked: boolean; label: string }) {
                 readOnly
                 disabled
                 aria-label={label}
-                className="pointer-events-none"
+                className={`${adminCheckbox} pointer-events-none`}
             />
         </td>
     );

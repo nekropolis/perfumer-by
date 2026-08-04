@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import type { AttributeAdminItem } from "@/lib/admin-attributes-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     items: AttributeAdminItem[];
@@ -54,7 +55,7 @@ export default function AttributesTable({
                                     checked={Boolean(item.is_filterable)}
                                     disabled={pendingFilterIds.includes(item.id)}
                                     onChange={(e) => onToggleFilterAction(item, e.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className={adminCheckbox}
                                 />
                             </label>
                         </td>

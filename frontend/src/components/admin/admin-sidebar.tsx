@@ -87,7 +87,7 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
             { type: "link", href: "/admin/products", label: "Продукты", icon: Package },
-            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },        ],
+            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },],
     },
     {
         key: "loyalty",
@@ -399,18 +399,16 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 });
                                             }}
                                             onBlur={() => setTooltip(null)}
-                                            className={`group relative flex items-center gap-2 rounded-lg border-l-2 py-1.5 pr-2.5 text-[13px] transition-colors ${
-                                                isActive
+                                            className={`group relative flex items-center gap-2 rounded-lg border-l-2 py-1.5 pr-2.5 text-[13px] transition-colors ${isActive
                                                     ? "border-admin-primary bg-white pl-[calc(1rem-2px)] font-semibold text-admin-primary shadow-sm"
                                                     : "border-transparent pl-4 font-medium text-admin-text hover:bg-white/70 hover:text-admin-text"
-                                            } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""}`}
+                                                } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""}`}
                                         >
                                             <span
-                                                className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                                                    isActive
+                                                className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${isActive
                                                         ? "bg-admin-primary/10 text-admin-primary"
                                                         : "text-admin-text-secondary group-hover:bg-white group-hover:text-admin-text"
-                                                }`}
+                                                    }`}
                                             >
                                                 <Icon size={17} />
                                                 {collapsed ? (

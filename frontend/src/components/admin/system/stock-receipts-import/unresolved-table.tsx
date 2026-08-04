@@ -7,6 +7,7 @@ import {
 import type { StockReceiptImportUnresolvedRow } from "./types";
 import { StockReceiptCatalogProductCell } from "./catalog-product-cell";
 import { importRowAsSellerOneView, isImportRowLinked } from "./utils";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type StockReceiptUnresolvedTableProps = {
     rows: StockReceiptImportUnresolvedRow[];
@@ -92,7 +93,7 @@ export function StockReceiptUnresolvedTable({
                                                     : undefined
                                         }
                                         onChange={(e) => onToggleLinkAction(row, e.target.checked)}
-                                        className="h-4 w-4 cursor-pointer rounded border border-gray-400 accent-blue-600 shadow-sm focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed"
+                                        className={adminCheckbox}
                                     />
                                 </td>
                                 <td className="whitespace-nowrap px-2 py-3 font-medium">{row.code || "—"}</td>

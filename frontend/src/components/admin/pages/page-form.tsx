@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import AdminRichTextEditor from "@/components/admin/ui/admin-rich-text-editor";
 import { slugify } from "@/lib/slugify";
@@ -41,7 +41,7 @@ export default function AdminPageForm({
                             type="checkbox"
                             checked={Boolean(form.is_active)}
                             onChange={(e) => onChangeAction({ ...form, is_active: e.target.checked })}
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Активна
                     </label>

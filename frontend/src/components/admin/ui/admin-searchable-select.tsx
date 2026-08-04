@@ -110,11 +110,10 @@ export default function AdminSearchableSelect({
                                         onChangeAction("");
                                         close();
                                     }}
-                                    className={`block min-h-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition ${
-                                        value === ""
+                                    className={`block min-h-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition ${value === ""
                                             ? "bg-admin-primary text-white"
                                             : "text-admin-text hover:bg-admin-muted"
-                                    }`}
+                                        }`}
                                 >
                                     {emptyLabel}
                                 </button>
@@ -130,11 +129,10 @@ export default function AdminSearchableSelect({
                                                     onChangeAction(option.value);
                                                     close();
                                                 }}
-                                                className={`block min-h-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition ${
-                                                    isActive
+                                                className={`block min-h-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition ${isActive
                                                         ? "bg-admin-primary text-white"
                                                         : "text-admin-text hover:bg-admin-muted"
-                                                }`}
+                                                    }`}
                                             >
                                                 {option.label}
                                             </button>

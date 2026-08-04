@@ -30,6 +30,7 @@ import {
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
 import AdminInfoButton from "@/components/admin/ui/admin-info-button";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type ReportTab = "receipts" | "writeoffs" | "sales";
 
@@ -610,6 +611,7 @@ export default function WarehouseReportsPage() {
                                                             type="checkbox"
                                                             checked
                                                             onChange={() => salesProductToggle(product.id)}
+                                                            className={adminCheckbox}
                                                         />
                                                         <span className="truncate">{product.name}</span>
                                                     </label>
@@ -624,6 +626,7 @@ export default function WarehouseReportsPage() {
                                                         type="checkbox"
                                                         checked={checked}
                                                         onChange={() => salesProductToggle(product.id)}
+                                                        className={adminCheckbox}
                                                     />
                                                     <span className="truncate">
                                                         {product.name}

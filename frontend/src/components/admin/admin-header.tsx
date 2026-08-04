@@ -139,11 +139,10 @@ function QuickPhoneCustomerOption({
                 <span className="text-sm font-medium text-admin-text">{title}</span>
                 {badge ? (
                     <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                            badge === "В базе"
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${badge === "В базе"
                                 ? "bg-admin-primary/12 text-admin-primary"
                                 : "bg-amber-100/90 text-amber-900"
-                        }`}
+                            }`}
                     >
                         {badge}
                     </span>
@@ -187,8 +186,8 @@ export default function AdminHeader({
 
     const quickPhoneOrdersCount = quickPhoneContext
         ? quickPhoneContext.orders.completed +
-          quickPhoneContext.orders.cancelled +
-          quickPhoneContext.orders.active
+        quickPhoneContext.orders.cancelled +
+        quickPhoneContext.orders.active
         : 0;
     const quickPhoneSuggestedName =
         quickPhoneContext?.matched_user?.name?.trim() ||
@@ -387,7 +386,7 @@ export default function AdminHeader({
                         {showQuickPhoneHits ? (
                             <div className="absolute left-0 right-0 z-30 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-admin-border bg-admin-surface py-0 shadow-lg">
                                 {quickPhoneHitsLoading ||
-                                (phoneContextReady && quickPhoneContextLoading) ? (
+                                    (phoneContextReady && quickPhoneContextLoading) ? (
                                     <div className="px-3 py-2 text-xs text-admin-text-secondary">
                                         Поиск клиентов…
                                     </div>
@@ -433,8 +432,8 @@ export default function AdminHeader({
                                                             quickPhoneContext?.matched_user
                                                                 ? "В базе"
                                                                 : quickPhoneOrdersCount > 0
-                                                                  ? "Гость"
-                                                                  : null
+                                                                    ? "Гость"
+                                                                    : null
                                                         }
                                                         context={quickPhoneContext}
                                                         showFullOrders={showOrdersContext}
@@ -481,8 +480,8 @@ export default function AdminHeader({
                                                                 exact && quickPhoneContext?.matched_user
                                                                     ? "В базе"
                                                                     : exact && showOrdersContext
-                                                                      ? "Гость"
-                                                                      : null
+                                                                        ? "Гость"
+                                                                        : null
                                                             }
                                                             context={quickPhoneContext}
                                                             showFullOrders={Boolean(

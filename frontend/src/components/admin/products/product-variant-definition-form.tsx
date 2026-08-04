@@ -1,5 +1,7 @@
 "use client";
 
+import { adminCheckbox } from "@/lib/admin-ui-classes";
+
 export type ProductVariantDefinitionFormState = {
     id?: number;
     title?: string;
@@ -71,6 +73,7 @@ export default function ProductVariantDefinitionForm({
                                 is_miniature: e.target.checked ? false : form.is_miniature,
                             })
                         }
+                        className={adminCheckbox}
                     />
                     <span>Тестер</span>
                 </label>
@@ -87,6 +90,7 @@ export default function ProductVariantDefinitionForm({
                                 is_miniature: e.target.checked ? false : form.is_miniature,
                             })
                         }
+                        className={adminCheckbox}
                     />
                     <span>Пробник</span>
                 </label>
@@ -102,6 +106,7 @@ export default function ProductVariantDefinitionForm({
                                 is_vial: e.target.checked ? false : form.is_vial,
                             })
                         }
+                        className={adminCheckbox}
                     />
                     <span>Миниатюра</span>
                 </label>
@@ -116,7 +121,7 @@ export default function ProductVariantDefinitionForm({
                                 excludes_from_free_delivery_threshold: e.target.checked,
                             })
                         }
-                        className="mt-0.5"
+                        className={`${adminCheckbox} mt-0.5`}
                     />
                     <span>
                         Не учитывать в пороге единиц для бесплатной доставки по РБ (платная позиция / мелкий

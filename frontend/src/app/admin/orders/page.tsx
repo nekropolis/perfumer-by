@@ -155,15 +155,15 @@ function OrdersIconActionButton({
             </button>
             {tip && typeof document !== "undefined"
                 ? createPortal(
-                      <span
-                          role="tooltip"
-                          className="pointer-events-none fixed z-[9999] -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg"
-                          style={{ left: tip.x, top: tip.y }}
-                      >
-                          {label}
-                      </span>,
-                      document.body,
-                  )
+                    <span
+                        role="tooltip"
+                        className="pointer-events-none fixed z-[9999] -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg"
+                        style={{ left: tip.x, top: tip.y }}
+                    >
+                        {label}
+                    </span>,
+                    document.body,
+                )
                 : null}
         </>
     );
@@ -567,7 +567,7 @@ export default function AdminOrdersPage() {
                     message:
                         response.message ||
                         `Отправлено в ветерОК: ${sent.length}` +
-                            (skipped.length > 0 ? `, пропущено: ${skipped.length}` : ""),
+                        (skipped.length > 0 ? `, пропущено: ${skipped.length}` : ""),
                 });
                 return;
             }
@@ -733,19 +733,6 @@ export default function AdminOrdersPage() {
 
     return (
         <AdminPageCard>
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <h2 className="text-xl font-bold tracking-tight text-admin-text sm:text-2xl">
-                        {activeTab === "orders" ? "Заказы" : "Товары для заказов"}
-                    </h2>
-                    <p className="mt-0.5 text-sm font-medium text-admin-text-secondary">
-                        {activeTab === "orders"
-                            ? "Поиск по номеру заказа, ID отправки, имени или телефону"
-                            : "Все товары из новых заказов и заказов в обработке"}
-                    </p>
-                </div>
-            </div>
-
             <AdminRichTabs
                 items={ORDER_TABS}
                 activeTab={activeTab}
@@ -769,11 +756,10 @@ export default function AdminOrdersPage() {
                                     label={
                                         veterSending
                                             ? "Отправка…"
-                                            : `Отправить в курьерскую службу${
-                                                  veterSendCandidateCount > 0
-                                                      ? ` (${veterSendCandidateCount})`
-                                                      : ""
-                                              }`
+                                            : `Отправить в курьерскую службу${veterSendCandidateCount > 0
+                                                ? ` (${veterSendCandidateCount})`
+                                                : ""
+                                            }`
                                     }
                                     disabled={
                                         veterSendCandidateCount === 0 ||
@@ -995,12 +981,12 @@ export default function AdminOrdersPage() {
                 </>
             )}
 
-                {!loading && activeTab === "order_products" && orderProducts.length === 0 && (
-                    <AdminEmptyState
-                        title="Товаров для заказа нет"
-                        description="Нет товаров в новых заказах и заказах в обработке."
-                    />
-                )}
+            {!loading && activeTab === "order_products" && orderProducts.length === 0 && (
+                <AdminEmptyState
+                    title="Товаров для заказа нет"
+                    description="Нет товаров в новых заказах и заказах в обработке."
+                />
+            )}
 
             {!loading && activeTab === "order_products" && orderProducts.length > 0 && (
                 <div className="overflow-x-auto rounded-2xl border">

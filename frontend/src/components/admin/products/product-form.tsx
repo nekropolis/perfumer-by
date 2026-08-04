@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import AdminBrandSelect from "@/components/admin/ui/admin-brand-select";
 import AdminRichTextEditor from "@/components/admin/ui/admin-rich-text-editor";
@@ -61,7 +61,7 @@ export default function ProductForm({
                                     is_active: e.target.checked,
                                 })
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Активен
                     </label>
@@ -75,7 +75,7 @@ export default function ProductForm({
                                     is_new: e.target.checked,
                                 })
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Новинка
                     </label>
@@ -89,7 +89,7 @@ export default function ProductForm({
                                     is_hit: e.target.checked,
                                 })
                             }
-                            className="h-4 w-4 rounded border-gray-300"
+                            className={adminCheckbox}
                         />
                         Хит
                     </label>

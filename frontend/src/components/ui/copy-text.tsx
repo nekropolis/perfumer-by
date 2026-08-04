@@ -88,9 +88,6 @@ export default function CopyText({
             ) : (
                 <Copy size={iconSize} className="shrink-0 opacity-70" />
             )}
-            {copied ? (
-                <span className="text-[11px] font-medium">{copiedLabel}</span>
-            ) : null}
         </button>
     );
 }

@@ -8,6 +8,7 @@ import {
     deleteAttributeOption,
     updateAttributeOption,
 } from "@/lib/admin-attributes-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
     attributeId: number;
@@ -309,6 +310,7 @@ export default function AttributeOptionsManager({
                                             is_active: e.target.checked,
                                         })
                                     }
+                                    className={adminCheckbox}
                                 />
                                 Активна
                             </label>
@@ -387,6 +389,7 @@ export default function AttributeOptionsManager({
                                             is_active: e.target.checked,
                                         })
                                     }
+                                    className={adminCheckbox}
                                 />
                                 Активна
                             </label>

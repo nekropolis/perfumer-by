@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ManualPriceReviewItem } from "@/lib/admin-pricing-api";
 import { previewManualPriceRetail } from "@/lib/admin-pricing-api";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 export const MANUAL_PRICE_REASON_LABELS: Record<string, string> = {
     no_supplier_match: "Нет поставщика",
@@ -256,7 +257,7 @@ export default function ManualPriceReviewsTable({
                                                 },
                                             }))
                                         }
-                                        className="h-3.5 w-3.5"
+                                        className={adminCheckbox}
                                         title="На сайт"
                                     />
                                 </td>

@@ -1,6 +1,6 @@
 "use client";
 
-import { adminBtnPrimary } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
@@ -214,6 +214,7 @@ export default function AdminSeoRedirectsPage() {
                             type="checkbox"
                             checked={form.is_active}
                             onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                            className={adminCheckbox}
                         />
                         Да
                     </label>
