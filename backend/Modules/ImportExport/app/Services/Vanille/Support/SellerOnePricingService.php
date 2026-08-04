@@ -133,7 +133,7 @@ class SellerOnePricingService
 
     public function resolveDefaultSupplierId(): int
     {
-        return (int) (Supplier::query()->where('code', 'supplier-price-xls')->value('id') ?? 0);
+        return (int) (Supplier::query()->where('code', \Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile::CODE_EDP)->value('id') ?? 0);
     }
 
     private function resolveFloatSetting(mixed $storedValue, string $envKey, float $default): float

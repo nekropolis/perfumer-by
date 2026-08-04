@@ -42,7 +42,7 @@ final class AllparfumeRetailPriceApplyService
 
         $mainWarehouseId = $this->purchasePriceResolver->resolveMainWarehouseId();
         $sellerOneSupplierId = (int) (Supplier::query()
-            ->where('code', 'supplier-price-xls')
+            ->where('code', \Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile::CODE_EDP)
             ->value('id') ?? 0);
 
         $query = AllparfumeVariant::query()

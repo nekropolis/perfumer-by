@@ -509,7 +509,8 @@ final class CatalogVariantStockPresenter
                 'available_stock' => $mainAvailable,
                 'is_available' => $mainAvailable > 0 || $preorder,
                 'is_preorder' => $preorder,
-                'supplier_listing_price' => $supplierListingActive,
+                // Остаток в магазине → розница из variant.price (складской refresh), не из офера прайса.
+                'supplier_listing_price' => false,
                 'availability_source' => $supplierListingActive ? 'main+supplier' : 'main',
             ];
         }

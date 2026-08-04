@@ -167,8 +167,10 @@ function buildSellerOneTask(status: SellerOneParseStatus): ActiveTask {
                 ? (isRefresh ? `Обновление цен ${processed} / ${totalRows}` : `Обработано ${processed} / ${totalRows}`)
                 : statusMessage || "Ожидание…";
     return {
-        key: `seller-one:${status.job_id}:${status.job_type ?? "parse"}`,
-        title: isRefresh ? "Цены Seller One" : "Парсинг Seller One",
+        key: `seller-pars:${status.job_id}:${status.job_type ?? "parse"}`,
+        title: isRefresh
+            ? `Цены ${status.supplier_name || status.supplier_code || "поставщика"}`
+            : `Парсинг ${status.supplier_name || status.supplier_code || "поставщиков"}`,
         statusLabel: SELLER_ONE_STATUS_LABELS[status.status] ?? status.status,
         message,
         counter,

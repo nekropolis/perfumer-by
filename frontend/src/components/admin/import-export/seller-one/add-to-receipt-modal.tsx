@@ -115,10 +115,11 @@ export default function AddToReceiptModal({ row, onClose }: Props) {
                     return;
                 }
 
+                const preferredCode = row.supplier?.code || SELLER_ONE_SUPPLIER_CODE;
                 const foundSupplier =
-                    suppliersRes.data.find((item) => item.code === SELLER_ONE_SUPPLIER_CODE) ?? null;
+                    suppliersRes.data.find((item) => item.code === preferredCode) ?? null;
                 if (!foundSupplier) {
-                    setError(`Поставщик «${SELLER_ONE_SUPPLIER_CODE}» не найден`);
+                    setError(`Поставщик «${preferredCode}» не найден`);
                     setLoading(false);
                     return;
                 }

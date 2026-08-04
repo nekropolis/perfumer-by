@@ -8,7 +8,7 @@ use Modules\Catalog\Models\SupplierVariantOffer;
 
 final class WarehouseSupplierPurchaseResolver
 {
-    private const string DEFAULT_PRICING_SUPPLIER_CODE = 'supplier-price-xls';
+    private const string DEFAULT_PRICING_SUPPLIER_CODE = 'edp';
 
     /**
      * @param  array<int, array{

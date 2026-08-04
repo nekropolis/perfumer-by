@@ -32,6 +32,8 @@ class RunSellerOneParseJob implements ShouldQueue
         public string $jobId,
         public string $storedFilePath,
         public int $rowOffset = 0,
+        public string $supplierCode = 'edp',
+        public string $originalFileName = '',
     ) {}
 
     public function handle(SupplierPriceImportService $service): void
@@ -73,7 +75,7 @@ class RunSellerOneParseJob implements ShouldQueue
 
         try {
             $publishProgress = function (array $progress) use ($cacheKey): void {
-                self::publishParseProgress($cacheKey, $this->jobId, $progress);
+                self::publishParseProgress($cacheKey, $this->jobId, $progress, $this->supplierCode);
             };
 
             if ($this->rowOffset === 0) {
@@ -92,6 +94,7 @@ class RunSellerOneParseJob implements ShouldQueue
                 $this->jobId,
                 $this->rowOffset,
                 self::CHUNK_TIME_BUDGET_SECONDS,
+                $this->supplierCode,
             );
 
             $processed = (int) ($result['processed'] ?? 0);
@@ -141,7 +144,7 @@ class RunSellerOneParseJob implements ShouldQueue
                     return;
                 }
 
-                dispatch(new self($this->jobId, $this->storedFilePath, $nextOffset));
+                dispatch(new self($this->jobId, $this->storedFilePath, $nextOffset, $this->supplierCode, $this->originalFileName));
                 return;
             }
 
@@ -173,7 +176,7 @@ class RunSellerOneParseJob implements ShouldQueue
                 ]);
 
                 if (! self::isCancellationRequested($this->jobId) && $resumeOffset !== $this->rowOffset) {
-                    dispatch(new self($this->jobId, $this->storedFilePath, $resumeOffset));
+                    dispatch(new self($this->jobId, $this->storedFilePath, $resumeOffset, $this->supplierCode, $this->originalFileName));
 
                     return;
                 }
@@ -236,6 +239,42 @@ class RunSellerOneParseJob implements ShouldQueue
 
             $shouldCleanup = true;
 
+            // Persist price file for this supplier so global price refresh can use it.
+            try {
+                $supplier = $service->getOrCreateSellerOneSupplier($this->supplierCode);
+                $fileStorage = app(\Modules\Catalog\Services\Pricing\SupplierPriceFileStorage::class);
+                $extension = strtolower(pathinfo($this->storedFilePath, PATHINFO_EXTENSION) ?: 'xlsx');
+                if (! in_array($extension, ['xls', 'xlsx'], true)) {
+                    $extension = 'xlsx';
+                }
+                $directory = 'supplier-price-files/'.$supplier->id;
+                $storagePath = $directory.'/current.'.$extension;
+                Storage::disk('local')->makeDirectory($directory);
+                Storage::disk('local')->put($storagePath, Storage::disk($disk)->get($this->storedFilePath));
+                $originalName = $this->originalFileName !== ''
+                    ? $this->originalFileName
+                    : basename($this->storedFilePath);
+                $uploadedAt = now()->toDateTimeString();
+                \Modules\Catalog\Models\SellerOneSetting::query()->updateOrCreate(
+                    ['key' => $fileStorage->pathKey((int) $supplier->id)],
+                    ['value' => $storagePath],
+                );
+                \Modules\Catalog\Models\SellerOneSetting::query()->updateOrCreate(
+                    ['key' => $fileStorage->nameKey((int) $supplier->id)],
+                    ['value' => $originalName],
+                );
+                \Modules\Catalog\Models\SellerOneSetting::query()->updateOrCreate(
+                    ['key' => $fileStorage->uploadedAtKey((int) $supplier->id)],
+                    ['value' => $uploadedAt],
+                );
+            } catch (Throwable $e) {
+                Log::warning('SellerOne parse: failed to persist price file', [
+                    'jobId' => $this->jobId,
+                    'supplier' => $this->supplierCode,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             self::notifyParseCompletedIfNeeded($this->jobId, [
                 'status' => 'completed',
                 'processed' => $processed,
@@ -245,6 +284,7 @@ class RunSellerOneParseJob implements ShouldQueue
                 'updated' => (int) ($finalSnap['updated'] ?? $result['updated'] ?? 0),
                 'skipped_linked' => (int) ($finalSnap['skipped_linked'] ?? $result['skipped_linked'] ?? 0),
                 'message' => (string) ($finalSnap['message'] ?? $result['message'] ?? ''),
+                'supplier_code' => $this->supplierCode,
             ]);
 
         } catch (Throwable $e) {
@@ -323,6 +363,20 @@ class RunSellerOneParseJob implements ShouldQueue
 
         self::clearActiveJobIfMatches($jobId);
         Cache::forget('seller_one_parse_running:'.$jobId);
+        self::releaseHeavyOverlapLock();
+    }
+
+    /**
+     * Снимает WithoutOverlapping(seller_one_heavy_global).
+     * Нужно при отмене/аварийной остановке воркера: иначе lock живёт expireAfter(~2ч)
+     * и новые parse/refresh джобы крутятся в delayed каждые 30с.
+     */
+    public static function releaseHeavyOverlapLock(): void
+    {
+        try {
+            Cache::lock('laravel-queue-overlap:seller_one_heavy_global', 10)->forceRelease();
+        } catch (Throwable) {
+        }
     }
 
     public static function finalizeCancellation(
@@ -374,8 +428,12 @@ class RunSellerOneParseJob implements ShouldQueue
         self::clearActiveJobIfMatches($jobId);
     }
 
-    public static function publishParseProgress(string $cacheKey, string $jobId, array $progress): void
-    {
+    public static function publishParseProgress(
+        string $cacheKey,
+        string $jobId,
+        array $progress,
+        ?string $supplierCode = null,
+    ): void {
         $current = Cache::get($cacheKey);
         $current = is_array($current) ? $current : [];
         $counters = [
@@ -395,6 +453,11 @@ class RunSellerOneParseJob implements ShouldQueue
             'message' => $progress['message'] ?? ($current['message'] ?? ''),
             'updated_at' => now()->toDateTimeString(),
         ];
+        if ($supplierCode !== null && $supplierCode !== '') {
+            $snapshot['supplier_code'] = $supplierCode;
+        } elseif (isset($current['supplier_code'])) {
+            $snapshot['supplier_code'] = $current['supplier_code'];
+        }
         foreach ($counters as $counter) {
             if (array_key_exists($counter, $progress)) {
                 $snapshot[$counter] = max(

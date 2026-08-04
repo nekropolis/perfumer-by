@@ -34,17 +34,22 @@ use Modules\ImportExport\Services\Vanille\Support\SellerOnePreviewSyncService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantLinkAutoCreator;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantMatcher;
+use Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile;
 use Modules\Warehouse\Services\StockInventoryService;
 
 class SupplierPriceImportService
 {
-    private const string DEFAULT_SUPPLIER_CODE = 'supplier-price-xls';
-    private const string DEFAULT_SUPPLIER_NAME = 'Supplier XLS Price';
+    private const string DEFAULT_SUPPLIER_CODE = SupplierPriceProfile::CODE_EDP;
+    private const string DEFAULT_SUPPLIER_NAME = 'EDP';
 
     private const int LISTING_DIAGNOSTIC_SAMPLE_LIMIT = 80;
 
     public const SETTING_LAST_PRICE_APPLY_AT = 'seller_one.last_price_apply_at';
     public const SETTING_LAST_PRICE_APPLY_FILE = 'seller_one.last_price_apply_file_name';
+
+    /** @var list<string> */
+    private array $activeIgnoreExtraTokenPatterns = [];
+
     public function __construct(
         private readonly SellerOneVariantMatcher $variantMatcher,
         private readonly SellerOneVariantLinkAutoCreator $variantLinkAutoCreator,
@@ -101,10 +106,12 @@ class SupplierPriceImportService
         }
     }
 
-    public function preview(UploadedFile $file, int $offset = 0, int $limit = 100): array
+    public function preview(UploadedFile $file, int $offset = 0, int $limit = 100, ?string $supplierCode = null): array
     {
-        $supplier = $this->getOrCreateSellerOneSupplier();
-        $allRows = $this->spreadsheetParser->readRowsFromFile($file);
+        $profile = $this->resolvePriceProfile($supplierCode);
+        $this->activeIgnoreExtraTokenPatterns = $profile->ignoreExtraTokenPatterns();
+        $supplier = $this->getOrCreateSellerOneSupplier($profile->code);
+        $allRows = $this->spreadsheetParser->readRowsFromFile($file, $profile);
         $totalRows = count($allRows);
         $offset = max($offset, 0);
         $limit = max($limit, 1);
@@ -248,9 +255,11 @@ class SupplierPriceImportService
         ?string $jobId = null,
         int $startOffset = 0,
         int $chunkTimeBudgetSeconds = 0,
+        ?string $supplierCode = null,
     ): array {
         $batchSize = max($batchSize, 1);
         $isContinuation = $startOffset > 0;
+        $profile = $this->resolvePriceProfile($supplierCode);
 
         if ($jobId !== null && RunSellerOneParseJob::isCancellationRequested($jobId)) {
             return [
@@ -271,7 +280,8 @@ class SupplierPriceImportService
             ];
         }
 
-        $supplier = $this->getOrCreateSellerOneSupplier();
+        $supplier = $this->getOrCreateSellerOneSupplier($profile->code);
+        $this->activeIgnoreExtraTokenPatterns = $profile->ignoreExtraTokenPatterns();
 
         $totalMatched = 0;
         $totalInserted = 0;
@@ -318,7 +328,7 @@ class SupplierPriceImportService
             $allRows = $this->restoreParsedRows($jobId);
         }
         if ($allRows === null) {
-            $allRows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
+            $allRows = $this->spreadsheetParser->readRowsFromPath($absolutePath, $profile);
             if ($jobId !== null) {
                 $this->persistParsedRows($jobId, $allRows);
             }
@@ -639,6 +649,17 @@ class SupplierPriceImportService
         }
 
         if ($totalRows > 0) {
+            $this->reportParseProgress($onBatch, [
+                'status' => 'running',
+                'message' => 'Финализация: пометка отсутствующих в прайсе…',
+                'processed' => $totalProcessed,
+                'total_rows' => $totalRows,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+            ]);
+
             $allCodes = array_map(
                 static fn (array $row): string => (string) ($row['code'] ?? ''),
                 $allRows,
@@ -647,10 +668,33 @@ class SupplierPriceImportService
                 $supplier,
                 $allCodes,
             );
+
+            $this->reportParseProgress($onBatch, [
+                'status' => 'running',
+                'message' => 'Финализация: несвязанные / связанные вне файла…',
+                'processed' => $totalProcessed,
+                'total_rows' => $totalRows,
+                'matched' => $totalMatched,
+                'inserted' => $totalInserted,
+                'updated' => $totalUpdated,
+                'skipped_linked' => $totalSkippedLinked,
+            ]);
+
             $markedAbsentUnlinked = $this->previewSyncService->markAbsentUnlinkedForSellerOne($supplier, $allCodes);
             $this->previewSyncService->markLinkedMissingFromPriceFile($supplier, $allCodes);
             unset($allCodes);
         }
+
+        $this->reportParseProgress($onBatch, [
+            'status' => 'running',
+            'message' => 'Финализация: диагностика…',
+            'processed' => $totalProcessed,
+            'total_rows' => $totalRows,
+            'matched' => $totalMatched,
+            'inserted' => $totalInserted,
+            'updated' => $totalUpdated,
+            'skipped_linked' => $totalSkippedLinked,
+        ]);
 
         $parseDiagnostics = $this->collectSellerOneParseDiagnostics($supplier, $allRows ?? []);
 
@@ -789,14 +833,14 @@ class SupplierPriceImportService
         return storage_path('app/seller-one-temp/sp-index-'.$jobId.'.ser');
     }
 
-    public function refreshLinkedPrices(UploadedFile $file): array
+    public function refreshLinkedPrices(UploadedFile $file, ?string $supplierCode = null): array
     {
         $path = $file->getRealPath();
         if ($path === false || !is_readable($path)) {
             throw new InvalidArgumentException('Не удалось прочитать файл');
         }
 
-        return $this->refreshLinkedPricesFromAbsolutePath($path, null);
+        return $this->refreshLinkedPricesFromAbsolutePath($path, null, $supplierCode);
     }
 
     /**
@@ -829,21 +873,28 @@ class SupplierPriceImportService
      *     }
      * }
      */
-    public function refreshLinkedPricesFromAbsolutePath(string $absolutePath, ?callable $onProgress = null): array
-    {
+    public function refreshLinkedPricesFromAbsolutePath(
+        string $absolutePath,
+        ?callable $onProgress = null,
+        ?string $supplierCode = null,
+    ): array {
         return app(CatalogApiCacheService::class)->withoutDeferredInvalidation(
-            fn (): array => $this->refreshLinkedPricesFromAbsolutePathInternal($absolutePath, $onProgress),
+            fn (): array => $this->refreshLinkedPricesFromAbsolutePathInternal($absolutePath, $onProgress, $supplierCode),
         );
     }
 
-    private function refreshLinkedPricesFromAbsolutePathInternal(string $absolutePath, ?callable $onProgress = null): array
-    {
+    private function refreshLinkedPricesFromAbsolutePathInternal(
+        string $absolutePath,
+        ?callable $onProgress = null,
+        ?string $supplierCode = null,
+    ): array {
         if (!is_readable($absolutePath)) {
             throw new InvalidArgumentException('Файл недоступен для чтения');
         }
 
-        $supplier = $this->getOrCreateSellerOneSupplier();
-        $rows = $this->spreadsheetParser->readRowsFromPath($absolutePath);
+        $profile = $this->resolvePriceProfile($supplierCode);
+        $supplier = $this->getOrCreateSellerOneSupplier($profile->code);
+        $rows = $this->spreadsheetParser->readRowsFromPath($absolutePath, $profile);
 
         $rowByCode = [];
         foreach ($rows as $row) {
@@ -1388,11 +1439,12 @@ class SupplierPriceImportService
 
     public function forceLink(int $supplierProductId, int $variantId): array
     {
-        $supplier = $this->getOrCreateSellerOneSupplier();
-
-        $supplierProduct = SupplierProduct::query()
-            ->where('supplier_id', $supplier->id)
-            ->findOrFail($supplierProductId);
+        $supplierProduct = SupplierProduct::query()->findOrFail($supplierProductId);
+        $supplier = Supplier::query()->findOrFail((int) $supplierProduct->supplier_id);
+        if (! in_array((string) $supplier->code, SupplierPriceProfile::codes(), true)
+            && (string) $supplier->code !== SupplierPriceProfile::CODE_LEGACY_SELLER_ONE) {
+            throw new InvalidArgumentException('Товар не принадлежит поставщику парсинга прайса');
+        }
 
         $variant = ProductVariant::query()->with('product')->findOrFail($variantId);
         $product = $variant->product;
@@ -1424,11 +1476,8 @@ class SupplierPriceImportService
 
     public function resetLink(int $supplierProductId): array
     {
-        $supplier = $this->getOrCreateSellerOneSupplier();
-
-        $supplierProduct = SupplierProduct::query()
-            ->where('supplier_id', $supplier->id)
-            ->findOrFail($supplierProductId);
+        $supplierProduct = SupplierProduct::query()->findOrFail($supplierProductId);
+        $supplier = Supplier::query()->findOrFail((int) $supplierProduct->supplier_id);
 
         $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
         $externalCode = (string) ($payload['external_code'] ?? str_replace('supplier-xls://', '', (string) $supplierProduct->external_url));
@@ -1757,7 +1806,13 @@ class SupplierPriceImportService
      */
     private function parseSupplierRow(array $row, Collection $brands, Collection $rules, array $productsIndex): array
     {
-        $parsed = $this->variantMatcher->parseSupplierRow($row, $brands, $rules, $productsIndex);
+        $parsed = $this->variantMatcher->parseSupplierRow(
+            $row,
+            $brands,
+            $rules,
+            $productsIndex,
+            $this->activeIgnoreExtraTokenPatterns,
+        );
 
         return $this->tryAutoCreateVariantLink($parsed, $row, $productsIndex);
     }
@@ -2183,15 +2238,35 @@ class SupplierPriceImportService
         );
     }
 
-    public function getOrCreateSellerOneSupplier(): Supplier
+    public function getOrCreateSellerOneSupplier(?string $supplierCode = null): Supplier
     {
+        $profile = SupplierPriceProfile::fromCode($supplierCode ?? self::DEFAULT_SUPPLIER_CODE);
+
         return Supplier::query()->firstOrCreate(
-            ['code' => self::DEFAULT_SUPPLIER_CODE],
+            ['code' => $profile->code],
             [
-                'name' => self::DEFAULT_SUPPLIER_NAME,
+                'name' => $profile->name,
                 'is_active' => true,
             ]
         );
+    }
+
+    /**
+     * @return list<Supplier>
+     */
+    public function listPriceParseSuppliers(): array
+    {
+        $result = [];
+        foreach (SupplierPriceProfile::all() as $profile) {
+            $result[] = $this->getOrCreateSellerOneSupplier($profile->code);
+        }
+
+        return $result;
+    }
+
+    public function resolvePriceProfile(?string $supplierCode = null): SupplierPriceProfile
+    {
+        return SupplierPriceProfile::fromCode($supplierCode ?? self::DEFAULT_SUPPLIER_CODE);
     }
 
     /**

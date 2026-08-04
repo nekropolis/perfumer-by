@@ -151,6 +151,8 @@ export type SupplierPricePreviewResponse = {
 export type SellerOneParseStartResponse = {
     message?: string;
     job_id: string;
+    supplier_code?: string;
+    supplier_name?: string;
 };
 
 export type SellerOneParseStatus = {
@@ -158,6 +160,8 @@ export type SellerOneParseStatus = {
     /** Парсинг прайса (`parse`) или фоновое обновление цен связанных (`refresh_linked`). */
     job_type?: "parse" | "refresh_linked";
     status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    supplier_code?: string;
+    supplier_name?: string;
     processed?: number;
     total_rows?: number;
     /** Для refresh_linked: число связанных строк каталога. */
@@ -261,6 +265,11 @@ export type SupplierPriceApplyResponse = {
 
 export type SellerOneSupplierProductItem = {
     id: number;
+    supplier?: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
     external_name: string;
     external_slug: string | null;
     external_url: string;
@@ -356,11 +365,17 @@ export type SellerOneSupplierProductsResponse = {
         last_price_apply_at: string | null;
         last_price_apply_file_name: string | null;
     };
+    suppliers?: Array<{ id: number; name: string; code: string }>;
 };
 
 export type SellerOneMatchRule = {
     id: number;
     supplier_id: number;
+    supplier?: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
     pattern: string;
     replacement: string;
     is_active: boolean;

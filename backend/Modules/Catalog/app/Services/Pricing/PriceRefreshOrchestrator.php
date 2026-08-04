@@ -109,6 +109,7 @@ final class PriceRefreshOrchestrator
                             'status' => 'running',
                         ]));
                     },
+                    (string) $supplier->code,
                 );
 
                 $this->supplierPriceImport->recordLastPriceApply(

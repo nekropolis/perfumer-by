@@ -47,7 +47,13 @@ final class SupplierPriceFileStorage
         }
 
         try {
-            $this->spreadsheetParser->readRowsFromFile($file);
+            $profile = null;
+            try {
+                $profile = \Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile::fromCode((string) $supplier->code);
+            } catch (InvalidArgumentException) {
+                $profile = null;
+            }
+            $this->spreadsheetParser->readRowsFromFile($file, $profile);
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages([
                 'file' => $e->getMessage(),

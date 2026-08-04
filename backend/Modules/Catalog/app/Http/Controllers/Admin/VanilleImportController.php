@@ -24,20 +24,31 @@ use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Rules\ValidUploadedSpreadsheet;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\CatalogSearchScoring;
+use Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile;
 use Throwable;
 
 
 class VanilleImportController extends Controller
 {
-    private function getOrCreateSellerOneSupplier(): Supplier
+    private function getOrCreateSellerOneSupplier(?string $supplierCode = null): Supplier
     {
-        return Supplier::query()->firstOrCreate(
-            ['code' => 'supplier-price-xls'],
-            [
-                'name' => 'Supplier XLS Price',
-                'is_active' => true,
-            ]
-        );
+        return app(SupplierPriceImportService::class)->getOrCreateSellerOneSupplier($supplierCode);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function priceParseSupplierIds(?string $supplierCode = null): array
+    {
+        if ($supplierCode !== null && trim($supplierCode) !== '') {
+            $supplier = $this->getOrCreateSellerOneSupplier($supplierCode);
+
+            return [(int) $supplier->id];
+        }
+
+        return collect(app(SupplierPriceImportService::class)->listPriceParseSuppliers())
+            ->map(fn (Supplier $s): int => (int) $s->id)
+            ->all();
     }
 
     public function parseBrands(VanilleImportService $service)
@@ -361,15 +372,21 @@ class VanilleImportController extends Controller
     {
         $validated = $request->validate([
             'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
+            'supplier_code' => ['nullable', 'string', 'in:edp,lagdos,supplier-price-xls'],
             'offset' => ['nullable', 'integer', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ]);
 
-        $result = $service->preview(
-            $validated['file'],
-            (int) ($validated['offset'] ?? 0),
-            (int) ($validated['limit'] ?? 100)
-        );
+        try {
+            $result = $service->preview(
+                $validated['file'],
+                (int) ($validated['offset'] ?? 0),
+                (int) ($validated['limit'] ?? 100),
+                $validated['supplier_code'] ?? SupplierPriceProfile::CODE_EDP,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json($result);
     }
@@ -378,11 +395,15 @@ class VanilleImportController extends Controller
     {
         $validated = $request->validate([
             'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
+            'supplier_code' => ['required', 'string', 'in:edp,lagdos,supplier-price-xls'],
         ]);
+
+        $supplierCode = SupplierPriceProfile::normalizeCode((string) $validated['supplier_code']);
+        $profile = SupplierPriceProfile::fromCode($supplierCode);
 
         if (Cache::get(RunSellerOneRefreshLinkedPricesJob::activeKey())) {
             return response()->json([
-                'message' => 'Сначала дождитесь окончания обновления цен Seller One',
+                'message' => 'Сначала дождитесь окончания обновления цен',
             ], 409);
         }
 
@@ -392,7 +413,7 @@ class VanilleImportController extends Controller
             $activeStatusName = is_array($activeStatus) ? ($activeStatus['status'] ?? null) : null;
             if (in_array($activeStatusName, ['queued', 'running'], true)) {
                 return response()->json([
-                    'message' => 'Парсинг Seller One уже выполняется',
+                    'message' => 'Парсинг поставщиков уже выполняется',
                     'job_id' => $parseActiveId,
                 ], 409);
             }
@@ -403,6 +424,20 @@ class VanilleImportController extends Controller
         // Без второго аргумента Storage берёт FILESYSTEM_DISK, который на проде
         // может быть `public` — тогда воркер не найдёт файл.
         $storedPath = $validated['file']->store('seller-one-temp', 'local');
+        $originalName = (string) $validated['file']->getClientOriginalName();
+        $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($storedPath);
+
+        try {
+            app(\Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser::class)
+                ->assertPathMatchesProfile($absolutePath, $profile);
+        } catch (\InvalidArgumentException $e) {
+            try {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($storedPath);
+            } catch (Throwable) {
+            }
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         Cache::put(
             RunSellerOneParseJob::cacheKey($jobId),
@@ -415,6 +450,8 @@ class VanilleImportController extends Controller
                 'inserted' => 0,
                 'updated' => 0,
                 'skipped_linked' => 0,
+                'supplier_code' => $supplierCode,
+                'supplier_name' => $profile->name,
                 'message' => 'Задача поставлена в очередь',
                 'updated_at' => now()->toDateTimeString(),
             ],
@@ -427,11 +464,13 @@ class VanilleImportController extends Controller
         // Джоб сам очистит ключ при завершении/ошибке.
         Cache::put(RunSellerOneParseJob::activeKey(), $jobId, now()->addHours(24));
 
-        RunSellerOneParseJob::dispatch($jobId, $storedPath);
+        dispatch(new RunSellerOneParseJob($jobId, $storedPath, 0, $supplierCode, $originalName));
 
         return response()->json([
             'message' => 'Парсинг запущен в фоне',
             'job_id' => $jobId,
+            'supplier_code' => $supplierCode,
+            'supplier_name' => $profile->name,
         ], 202);
     }
 
@@ -565,17 +604,34 @@ class VanilleImportController extends Controller
     {
         $validated = $request->validate([
             'file' => ['required', new ValidUploadedSpreadsheet(), 'mimes:xls,xlsx'],
+            'supplier_code' => ['required', 'string', 'in:edp,lagdos,supplier-price-xls'],
         ]);
+
+        $supplierCode = SupplierPriceProfile::normalizeCode((string) $validated['supplier_code']);
+        $profile = SupplierPriceProfile::fromCode($supplierCode);
 
         if (Cache::get(RunSellerOneParseJob::activeKey())) {
             return response()->json([
-                'message' => 'Сначала дождитесь окончания парсинга Seller One',
+                'message' => 'Сначала дождитесь окончания парсинга поставщиков',
             ], 409);
         }
 
         $jobId = (string) Str::uuid();
         $storedPath = $validated['file']->store('seller-one-refresh-linked-temp', 'local');
         $originalName = $validated['file']->getClientOriginalName();
+        $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($storedPath);
+
+        try {
+            app(\Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser::class)
+                ->assertPathMatchesProfile($absolutePath, $profile);
+        } catch (\InvalidArgumentException $e) {
+            try {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($storedPath);
+            } catch (Throwable) {
+            }
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         Cache::put(
             RunSellerOneRefreshLinkedPricesJob::cacheKey($jobId),
@@ -588,6 +644,8 @@ class VanilleImportController extends Controller
                 'updated' => 0,
                 'skipped' => 0,
                 'price_history_rows' => 0,
+                'supplier_code' => $supplierCode,
+                'supplier_name' => $profile->name,
                 'message' => 'Задача обновления цен поставлена в очередь',
                 'updated_at' => now()->toDateTimeString(),
             ],
@@ -596,11 +654,13 @@ class VanilleImportController extends Controller
 
         Cache::put(RunSellerOneRefreshLinkedPricesJob::activeKey(), $jobId, now()->addHours(24));
 
-        RunSellerOneRefreshLinkedPricesJob::dispatch($jobId, $storedPath, $originalName);
+        dispatch(new RunSellerOneRefreshLinkedPricesJob($jobId, $storedPath, $originalName, $supplierCode));
 
         return response()->json([
             'message' => 'Обновление цен связанных товаров поставлено в очередь',
             'job_id' => $jobId,
+            'supplier_code' => $supplierCode,
+            'supplier_name' => $profile->name,
         ], 202);
     }
 
@@ -619,8 +679,16 @@ class VanilleImportController extends Controller
 
     public function sellerOneSupplierProducts(Request $request, SupplierPriceImportService $service)
     {
-        $supplier = Supplier::query()->where('code', 'supplier-price-xls')->first();
-        if (!$supplier) {
+        $supplierFilter = trim($request->string('supplier')->toString());
+        if ($supplierFilter === '') {
+            $supplierFilter = trim($request->string('supplier_code')->toString());
+        }
+        if ($supplierFilter !== '') {
+            $supplierFilter = SupplierPriceProfile::normalizeCode($supplierFilter);
+        }
+
+        $supplierIds = $this->priceParseSupplierIds($supplierFilter !== '' ? $supplierFilter : null);
+        if ($supplierIds === []) {
             return response()->json([
                 'data' => [],
                 'current_page' => 1,
@@ -634,12 +702,17 @@ class VanilleImportController extends Controller
                     'parsing_inactive' => 0,
                     ...$service->getLastPriceApplyMeta(),
                 ],
+                'suppliers' => collect($service->listPriceParseSuppliers())->map(fn (Supplier $s) => [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'code' => $s->code,
+                ])->values(),
             ]);
         }
 
         $baseQuery = SupplierProduct::query()
-            ->where('supplier_id', $supplier->id)
-            ->with(['brand', 'product.brand'])
+            ->whereIn('supplier_id', $supplierIds)
+            ->with(['brand', 'product.brand', 'supplier'])
             ->orderByDesc('last_seen_at')
             ->orderByDesc('id');
 
@@ -753,11 +826,11 @@ class VanilleImportController extends Controller
             ->all();
 
         $offers = SupplierVariantOffer::query()
-            ->where('supplier_id', $supplier->id)
+            ->whereIn('supplier_id', $supplierIds)
             ->whereIn('external_id', $externalCodes)
             ->with(['productVariant.product.brand'])
             ->get()
-            ->keyBy('external_id');
+            ->keyBy(fn (SupplierVariantOffer $offer): string => $offer->supplier_id.'|'.$offer->external_id);
 
         $suggestedVariantIds = collect($items->items())
             ->map(fn (SupplierProduct $item) => $item->payload['suggested_variant_id'] ?? null)
@@ -806,7 +879,7 @@ class VanilleImportController extends Controller
         $items->getCollection()->transform(function (SupplierProduct $item) use ($offers, $suggestedVariants, $linkedVariants, $suggestedProducts) {
             $payload = is_array($item->payload) ? $item->payload : [];
             $externalCode = (string) ($payload['external_code'] ?? '');
-            $offer = $externalCode ? $offers->get($externalCode) : null;
+            $offer = $externalCode ? $offers->get($item->supplier_id.'|'.$externalCode) : null;
             $suggestedVariant = isset($payload['suggested_variant_id'])
                 ? $suggestedVariants->get((int) $payload['suggested_variant_id'])
                 : null;
@@ -820,9 +893,15 @@ class VanilleImportController extends Controller
             $catalogSupplierAvailable = $linkedVariant
                 ? CatalogVariantStockPresenter::supplierListingActive($linkedVariant)
                 : null;
+            $supplierModel = $item->supplier;
 
             return [
                 'id' => $item->id,
+                'supplier' => $supplierModel ? [
+                    'id' => (int) $supplierModel->id,
+                    'name' => (string) $supplierModel->name,
+                    'code' => (string) $supplierModel->code,
+                ] : null,
                 'external_name' => $item->external_name,
                 'external_slug' => $item->external_slug,
                 'external_url' => $item->external_url,
@@ -903,6 +982,11 @@ class VanilleImportController extends Controller
             'last_page' => $items->lastPage(),
             'total' => $items->total(),
             'stats' => $stats,
+            'suppliers' => collect($service->listPriceParseSuppliers())->map(fn (Supplier $s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'code' => $s->code,
+            ])->values(),
         ]);
     }
 
@@ -934,14 +1018,13 @@ class VanilleImportController extends Controller
 
     public function updateSellerOneSupplierProductParsingActive(Request $request)
     {
-        $supplier = $this->getOrCreateSellerOneSupplier();
         $validated = $request->validate([
             'supplier_product_id' => ['required', 'integer', 'exists:supplier_products,id'],
             'link_parsing_active' => ['required', 'boolean'],
         ]);
 
         $supplierProduct = SupplierProduct::query()
-            ->where('supplier_id', $supplier->id)
+            ->whereIn('supplier_id', $this->priceParseSupplierIds())
             ->findOrFail((int) $validated['supplier_product_id']);
 
         $supplierProduct->update([
@@ -979,20 +1062,49 @@ class VanilleImportController extends Controller
         ]);
     }
 
-    public function sellerOneRules()
+    public function sellerOneRules(Request $request)
     {
-        $supplier = Supplier::query()->where('code', 'supplier-price-xls')->first();
-        if (!$supplier) {
-            return response()->json(['data' => []]);
+        $supplierFilter = trim($request->string('supplier_code')->toString());
+        if ($supplierFilter === '') {
+            $supplierFilter = trim($request->string('supplier')->toString());
         }
 
-        $rules = SellerOneMatchRule::query()
-            ->where('supplier_id', $supplier->id)
+        $query = SellerOneMatchRule::query()
+            ->with('supplier:id,name,code')
             ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
 
-        return response()->json(['data' => $rules]);
+        if ($supplierFilter !== '') {
+            $supplier = $this->getOrCreateSellerOneSupplier($supplierFilter);
+            $query->where('supplier_id', $supplier->id);
+        } else {
+            $query->whereIn('supplier_id', $this->priceParseSupplierIds());
+        }
+
+        $rules = $query->get()->map(function (SellerOneMatchRule $rule) {
+            return [
+                'id' => $rule->id,
+                'supplier_id' => (int) $rule->supplier_id,
+                'supplier' => $rule->supplier ? [
+                    'id' => (int) $rule->supplier->id,
+                    'name' => (string) $rule->supplier->name,
+                    'code' => (string) $rule->supplier->code,
+                ] : null,
+                'pattern' => $rule->pattern,
+                'replacement' => $rule->replacement,
+                'is_active' => (bool) $rule->is_active,
+                'sort_order' => (int) $rule->sort_order,
+            ];
+        });
+
+        return response()->json([
+            'data' => $rules,
+            'suppliers' => collect(app(SupplierPriceImportService::class)->listPriceParseSuppliers())->map(fn (Supplier $s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'code' => $s->code,
+            ])->values(),
+        ]);
     }
 
     public function createSellerOneRule(Request $request)
@@ -1000,11 +1112,12 @@ class VanilleImportController extends Controller
         $validated = $request->validate([
             'pattern' => ['required', 'string', 'max:255'],
             'replacement' => ['required', 'string', 'max:255'],
+            'supplier_code' => ['required', 'string', 'in:edp,lagdos,supplier-price-xls'],
             'is_active' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $supplier = $this->getOrCreateSellerOneSupplier();
+        $supplier = $this->getOrCreateSellerOneSupplier((string) $validated['supplier_code']);
         $rule = SellerOneMatchRule::query()->create([
             'supplier_id' => $supplier->id,
             'pattern' => $validated['pattern'],
@@ -1021,30 +1134,36 @@ class VanilleImportController extends Controller
         $validated = $request->validate([
             'pattern' => ['required', 'string', 'max:255'],
             'replacement' => ['required', 'string', 'max:255'],
+            'supplier_code' => ['nullable', 'string', 'in:edp,lagdos,supplier-price-xls'],
             'is_active' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $supplier = $this->getOrCreateSellerOneSupplier();
         $rule = SellerOneMatchRule::query()
-            ->where('supplier_id', $supplier->id)
+            ->whereIn('supplier_id', $this->priceParseSupplierIds())
             ->findOrFail($id);
 
-        $rule->update([
+        $update = [
             'pattern' => $validated['pattern'],
             'replacement' => $validated['replacement'],
             'is_active' => $validated['is_active'] ?? $rule->is_active,
             'sort_order' => $validated['sort_order'] ?? $rule->sort_order,
-        ]);
+        ];
+
+        if (! empty($validated['supplier_code'])) {
+            $supplier = $this->getOrCreateSellerOneSupplier((string) $validated['supplier_code']);
+            $update['supplier_id'] = $supplier->id;
+        }
+
+        $rule->update($update);
 
         return response()->json(['message' => 'Правило обновлено', 'data' => $rule->fresh()]);
     }
 
     public function deleteSellerOneRule(int $id)
     {
-        $supplier = $this->getOrCreateSellerOneSupplier();
         $rule = SellerOneMatchRule::query()
-            ->where('supplier_id', $supplier->id)
+            ->whereIn('supplier_id', $this->priceParseSupplierIds())
             ->findOrFail($id);
 
         $rule->delete();

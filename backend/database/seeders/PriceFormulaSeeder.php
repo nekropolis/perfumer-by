@@ -27,7 +27,7 @@ class PriceFormulaSeeder extends Seeder
         $addend = $stored->get(SellerOnePricingService::SETTING_PRICE_FIXED_FEE) ?? 7;
         $precision = $stored->get(SellerOnePricingService::SETTING_PRICE_PRECISION) ?? 1;
 
-        $supplierId = (int) (Supplier::query()->where('code', 'supplier-price-xls')->value('id') ?? 0);
+        $supplierId = (int) (Supplier::query()->where('code', 'edp')->value('id') ?? 0);
         if ($supplierId > 0) {
             PriceFormula::query()->updateOrCreate(
                 [

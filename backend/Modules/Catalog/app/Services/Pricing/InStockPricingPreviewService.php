@@ -157,7 +157,7 @@ final class InStockPricingPreviewService
             ->keyBy('product_variant_link_id');
 
         $sellerOneSupplierId = (int) (Supplier::query()
-            ->where('code', 'supplier-price-xls')
+            ->where('code', \Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile::CODE_EDP)
             ->value('id') ?? 0);
 
         $productIds = collect($paginator->items())

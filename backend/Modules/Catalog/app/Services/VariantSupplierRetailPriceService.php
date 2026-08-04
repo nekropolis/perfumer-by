@@ -7,9 +7,11 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Services\Pricing\PriceFormulaResolver;
 use Modules\Catalog\Services\Pricing\WarehousePurchasePriceResolver;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Warehouse\Models\WarehouseVariantStock;
 
 /**
  * Синхронизация розничной цены варианта с минимальной закупкой среди офферов на витрине.
+ * При наличии остатка на основном складе цену не трогаем — её задаёт складской refresh.
  */
 final class VariantSupplierRetailPriceService
 {
@@ -35,6 +37,11 @@ final class VariantSupplierRetailPriceService
             return $variant->price !== null ? (float) $variant->price : null;
         }
 
+        // Складской refresh уже выставил розницу по правилам склада / gap — не перезаписывать офером.
+        if ($mainWarehouseId > 0 && $this->hasMainWarehouseAvailableStock((int) $variant->id, $mainWarehouseId)) {
+            return $variant->price !== null ? (float) $variant->price : null;
+        }
+
         $minPurchase = CatalogVariantStockPresenter::minListingPurchasePrice($variant);
         if ($minPurchase === null) {
             return null;
@@ -49,5 +56,18 @@ final class VariantSupplierRetailPriceService
         $variant->update(['price' => $retail]);
 
         return $retail;
+    }
+
+    private function hasMainWarehouseAvailableStock(int $variantId, int $mainWarehouseId): bool
+    {
+        if ($variantId <= 0 || $mainWarehouseId <= 0) {
+            return false;
+        }
+
+        return WarehouseVariantStock::query()
+            ->where('warehouse_id', $mainWarehouseId)
+            ->where('variant_id', $variantId)
+            ->where('stock', '>', 0)
+            ->exists();
     }
 }

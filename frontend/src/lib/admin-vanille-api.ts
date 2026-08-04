@@ -379,7 +379,7 @@ export async function previewSellerOnePrice(
 
     const method = "POST";
     const previewPaths = [
-        "/admin/import-export/seller-one/supplier-price/preview",
+        "/admin/import-export/seller-pars/supplier-price/preview",
         "/admin/import-export/vanille/supplier-price/preview",
     ];
     const errors: string[] = [];
@@ -431,12 +431,17 @@ export async function previewSellerOnePrice(
     );
 }
 
-export async function startSellerOneParseJob(file: File): Promise<SellerOneParseStartResponse> {
+export async function startSellerOneParseJob(
+    file: File,
+    supplierCode: string,
+): Promise<SellerOneParseStartResponse> {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("supplier_code", supplierCode);
 
     const method = "POST";
     const paths = [
+        "/admin/import-export/seller-pars/supplier-price/start",
         "/admin/import-export/seller-one/supplier-price/start",
         "/admin/import-export/vanille/supplier-price/start",
     ];
@@ -492,7 +497,7 @@ export async function startSellerOneParseJob(file: File): Promise<SellerOneParse
 export async function fetchSellerOneParseStatus(jobId: string): Promise<{ data: SellerOneParseStatus | null }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus }>(
         [
-            `/admin/import-export/seller-one/supplier-price/status/${jobId}`,
+            `/admin/import-export/seller-pars/supplier-price/status/${jobId}`,
             `/admin/import-export/vanille/supplier-price/status/${jobId}`,
         ]
     );
@@ -505,7 +510,7 @@ export async function cancelSellerOneParseJob(jobId?: string | null): Promise<{
 }> {
     const method = "POST";
     const paths = [
-        "/admin/import-export/seller-one/supplier-price/cancel",
+        "/admin/import-export/seller-pars/supplier-price/cancel",
         "/admin/import-export/vanille/supplier-price/cancel",
     ];
     const errors: string[] = [];
@@ -573,7 +578,7 @@ export async function cancelSellerOneParseJob(jobId?: string | null): Promise<{
 export async function fetchSellerOneActiveStatus(): Promise<{ data: SellerOneParseStatus | null }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus | null }>(
         [
-            "/admin/import-export/seller-one/supplier-price/active",
+            "/admin/import-export/seller-pars/supplier-price/active",
             "/admin/import-export/vanille/supplier-price/active",
         ]
     );
@@ -586,7 +591,7 @@ export async function applySellerOnePrice(rows: Array<{
     selected_variant_id: number | null;
 }>): Promise<SupplierPriceApplyResponse> {
     return adminVanilleFetch<SupplierPriceApplyResponse>(
-        "/admin/import-export/seller-one/supplier-price/apply",
+        "/admin/import-export/seller-pars/supplier-price/apply",
         {
             method: "POST",
             body: JSON.stringify({ rows }),
@@ -600,7 +605,7 @@ export async function startSellerOneRefreshLinkedPricesJob(file: File): Promise<
 
     const method = "POST";
     const paths = [
-        "/admin/import-export/seller-one/supplier-price/refresh-linked/start",
+        "/admin/import-export/seller-pars/supplier-price/refresh-linked/start",
         "/admin/import-export/vanille/supplier-price/refresh-linked/start",
     ];
     const errors: string[] = [];
@@ -655,7 +660,7 @@ export async function startSellerOneRefreshLinkedPricesJob(file: File): Promise<
 export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promise<{ data: SellerOneParseStatus | null }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneParseStatus }>(
         [
-            `/admin/import-export/seller-one/supplier-price/refresh-linked/status/${jobId}`,
+            `/admin/import-export/seller-pars/supplier-price/refresh-linked/status/${jobId}`,
             `/admin/import-export/vanille/supplier-price/refresh-linked/status/${jobId}`,
         ]
     );
@@ -663,7 +668,7 @@ export async function fetchSellerOneRefreshLinkedJobStatus(jobId: string): Promi
 
 export async function fetchSellerOneDuplicateVariantLinks(): Promise<{ data: SellerOneDuplicateVariantLinksResponse }> {
     return adminVanilleFetchWithFallback<{ data: SellerOneDuplicateVariantLinksResponse }>([
-        "/admin/import-export/seller-one/duplicate-variant-links",
+        "/admin/import-export/seller-pars/duplicate-variant-links",
         "/admin/import-export/vanille/duplicate-variant-links",
     ]);
 }
@@ -672,6 +677,7 @@ export async function fetchSellerOneSupplierProducts(params?: {
     search?: string;
     status?: "confirmed" | "found_unconfirmed" | "new" | "unlinked" | "parsing_inactive" | "";
     stock?: "in_stock" | "out_of_stock" | "";
+    supplier?: string;
     page?: number;
 }): Promise<SellerOneSupplierProductsResponse> {
     const searchParams = new URLSearchParams();
@@ -688,6 +694,10 @@ export async function fetchSellerOneSupplierProducts(params?: {
         searchParams.set("stock", params.stock);
     }
 
+    if (params?.supplier) {
+        searchParams.set("supplier", params.supplier);
+    }
+
     if (params?.page) {
         searchParams.set("page", String(params.page));
     }
@@ -696,8 +706,8 @@ export async function fetchSellerOneSupplierProducts(params?: {
 
     return adminVanilleFetchWithFallback<SellerOneSupplierProductsResponse>(
         [
+            `/admin/import-export/seller-pars/supplier-products${query ? `?${query}` : ""}`,
             `/admin/import-export/seller-one/supplier-products${query ? `?${query}` : ""}`,
-            `/admin/import-export/vanille/supplier-products${query ? `?${query}` : ""}`,
         ]
     );
 }
@@ -708,7 +718,7 @@ export async function forceLinkSellerOneProduct(payload: {
 }): Promise<{ message?: string }> {
     return adminVanilleFetchWithFallback<{ message?: string }>(
         [
-            "/admin/import-export/seller-one/supplier-products/force-link",
+            "/admin/import-export/seller-pars/supplier-products/force-link",
             "/admin/import-export/vanille/supplier-products/force-link",
         ],
         {
@@ -723,7 +733,7 @@ export async function resetSellerOneProductLink(payload: {
 }): Promise<{ message?: string }> {
     return adminVanilleFetchWithFallback<{ message?: string }>(
         [
-            "/admin/import-export/seller-one/supplier-products/reset-link",
+            "/admin/import-export/seller-pars/supplier-products/reset-link",
             "/admin/import-export/vanille/supplier-products/reset-link",
         ],
         {
@@ -739,7 +749,7 @@ export async function updateSellerOneSupplierProductParsingActive(payload: {
 }): Promise<{ message?: string; data?: { id: number; link_parsing_active: boolean } }> {
     return adminVanilleFetchWithFallback<{ message?: string; data?: { id: number; link_parsing_active: boolean } }>(
         [
-            "/admin/import-export/seller-one/supplier-products/parsing-active",
+            "/admin/import-export/seller-pars/supplier-products/parsing-active",
             "/admin/import-export/vanille/supplier-products/parsing-active",
         ],
         {
@@ -749,11 +759,18 @@ export async function updateSellerOneSupplierProductParsingActive(payload: {
     );
 }
 
-export async function fetchSellerOneRules(): Promise<{ data: SellerOneMatchRule[] }> {
-    return adminVanilleFetchWithFallback<{ data: SellerOneMatchRule[] }>(
+export async function fetchSellerOneRules(params?: {
+    supplier_code?: string;
+}): Promise<{ data: SellerOneMatchRule[]; suppliers?: Array<{ id: number; name: string; code: string }> }> {
+    const searchParams = new URLSearchParams();
+    if (params?.supplier_code) {
+        searchParams.set("supplier_code", params.supplier_code);
+    }
+    const query = searchParams.toString();
+    return adminVanilleFetchWithFallback<{ data: SellerOneMatchRule[]; suppliers?: Array<{ id: number; name: string; code: string }> }>(
         [
-            "/admin/import-export/seller-one/rules",
-            "/admin/import-export/vanille/rules",
+            `/admin/import-export/seller-pars/rules${query ? `?${query}` : ""}`,
+            `/admin/import-export/seller-one/rules${query ? `?${query}` : ""}`,
         ]
     );
 }
@@ -761,13 +778,14 @@ export async function fetchSellerOneRules(): Promise<{ data: SellerOneMatchRule[
 export async function createSellerOneRule(payload: {
     pattern: string;
     replacement: string;
+    supplier_code: string;
     is_active?: boolean;
     sort_order?: number;
 }): Promise<{ message?: string; data: SellerOneMatchRule }> {
     return adminVanilleFetchWithFallback<{ message?: string; data: SellerOneMatchRule }>(
         [
+            "/admin/import-export/seller-pars/rules",
             "/admin/import-export/seller-one/rules",
-            "/admin/import-export/vanille/rules",
         ],
         {
             method: "POST",
@@ -781,14 +799,15 @@ export async function updateSellerOneRule(
     payload: {
         pattern: string;
         replacement: string;
+        supplier_code?: string;
         is_active?: boolean;
         sort_order?: number;
     }
 ): Promise<{ message?: string; data: SellerOneMatchRule }> {
     return adminVanilleFetchWithFallback<{ message?: string; data: SellerOneMatchRule }>(
         [
+            `/admin/import-export/seller-pars/rules/${id}`,
             `/admin/import-export/seller-one/rules/${id}`,
-            `/admin/import-export/vanille/rules/${id}`,
         ],
         {
             method: "PUT",
@@ -800,7 +819,7 @@ export async function updateSellerOneRule(
 export async function deleteSellerOneRule(id: number): Promise<{ message?: string }> {
     return adminVanilleFetchWithFallback<{ message?: string }>(
         [
-            `/admin/import-export/seller-one/rules/${id}`,
+            `/admin/import-export/seller-pars/rules/${id}`,
             `/admin/import-export/vanille/rules/${id}`,
         ],
         {
@@ -812,7 +831,7 @@ export async function deleteSellerOneRule(id: number): Promise<{ message?: strin
 export async function fetchSellerOnePricingSettings(): Promise<{ data: SellerOnePricingSettings }> {
     return adminVanilleFetchWithFallback<{ data: SellerOnePricingSettings }>(
         [
-            "/admin/import-export/seller-one/pricing-settings",
+            "/admin/import-export/seller-pars/pricing-settings",
             "/admin/import-export/vanille/pricing-settings",
         ]
     );
@@ -823,7 +842,7 @@ export async function updateSellerOnePricingSettings(
 ): Promise<{ message?: string; data: SellerOnePricingSettings }> {
     return adminVanilleFetchWithFallback<{ message?: string; data: SellerOnePricingSettings }>(
         [
-            "/admin/import-export/seller-one/pricing-settings",
+            "/admin/import-export/seller-pars/pricing-settings",
             "/admin/import-export/vanille/pricing-settings",
         ],
         {

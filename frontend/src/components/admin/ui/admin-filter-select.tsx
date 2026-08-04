@@ -14,16 +14,19 @@ type Props = {
     options: Option[];
     placeholder?: string;
     className?: string;
+    /** Override select width classes. Default: `w-full md:w-56`. Use `w-auto` to fit option text. */
+    selectClassName?: string;
 };
 
 export default function AdminFilterSelect({
-                                              value,
-                                              onChangeAction,
-                                              label = "",
-                                              options,
-                                              placeholder = "Все",
-                                              className = "",
-                                          }: Props) {
+    value,
+    onChangeAction,
+    label = "",
+    options,
+    placeholder = "Все",
+    className = "",
+    selectClassName,
+}: Props) {
     return (
         <div className={className}>
             {label ? (
@@ -32,7 +35,7 @@ export default function AdminFilterSelect({
             <select
                 value={value}
                 onChange={(e) => onChangeAction(e.target.value)}
-                className={`w-full ${adminSelect} md:w-56`}
+                className={`${adminSelect} ${selectClassName ?? "w-full md:w-56"}`}
             >
                 <option value="">{placeholder}</option>
                 {options.map((item) => (

@@ -100,9 +100,15 @@ class SellerOneVariantMatcher
      * @param  Collection<int, SellerOneMatchRule>  $rules
      * @param  array<int, list<\Modules\Catalog\Models\Product>>  $productsIndex
      *         Продукты, сгруппированные по brand_id. Предзагружены `brand` и `variants.definition`.
+     * @param  list<string>  $ignoreExtraTokenPatterns  Токены хвоста, игнорируемые как packaging noise
      */
-    public function parseSupplierRow(array $row, Collection $brands, Collection $rules, array $productsIndex): array
-    {
+    public function parseSupplierRow(
+        array $row,
+        Collection $brands,
+        Collection $rules,
+        array $productsIndex,
+        array $ignoreExtraTokenPatterns = [],
+    ): array {
         $title = $this->applyTitleRules((string) $row['title'], $rules);
         $hasSkipMarker = $this->shouldSkipParsingTitle($title);
         $matchedBrand = $this->detectBrand($title, $brands);
@@ -110,6 +116,12 @@ class SellerOneVariantMatcher
         $variantTail = $nameVariantSplit['tail'];
         $variantText = $variantTail !== '' ? $variantTail : $title;
         $tailSig = $this->parseVariantTailSignature($variantText);
+        if ($ignoreExtraTokenPatterns !== []) {
+            $tailSig['extra_tokens'] = $this->filterIgnoredExtraTokens(
+                $tailSig['extra_tokens'] ?? [],
+                $ignoreExtraTokenPatterns,
+            );
+        }
         $volume = $tailSig['volume'];
         $volumeIsMultipack = (bool) ($tailSig['volume_is_multipack'] ?? false);
         $volumeMultipackCount = $tailSig['volume_multipack_count'] ?? null;
@@ -1620,9 +1632,60 @@ class SellerOneVariantMatcher
      *     extra_tokens: list<string>,
      * }
      */
-    public function parseVariantFromTail(string $tail): array
+    public function parseVariantFromTail(string $tail, array $ignoreExtraTokenPatterns = []): array
     {
-        return $this->parseVariantTailSignature($tail);
+        $sig = $this->parseVariantTailSignature($tail);
+        if ($ignoreExtraTokenPatterns !== []) {
+            $sig['extra_tokens'] = $this->filterIgnoredExtraTokens(
+                $sig['extra_tokens'] ?? [],
+                $ignoreExtraTokenPatterns,
+            );
+        }
+
+        return $sig;
+    }
+
+    /**
+     * @param  list<string>  $extraTokens
+     * @param  list<string>  $ignorePatterns
+     * @return list<string>
+     */
+    public function filterIgnoredExtraTokens(array $extraTokens, array $ignorePatterns): array
+    {
+        if ($extraTokens === [] || $ignorePatterns === []) {
+            return $extraTokens;
+        }
+
+        $normalizedIgnore = [];
+        foreach ($ignorePatterns as $pattern) {
+            $p = mb_strtolower(trim((string) $pattern), 'UTF-8');
+            if ($p !== '') {
+                $normalizedIgnore[$p] = true;
+            }
+        }
+
+        if ($normalizedIgnore === []) {
+            return $extraTokens;
+        }
+
+        return array_values(array_filter(
+            $extraTokens,
+            static function (string $token) use ($normalizedIgnore): bool {
+                $t = mb_strtolower(trim($token), 'UTF-8');
+                if ($t === '') {
+                    return false;
+                }
+                if (isset($normalizedIgnore[$t])) {
+                    return false;
+                }
+                // Год в хвосте (2015 и т.п.) — packaging noise для Lagdos.
+                if (preg_match('/^\d{4}$/', $t) === 1) {
+                    return false;
+                }
+
+                return true;
+            },
+        ));
     }
 
     /**

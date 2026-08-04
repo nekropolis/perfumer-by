@@ -8,6 +8,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Warehouse\Services\StockInventoryService;
 
 class SellerOnePreviewSyncService
@@ -250,55 +251,71 @@ class SellerOnePreviewSyncService
     /**
      * Строки прайса, которых нет в последнем файле: помечаем в payload оффера и снимаем {@see SupplierVariantOffer::$is_active},
      * чтобы админка и учёт не считали привязку «активной»; связь supplier_products / код в payload сохраняются.
+     *
+     * Важно: в queue worker каждый Eloquent saved → bump catalog version + синхронный warmup facets.
+     * Поэтому обновляем quietly и один раз инвалидируем кеш в конце.
      */
     public function markMissingSupplierCodesAsPreorder(Supplier $supplier, array $codesInLatestPrice): int
     {
-        $normalizedCodes = array_values(array_filter(array_map(
-            static fn (mixed $code): string => trim((string) $code),
-            $codesInLatestPrice
-        ), static fn (string $code): bool => $code !== ''));
-
-        $offersQuery = SupplierVariantOffer::query()
-            ->where('supplier_id', $supplier->id)
-            ->where('is_active', true);
-
-        if (!empty($normalizedCodes)) {
-            $offersQuery->whereNotIn('external_id', $normalizedCodes);
-        }
-
-        $missingOffers = $offersQuery->get(['id', 'product_variant_id', 'payload']);
-        if ($missingOffers->isEmpty()) {
-            return 0;
+        $normalized = [];
+        foreach ($codesInLatestPrice as $code) {
+            $c = trim((string) $code);
+            if ($c !== '') {
+                $normalized[$c] = true;
+            }
         }
 
         $flagged = 0;
+        /** @var list<int> $variantIds */
+        $variantIds = [];
+        $markedAt = now()->toDateTimeString();
 
-        DB::transaction(function () use ($missingOffers, &$flagged) {
-            foreach ($missingOffers as $offer) {
-                $payload = is_array($offer->payload) ? $offer->payload : [];
-                if (!empty($payload['missing_in_latest_price'])) {
-                    continue;
-                }
-                $offer->update([
-                    'is_active' => false,
-                    'payload' => [
-                        ...$payload,
-                        'missing_in_latest_price' => true,
-                        'missing_marked_at' => now()?->toDateTimeString(),
-                    ],
-                ]);
-                $flagged++;
-            }
+        app(CatalogApiCacheService::class)->withoutDeferredInvalidation(function () use (
+            $supplier,
+            $normalized,
+            $markedAt,
+            &$flagged,
+            &$variantIds,
+        ): void {
+            SupplierVariantOffer::query()
+                ->where('supplier_id', $supplier->id)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->chunkById(200, function ($chunk) use ($normalized, $markedAt, &$flagged, &$variantIds): void {
+                    foreach ($chunk as $offer) {
+                        /** @var SupplierVariantOffer $offer */
+                        $externalId = trim((string) ($offer->external_id ?? ''));
+                        if ($externalId !== '' && isset($normalized[$externalId])) {
+                            continue;
+                        }
+
+                        $payload = is_array($offer->payload) ? $offer->payload : [];
+                        if (! empty($payload['missing_in_latest_price']) && $offer->is_active === false) {
+                            continue;
+                        }
+
+                        $offer->forceFill([
+                            'is_active' => false,
+                            'payload' => [
+                                ...$payload,
+                                'missing_in_latest_price' => true,
+                                'missing_marked_at' => $markedAt,
+                            ],
+                        ])->saveQuietly();
+
+                        $flagged++;
+                        $variantId = (int) ($offer->product_variant_id ?? 0);
+                        if ($variantId > 0) {
+                            $variantIds[] = $variantId;
+                        }
+                    }
+                });
         });
 
-        $variantIds = $missingOffers
-            ->pluck('product_variant_id')
-            ->filter()
-            ->map(static fn ($id): int => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-        $this->stockInventory->clearSupplierWarehouseShelfForVariantIds($variantIds);
+        $variantIds = array_values(array_unique($variantIds));
+        if ($variantIds !== []) {
+            $this->stockInventory->clearSupplierWarehouseShelfForVariantIds($variantIds);
+        }
 
         return $flagged;
     }
@@ -341,20 +358,20 @@ class SellerOnePreviewSyncService
                         if ($needsRestore) {
                             unset($payload['absent_from_parse_table_at']);
                             $payload['price_file_in_stock'] = true;
-                            $supplierProduct->update(['payload' => $payload]);
+                            $supplierProduct->forceFill(['payload' => $payload])->saveQuietly();
                         }
 
                         continue;
                     }
 
                     if (empty($payload['absent_from_parse_table_at'])) {
-                        $supplierProduct->update([
+                        $supplierProduct->forceFill([
                             'payload' => [
                                 ...$payload,
                                 'absent_from_parse_table_at' => now()->toDateTimeString(),
                                 'price_file_in_stock' => false,
                             ],
-                        ]);
+                        ])->saveQuietly();
                         $flagged++;
                     }
                 }
@@ -398,12 +415,12 @@ class SellerOnePreviewSyncService
                         continue;
                     }
 
-                    $supplierProduct->update([
+                    $supplierProduct->forceFill([
                         'payload' => [
                             ...$payload,
                             'price_file_in_stock' => false,
                         ],
-                    ]);
+                    ])->saveQuietly();
                     $flagged++;
                 }
             });

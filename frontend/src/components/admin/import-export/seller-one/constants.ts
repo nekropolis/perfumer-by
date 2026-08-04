@@ -2,8 +2,15 @@ export const SELLER_ONE_BATCH_LIMIT = 1000;
 export const SELLER_ONE_FILE_ACCEPT = ".xls,.xlsx";
 export const SELLER_ONE_PRODUCT_SEARCH_DEBOUNCE_MS = 400;
 export const SELLER_ONE_DEFINITION_SEARCH_DEBOUNCE_MS = 350;
-/** Код поставщика Seller One (прайс XLS) в таблице suppliers. */
-export const SELLER_ONE_SUPPLIER_CODE = "supplier-price-xls";
+/** Код поставщика EDP (бывший Seller One / supplier-price-xls). */
+export const SELLER_ONE_SUPPLIER_CODE = "edp";
+
+export const PRICE_PARSE_SUPPLIERS = [
+    { code: "edp", name: "EDP" },
+    { code: "lagdos", name: "Lagdos" },
+] as const;
+
+export type PriceParseSupplierCode = (typeof PRICE_PARSE_SUPPLIERS)[number]["code"];
 
 export const STATUS_OPTIONS = [
     { value: "confirmed", label: "Связанные" },

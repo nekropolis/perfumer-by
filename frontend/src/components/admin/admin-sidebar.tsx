@@ -114,7 +114,7 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/allparfume", label: "Allparfume", icon: FolderSync },
-            { type: "link", href: "/admin/import-export/seller-one", label: "Seller One", icon: FolderSync },
+            { type: "link", href: "/admin/import-export/seller-pars", label: "Парсинг поставщиков", icon: FolderSync },
         ],
     },
     {

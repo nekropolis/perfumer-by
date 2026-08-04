@@ -78,6 +78,29 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/sel
     Route::delete('/rules/{id}', [VanilleImportController::class, 'deleteSellerOneRule']);
 });
 
+// Alias: Парсинг поставщиков
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/seller-pars')->group(function () {
+    Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
+    Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);
+    Route::post('/supplier-price/cancel', [VanilleImportController::class, 'cancelSellerOneParse']);
+    Route::get('/supplier-price/active', [VanilleImportController::class, 'sellerOneActiveStatus']);
+    Route::get('/supplier-price/status/{jobId}', [VanilleImportController::class, 'sellerOneParseStatus']);
+    Route::post('/supplier-price/apply', [VanilleImportController::class, 'applySupplierPrice']);
+    Route::post('/supplier-price/refresh-linked/start', [VanilleImportController::class, 'startSellerOneRefreshLinkedPrices']);
+    Route::get('/supplier-price/refresh-linked/status/{jobId}', [VanilleImportController::class, 'sellerOneRefreshLinkedStatus']);
+    Route::get('/supplier-products', [VanilleImportController::class, 'sellerOneSupplierProducts']);
+    Route::get('/duplicate-variant-links', [VanilleImportController::class, 'sellerOneDuplicateVariantLinks']);
+    Route::post('/supplier-products/force-link', [VanilleImportController::class, 'forceLinkSellerOneProduct']);
+    Route::post('/supplier-products/reset-link', [VanilleImportController::class, 'resetSellerOneProductLink']);
+    Route::patch('/supplier-products/parsing-active', [VanilleImportController::class, 'updateSellerOneSupplierProductParsingActive']);
+    Route::get('/pricing-settings', [VanilleImportController::class, 'sellerOnePricingSettings']);
+    Route::put('/pricing-settings', [VanilleImportController::class, 'updateSellerOnePricingSettings']);
+    Route::get('/rules', [VanilleImportController::class, 'sellerOneRules']);
+    Route::post('/rules', [VanilleImportController::class, 'createSellerOneRule']);
+    Route::put('/rules/{id}', [VanilleImportController::class, 'updateSellerOneRule']);
+    Route::delete('/rules/{id}', [VanilleImportController::class, 'deleteSellerOneRule']);
+});
+
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(function () {
     Route::get('/', [BrandController::class, 'index']);
     Route::get('/{id}', [BrandController::class, 'show']);

@@ -958,10 +958,14 @@ export function RulesModal({
     rules,
     rulePattern,
     ruleReplacement,
+    ruleSupplierCode = "edp",
+    rulesFilterSupplier = "",
     ruleSaving,
     onCloseAction,
     onPatternChangeAction,
     onReplacementChangeAction,
+    onSupplierChangeAction,
+    onFilterSupplierChangeAction,
     onCreateAction,
     onToggleRuleAction,
     onDeleteRuleAction,
@@ -970,10 +974,14 @@ export function RulesModal({
     rules: SellerOneMatchRule[];
     rulePattern: string;
     ruleReplacement: string;
+    ruleSupplierCode?: string;
+    rulesFilterSupplier?: string;
     ruleSaving: boolean;
     onCloseAction: () => void;
     onPatternChangeAction: (value: string) => void;
     onReplacementChangeAction: (value: string) => void;
+    onSupplierChangeAction?: (value: "edp" | "lagdos") => void;
+    onFilterSupplierChangeAction?: (value: "" | "edp" | "lagdos") => void | Promise<void>;
     onCreateAction: () => Promise<void>;
     onToggleRuleAction: (rule: SellerOneMatchRule) => Promise<void>;
     onDeleteRuleAction: (rule: SellerOneMatchRule) => Promise<void>;
@@ -990,13 +998,27 @@ export function RulesModal({
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
                 <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
-                        <h2 className="text-lg font-semibold">Правила поиска Seller One</h2>
+                        <h2 className="text-lg font-semibold">Правила поиска</h2>
                         <button type="button" onClick={onCloseAction} className="text-sm text-admin-text-secondary">
                             Закрыть
                         </button>
                     </div>
                     <div className="space-y-4 overflow-y-auto px-5 py-4">
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto]">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <label className="text-xs text-admin-text-secondary">Фильтр:</label>
+                            <select
+                                value={rulesFilterSupplier}
+                                onChange={(e) => {
+                                    void onFilterSupplierChangeAction?.(e.target.value as "" | "edp" | "lagdos");
+                                }}
+                                className="rounded-lg border px-2 py-1.5 text-sm"
+                            >
+                                <option value="">Все поставщики</option>
+                                <option value="edp">EDP</option>
+                                <option value="lagdos">Lagdos</option>
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
                             <input
                                 value={rulePattern}
                                 onChange={(e) => onPatternChangeAction(e.target.value)}
@@ -1009,6 +1031,14 @@ export function RulesModal({
                                 placeholder="replacement, например Antonio Banderas"
                                 className="rounded-lg border px-3 py-2 text-sm"
                             />
+                            <select
+                                value={ruleSupplierCode}
+                                onChange={(e) => onSupplierChangeAction?.(e.target.value as "edp" | "lagdos")}
+                                className="rounded-lg border px-2 py-2 text-sm"
+                            >
+                                <option value="edp">EDP</option>
+                                <option value="lagdos">Lagdos</option>
+                            </select>
                             <button
                                 type="button"
                                 onClick={() => void onCreateAction()}
@@ -1029,6 +1059,8 @@ export function RulesModal({
                                             {rule.pattern} {"->"} {rule.replacement}
                                         </div>
                                         <div className="text-xs text-admin-text-secondary">
+                                            {rule.supplier?.name ?? `supplier #${rule.supplier_id}`}
+                                            {" / "}
                                             sort: {rule.sort_order} / {rule.is_active ? "active" : "off"}
                                         </div>
                                     </div>

@@ -8,7 +8,7 @@ use Modules\Catalog\Models\Supplier;
 
 class SellerOneMatchRulesSeeder extends Seeder
 {
-    private const SELLER_ONE_SUPPLIER_CODE = 'supplier-price-xls';
+    private const SELLER_ONE_SUPPLIER_CODE = 'edp';
 
     private const SELLER_ONE_SUPPLIER_NAME = 'Supplier XLS Price';
 

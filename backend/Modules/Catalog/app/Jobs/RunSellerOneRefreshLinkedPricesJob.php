@@ -37,6 +37,7 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
         public string $jobId,
         public string $storedFilePath,
         public string $originalFileName = '',
+        public string $supplierCode = 'edp',
     ) {
     }
 
@@ -89,11 +90,13 @@ class RunSellerOneRefreshLinkedPricesJob implements ShouldQueue
                             'job_id' => $this->jobId,
                             'job_type' => 'refresh_linked',
                             'status' => 'running',
+                            'supplier_code' => $this->supplierCode,
                             'updated_at' => now()->toDateTimeString(),
                         ],
                         $progress
                     ), now()->addHours(24));
-                }
+                },
+                $this->supplierCode,
             );
 
             try {
