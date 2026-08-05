@@ -15,6 +15,7 @@ use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Support\DeliveryCityResolver;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\DiscountCardTransaction;
 use Modules\Loyalty\Models\ClientDiscountCard;
@@ -79,6 +80,7 @@ class OrderController extends Controller
             'items.*.stock_lot_allocations' => ['nullable', 'array'],
             'items.*.stock_lot_allocations.*.lot_id' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
             'items.*.stock_lot_allocations.*.qty' => ['required_with:items.*.stock_lot_allocations', 'integer', 'min:1'],
+            'items.*.supplier_variant_offer_id' => ['nullable', 'integer', 'min:1', 'exists:supplier_variant_offers,id'],
         ];
     }
 
@@ -881,6 +883,143 @@ class OrderController extends Controller
         ]);
     }
 
+    public function updateItemFulfillment(Request $request, int $id, int $itemId): JsonResponse
+    {
+        $validated = $request->validate([
+            'channel' => ['required', 'string', 'in:main,offer'],
+            'lot_id' => ['nullable', 'integer', 'min:1'],
+            'supplier_variant_offer_id' => ['nullable', 'integer', 'min:1', 'exists:supplier_variant_offers,id'],
+        ]);
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('order_items', 'supplier_variant_offer_id')) {
+            return response()->json([
+                'message' => 'Не применена миграция supplier_variant_offer_id. Выполните: php artisan migrate',
+            ], 503);
+        }
+
+        $order = Order::query()->with('items')->findOrFail($id);
+        if (in_array((string) $order->status, ['done', 'completed'], true)) {
+            return response()->json([
+                'message' => 'По заказам со статусом «Выполнен» нельзя менять источник закупки.',
+            ], 422);
+        }
+
+        /** @var OrderItem|null $item */
+        $item = $order->items->firstWhere('id', $itemId);
+        if (! $item) {
+            return response()->json([
+                'message' => 'Позиция заказа не найдена.',
+            ], 404);
+        }
+
+        $channel = (string) $validated['channel'];
+        $lotId = isset($validated['lot_id']) ? (int) $validated['lot_id'] : 0;
+        $offerId = isset($validated['supplier_variant_offer_id'])
+            ? (int) $validated['supplier_variant_offer_id']
+            : 0;
+
+        if ($channel === 'main') {
+            $payload = [
+                'availability_source' => 'main',
+                'waiting_discount' => false,
+                'supplier_variant_offer_id' => null,
+                'supplier_purchase_price' => null,
+                'stock_lot_allocations' => $lotId > 0
+                    ? [['lot_id' => $lotId, 'qty' => max(1, (int) $item->qty)]]
+                    : null,
+            ];
+        } else {
+            if ($offerId <= 0) {
+                throw ValidationException::withMessages([
+                    'supplier_variant_offer_id' => ['Укажите офер поставщика.'],
+                ]);
+            }
+
+            $offer = \Modules\Catalog\Models\SupplierVariantOffer::query()->find($offerId);
+            if (! $offer || (int) $offer->product_variant_id !== (int) ($item->variant_id ?? 0)) {
+                throw ValidationException::withMessages([
+                    'supplier_variant_offer_id' => ['Офер не относится к варианту этой позиции.'],
+                ]);
+            }
+
+            $payload = [
+                'availability_source' => 'supplier_only',
+                'waiting_discount' => true,
+                'supplier_variant_offer_id' => $offerId,
+                'supplier_purchase_price' => CatalogVariantStockPresenter::resolveListingPurchasePrice($offer)
+                    ?? $offer->purchase_price,
+                'stock_lot_allocations' => null,
+            ];
+        }
+
+        try {
+            DB::transaction(function () use ($order, $item, $payload) {
+                $item->update($payload);
+
+                $stockService = app(StockInventoryService::class);
+                $stockService->releaseForOrder($order, 'order_item_fulfillment');
+                $order->unsetRelation('items');
+                $order->load('items');
+                $stockService->reserveForOrder($order);
+            });
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+            $sqlMessage = $e->getMessage();
+            if (str_contains($sqlMessage, 'supplier_variant_offer_id')) {
+                return response()->json([
+                    'message' => 'Не применена миграция supplier_variant_offer_id. Выполните: php artisan migrate',
+                ], 503);
+            }
+            if (str_contains($sqlMessage, 'stock_reservation_order_item_variant_warehouse_unique')) {
+                return response()->json([
+                    'message' => 'Не удалось пересобрать резерв склада по заказу. Обновите страницу и попробуйте ещё раз.',
+                ], 500);
+            }
+
+            $brief = $sqlMessage;
+            if (preg_match('/Integrity constraint violation:\s*\d+\s*([^(]+)/', $sqlMessage, $m)) {
+                $brief = trim($m[1]);
+            } elseif (preg_match('/Column not found:\s*\d+\s*([^(]+)/', $sqlMessage, $m)) {
+                $brief = trim($m[1]);
+            }
+
+            return response()->json([
+                'message' => 'Не удалось обновить источник закупки (ошибка БД): '.$brief,
+            ], 500);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => $e->getMessage() !== ''
+                    ? $e->getMessage()
+                    : 'Не удалось обновить источник закупки.',
+            ], 500);
+        }
+
+        $item->refresh();
+
+        return response()->json([
+            'data' => [
+                'order_id' => (int) $order->id,
+                'item_id' => (int) $item->id,
+                'availability_source' => $item->availability_source,
+                'waiting_discount' => (bool) $item->waiting_discount,
+                'stock_lot_allocations' => is_array($item->stock_lot_allocations)
+                    ? $item->stock_lot_allocations
+                    : null,
+                'supplier_variant_offer_id' => $item->supplier_variant_offer_id
+                    ? (int) $item->supplier_variant_offer_id
+                    : null,
+                'supplier_purchase_price' => $item->supplier_purchase_price !== null
+                    ? number_format((float) $item->supplier_purchase_price, 2, '.', '')
+                    : null,
+            ],
+            'message' => 'Источник закупки обновлён',
+        ]);
+    }
+
     private function assertAssignableOrderStatus(string $status, ?string $allowCurrent = null): void
     {
         if (OrderStatus::isAssignableCode($status, $allowCurrent)) {
@@ -981,10 +1120,35 @@ class OrderController extends Controller
         $itemsQty = 0;
         $subtotal = 0.0;
 
+        $offerIds = collect($items)
+            ->map(static fn (array $row) => isset($row['supplier_variant_offer_id']) ? (int) $row['supplier_variant_offer_id'] : 0)
+            ->filter(static fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $offersById = $offerIds === []
+            ? collect()
+            : \Modules\Catalog\Models\SupplierVariantOffer::query()
+                ->whereIn('id', $offerIds)
+                ->get()
+                ->keyBy('id');
+
         foreach ($items as $item) {
             $qty = (int) $item['qty'];
             $price = round((float) $item['price'], 2);
             $lineTotal = round($qty * $price, 2);
+            $offerId = isset($item['supplier_variant_offer_id']) && (int) $item['supplier_variant_offer_id'] > 0
+                ? (int) $item['supplier_variant_offer_id']
+                : null;
+            $offer = $offerId ? $offersById->get($offerId) : null;
+            $supplierPurchasePrice = null;
+            if ($offer) {
+                $resolved = \Modules\Catalog\Support\CatalogVariantStockPresenter::resolveListingPurchasePrice($offer);
+                $supplierPurchasePrice = $resolved !== null
+                    ? round($resolved, 2)
+                    : ($offer->purchase_price !== null ? round((float) $offer->purchase_price, 2) : null);
+            }
 
             $order->items()->create([
                 'product_id' => $item['product_id'] ?? null,
@@ -1002,6 +1166,8 @@ class OrderController extends Controller
                     ? $item['availability_source']
                     : null,
                 'stock_lot_allocations' => $this->normalizeStockLotAllocations($item['stock_lot_allocations'] ?? null),
+                'supplier_variant_offer_id' => $offerId,
+                'supplier_purchase_price' => $supplierPurchasePrice,
             ]);
 
             $itemsQty += $qty;

@@ -1439,9 +1439,9 @@ class StockInventoryService
             ->where('order_item_id', $item->id)
             ->where('variant_id', $variant->id)
             ->where('warehouse_id', $warehouseId)
-            ->where('status', 'active')
+            ->lockForUpdate()
             ->first();
-        if ($existingReservation) {
+        if ($existingReservation && $existingReservation->status === 'active') {
             return [
                 'reserved' => false,
                 'reason' => 'already_reserved',
@@ -1476,22 +1476,41 @@ class StockInventoryService
             }
         }
 
-        $reservation = StockReservation::query()->create([
-            'order_id' => $order->id,
-            'order_item_id' => $item->id,
-            'warehouse_id' => $warehouseId,
-            'product_id' => $item->product_id,
-            'variant_id' => $variant->id,
-            'qty' => $qty,
-            'status' => 'active',
-            'reserved_at' => now(),
-            'released_at' => null,
-            'written_off_at' => null,
-            'payload' => [
-                'variant_title' => $item->variant_title,
-                'virtual_infinite' => $virtualInfiniteStock,
-            ],
-        ]);
+        // Unique (order_item_id, variant_id, warehouse_id) без учёта status:
+        // после release нельзя INSERT — реактивируем существующую строку.
+        if ($existingReservation) {
+            $reservation = $existingReservation;
+            $reservation->update([
+                'order_id' => $order->id,
+                'product_id' => $item->product_id,
+                'qty' => $qty,
+                'status' => 'active',
+                'reserved_at' => now(),
+                'released_at' => null,
+                'written_off_at' => null,
+                'payload' => [
+                    'variant_title' => $item->variant_title,
+                    'virtual_infinite' => $virtualInfiniteStock,
+                ],
+            ]);
+        } else {
+            $reservation = StockReservation::query()->create([
+                'order_id' => $order->id,
+                'order_item_id' => $item->id,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $item->product_id,
+                'variant_id' => $variant->id,
+                'qty' => $qty,
+                'status' => 'active',
+                'reserved_at' => now(),
+                'released_at' => null,
+                'written_off_at' => null,
+                'payload' => [
+                    'variant_title' => $item->variant_title,
+                    'virtual_infinite' => $virtualInfiniteStock,
+                ],
+            ]);
+        }
 
         $explicitLots = $item->getAttribute('stock_lot_allocations');
         $explicit = is_array($explicitLots) && $explicitLots !== [] ? $explicitLots : null;

@@ -26,6 +26,7 @@ class OrderStatusController extends Controller
                 'sort_order',
                 'is_active',
                 'is_system',
+                'show_in_order_products',
             ]);
 
         return response()->json([
@@ -41,6 +42,7 @@ class OrderStatusController extends Controller
             'code' => ['nullable', 'string', 'max:50', 'regex:/^[a-z0-9_]+$/'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'is_active' => ['sometimes', 'boolean'],
+            'show_in_order_products' => ['sometimes', 'boolean'],
         ], [
             'name.required' => 'Укажите название статуса',
             'color.required' => 'Укажите цвет статуса',
@@ -68,6 +70,9 @@ class OrderStatusController extends Controller
             'color' => strtoupper($validated['color']),
             'sort_order' => $sortOrder,
             'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : true,
+            'show_in_order_products' => array_key_exists('show_in_order_products', $validated)
+                ? (bool) $validated['show_in_order_products']
+                : false,
             'is_system' => false,
         ]);
 
@@ -86,6 +91,7 @@ class OrderStatusController extends Controller
             'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'is_active' => ['sometimes', 'boolean'],
+            'show_in_order_products' => ['sometimes', 'boolean'],
         ], [
             'name.required' => 'Укажите название статуса',
             'color.required' => 'Укажите цвет статуса',
@@ -106,6 +112,10 @@ class OrderStatusController extends Controller
 
         if (array_key_exists('is_active', $validated)) {
             $payload['is_active'] = (bool) $validated['is_active'];
+        }
+
+        if (array_key_exists('show_in_order_products', $validated)) {
+            $payload['show_in_order_products'] = (bool) $validated['show_in_order_products'];
         }
 
         $status->update($payload);

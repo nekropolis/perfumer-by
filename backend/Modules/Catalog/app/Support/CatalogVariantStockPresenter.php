@@ -403,8 +403,7 @@ final class CatalogVariantStockPresenter
         $min = null;
 
         foreach (self::listingEligibleOffers($variant, null) as $offer) {
-            $payload = is_array($offer->payload) ? $offer->payload : [];
-            $purchase = self::resolveOfferPurchasePrice($offer, $payload);
+            $purchase = self::resolveListingPurchasePrice($offer);
             if ($purchase === null || $purchase <= 0) {
                 continue;
             }
@@ -413,6 +412,45 @@ final class CatalogVariantStockPresenter
         }
 
         return $min;
+    }
+
+    /**
+     * Офер витрины с минимальной закупочной (тот же критерий, что для прайса / автовыбора в закупке).
+     */
+    public static function preferredListingOffer(
+        ProductVariantLink $variant,
+        ?array $preloadedEligibleOffers = null,
+    ): ?SupplierVariantOffer {
+        $best = null;
+        $bestPrice = null;
+
+        foreach (self::listingEligibleOffers($variant, $preloadedEligibleOffers) as $offer) {
+            $purchase = self::resolveListingPurchasePrice($offer);
+            if ($purchase === null || $purchase <= 0) {
+                if ($best === null) {
+                    $best = $offer;
+                }
+
+                continue;
+            }
+
+            if ($bestPrice === null || $purchase < $bestPrice) {
+                $best = $offer;
+                $bestPrice = $purchase;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Закупочная цена офера с учётом payload.supplier_price (как на витрине).
+     */
+    public static function resolveListingPurchasePrice(SupplierVariantOffer $offer): ?float
+    {
+        $payload = is_array($offer->payload) ? $offer->payload : [];
+
+        return self::resolveOfferPurchasePrice($offer, $payload);
     }
 
     /**

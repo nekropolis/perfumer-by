@@ -222,6 +222,19 @@ function normalizeLotPrice(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
+/** Закупочная цена в дропдауне «Откуда»: округление до десятых (45.38 → 45.4). */
+function formatPurchasePriceTenths(value: string | number | null | undefined): string | null {
+  if (value == null || value === "") {
+    return null;
+  }
+  const normalized = String(value).trim().replace(",", ".");
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) {
+    return String(value);
+  }
+  return (Math.round(n * 10) / 10).toFixed(1);
+}
+
 function compareMainLotChoice(a: MainLotChoice, b: MainLotChoice): number {
   const byPrice = normalizeLotPrice(a.purchase_price) - normalizeLotPrice(b.purchase_price);
   if (byPrice !== 0) {
@@ -239,6 +252,40 @@ function pickPreferredLotId(choices: MainLotChoice[]): number | null {
   if (choices.length === 0) return null;
   const sorted = [...choices].sort(compareMainLotChoice);
   return sorted[0]?.lot_id ?? null;
+}
+
+type OfferChoice = {
+  offer_id: number;
+  label: string;
+};
+
+function offerChoicesFromFulfillment(options: OrderItemFulfillmentOption[]): OfferChoice[] {
+  return options
+    .filter((o) => o.channel === "offer" && typeof o.offer_id === "number" && o.offer_id > 0)
+    .map((o) => {
+      const detail = [
+        o.code,
+        o.title,
+        formatPurchasePriceTenths(o.purchase_price),
+        o.qty !== 0 ? `${o.qty} шт.` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return {
+        offer_id: o.offer_id!,
+        label: detail ? `${o.label} · ${detail}` : o.label,
+      };
+    });
+}
+
+function pickPreferredOfferId(
+  choices: OfferChoice[],
+  preferred?: number | null,
+): number | null {
+  if (preferred != null && preferred > 0 && choices.some((c) => c.offer_id === preferred)) {
+    return preferred;
+  }
+  return choices[0]?.offer_id ?? null;
 }
 
 type OrderLine = {
@@ -263,6 +310,8 @@ type OrderLine = {
   fulfillment_options: OrderItemFulfillmentOption[];
   main_lot_choices: MainLotChoice[];
   selected_lot_id: number | null;
+  offer_choices: OfferChoice[];
+  selected_offer_id: number | null;
 };
 
 function mainLotChoicesFromFulfillment(options: OrderItemFulfillmentOption[]): MainLotChoice[] {
@@ -272,7 +321,7 @@ function mainLotChoicesFromFulfillment(options: OrderItemFulfillmentOption[]): M
       const detail = [
         o.code,
         o.title,
-        o.purchase_price != null && o.purchase_price !== "" ? o.purchase_price : null,
+        formatPurchasePriceTenths(o.purchase_price),
         o.comment?.trim() || null,
         o.qty !== 0 ? `${o.qty} шт.` : null,
       ]
@@ -293,7 +342,7 @@ function lotChoiceLabelFromSupplierRow(row: StockBalanceVariantSupplierRow): str
   const parts = [
     row.supplier_name,
     row.supplier_sku,
-    row.supplier_price != null ? String(row.supplier_price) : null,
+    formatPurchasePriceTenths(row.supplier_price),
     row.comment?.trim() || null,
     row.available != null ? `дост. ${row.available}` : null,
   ].filter(Boolean);
@@ -520,6 +569,8 @@ function emptyLine(): OrderLine {
     fulfillment_options: [],
     main_lot_choices: [],
     selected_lot_id: null,
+    offer_choices: [],
+    selected_offer_id: null,
   };
 }
 
@@ -636,7 +687,9 @@ function linesFromOrderItems(
     const basePrice = waiting && price > 0 ? estimateBaseFromWaitingPrice(price) : price;
     const fulfillmentOptions = item.fulfillment_options ?? [];
     const mainChoices = mainLotChoicesFromFulfillment(fulfillmentOptions);
+    const offerChoices = offerChoicesFromFulfillment(fulfillmentOptions);
     const allocationLotId = item.stock_lot_allocations?.[0]?.lot_id ?? null;
+    const storedOfferId = item.supplier_variant_offer_id ?? null;
     return {
       product_id: item.product_id ?? null,
       variant_id: item.variant_id ?? null,
@@ -658,6 +711,8 @@ function linesFromOrderItems(
       fulfillment_options: fulfillmentOptions,
       main_lot_choices: mainChoices,
       selected_lot_id: allocationLotId ?? pickPreferredLotId(mainChoices),
+      offer_choices: offerChoices,
+      selected_offer_id: pickPreferredOfferId(offerChoices, storedOfferId),
     };
   });
 }
@@ -971,6 +1026,12 @@ export default function AdminOrderCreateForm({
                   ...row,
                   main_lot_choices: choices,
                   selected_lot_id: row.selected_lot_id ?? selected_lot_id,
+                  offer_choices: offerChoicesFromFulfillment(fulfillmentOptions),
+                  selected_offer_id:
+                    channelFromSource(row.availability_source) === "offer"
+                      ? (row.selected_offer_id ??
+                        pickPreferredOfferId(offerChoicesFromFulfillment(fulfillmentOptions)))
+                      : row.selected_offer_id,
                 }
               : row,
           ),
@@ -1900,6 +1961,11 @@ export default function AdminOrderCreateForm({
               fulfillment_options: row.fulfillment_options,
               main_lot_choices: [],
               selected_lot_id: null,
+              offer_choices: offerChoicesFromFulfillment(row.fulfillment_options),
+              selected_offer_id:
+                channelFromSource(fulfillment.availability_source) === "offer"
+                  ? pickPreferredOfferId(offerChoicesFromFulfillment(row.fulfillment_options))
+                  : null,
               ...fulfillment,
               availability_issue: availabilityIssueForLine(
                 channelFromSource(fulfillment.availability_source),
@@ -1940,6 +2006,11 @@ export default function AdminOrderCreateForm({
             price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
             main_lot_choices: [],
             selected_lot_id: null,
+            offer_choices: offerChoicesFromFulfillment(row.fulfillment_options),
+            selected_offer_id:
+              channelFromSource(fulfillment.availability_source) === "offer"
+                ? pickPreferredOfferId(offerChoicesFromFulfillment(row.fulfillment_options))
+                : null,
             ...fulfillment,
             availability_issue: availabilityIssueForLine(
               channelFromSource(fulfillment.availability_source),
@@ -1971,6 +2042,13 @@ export default function AdminOrderCreateForm({
     );
   };
 
+  const setLineSelectedOffer = (idx: number, offerId: number | null) => {
+    if (itemsLocked) return;
+    setLines((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, selected_offer_id: offerId } : row)),
+    );
+  };
+
   const setLineChannel = (idx: number, channel: FulfillmentChannel) => {
     if (itemsLocked) return;
     setLines((prev) =>
@@ -1993,6 +2071,9 @@ export default function AdminOrderCreateForm({
           price: priceWithOptionalWaiting(base, waiting),
           selected_lot_id: channel === "main"
             ? (row.selected_lot_id ?? pickPreferredLotId(row.main_lot_choices))
+            : null,
+          selected_offer_id: channel === "offer"
+            ? (row.selected_offer_id ?? pickPreferredOfferId(row.offer_choices))
             : null,
           availability_issue: availabilityIssueForLine(
             channel,
@@ -2150,6 +2231,9 @@ export default function AdminOrderCreateForm({
               ],
             }
           : {}),
+        ...(channelFromSource(item.availability_source) === "offer" && item.selected_offer_id
+          ? { supplier_variant_offer_id: item.selected_offer_id }
+          : { supplier_variant_offer_id: null }),
       })),
     };
 
@@ -2643,9 +2727,7 @@ export default function AdminOrderCreateForm({
                               const detailParts = [
                                 opt.code,
                                 opt.title,
-                                opt.purchase_price != null && opt.purchase_price !== ""
-                                  ? Number(opt.purchase_price).toFixed(2)
-                                  : null,
+                                formatPurchasePriceTenths(opt.purchase_price),
                                 opt.qty !== 0 ? `${opt.qty} шт.` : null,
                                 opt.comment?.trim() || null,
                                 opt.lot_id ? `#${opt.lot_id}` : null,
@@ -2720,7 +2802,32 @@ export default function AdminOrderCreateForm({
                               triggerVariant="text"
                               triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
                               widthClassName="w-[6.25rem]"
-                              menuWidthClassName="w-[360px] max-w-[min(90vw,420px)]"
+                              menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
+                            />
+                          )
+                        ) : null}
+                        {selectValue === "offer" && line.offer_choices.length > 0 ? (
+                          itemsLocked ? (
+                            <p className="truncate text-[11px] leading-snug text-admin-text-secondary">
+                              {line.offer_choices.find((o) => o.offer_id === line.selected_offer_id)?.label ??
+                                "Офер"}
+                            </p>
+                          ) : (
+                            <AdminStatusDropdown
+                              value={line.selected_offer_id != null ? String(line.selected_offer_id) : ""}
+                              onChangeAction={(nextValue) =>
+                                setLineSelectedOffer(idx, nextValue ? Number(nextValue) : null)
+                              }
+                              options={line.offer_choices.map((offer) => ({
+                                value: String(offer.offer_id),
+                                label: offer.label,
+                                triggerLabel: offer.label.split(" · ")[0] || offer.label,
+                                menuLabel: offer.label,
+                              }))}
+                              triggerVariant="text"
+                              triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
+                              widthClassName="w-[6.25rem]"
+                              menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
                             />
                           )
                         ) : null}

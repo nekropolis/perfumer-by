@@ -181,7 +181,7 @@ export default function AdminStatusDropdown({
 
     const rootClassName =
         triggerVariant === "text"
-            ? "relative block w-full max-w-full align-middle"
+            ? `relative inline-flex max-w-full align-middle ${widthClassName === "w-[168px]" ? "w-full" : widthClassName}`
             : `relative inline-flex ${widthClassName}`;
 
     const defaultTrigger = (
@@ -238,11 +238,11 @@ export default function AdminStatusDropdown({
                                       setIsOpen(false);
                                       onChangeAction(item.value);
                                   }}
-                                  className={`flex min-h-7 w-full items-center justify-between gap-1.5 rounded-lg px-2 py-1 text-left text-xs font-medium transition hover:bg-admin-muted ${
+                                  className={`flex min-h-7 w-full items-center justify-between gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium transition hover:bg-admin-muted ${
                                       isActive ? "bg-admin-muted/70" : ""
                                   }`}
                               >
-                                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1.5">
                                       {optionColor ? (
                                           <span
                                               aria-hidden

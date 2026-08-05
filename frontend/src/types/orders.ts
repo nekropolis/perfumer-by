@@ -60,6 +60,7 @@ export type OrderItemFulfillmentOption = {
     purchase_price: string | null;
     qty: number;
     lot_id?: number | null;
+    offer_id?: number | null;
     comment?: string | null;
 };
 
@@ -94,6 +95,9 @@ export type OrderItem = {
     supplier_offers?: OrderItemSupplierOffer[];
     receipt_batches?: OrderItemReceiptBatch[];
     stock_lot_allocations?: OrderItemStockLotAllocation[];
+    supplier_variant_offer_id?: number | null;
+    /** Закупочная цена офера на момент привязки к позиции заказа. */
+    supplier_purchase_price?: string | null;
 };
 
 export type OrderData = {

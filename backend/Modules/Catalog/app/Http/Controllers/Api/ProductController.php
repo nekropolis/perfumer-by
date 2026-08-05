@@ -1646,14 +1646,16 @@ class ProductController extends Controller
                 ->filter()
                 ->unique()
                 ->values() ?? collect();
-            $prices = $product->variants
+            // Как витрина: только listing-eligible варианты и цена > 0
+            // (иначе неактивный вариант с price=0 даёт «0,00 - …» в поиске).
+            $prices = $product->activeVariants
                 ?->pluck('price')
-                ->filter(static fn ($value) => $value !== null)
+                ->filter(static fn ($value) => $value !== null && is_numeric((string) $value) && (float) $value > 0)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
-            $oldPrices = $product->variants
+            $oldPrices = $product->activeVariants
                 ?->pluck('old_price')
-                ->filter(static fn ($value) => $value !== null)
+                ->filter(static fn ($value) => $value !== null && is_numeric((string) $value) && (float) $value > 0)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
             $isPreorderAvailable = (bool) ($product->activeVariants?->contains(fn ($variant) => (bool) $variant->is_preorder) ?? false);

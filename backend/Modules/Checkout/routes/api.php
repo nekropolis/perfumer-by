@@ -11,6 +11,7 @@ use Modules\Checkout\Http\Controllers\Api\VeterTicketStatusSyncController;
 use Modules\ImportExport\Http\Controllers\Admin\LegacySyncController;
 use Modules\Checkout\Http\Controllers\Api\OrderTagController;
 use Modules\Checkout\Http\Controllers\Api\OrderStatusController;
+use Modules\Checkout\Http\Controllers\Api\SupplierOrderController;
 use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
@@ -48,6 +49,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::patch('/{id}/admin-fields', [OrderController::class, 'updateAdminFields']);
     Route::delete('/{id}', [OrderController::class, 'destroy']);
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
+    Route::patch('/{id}/items/{itemId}/fulfillment', [OrderController::class, 'updateItemFulfillment']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/order-tags')->group(function () {
@@ -61,6 +63,18 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/order-
     Route::get('/', [OrderStatusController::class, 'index']);
     Route::post('/', [OrderStatusController::class, 'store']);
     Route::put('/{id}', [OrderStatusController::class, 'update']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/supplier-orders')->group(function () {
+    Route::post('/draft-from-reservations', [SupplierOrderController::class, 'draftFromReservations']);
+    Route::get('/draft', [SupplierOrderController::class, 'draft']);
+    Route::post('/draft/items', [SupplierOrderController::class, 'storeDraftItem']);
+    Route::patch('/items/{id}', [SupplierOrderController::class, 'updateItem']);
+    Route::delete('/items/{id}', [SupplierOrderController::class, 'destroyItem']);
+    Route::post('/confirm', [SupplierOrderController::class, 'confirm']);
+    Route::get('/', [SupplierOrderController::class, 'index']);
+    Route::get('/{id}/export-xlsx', [SupplierOrderController::class, 'exportXlsx']);
+    Route::get('/{id}', [SupplierOrderController::class, 'show']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->group(function () {

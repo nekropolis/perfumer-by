@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\SupplierVariantOffer;
 
 class OrderItem extends Model
 {
@@ -26,11 +27,14 @@ class OrderItem extends Model
         'waiting_discount',
         'availability_source',
         'stock_lot_allocations',
+        'supplier_variant_offer_id',
+        'supplier_purchase_price',
     ];
 
     protected $casts = [
         'waiting_discount' => 'boolean',
         'stock_lot_allocations' => 'array',
+        'supplier_purchase_price' => 'decimal:2',
     ];
 
     public function order(): BelongsTo
@@ -46,5 +50,10 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function supplierVariantOffer(): BelongsTo
+    {
+        return $this->belongsTo(SupplierVariantOffer::class, 'supplier_variant_offer_id');
     }
 }

@@ -1,9 +1,24 @@
 import type { ReactNode } from "react";
 import type { HeaderSearchItem } from "@/components/layout/header/types";
 
+function positivePrice(value: string | null | undefined): string | null {
+    if (value == null) {
+        return null;
+    }
+    const trimmed = String(value).trim();
+    if (trimmed === "") {
+        return null;
+    }
+    const n = Number(trimmed.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) {
+        return null;
+    }
+    return trimmed;
+}
+
 export function formatSearchPrice(item: HeaderSearchItem): ReactNode {
-    const min = item.price_range?.min ?? null;
-    const max = item.price_range?.max ?? null;
+    const min = positivePrice(item.price_range?.min ?? null);
+    const max = positivePrice(item.price_range?.max ?? null);
     const stockTotal = item.stock_total ?? 0;
     /** Как в каталоге: `stock_total` и флаг `is_out_of_stock` согласованы с каналом поставщика (см. syncProductStockFlagsByProductId). */
     const listingAvailable = stockTotal > 0 || item.is_preorder_available;

@@ -170,6 +170,12 @@ class OrderResource extends JsonResource
                     'stock_lot_allocations' => is_array($item->stock_lot_allocations)
                         ? $item->stock_lot_allocations
                         : null,
+                    'supplier_variant_offer_id' => $item->supplier_variant_offer_id
+                        ? (int) $item->supplier_variant_offer_id
+                        : null,
+                    'supplier_purchase_price' => $item->supplier_purchase_price !== null
+                        ? number_format((float) $item->supplier_purchase_price, 2, '.', '')
+                        : null,
                     'product_country' => $this->productCountry($item),
                     'image' => $item->relationLoaded('product')
                         ? ($item->product?->mainImage?->path ?? null)
@@ -341,6 +347,7 @@ class OrderResource extends JsonResource
                         ? number_format((float) $offer->purchase_price, 4, '.', '')
                         : null,
                     'qty' => (int) $offer->stock,
+                    'offer_id' => (int) $offer->id,
                 ];
             }
         }

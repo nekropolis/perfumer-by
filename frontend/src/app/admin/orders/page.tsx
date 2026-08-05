@@ -1,19 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X } from "lucide-react";
+import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X, GripVertical, Check, Package, ClipboardList } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
     fetchOrders,
     sendVeterTickets,
     syncLegacyCustomersAndOrders,
     syncVeterTicketStatuses,
+    updateOrderItemFulfillment,
+    updateOrderStatus,
 } from "@/lib/admin-orders-api";
 import { fetchAttributeBindingOptions } from "@/lib/admin-attributes-api";
 import { fetchSupplierOrderReservationsReport, type SupplierOrderReservationRow } from "@/lib/admin-warehouse-api";
+import {
+    addSupplierOrderDraftItem,
+    confirmSupplierOrders,
+    createSupplierOrderDraftFromReservations,
+    deleteSupplierOrderDraftItem,
+    exportSupplierOrderXlsx,
+    fetchSupplierOrder,
+    fetchSupplierOrderDraft,
+    fetchSupplierOrders,
+    updateSupplierOrderDraftItemQty,
+    type SupplierOrderDetail,
+    type SupplierOrderDraftItem,
+    type SupplierOrderListItem,
+} from "@/lib/admin-supplier-orders-api";
+import SupplierDraftAddProductModal from "@/components/admin/orders/supplier-draft-add-product-modal";
+import { fetchOrderStatuses } from "@/lib/admin-order-statuses-api";
 import type { OrderData, OrdersResponse } from "@/types/orders";
-import { getOrderStatusLabel, isVeterSendAllowedStatus, solidColorPillStyle } from "@/constants/order-statuses";
+import {
+    getOrderStatusColor,
+    getOrderStatusLabel,
+    isVeterSendAllowedStatus,
+    solidColorPillStyle,
+} from "@/constants/order-statuses";
 import AdminOrdersTable from "@/components/admin/admin-orders-table";
 import AdminOrdersDateRangeButton, {
     type AdminOrdersDateRangeButtonHandle,
@@ -29,10 +52,13 @@ import useDebouncedValue from "@/hooks/use-debounced-value";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminRichTabs, { type AdminRichTabItem } from "@/components/admin/ui/admin-rich-tabs";
 import AdminOrderReceiptsModal from "@/components/admin/orders/admin-order-receipts-modal";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
+import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import { useOrderStatusOptions } from "@/hooks/use-order-status-options";
 import { AdminToast } from "@/types/admin";
 import { adminIconBtn } from "@/lib/admin-ui-classes";
 
-type OrdersTab = "orders" | "order_products";
+type OrdersTab = "orders" | "order_products" | "supplier_order" | "supplier_orders";
 
 const ORDER_PERIOD_OPTIONS = [
     { value: "today", label: "Сегодня" },
@@ -53,8 +79,20 @@ const ORDER_TABS: AdminRichTabItem<OrdersTab>[] = [
     {
         id: "order_products",
         label: "Товары для заказов",
-        description: "Все товары из новых заказов и заказов в обработке",
+        description: "Товары из заказов со статусами для закупки",
         icon: ShoppingCart,
+    },
+    {
+        id: "supplier_order",
+        label: "Заказ у поставщиков",
+        description: "Черновик заявки к поставщикам",
+        icon: Package,
+    },
+    {
+        id: "supplier_orders",
+        label: "Заказы поставщикам",
+        description: "Сформированные заказы у поставщиков",
+        icon: ClipboardList,
     },
 ];
 
@@ -64,6 +102,112 @@ const iconClassName = "h-4 w-4 md:h-[1.125rem] md:w-[1.125rem]";
 
 const filterChipClassName =
     "inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-[0_3px_8px_rgba(15,23,42,0.12)]";
+
+const SUPPLIER_PRODUCTS_COL_MIN_PX = 96;
+const SUPPLIER_PRODUCTS_COL_MAX_PX = 480;
+const ORDER_PRODUCTS_STATUS_MENU_WIDTH = "w-max max-w-[11.5rem]";
+const ORDER_PRODUCTS_STATUS_TRIGGER_CLASS =
+    "!h-5 !min-h-0 !w-auto !justify-start !rounded !px-1.5 !pr-4 !text-[9px] !tracking-wide [&>span]:!px-0 [&_svg]:!right-0.5 [&_svg]:!h-2.5 [&_svg]:!w-2.5";
+const COMPLETED_ORDER_STATUSES = new Set(["done", "completed"]);
+
+type SupplierProductTooltipState = {
+    text: string;
+    x: number;
+    anchorTop: number;
+    anchorBottom: number;
+} | null;
+
+function getSupplierProductTooltipPosition(element: HTMLElement): {
+    x: number;
+    anchorTop: number;
+    anchorBottom: number;
+} {
+    const rect = element.getBoundingClientRect();
+    const viewportPadding = 16;
+    const tooltipHalfWidth = Math.min(192, Math.max(0, window.innerWidth / 2 - viewportPadding));
+
+    return {
+        x: Math.min(
+            Math.max(rect.left + rect.width / 2, tooltipHalfWidth + viewportPadding),
+            window.innerWidth - tooltipHalfWidth - viewportPadding,
+        ),
+        anchorTop: rect.top,
+        anchorBottom: rect.bottom,
+    };
+}
+
+function positionSupplierProductTooltipEl(
+    el: HTMLElement,
+    anchor: { x: number; anchorTop: number; anchorBottom: number },
+): void {
+    const pad = 8;
+    const rect = el.getBoundingClientRect();
+    const halfW = rect.width / 2;
+    const left = Math.min(
+        Math.max(anchor.x, halfW + pad),
+        window.innerWidth - halfW - pad,
+    );
+
+    const spaceBelow = window.innerHeight - anchor.anchorBottom - pad;
+    const spaceAbove = anchor.anchorTop - pad;
+    const placeAbove = rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
+
+    let top = placeAbove
+        ? anchor.anchorTop - 8 - rect.height
+        : anchor.anchorBottom + 8;
+
+    if (top + rect.height > window.innerHeight - pad) {
+        top = Math.max(pad, window.innerHeight - pad - rect.height);
+    }
+    if (top < pad) {
+        top = pad;
+    }
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.visibility = "visible";
+}
+
+function SupplierProductNameTooltip({
+    tooltip,
+    onMouseEnterAction,
+    onMouseLeaveAction,
+}: {
+    tooltip: SupplierProductTooltipState;
+    onMouseEnterAction: () => void;
+    onMouseLeaveAction: () => void;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!tooltip || !el) {
+            return;
+        }
+        positionSupplierProductTooltipEl(el, tooltip);
+    }, [tooltip]);
+
+    if (!tooltip || typeof document === "undefined") {
+        return null;
+    }
+
+    return createPortal(
+        <div
+            ref={ref}
+            className="fixed z-[9999] max-w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2.5 text-xs leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
+            style={{
+                left: tooltip.x,
+                top: tooltip.anchorBottom + 8,
+                visibility: "hidden",
+            }}
+            onMouseEnter={onMouseEnterAction}
+            onMouseLeave={onMouseLeaveAction}
+        >
+            <div className="select-text font-medium text-admin-text">{tooltip.text}</div>
+        </div>,
+        document.body,
+    );
+}
 
 function parseOrdersPerPage(raw: string | null): (typeof ORDERS_PER_PAGE_OPTIONS)[number] {
     const value = Number(raw);
@@ -79,7 +223,48 @@ function parseOrdersPage(raw: string | null): number {
 }
 
 function parseOrdersTab(raw: string | null): OrdersTab {
-    return raw === "order_products" ? "order_products" : "orders";
+    if (raw === "order_products" || raw === "supplier_order" || raw === "supplier_orders") {
+        return raw;
+    }
+    return "orders";
+}
+
+function comparePurchasePriceTone(
+    atOrder: string | null,
+    current: string | null,
+): "higher" | "lower" | "same" | null {
+    if (atOrder == null || current == null) {
+        return null;
+    }
+    const a = Number(atOrder);
+    const b = Number(current);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+        return null;
+    }
+    if (a > b) {
+        return "higher";
+    }
+    if (a < b) {
+        return "lower";
+    }
+    return "same";
+}
+
+function formatSupplierOrderDate(value: string | null): string {
+    if (!value) {
+        return "—";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
 
 function parseOrderFilter(raw: string | null): number | "" {
@@ -187,6 +372,40 @@ export default function AdminOrdersPage() {
     const [orderFilter, setOrderFilter] = useState<number | "">(() =>
         parseOrderFilter(searchParamsFromUrl.get("order_id")),
     );
+    const [supplierProductsColWidth, setSupplierProductsColWidth] = useState<number | null>(null);
+    const [supplierProductTooltip, setSupplierProductTooltip] = useState<SupplierProductTooltipState>(null);
+    const [orderProductStatusCodes, setOrderProductStatusCodes] = useState<Set<string>>(() => new Set());
+    const [orderProductsStatusSaving, setOrderProductsStatusSaving] = useState(false);
+    const [orderProductsFulfillmentSavingKey, setOrderProductsFulfillmentSavingKey] = useState<string | null>(null);
+    const [orderProductsStatusConfirm, setOrderProductsStatusConfirm] = useState<{
+        orderId: number;
+        nextStatus: string;
+        kind: "done" | "cancelled";
+    } | null>(null);
+    const [supplierDraftItems, setSupplierDraftItems] = useState<SupplierOrderDraftItem[]>([]);
+    const [supplierDraftReloadNonce, setSupplierDraftReloadNonce] = useState(0);
+    const [supplierDraftForming, setSupplierDraftForming] = useState(false);
+    const [supplierDraftConfirmOpen, setSupplierDraftConfirmOpen] = useState(false);
+    const [supplierDraftConfirming, setSupplierDraftConfirming] = useState(false);
+    const [supplierDraftQtySavingId, setSupplierDraftQtySavingId] = useState<number | null>(null);
+    const [supplierOrdersList, setSupplierOrdersList] = useState<SupplierOrderListItem[]>([]);
+    const [supplierOrdersPage, setSupplierOrdersPage] = useState(1);
+    const [supplierOrdersMeta, setSupplierOrdersMeta] = useState<{
+        current_page: number;
+        last_page: number;
+        total: number;
+    } | null>(null);
+    const [supplierOrdersReloadNonce, setSupplierOrdersReloadNonce] = useState(0);
+    const [expandedSupplierOrderId, setExpandedSupplierOrderId] = useState<number | null>(null);
+    const [expandedSupplierOrder, setExpandedSupplierOrder] = useState<SupplierOrderDetail | null>(null);
+    const [expandedSupplierOrderLoading, setExpandedSupplierOrderLoading] = useState(false);
+    const [supplierOrderExportingId, setSupplierOrderExportingId] = useState<number | null>(null);
+    const [supplierDraftAddOpen, setSupplierDraftAddOpen] = useState(false);
+    const [supplierDraftAdding, setSupplierDraftAdding] = useState(false);
+    const [supplierDraftDeletingId, setSupplierDraftDeletingId] = useState<number | null>(null);
+    const supplierProductsThRef = useRef<HTMLTableCellElement | null>(null);
+    const supplierProductTooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { options: orderStatusOptions } = useOrderStatusOptions(true);
     const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
     const [receiptModalOpen, setReceiptModalOpen] = useState(false);
     const [receiptCountryOptions, setReceiptCountryOptions] = useState<string[]>([]);
@@ -236,6 +455,100 @@ export default function AdminOrdersPage() {
         () => orders.filter((order) => selectedOrderIds.includes(order.id)),
         [orders, selectedOrderIds],
     );
+
+    const orderProductsGrouped = useMemo(() => {
+        const groups: { orderId: number; products: SupplierOrderReservationRow[] }[] = [];
+        const indexByOrder = new Map<number, number>();
+        for (const row of orderProducts) {
+            const existing = indexByOrder.get(row.order_id);
+            if (existing === undefined) {
+                indexByOrder.set(row.order_id, groups.length);
+                groups.push({ orderId: row.order_id, products: [row] });
+            } else {
+                groups[existing].products.push(row);
+            }
+        }
+        return groups;
+    }, [orderProducts]);
+
+    const clearSupplierProductTooltipHideTimer = useCallback(() => {
+        if (supplierProductTooltipHideTimerRef.current) {
+            clearTimeout(supplierProductTooltipHideTimerRef.current);
+            supplierProductTooltipHideTimerRef.current = null;
+        }
+    }, []);
+
+    const showSupplierProductTooltip = useCallback(
+        (text: string, element: HTMLElement) => {
+            const trimmed = text.trim();
+            if (!trimmed || trimmed === "—" || element.scrollWidth <= element.clientWidth + 1) {
+                clearSupplierProductTooltipHideTimer();
+                setSupplierProductTooltip(null);
+                return;
+            }
+            clearSupplierProductTooltipHideTimer();
+            setSupplierProductTooltip({
+                text: trimmed,
+                ...getSupplierProductTooltipPosition(element),
+            });
+        },
+        [clearSupplierProductTooltipHideTimer],
+    );
+
+    const hideSupplierProductTooltip = useCallback(() => {
+        clearSupplierProductTooltipHideTimer();
+        setSupplierProductTooltip(null);
+    }, [clearSupplierProductTooltipHideTimer]);
+
+    const hideSupplierProductTooltipWithDelay = useCallback(() => {
+        clearSupplierProductTooltipHideTimer();
+        supplierProductTooltipHideTimerRef.current = setTimeout(() => {
+            setSupplierProductTooltip(null);
+            supplierProductTooltipHideTimerRef.current = null;
+        }, 220);
+    }, [clearSupplierProductTooltipHideTimer]);
+
+    const onSupplierProductsColResizeStart = useCallback((event: ReactMouseEvent<HTMLSpanElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const measured = Math.round(supplierProductsThRef.current?.getBoundingClientRect().width ?? 168);
+        const startX = event.clientX;
+        const startWidth = measured;
+
+        const onMove = (moveEvent: MouseEvent) => {
+            const next = Math.min(
+                SUPPLIER_PRODUCTS_COL_MAX_PX,
+                Math.max(SUPPLIER_PRODUCTS_COL_MIN_PX, startWidth + (moveEvent.clientX - startX)),
+            );
+            setSupplierProductsColWidth(next);
+        };
+
+        const onUp = () => {
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }, []);
+
+    useEffect(() => {
+        if (!supplierProductTooltip) {
+            return;
+        }
+
+        const onScroll = () => hideSupplierProductTooltip();
+        window.addEventListener("scroll", onScroll, true);
+        return () => window.removeEventListener("scroll", onScroll, true);
+    }, [supplierProductTooltip, hideSupplierProductTooltip]);
+
+    useEffect(() => {
+        return () => clearSupplierProductTooltipHideTimer();
+    }, [clearSupplierProductTooltipHideTimer]);
 
     const veterSendCandidateCount = useMemo(
         () =>
@@ -432,6 +745,34 @@ export default function AdminOrdersPage() {
             return;
         }
 
+        let cancelled = false;
+        void fetchOrderStatuses()
+            .then((res) => {
+                if (cancelled) {
+                    return;
+                }
+                setOrderProductStatusCodes(
+                    new Set(
+                        res.data
+                            .filter((row) => Boolean(row.show_in_order_products))
+                            .map((row) => row.code),
+                    ),
+                );
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab !== "order_products") {
+            return;
+        }
+
         const loadOrderProducts = async () => {
             try {
                 setLoading(true);
@@ -454,6 +795,404 @@ export default function AdminOrdersPage() {
 
         void loadOrderProducts();
     }, [activeTab, orderFilter]);
+
+    useEffect(() => {
+        if (activeTab !== "supplier_order") {
+            return;
+        }
+
+        const loadDraft = async () => {
+            try {
+                setLoading(true);
+                setToast(null);
+                const response = await fetchSupplierOrderDraft();
+                setSupplierDraftItems(response.data ?? []);
+            } catch (error) {
+                console.error(error);
+                setToast({ type: "error", message: "Не удалось загрузить заявку у поставщиков" });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void loadDraft();
+    }, [activeTab, supplierDraftReloadNonce]);
+
+    useEffect(() => {
+        if (activeTab !== "supplier_orders") {
+            return;
+        }
+
+        const loadConfirmed = async () => {
+            try {
+                setLoading(true);
+                setToast(null);
+                const response = await fetchSupplierOrders({
+                    page: supplierOrdersPage,
+                    per_page: 25,
+                });
+                setSupplierOrdersList(response.data ?? []);
+                setSupplierOrdersMeta({
+                    current_page: response.current_page,
+                    last_page: response.last_page,
+                    total: response.total,
+                });
+            } catch (error) {
+                console.error(error);
+                setToast({ type: "error", message: "Не удалось загрузить заказы поставщикам" });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void loadConfirmed();
+    }, [activeTab, supplierOrdersPage, supplierOrdersReloadNonce]);
+
+    const handleFormSupplierDraft = async () => {
+        setSupplierDraftForming(true);
+        setToast(null);
+        try {
+            const response = await createSupplierOrderDraftFromReservations();
+            const added = response.data.added ?? 0;
+            setToast({
+                type: added > 0 ? "success" : "error",
+                message: response.message || (added > 0 ? "Заявка сформирована" : "Нет позиций для заявки"),
+            });
+            const report = await fetchSupplierOrderReservationsReport({
+                page: 1,
+                order_id: typeof orderFilter === "number" ? orderFilter : undefined,
+            });
+            setOrderProducts(report.data ?? []);
+            if (Array.isArray(report.filter_orders)) {
+                setOrderProductsFilterOrders(report.filter_orders);
+            }
+            if (added > 0) {
+                setActiveTab("supplier_order");
+                setSupplierDraftReloadNonce((n) => n + 1);
+            }
+            setSupplierDraftConfirmOpen(false);
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Не удалось сформировать заявку",
+            });
+        } finally {
+            setSupplierDraftForming(false);
+        }
+    };
+
+    const handleConfirmSupplierOrders = async () => {
+        if (supplierDraftItems.length === 0) {
+            return;
+        }
+        setSupplierDraftConfirming(true);
+        setToast(null);
+        try {
+            const response = await confirmSupplierOrders();
+            const count = response.data.length;
+            setToast({
+                type: count > 0 ? "success" : "error",
+                message: response.message || (count > 0 ? "Заказы сформированы" : "Нет черновиков"),
+            });
+            if (count > 0) {
+                setSupplierDraftItems([]);
+                setActiveTab("supplier_orders");
+                setSupplierOrdersPage(1);
+                setSupplierOrdersReloadNonce((n) => n + 1);
+            }
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Не удалось сформировать заказ",
+            });
+        } finally {
+            setSupplierDraftConfirming(false);
+        }
+    };
+
+    const handleSupplierDraftQtyChange = async (itemId: number, qty: number) => {
+        if (!Number.isFinite(qty) || qty < 1) {
+            return;
+        }
+        setSupplierDraftQtySavingId(itemId);
+        try {
+            const response = await updateSupplierOrderDraftItemQty(itemId, Math.floor(qty));
+            setSupplierDraftItems((prev) =>
+                prev.map((row) => (row.id === itemId ? response.data : row)),
+            );
+        } catch (error) {
+            console.error(error);
+            setToast({ type: "error", message: "Не удалось изменить количество" });
+            setSupplierDraftReloadNonce((n) => n + 1);
+        } finally {
+            setSupplierDraftQtySavingId(null);
+        }
+    };
+
+    const toggleExpandedSupplierOrder = async (orderId: number) => {
+        if (expandedSupplierOrderId === orderId) {
+            setExpandedSupplierOrderId(null);
+            setExpandedSupplierOrder(null);
+            return;
+        }
+        setExpandedSupplierOrderId(orderId);
+        setExpandedSupplierOrderLoading(true);
+        setExpandedSupplierOrder(null);
+        try {
+            const response = await fetchSupplierOrder(orderId);
+            setExpandedSupplierOrder(response.data);
+        } catch (error) {
+            console.error(error);
+            setToast({ type: "error", message: "Не удалось загрузить состав заказа" });
+            setExpandedSupplierOrderId(null);
+        } finally {
+            setExpandedSupplierOrderLoading(false);
+        }
+    };
+
+    const handleExportSupplierOrderXlsx = async (orderId: number) => {
+        setSupplierOrderExportingId(orderId);
+        setToast(null);
+        try {
+            await exportSupplierOrderXlsx(orderId);
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Не удалось скачать XLSX",
+            });
+        } finally {
+            setSupplierOrderExportingId(null);
+        }
+    };
+
+    const handleAddSupplierDraftProduct = async (row: { id: number }) => {
+        setSupplierDraftAdding(true);
+        setToast(null);
+        try {
+            const response = await addSupplierOrderDraftItem({
+                supplier_product_id: row.id,
+                qty: 1,
+            });
+            setSupplierDraftItems((prev) => [...prev, response.data]);
+            setSupplierDraftAddOpen(false);
+            setToast({ type: "success", message: response.message || "Товар добавлен" });
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Не удалось добавить товар",
+            });
+        } finally {
+            setSupplierDraftAdding(false);
+        }
+    };
+
+    const handleDeleteSupplierDraftItem = async (itemId: number) => {
+        setSupplierDraftDeletingId(itemId);
+        setToast(null);
+        try {
+            await deleteSupplierOrderDraftItem(itemId);
+            setSupplierDraftItems((prev) => prev.filter((row) => row.id !== itemId));
+        } catch (error) {
+            console.error(error);
+            setToast({
+                type: "error",
+                message: error instanceof Error ? error.message : "Не удалось удалить позицию",
+            });
+        } finally {
+            setSupplierDraftDeletingId(null);
+        }
+    };
+    const statusOptionsForOrderProduct = useCallback(
+        (status: string, statusLabel?: string | null, statusColor?: string | null) => {
+            if (orderStatusOptions.some((item) => item.value === status)) {
+                return orderStatusOptions;
+            }
+            return [
+                ...orderStatusOptions,
+                {
+                    value: status,
+                    label: getOrderStatusLabel(status, statusLabel),
+                    color: getOrderStatusColor(status, statusColor),
+                },
+            ];
+        },
+        [orderStatusOptions],
+    );
+
+    const applyOrderProductStatusChange = useCallback(
+        async (orderId: number, nextStatus: string) => {
+            setOrderProductsStatusSaving(true);
+            setToast(null);
+            try {
+                const response = await updateOrderStatus(orderId, nextStatus);
+                const updated = response.data;
+                const resolvedStatus = (updated.status ?? nextStatus).trim();
+                const keepInList =
+                    orderProductStatusCodes.size === 0 ||
+                    orderProductStatusCodes.has(resolvedStatus);
+
+                setOrderProducts((prev) => {
+                    if (!keepInList) {
+                        return prev.filter((row) => row.order_id !== orderId);
+                    }
+                    return prev.map((row) =>
+                        row.order_id === orderId
+                            ? {
+                                  ...row,
+                                  order_status: resolvedStatus,
+                                  order_status_label:
+                                      updated.status_label ??
+                                      getOrderStatusLabel(resolvedStatus, row.order_status_label),
+                                  order_status_color:
+                                      updated.status_color ??
+                                      getOrderStatusColor(resolvedStatus, row.order_status_color),
+                              }
+                            : row,
+                    );
+                });
+
+                if (!keepInList) {
+                    setOrderProductsFilterOrders((prev) => prev.filter((id) => id !== orderId));
+                    if (orderFilter === orderId) {
+                        setOrderFilter("");
+                    }
+                }
+
+                setToast({ type: "success", message: "Статус заказа обновлён" });
+                setOrderProductsStatusConfirm(null);
+            } catch (error) {
+                console.error(error);
+                setToast({
+                    type: "error",
+                    message: error instanceof Error ? error.message : "Не удалось обновить статус",
+                });
+                setOrderProductsStatusConfirm(null);
+            } finally {
+                setOrderProductsStatusSaving(false);
+            }
+        },
+        [orderFilter, orderProductStatusCodes],
+    );
+
+    const requestOrderProductStatusChange = useCallback(
+        (orderId: number, currentStatus: string, nextStatus: string) => {
+            if (!nextStatus || nextStatus === currentStatus || orderProductsStatusSaving) {
+                return;
+            }
+            if (COMPLETED_ORDER_STATUSES.has(currentStatus)) {
+                return;
+            }
+            if (nextStatus === "done" || nextStatus === "completed") {
+                setOrderProductsStatusConfirm({ orderId, nextStatus, kind: "done" });
+                return;
+            }
+            if (nextStatus === "cancelled") {
+                setOrderProductsStatusConfirm({ orderId, nextStatus, kind: "cancelled" });
+                return;
+            }
+            void applyOrderProductStatusChange(orderId, nextStatus);
+        },
+        [applyOrderProductStatusChange, orderProductsStatusSaving],
+    );
+
+    const selectOrderProductSupplier = useCallback(
+        async (
+            row: SupplierOrderReservationRow,
+            supplier: SupplierOrderReservationRow["suppliers"][number],
+        ) => {
+            if (supplier.is_selected || orderProductsFulfillmentSavingKey) {
+                return;
+            }
+            const itemId =
+                typeof row.order_item_id === "number" && row.order_item_id > 0
+                    ? row.order_item_id
+                    : Number(String(row.id).replace(/^oi-/, ""));
+            if (!Number.isFinite(itemId) || itemId <= 0) {
+                setToast({ type: "error", message: "Не удалось определить позицию заказа" });
+                return;
+            }
+
+            const kind =
+                supplier.kind ??
+                (typeof supplier.offer_id === "number" && supplier.offer_id > 0
+                    ? "offer"
+                    : typeof supplier.lot_id === "number" && supplier.lot_id > 0
+                      ? "warehouse"
+                      : supplier.name === "Склад"
+                        ? "warehouse"
+                        : null);
+            if (kind !== "warehouse" && kind !== "offer") {
+                return;
+            }
+
+            const savingKey = `${row.id}:${supplier.offer_id ?? supplier.lot_id ?? supplier.name ?? ""}`;
+            setOrderProductsFulfillmentSavingKey(savingKey);
+            setToast(null);
+            try {
+                const response = await updateOrderItemFulfillment(row.order_id, itemId, {
+                    channel: kind === "warehouse" ? "main" : "offer",
+                    lot_id: kind === "warehouse" ? (supplier.lot_id ?? null) : null,
+                    supplier_variant_offer_id: kind === "offer" ? (supplier.offer_id ?? null) : null,
+                });
+                const nextOfferId = response.data.supplier_variant_offer_id;
+                const nextLotIds = new Set(
+                    (response.data.stock_lot_allocations ?? []).map((a) => a.lot_id),
+                );
+
+                setOrderProducts((prev) =>
+                    prev.map((item) => {
+                        if (item.id !== row.id) {
+                            return item;
+                        }
+                        return {
+                            ...item,
+                            availability_source: response.data.availability_source,
+                            supplier_variant_offer_id: nextOfferId,
+                            suppliers: item.suppliers.map((s) => {
+                                const sKind =
+                                    s.kind ??
+                                    (typeof s.offer_id === "number" && s.offer_id > 0
+                                        ? "offer"
+                                        : typeof s.lot_id === "number" && s.lot_id > 0
+                                          ? "warehouse"
+                                          : s.name === "Склад"
+                                            ? "warehouse"
+                                            : null);
+                                let isSelected = false;
+                                if (sKind === "warehouse") {
+                                    isSelected =
+                                        nextOfferId == null &&
+                                        (typeof s.lot_id === "number" && s.lot_id > 0
+                                            ? nextLotIds.has(s.lot_id)
+                                            : nextLotIds.size === 0);
+                                } else if (sKind === "offer") {
+                                    isSelected =
+                                        nextOfferId != null &&
+                                        typeof s.offer_id === "number" &&
+                                        s.offer_id === nextOfferId;
+                                }
+                                return { ...s, is_selected: isSelected };
+                            }),
+                        };
+                    }),
+                );
+                setToast({ type: "success", message: "Поставщик выбран" });
+            } catch (error) {
+                console.error(error);
+                setToast({
+                    type: "error",
+                    message: error instanceof Error ? error.message : "Не удалось выбрать поставщика",
+                });
+            } finally {
+                setOrderProductsFulfillmentSavingKey(null);
+            }
+        },
+        [orderProductsFulfillmentSavingKey],
+    );
 
     const handleReset = () => {
         setSearchInput("");
@@ -739,8 +1478,8 @@ export default function AdminOrdersPage() {
                 onChangeAction={setActiveTab}
             />
 
-            <AdminTableToolbar>
-                {activeTab === "orders" ? (
+            {activeTab === "orders" ? (
+                <AdminTableToolbar>
                     <div className="flex w-full min-w-0 flex-col gap-4">
                         <div className="flex flex-nowrap items-center gap-1.5 md:flex-wrap md:items-end md:justify-between md:gap-3">
                             <div className="flex shrink-0 items-center gap-1 md:gap-2">
@@ -836,35 +1575,68 @@ export default function AdminOrdersPage() {
                             }}
                         />
                     </div>
-                ) : (
-                    <div className="flex w-full min-w-0 flex-wrap items-end justify-end gap-2">
-                        <select
-                            value={orderFilter}
-                            onChange={(e) => setOrderFilter(e.target.value ? Number(e.target.value) : "")}
-                            className="rounded-lg border border-admin-border bg-white px-3 py-2.5 text-sm"
-                        >
-                            <option value="">Все заказы</option>
-                            {orderProductsFilterOrders.map((id) => (
-                                <option key={id} value={id}>
-                                    #{id}
-                                </option>
-                            ))}
-                        </select>
+                </AdminTableToolbar>
+            ) : activeTab === "order_products" ? (
+                <div className="mb-3 flex items-center justify-between gap-1.5 rounded-lg border border-admin-border bg-admin-muted px-2 py-1">
+                    <button
+                        type="button"
+                        onClick={() => setSupplierDraftConfirmOpen(true)}
+                        disabled={supplierDraftForming || loading}
+                        className="inline-flex h-8 shrink-0 items-center rounded-md border border-admin-border bg-white px-2.5 text-sm font-medium text-admin-text transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {supplierDraftForming ? "Формирование…" : "Сформировать заявку"}
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                    <select
+                        value={orderFilter}
+                        onChange={(e) => setOrderFilter(e.target.value ? Number(e.target.value) : "")}
+                        className="h-8 rounded-md border border-admin-border bg-white px-2 text-sm"
+                    >
+                        <option value="">Все заказы</option>
+                        {orderProductsFilterOrders.map((id) => (
+                            <option key={id} value={id}>
+                                #{id}
+                            </option>
+                        ))}
+                    </select>
 
-                        {hasProductsFilters ? (
-                            <button
-                                type="button"
-                                onClick={handleReset}
-                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-admin-border bg-white text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
-                                title="Сбросить фильтры"
-                                aria-label="Сбросить фильтры"
-                            >
-                                <FilterX size={16} strokeWidth={2} />
-                            </button>
-                        ) : null}
+                    {hasProductsFilters ? (
+                        <button
+                            type="button"
+                            onClick={handleReset}
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-admin-border bg-white text-admin-text-secondary transition hover:bg-white/80 hover:text-admin-text"
+                            title="Сбросить фильтры"
+                            aria-label="Сбросить фильтры"
+                        >
+                            <FilterX size={14} strokeWidth={2} />
+                        </button>
+                    ) : null}
                     </div>
-                )}
-            </AdminTableToolbar>
+                </div>
+            ) : activeTab === "supplier_order" ? (
+                <div className="mb-3 flex items-center justify-between gap-1.5 rounded-lg border border-admin-border bg-admin-muted px-2 py-1">
+                    <button
+                        type="button"
+                        onClick={() => setSupplierDraftAddOpen(true)}
+                        disabled={loading || supplierDraftAdding}
+                        className="inline-flex h-8 shrink-0 items-center rounded-md border border-admin-border bg-white px-2.5 text-sm font-medium text-admin-text transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        Добавить товар
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void handleConfirmSupplierOrders()}
+                        disabled={
+                            supplierDraftConfirming ||
+                            loading ||
+                            supplierDraftItems.length === 0
+                        }
+                        className="inline-flex h-8 shrink-0 items-center rounded-md border border-admin-primary bg-admin-primary px-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {supplierDraftConfirming ? "Формирование…" : "Сформировать заказ"}
+                    </button>
+                </div>
+            ) : null}
 
             {activeTab === "orders" && (hasDateFilter || hasStatusFilter) ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -919,7 +1691,17 @@ export default function AdminOrdersPage() {
             ) : null}
 
             {loading && (
-                <AdminLoadingState text={activeTab === "orders" ? "Загрузка заказов…" : "Загрузка…"} />
+                <AdminLoadingState
+                    text={
+                        activeTab === "orders"
+                            ? "Загрузка заказов…"
+                            : activeTab === "supplier_order"
+                              ? "Загрузка заявки…"
+                              : activeTab === "supplier_orders"
+                                ? "Загрузка заказов поставщикам…"
+                                : "Загрузка…"
+                    }
+                />
             )}
 
             {!loading && activeTab === "orders" && ordersMeta !== null && (
@@ -984,74 +1766,492 @@ export default function AdminOrdersPage() {
             {!loading && activeTab === "order_products" && orderProducts.length === 0 && (
                 <AdminEmptyState
                     title="Товаров для заказа нет"
-                    description="Нет товаров в новых заказах и заказах в обработке."
+                    description="Нет товаров в заказах со статусами для вкладки «Товары для заказов»."
                 />
             )}
 
             {!loading && activeTab === "order_products" && orderProducts.length > 0 && (
+                <>
+                    <div className="overflow-x-auto rounded-2xl border">
+                        <table className="min-w-full table-fixed text-sm">
+                            <colgroup>
+                                <col />
+                                <col style={{ width: "1%" }} />
+                                <col
+                                    style={
+                                        supplierProductsColWidth === null
+                                            ? { width: "14rem" }
+                                            : {
+                                                  width: `${supplierProductsColWidth}px`,
+                                                  minWidth: `${supplierProductsColWidth}px`,
+                                              }
+                                    }
+                                />
+                                <col style={{ width: "5.5rem" }} />
+                                <col style={{ width: "4.25rem" }} />
+                                <col style={{ width: "2.75rem" }} />
+                            </colgroup>
+                            <thead>
+                                <tr className="border-b text-left text-admin-text-secondary">
+                                    <th className="px-3 py-2">Товар</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Поставщик</th>
+                                    <th
+                                        ref={supplierProductsThRef}
+                                        className="relative px-3 py-2 pr-4"
+                                    >
+                                        Товары
+                                        <span
+                                            role="separator"
+                                            aria-orientation="vertical"
+                                            aria-label="Изменить ширину колонки товары"
+                                            title="Потяните, чтобы изменить ширину. Двойной клик — авто"
+                                            onMouseDown={onSupplierProductsColResizeStart}
+                                            onDoubleClick={() => setSupplierProductsColWidth(null)}
+                                            className={`absolute inset-y-1 right-0 flex w-3 cursor-col-resize touch-none items-center justify-center rounded-sm border-r-2 transition ${
+                                                supplierProductsColWidth !== null
+                                                    ? "border-admin-primary/50 bg-admin-primary/10 text-admin-primary"
+                                                    : "border-transparent text-admin-text-muted/50 hover:border-admin-primary/40 hover:bg-admin-primary/10 hover:text-admin-primary"
+                                            }`}
+                                        >
+                                            <GripVertical size={12} strokeWidth={2.25} aria-hidden className="opacity-80" />
+                                        </span>
+                                    </th>
+                                    <th className="whitespace-nowrap px-2 py-2">Код</th>
+                                    <th className="whitespace-nowrap px-2 py-2 text-right">Цена</th>
+                                    <th className="whitespace-nowrap px-2 py-2 text-right">К-во</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {orderProductsGrouped.map((group) => {
+                                    const orderStatusRow = group.products[0];
+                                    const orderStatus = orderStatusRow?.order_status ?? null;
+                                    const productRows = group.products.flatMap((row) => {
+                                        const suppliers =
+                                            row.suppliers.length > 0
+                                                ? row.suppliers
+                                                : [{ name: null, product_name: null, code: null, price: null, is_selected: false }];
+                                        return suppliers.map((s, supplierIndex) => ({
+                                            row,
+                                            supplier: s,
+                                            supplierIndex,
+                                            supplierCount: suppliers.length,
+                                        }));
+                                    });
+
+                                    return (
+                                        <Fragment key={group.orderId}>
+                                            <tr className="border-b bg-admin-muted/70">
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-admin-text"
+                                                >
+                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                        <span>
+                                                            Заказ #{group.orderId}
+                                                            <span className="ml-2 font-normal normal-case tracking-normal text-admin-text-secondary">
+                                                                {group.products.length}{" "}
+                                                                {group.products.length === 1 ? "товар" : "тов."}
+                                                            </span>
+                                                        </span>
+                                                        {orderStatus ? (
+                                                            <AdminStatusDropdown
+                                                                value={orderStatus}
+                                                                options={statusOptionsForOrderProduct(
+                                                                    orderStatus,
+                                                                    orderStatusRow?.order_status_label,
+                                                                    orderStatusRow?.order_status_color,
+                                                                )}
+                                                                onChangeAction={(nextStatus) =>
+                                                                    requestOrderProductStatusChange(
+                                                                        group.orderId,
+                                                                        orderStatus,
+                                                                        nextStatus,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    orderProductsStatusSaving ||
+                                                                    COMPLETED_ORDER_STATUSES.has(orderStatus)
+                                                                }
+                                                                triggerVariant="text"
+                                                                triggerColor={getOrderStatusColor(
+                                                                    orderStatus,
+                                                                    orderStatusRow?.order_status_color,
+                                                                )}
+                                                                triggerTextClassName={ORDER_PRODUCTS_STATUS_TRIGGER_CLASS}
+                                                                widthClassName="w-auto"
+                                                                menuWidthClassName={ORDER_PRODUCTS_STATUS_MENU_WIDTH}
+                                                            />
+                                                        ) : null}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {productRows.map(({ row, supplier, supplierIndex, supplierCount }) => {
+                                                const selected = Boolean(supplier.is_selected);
+                                                const selectedText = selected ? "font-semibold text-emerald-600" : "";
+                                                const supplierProductName = supplier.product_name ?? "—";
+                                                return (
+                                                    <tr
+                                                        key={`${row.id}-${supplierIndex}`}
+                                                        className="border-b last:border-b-0"
+                                                    >
+                                                        {supplierIndex === 0 ? (
+                                                            <td
+                                                                rowSpan={supplierCount}
+                                                                className="border-r border-admin-border/60 px-3 py-2 align-top"
+                                                            >
+                                                                <div className="font-medium">{row.product_name ?? "—"}</div>
+                                                                <div className="text-xs text-admin-text-secondary">
+                                                                    {row.variant_title ?? "—"}
+                                                                </div>
+                                                            </td>
+                                                        ) : null}
+                                                        <td className={`px-3 py-1.5 align-top whitespace-nowrap ${selectedText}`}>
+                                                            {supplier.name ? (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={
+                                                                        selected ||
+                                                                        Boolean(orderProductsFulfillmentSavingKey) ||
+                                                                        (!supplier.offer_id &&
+                                                                            !supplier.lot_id &&
+                                                                            supplier.name !== "Склад" &&
+                                                                            supplier.kind !== "warehouse" &&
+                                                                            supplier.kind !== "offer")
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void selectOrderProductSupplier(row, supplier)
+                                                                    }
+                                                                    className={`inline-flex items-center gap-1 rounded-sm transition duration-150 enabled:hover:scale-105 enabled:hover:underline disabled:cursor-default ${
+                                                                        selected
+                                                                            ? "font-semibold text-emerald-600"
+                                                                            : "text-inherit enabled:cursor-pointer"
+                                                                    }`}
+                                                                    title={
+                                                                        selected
+                                                                            ? "Уже выбран в заказе"
+                                                                            : "Выбрать этого поставщика в заказе"
+                                                                    }
+                                                                >
+                                                                    {selected ? (
+                                                                        <Check
+                                                                            size={14}
+                                                                            strokeWidth={2.5}
+                                                                            className="shrink-0 text-emerald-600"
+                                                                            aria-hidden
+                                                                        />
+                                                                    ) : null}
+                                                                    {supplier.name}
+                                                                </button>
+                                                            ) : (
+                                                                "—"
+                                                            )}
+                                                        </td>
+                                                        <td className={`px-3 py-1.5 align-top ${selectedText}`}>
+                                                            <button
+                                                                type="button"
+                                                                className="block w-full min-w-0 cursor-default truncate text-left"
+                                                                onMouseEnter={(event) =>
+                                                                    showSupplierProductTooltip(
+                                                                        supplierProductName,
+                                                                        event.currentTarget,
+                                                                    )
+                                                                }
+                                                                onMouseLeave={hideSupplierProductTooltipWithDelay}
+                                                                onFocus={(event) =>
+                                                                    showSupplierProductTooltip(
+                                                                        supplierProductName,
+                                                                        event.currentTarget,
+                                                                    )
+                                                                }
+                                                                onBlur={hideSupplierProductTooltipWithDelay}
+                                                                aria-label={
+                                                                    supplierProductName !== "—"
+                                                                        ? `Товар у поставщика: ${supplierProductName}`
+                                                                        : "Товар у поставщика не указан"
+                                                                }
+                                                            >
+                                                                {supplierProductName}
+                                                            </button>
+                                                        </td>
+                                                        <td
+                                                            className={`px-2 py-1.5 align-top whitespace-nowrap tabular-nums ${selectedText}`}
+                                                        >
+                                                            {supplier.code ?? "—"}
+                                                        </td>
+                                                        <td
+                                                            className={`px-2 py-1.5 align-top whitespace-nowrap text-right tabular-nums ${selectedText}`}
+                                                        >
+                                                            {supplier.price ?? "—"}
+                                                        </td>
+                                                        {supplierIndex === 0 ? (
+                                                            <td
+                                                                rowSpan={supplierCount}
+                                                                className="px-2 py-2 align-top text-right tabular-nums"
+                                                            >
+                                                                {row.qty}
+                                                            </td>
+                                                        ) : null}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <SupplierProductNameTooltip
+                        tooltip={supplierProductTooltip}
+                        onMouseEnterAction={clearSupplierProductTooltipHideTimer}
+                        onMouseLeaveAction={hideSupplierProductTooltipWithDelay}
+                    />
+                </>
+            )}
+
+            {!loading && activeTab === "supplier_order" && supplierDraftItems.length === 0 && (
+                <AdminEmptyState
+                    title="Заявка пуста"
+                    description="Сформируйте заявку на вкладке «Товары для заказов» или добавьте товар вручную."
+                />
+            )}
+
+            {!loading && activeTab === "supplier_order" && supplierDraftItems.length > 0 && (
                 <div className="overflow-x-auto rounded-2xl border">
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="border-b text-left text-admin-text-secondary">
-                                <th className="px-4 py-3">Заказ</th>
-                                <th className="px-4 py-3">Товар</th>
-                                <th className="px-4 py-3">Поставщик</th>
-                                <th className="px-4 py-3">Название у поставщика</th>
-                                <th className="px-4 py-3">Код поставщика</th>
-                                <th className="px-4 py-3">Цена поставщика</th>
-                                <th className="px-4 py-3">Кол-во</th>
+                                <th className="whitespace-nowrap px-3 py-2">Заказ</th>
+                                <th className="whitespace-nowrap px-3 py-2">Поставщик</th>
+                                <th className="whitespace-nowrap px-3 py-2">Код</th>
+                                <th className="px-3 py-2">Название товара</th>
+                                <th className="whitespace-nowrap px-3 py-2 text-right">Цена у поставщика</th>
+                                <th className="whitespace-nowrap px-3 py-2 text-right">Актуальная цена</th>
+                                <th className="whitespace-nowrap px-3 py-2 text-right">Кол-во</th>
+                                <th className="whitespace-nowrap px-3 py-2" />
                             </tr>
                         </thead>
                         <tbody>
-                            {orderProducts.map((row) => (
-                                <tr key={row.id} className="border-b last:border-b-0">
-                                    <td className="px-4 py-3 align-top font-medium">#{row.order_id}</td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div>{row.product_name ?? "—"}</div>
-                                        <div className="text-xs text-admin-text-secondary">{row.variant_title ?? "—"}</div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="flex flex-col">
-                                            {row.suppliers.map((s, i) => (
-                                                <span key={`name-${i}`} className="block h-5 truncate leading-5">
-                                                    {s.name ?? "—"}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="flex flex-col">
-                                            {row.suppliers.map((s, i) => (
-                                                <span key={`prod-${i}`} className="block h-5 truncate leading-5" title={s.product_name ?? undefined}>
-                                                    {s.product_name ?? "—"}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="flex flex-col">
-                                            {row.suppliers.map((s, i) => (
-                                                <span key={`code-${i}`} className="block h-5 truncate leading-5">
-                                                    {s.code ?? "—"}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="flex flex-col">
-                                            {row.suppliers.map((s, i) => (
-                                                <span key={`price-${i}`} className="block h-5 truncate leading-5">
-                                                    {s.price ?? "—"}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">{row.qty}</td>
-                                </tr>
-                            ))}
+                            {supplierDraftItems.map((item) => {
+                                const tone = comparePurchasePriceTone(
+                                    item.purchase_price_at_order,
+                                    item.current_purchase_price,
+                                );
+                                return (
+                                    <tr
+                                        key={item.id}
+                                        className={`border-b last:border-0 ${
+                                            item.offer_missing ? "bg-red-50" : ""
+                                        }`}
+                                    >
+                                        <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                                            {item.order_id != null ? `#${item.order_id}` : "—"}
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-2">
+                                            {item.supplier_name ?? "—"}
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                                            {item.supplier_code ?? "—"}
+                                        </td>
+                                        <td className="max-w-[18rem] truncate px-3 py-2" title={item.supplier_product_name ?? undefined}>
+                                            {item.supplier_product_name ?? "—"}
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                            {item.purchase_price_at_order ?? "—"}
+                                        </td>
+                                        <td
+                                            className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${
+                                                tone === "higher"
+                                                    ? "font-medium text-red-600"
+                                                    : tone === "lower"
+                                                      ? "font-medium text-emerald-600"
+                                                      : ""
+                                            }`}
+                                        >
+                                            {item.current_purchase_price ?? "—"}
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={9999}
+                                                value={item.qty}
+                                                disabled={supplierDraftQtySavingId === item.id}
+                                                onChange={(e) => {
+                                                    const next = Number(e.target.value);
+                                                    setSupplierDraftItems((prev) =>
+                                                        prev.map((row) =>
+                                                            row.id === item.id
+                                                                ? { ...row, qty: Number.isFinite(next) ? next : row.qty }
+                                                                : row,
+                                                        ),
+                                                    );
+                                                }}
+                                                onBlur={(e) => {
+                                                    const next = Math.floor(Number(e.target.value));
+                                                    if (!Number.isFinite(next) || next < 1) {
+                                                        setSupplierDraftReloadNonce((n) => n + 1);
+                                                        return;
+                                                    }
+                                                    void handleSupplierDraftQtyChange(item.id, next);
+                                                }}
+                                                className="h-7 w-16 rounded border border-admin-border bg-white px-1.5 text-right text-sm tabular-nums"
+                                            />
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                                            <button
+                                                type="button"
+                                                disabled={supplierDraftDeletingId === item.id}
+                                                onClick={() => void handleDeleteSupplierDraftItem(item.id)}
+                                                className="text-xs font-medium text-red-600 hover:underline disabled:opacity-60"
+                                                title="Удалить из заявки"
+                                            >
+                                                {supplierDraftDeletingId === item.id ? "…" : "Удалить"}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {!loading && activeTab === "supplier_orders" && supplierOrdersList.length === 0 && (
+                <AdminEmptyState
+                    title="Заказов поставщикам нет"
+                    description="После «Сформировать заказ» на вкладке «Заказ у поставщиков» здесь появятся номера и состав."
+                />
+            )}
+
+            {!loading && activeTab === "supplier_orders" && supplierOrdersList.length > 0 && (
+                <>
+                    <div className="overflow-x-auto rounded-2xl border">
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className="border-b text-left text-admin-text-secondary">
+                                    <th className="whitespace-nowrap px-3 py-2">Номер</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Поставщик</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Дата</th>
+                                    <th className="whitespace-nowrap px-3 py-2 text-right">Позиций</th>
+                                    <th className="whitespace-nowrap px-3 py-2 text-right">Сумма</th>
+                                    <th className="whitespace-nowrap px-3 py-2" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {supplierOrdersList.map((order) => {
+                                    const expanded = expandedSupplierOrderId === order.id;
+                                    return (
+                                        <Fragment key={order.id}>
+                                            <tr className="border-b last:border-0">
+                                                <td className="whitespace-nowrap px-3 py-2 font-medium">
+                                                    {order.number
+                                                        ?? `${(order.supplier_name ?? "SP").replace(/\s+/g, "")}-${order.id}`}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2">
+                                                    {order.supplier_name ?? "—"}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text-secondary">
+                                                    {formatSupplierOrderDate(order.ordered_at)}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                                    {order.items_qty}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                                    {order.total}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-right">
+                                                    <div className="inline-flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleExportSupplierOrderXlsx(order.id)}
+                                                            disabled={supplierOrderExportingId === order.id}
+                                                            className="text-xs font-medium text-admin-primary hover:underline disabled:opacity-60"
+                                                        >
+                                                            {supplierOrderExportingId === order.id
+                                                                ? "XLSX…"
+                                                                : "XLSX"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void toggleExpandedSupplierOrder(order.id)}
+                                                            className="text-xs font-medium text-admin-primary hover:underline"
+                                                        >
+                                                            {expanded ? "Скрыть" : "Состав"}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {expanded ? (
+                                                <tr className="border-b bg-admin-muted/40">
+                                                    <td colSpan={6} className="px-3 py-2">
+                                                        {expandedSupplierOrderLoading ? (
+                                                            <div className="py-2 text-sm text-admin-text-secondary">
+                                                                Загрузка состава…
+                                                            </div>
+                                                        ) : expandedSupplierOrder?.items &&
+                                                          expandedSupplierOrder.items.length > 0 ? (
+                                                            <table className="min-w-full text-xs">
+                                                                <thead>
+                                                                    <tr className="text-left text-admin-text-secondary">
+                                                                        <th className="py-1 pr-3">Код</th>
+                                                                        <th className="py-1 pr-3">Название</th>
+                                                                        <th className="py-1 pr-3 text-right">Цена закупки</th>
+                                                                        <th className="py-1 text-right">Кол-во</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {expandedSupplierOrder.items.map((line) => (
+                                                                        <tr key={line.id} className="border-t border-admin-border/60">
+                                                                            <td className="py-1 pr-3 font-mono">
+                                                                                {line.supplier_code ?? "—"}
+                                                                            </td>
+                                                                            <td className="py-1 pr-3">
+                                                                                {line.supplier_product_name ?? "—"}
+                                                                            </td>
+                                                                            <td className="py-1 pr-3 text-right tabular-nums">
+                                                                                {line.purchase_price_at_order ?? "—"}
+                                                                            </td>
+                                                                            <td className="py-1 text-right tabular-nums">
+                                                                                {line.qty}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        ) : (
+                                                            <div className="py-2 text-sm text-admin-text-secondary">
+                                                                Состав пуст
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ) : null}
+                                        </Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    {supplierOrdersMeta && supplierOrdersMeta.last_page > 1 ? (
+                        <div className="mt-3 flex justify-center">
+                            <AdminPagination
+                                currentPage={supplierOrdersMeta.current_page}
+                                lastPage={supplierOrdersMeta.last_page}
+                                onPrevAction={() =>
+                                    setSupplierOrdersPage((p) => Math.max(1, p - 1))
+                                }
+                                onNextAction={() =>
+                                    setSupplierOrdersPage((p) =>
+                                        supplierOrdersMeta.current_page < supplierOrdersMeta.last_page
+                                            ? p + 1
+                                            : p,
+                                    )
+                                }
+                            />
+                        </div>
+                    ) : null}
+                </>
             )}
 
             {toast && (
@@ -1069,6 +2269,68 @@ export default function AdminOrdersPage() {
                     onCloseAction={() => setReceiptModalOpen(false)}
                 />
             ) : null}
+
+            <AdminConfirmDialog
+                open={orderProductsStatusConfirm !== null}
+                title={
+                    orderProductsStatusConfirm?.kind === "done"
+                        ? "Перевести заказ в «Выполнен»?"
+                        : "Перевести заказ в «Отменён»?"
+                }
+                message={
+                    orderProductsStatusConfirm?.kind === "done"
+                        ? "Для статуса «Выполнен» будет создано складское списание по резервам и связанные операции. Позже состав заказа изменить будет нельзя."
+                        : "Для статуса «Отменён» будут сняты резервы на складе и выполнен возврат по подарочным сертификатам заказа (если применимо)."
+                }
+                confirmText="Подтвердить"
+                cancelText="Отмена"
+                loading={orderProductsStatusSaving}
+                onConfirmAction={() => {
+                    if (!orderProductsStatusConfirm) {
+                        return;
+                    }
+                    void applyOrderProductStatusChange(
+                        orderProductsStatusConfirm.orderId,
+                        orderProductsStatusConfirm.nextStatus,
+                    );
+                }}
+                onCloseAction={() => {
+                    if (!orderProductsStatusSaving) {
+                        setOrderProductsStatusConfirm(null);
+                    }
+                }}
+            />
+
+            <AdminConfirmDialog
+                open={supplierDraftConfirmOpen}
+                title="Сформировать заявку?"
+                message="В заявку попадут позиции с выбранным офером поставщика. Складские позиции будут пропущены. У затронутых заказов статус сменится на «Заказан»."
+                confirmText="Сформировать"
+                cancelText="Отмена"
+                confirmLoadingText="Формирование…"
+                loading={supplierDraftForming}
+                onConfirmAction={() => {
+                    void handleFormSupplierDraft();
+                }}
+                onCloseAction={() => {
+                    if (!supplierDraftForming) {
+                        setSupplierDraftConfirmOpen(false);
+                    }
+                }}
+            />
+
+            <SupplierDraftAddProductModal
+                open={supplierDraftAddOpen}
+                adding={supplierDraftAdding}
+                onCloseAction={() => {
+                    if (!supplierDraftAdding) {
+                        setSupplierDraftAddOpen(false);
+                    }
+                }}
+                onSelectAction={(row) => {
+                    void handleAddSupplierDraftProduct(row);
+                }}
+            />
         </AdminPageCard>
     );
 }

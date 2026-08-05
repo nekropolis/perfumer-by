@@ -33,6 +33,7 @@ type FormState = {
   code: string;
   sort_order: number;
   is_active: boolean;
+  show_in_order_products: boolean;
   is_system?: boolean;
 };
 
@@ -42,6 +43,7 @@ const emptyForm = (): FormState => ({
   code: "",
   sort_order: 0,
   is_active: true,
+  show_in_order_products: false,
 });
 
 function normalizeHex(value: string): string {
@@ -100,6 +102,7 @@ export default function OrderStatusesManager() {
       code: status.code,
       sort_order: status.sort_order,
       is_active: status.is_active,
+      show_in_order_products: Boolean(status.show_in_order_products),
       is_system: status.is_system,
     });
     setMessage(null);
@@ -122,6 +125,7 @@ export default function OrderStatusesManager() {
           color,
           sort_order: form.sort_order,
           is_active: form.is_active,
+          show_in_order_products: form.show_in_order_products,
         });
         setMessage({ type: "success", text: "Статус обновлён" });
       } else {
@@ -131,6 +135,7 @@ export default function OrderStatusesManager() {
           color,
           sort_order: form.sort_order,
           is_active: form.is_active,
+          show_in_order_products: form.show_in_order_products,
           ...(code ? { code } : {}),
         });
         setMessage({ type: "success", text: "Статус создан" });
@@ -155,12 +160,32 @@ export default function OrderStatusesManager() {
         color: normalizeHex(status.color),
         sort_order: status.sort_order,
         is_active: !status.is_active,
+        show_in_order_products: Boolean(status.show_in_order_products),
       });
       await load();
     } catch (error) {
       setMessage({
         type: "error",
         text: error instanceof Error ? error.message : "Не удалось изменить активность",
+      });
+    }
+  };
+
+  const toggleOrderProducts = async (status: OrderStatus) => {
+    setMessage(null);
+    try {
+      await updateOrderStatus(status.id, {
+        name: status.name,
+        color: normalizeHex(status.color),
+        sort_order: status.sort_order,
+        is_active: status.is_active,
+        show_in_order_products: !status.show_in_order_products,
+      });
+      await load();
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Не удалось изменить флаг «Товары для заказов»",
       });
     }
   };
@@ -177,7 +202,8 @@ export default function OrderStatusesManager() {
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-admin-text-secondary">
-          Статусы заказов: название, цвет и активность. Удалять нельзя — только отключать.
+          Статусы заказов: название, цвет, активность и участие во вкладке «Товары для заказов».
+          Удалять нельзя — только отключать.
         </p>
         <button type="button" onClick={openCreate} className={`${adminBtnPrimary} shrink-0`}>
           <Plus size={16} className="mr-1 inline" />
@@ -192,14 +218,17 @@ export default function OrderStatusesManager() {
           Статусов пока нет. Создайте первый.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-admin-border bg-white">
-          <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-admin-border bg-white">
+          <table className="w-full min-w-[36rem] border-collapse text-sm">
             <thead className="bg-admin-muted/80 text-left text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
               <tr>
                 <th className="px-3 py-2">Статус</th>
                 <th className="px-3 py-2">Код</th>
                 <th className="px-3 py-2">Порядок</th>
                 <th className="px-3 py-2">Активен</th>
+                <th className="px-3 py-2" title="Показывать во вкладке «Товары для заказов»">
+                  Товары
+                </th>
                 <th className="px-3 py-2 text-right">Действия</th>
               </tr>
             </thead>
@@ -229,6 +258,20 @@ export default function OrderStatusesManager() {
                       onChange={() => void toggleActive(status)}
                       className={adminCheckbox}
                       aria-label={status.is_active ? "Отключить статус" : "Включить статус"}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(status.show_in_order_products)}
+                      onChange={() => void toggleOrderProducts(status)}
+                      className={adminCheckbox}
+                      aria-label={
+                        status.show_in_order_products
+                          ? "Убрать из «Товары для заказов»"
+                          : "Показывать в «Товары для заказов»"
+                      }
+                      title="Показывать во вкладке «Товары для заказов»"
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -340,6 +383,18 @@ export default function OrderStatusesManager() {
                 className={adminCheckbox}
               />
               Активен (показывать в списках)
+            </label>
+
+            <label className="flex items-center gap-2 text-sm text-admin-text">
+              <input
+                type="checkbox"
+                checked={form.show_in_order_products}
+                onChange={(e) =>
+                  setForm((f) => (f ? { ...f, show_in_order_products: e.target.checked } : f))
+                }
+                className={adminCheckbox}
+              />
+              Показывать во вкладке «Товары для заказов»
             </label>
 
             <div>

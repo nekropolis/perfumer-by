@@ -338,20 +338,31 @@ export type StockSalesReportResponse = {
 };
 
 export type SupplierOrderReservationSupplier = {
+    kind?: "warehouse" | "offer" | null;
     name: string | null;
     product_name: string | null;
     code: string | null;
     price: string | null;
+    lot_id?: number | null;
+    offer_id?: number | null;
+    /** Выбранный в заказе канал (складская партия или офер). */
+    is_selected?: boolean;
 };
 
 export type SupplierOrderReservationRow = {
     id: string;
+    order_item_id?: number;
     order_id: number;
     product_id: number;
     variant_id: number;
     product_name: string | null;
     variant_title: string | null;
     qty: number;
+    availability_source?: string | null;
+    supplier_variant_offer_id?: number | null;
+    order_status?: string | null;
+    order_status_label?: string | null;
+    order_status_color?: string | null;
     suppliers: SupplierOrderReservationSupplier[];
 };
 

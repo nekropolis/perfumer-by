@@ -218,6 +218,23 @@ class CheckoutController extends Controller
                     ? WaitingDiscountPricing::apply($basePrice)
                     : $basePrice;
                 $lineTotal = round($price * $cartItem->qty, 2);
+                $availabilitySource = $cartItemAvailabilitySource($cartItem);
+
+                $supplierVariantOfferId = null;
+                $supplierPurchasePrice = null;
+                $needsSupplierOffer = in_array($availabilitySource, ['supplier_only', 'supplier_warehouse'], true)
+                    || ($availabilitySource === 'main+supplier' && $waitingDiscount);
+
+                if ($needsSupplierOffer && $cartItem->variant) {
+                    $offer = CatalogVariantStockPresenter::preferredListingOffer($cartItem->variant);
+                    if ($offer) {
+                        $supplierVariantOfferId = (int) $offer->id;
+                        $resolvedPurchase = CatalogVariantStockPresenter::resolveListingPurchasePrice($offer);
+                        $supplierPurchasePrice = $resolvedPurchase !== null
+                            ? round($resolvedPurchase, 2)
+                            : ($offer->purchase_price !== null ? round((float) $offer->purchase_price, 2) : null);
+                    }
+                }
 
                 OrderItem::query()->create([
                     'order_id' => $order->id,
@@ -234,7 +251,9 @@ class CheckoutController extends Controller
                     'price' => $price,
                     'total' => $lineTotal,
                     'waiting_discount' => $waitingDiscount,
-                    'availability_source' => $cartItemAvailabilitySource($cartItem),
+                    'availability_source' => $availabilitySource,
+                    'supplier_variant_offer_id' => $supplierVariantOfferId,
+                    'supplier_purchase_price' => $supplierPurchasePrice,
                 ]);
 
                 $subtotal += $lineTotal;

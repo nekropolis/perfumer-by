@@ -12,6 +12,7 @@ function getAdminHeaders() {
 
   return {
     "Content-Type": "application/json",
+    Accept: "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -142,6 +143,58 @@ export async function updateOrderStatus(
   return res.json();
 }
 
+export type OrderItemFulfillmentPayload = {
+  channel: "main" | "offer";
+  lot_id?: number | null;
+  supplier_variant_offer_id?: number | null;
+};
+
+export type OrderItemFulfillmentResponse = {
+  data: {
+    order_id: number;
+    item_id: number;
+    availability_source: string | null;
+    waiting_discount: boolean;
+    stock_lot_allocations: Array<{ lot_id: number; qty: number }> | null;
+    supplier_variant_offer_id: number | null;
+    supplier_purchase_price: string | null;
+  };
+  message?: string;
+};
+
+export async function updateOrderItemFulfillment(
+  orderId: number,
+  itemId: number,
+  payload: OrderItemFulfillmentPayload,
+): Promise<OrderItemFulfillmentResponse> {
+  const res = await fetch(`${API_BASE}/admin/orders/${orderId}/items/${itemId}/fulfillment`, {
+    method: "PATCH",
+    headers: getAdminHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = `Order item fulfillment API error: ${res.status}`;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (typeof parsed?.message === "string" && parsed.message.trim() !== "") {
+        message = parsed.message;
+      }
+    } catch {
+      const stripped = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (stripped) {
+        message =
+          stripped.length > 240 ? `${stripped.slice(0, 240)}…` : stripped;
+      }
+    }
+    throw new Error(message);
+  }
+
+  return res.json();
+}
+
 export type AdminOrderFieldsPayload = {
   delivery_time_from?: string | null;
   delivery_time_to?: string | null;
@@ -216,6 +269,7 @@ export type AdminOrderPayloadItem = {
   availability_source?: string | null;
   waiting_discount?: boolean;
   stock_lot_allocations?: Array<{ lot_id: number; qty: number }>;
+  supplier_variant_offer_id?: number | null;
 };
 
 export type AdminOrderPayload = {

@@ -23,6 +23,7 @@ export type OrderStatus = {
   sort_order: number;
   is_active: boolean;
   is_system: boolean;
+  show_in_order_products: boolean;
 };
 
 export type OrderStatusPayload = {
@@ -31,6 +32,7 @@ export type OrderStatusPayload = {
   code?: string;
   sort_order?: number;
   is_active?: boolean;
+  show_in_order_products?: boolean;
 };
 
 export async function fetchOrderStatuses(params?: {

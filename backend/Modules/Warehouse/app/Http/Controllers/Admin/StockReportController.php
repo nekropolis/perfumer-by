@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
+use Modules\Checkout\Models\OrderStatus;
 use Modules\Warehouse\Models\StockReceipt;
 use Modules\Warehouse\Models\StockWriteoff;
 use Modules\Warehouse\Models\Warehouse;
@@ -23,10 +24,21 @@ class StockReportController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 50;
 
+        $orderProductStatuses = OrderStatus::codesForOrderProducts();
+        if ($orderProductStatuses === []) {
+            return response()->json([
+                'data' => [],
+                'current_page' => 1,
+                'last_page' => 1,
+                'total' => 0,
+                'filter_orders' => [],
+            ]);
+        }
+
         $baseQuery = OrderItem::query()
-            ->select('order_items.*')
+            ->select(['order_items.*', 'orders.status as order_status'])
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->whereIn('orders.status', ['new', 'processing']);
+            ->whereIn('orders.status', $orderProductStatuses);
 
         $filterOrderIds = (clone $baseQuery)
             ->reorder()
@@ -86,7 +98,19 @@ class StockReportController extends Controller
         $rows = [];
         foreach ($items as $item) {
             $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
+            $waitingDiscount = (bool) ($item->waiting_discount ?? false);
+            // Как в админке заказа: склад / офер. Скидка за ожидание на main+supplier → офер.
+            $useMain = in_array($availabilitySource, ['main', 'main+supplier'], true) && ! $waitingDiscount;
+            $useOffer = in_array($availabilitySource, ['supplier_only', 'supplier_warehouse'], true)
+                || ($availabilitySource === 'main+supplier' && $waitingDiscount);
             $hasMainStock = in_array($availabilitySource, ['main', 'main+supplier'], true);
+            $allocatedLotIds = collect(is_array($item->stock_lot_allocations) ? $item->stock_lot_allocations : [])
+                ->map(static fn ($row) => (int) ($row['lot_id'] ?? 0))
+                ->filter(static fn (int $id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+            $selectedOfferId = (int) ($item->supplier_variant_offer_id ?? 0);
             $suppliers = [];
 
             // Складские строки: открытые партии с ценой закупки.
@@ -94,8 +118,19 @@ class StockReportController extends Controller
                 $lots = $lotsByVariant->get((int) $item->variant_id, collect());
 
                 if ($lots->isNotEmpty()) {
+                    $warehouseSelectedAssigned = false;
                     foreach ($lots as $lot) {
+                        $lotId = (int) $lot->id;
+                        if ($useMain && $allocatedLotIds !== []) {
+                            $isSelected = in_array($lotId, $allocatedLotIds, true);
+                        } elseif ($useMain && $selectedOfferId <= 0 && ! $warehouseSelectedAssigned) {
+                            $isSelected = true;
+                            $warehouseSelectedAssigned = true;
+                        } else {
+                            $isSelected = false;
+                        }
                         $suppliers[] = [
+                            'kind' => 'warehouse',
                             'name' => 'Склад',
                             'product_name' => $lot->comment ?: $item->variant_title,
                             'code' => $lot->supplier_sku,
@@ -103,25 +138,42 @@ class StockReportController extends Controller
                                 ? number_format((float) $lot->supplier_price, 2, '.', '')
                                 : null,
                             'qty' => (int) $lot->qty,
-                            'lot_id' => (int) $lot->id,
+                            'lot_id' => $lotId,
+                            'offer_id' => null,
                             'comment' => $lot->comment,
+                            'is_selected' => $isSelected,
                         ];
                     }
                 } else {
                     $suppliers[] = [
+                        'kind' => 'warehouse',
                         'name' => 'Склад',
                         'product_name' => null,
                         'code' => null,
                         'price' => null,
+                        'lot_id' => null,
+                        'offer_id' => null,
+                        'is_selected' => $useMain && $selectedOfferId <= 0,
                     ];
                 }
             }
 
             // Активные офферы поставщиков для варианта.
             $offers = $offersByVariant->get((int) $item->variant_id);
+            $offerSelectedAssigned = false;
             if ($offers !== null) {
                 foreach ($offers as $offer) {
+                    $offerId = (int) $offer->id;
+                    if ($useOffer && $selectedOfferId > 0) {
+                        $isSelected = $offerId === $selectedOfferId;
+                    } elseif ($useOffer && $selectedOfferId <= 0 && ! $offerSelectedAssigned) {
+                        $isSelected = true;
+                        $offerSelectedAssigned = true;
+                    } else {
+                        $isSelected = false;
+                    }
                     $suppliers[] = [
+                        'kind' => 'offer',
                         'name' => $offer->supplier?->name,
                         'product_name' => $offer->external_product_name
                             ?: $offer->external_variant_name,
@@ -129,6 +181,9 @@ class StockReportController extends Controller
                         'price' => $offer->purchase_price !== null
                             ? number_format((float) $offer->purchase_price, 2, '.', '')
                             : null,
+                        'lot_id' => null,
+                        'offer_id' => $offerId,
+                        'is_selected' => $isSelected,
                     ];
                 }
             }
@@ -137,21 +192,36 @@ class StockReportController extends Controller
             // чтобы товар не потерялся из списка.
             if ($suppliers === []) {
                 $suppliers[] = [
+                    'kind' => null,
                     'name' => null,
                     'product_name' => null,
                     'code' => null,
                     'price' => null,
+                    'lot_id' => null,
+                    'offer_id' => null,
+                    'is_selected' => false,
                 ];
             }
 
+            $orderStatusCode = trim((string) ($item->order_status ?? ''));
+            $orderStatusDisplay = $orderStatusCode !== ''
+                ? OrderStatus::displayForCode($orderStatusCode)
+                : ['label' => '—', 'color' => '#64748B'];
+
             $rows[] = [
                 'id' => "oi-{$item->id}",
+                'order_item_id' => (int) $item->id,
                 'order_id' => (int) $item->order_id,
                 'product_id' => (int) $item->product_id,
                 'variant_id' => (int) $item->variant_id,
                 'product_name' => $item->product_name ?: $item->product?->name,
                 'variant_title' => $item->variant_title ?: $item->variant?->title,
                 'qty' => (int) $item->qty,
+                'availability_source' => $availabilitySource !== '' ? $availabilitySource : null,
+                'supplier_variant_offer_id' => $selectedOfferId > 0 ? $selectedOfferId : null,
+                'order_status' => $orderStatusCode !== '' ? $orderStatusCode : null,
+                'order_status_label' => $orderStatusDisplay['label'],
+                'order_status_color' => $orderStatusDisplay['color'],
                 'suppliers' => $suppliers,
             ];
         }

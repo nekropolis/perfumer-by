@@ -17,12 +17,14 @@ class OrderStatus extends Model
         'sort_order',
         'is_active',
         'is_system',
+        'show_in_order_products',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
         'is_active' => 'boolean',
         'is_system' => 'boolean',
+        'show_in_order_products' => 'boolean',
     ];
 
     public function scopeActive(Builder $query): Builder
@@ -30,9 +32,27 @@ class OrderStatus extends Model
         return $query->where('is_active', true);
     }
 
+    public function scopeForOrderProducts(Builder $query): Builder
+    {
+        return $query->where('show_in_order_products', true);
+    }
+
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('sort_order')->orderBy('name');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function codesForOrderProducts(): array
+    {
+        return static::query()
+            ->forOrderProducts()
+            ->pluck('code')
+            ->map(static fn ($code) => (string) $code)
+            ->values()
+            ->all();
     }
 
     public static function makeCodeFromName(string $name): string
