@@ -12,8 +12,6 @@ set -Eeuo pipefail
 ROOT="${PROJECT_ROOT:-/var/www/perfumer-by}"
 BACKEND="$ROOT/backend"
 
-# По умолчанию берём APP_URL из backend/.env (на проде https://perfumer.by).
-SITE_URL="${SITE_URL:-}"
 DISK_THRESHOLD=85
 RAM_MIN_AVAILABLE_MB=500
 SWAP_WARN_MB=500
@@ -52,10 +50,9 @@ TELEGRAM_ENABLED="$(load_env TELEGRAM_NOTIFICATIONS_ENABLED true)"
 TELEGRAM_TOKEN="$(load_env TELEGRAM_BOT_TOKEN '')"
 TELEGRAM_CHAT_ID="$(load_env TELEGRAM_CHAT_ID '')"
 
-if [[ -z "$SITE_URL" ]]; then
-    SITE_URL="$(load_env APP_URL 'https://perfumer.by')"
-fi
-SITE_URL="${SITE_URL%/}"
+# Backend /up — через loopback, без публичного IP и без http→https.
+# Host 127.0.0.1 в nginx не редиректит на HTTPS (см. prod.mobiz.by.conf.example).
+BACKEND_HEALTH_URL="${HEALTH_CHECK_BACKEND_URL:-http://127.0.0.1/up}"
 
 STOREFRONT_HEALTH_URL="${HEALTH_CHECK_STOREFRONT_URL:-}"
 if [[ -z "$STOREFRONT_HEALTH_URL" ]]; then
@@ -196,14 +193,18 @@ if [[ -n "$SUPERVISORCTL" ]]; then
 fi
 
 # 6. Site health checks.
-# /up — публичный URL (в nginx обычно auth_basic off).
+# Backend /up — loopback (не публичный APP_URL: hairpin + 301→https давали ложные 301000/000000).
 # Витрина — локальный PM2 (127.0.0.1:3000), иначе на staging с basic auth будет ложный 401.
 check_http_url() {
     local url="$1"
     local label="$2"
     local code
 
-    code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || echo "000")
+    # Не склеивать http_code с "000" через || echo (получалось 301000 / 000000).
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null) || true
+    if [[ -z "$code" ]]; then
+        code="000"
+    fi
     if [[ "$code" != "200" ]]; then
         ALERTS+=("🌐 ${label}: ${url} → HTTP ${code}")
     fi
@@ -214,7 +215,7 @@ if command -v curl >/dev/null 2>&1; then
     if [[ -f "$ROOT/shared/maintenance.on" ]]; then
         echo "shared/maintenance.on present — skipping storefront/backend HTTP checks"
     else
-        check_http_url "$SITE_URL/up" "Backend /up"
+        check_http_url "$BACKEND_HEALTH_URL" "Backend /up"
         check_http_url "$STOREFRONT_HEALTH_URL/" "Витрина PM2"
     fi
 fi
@@ -224,7 +225,8 @@ fi
 # ---------------------------------------------------------------------------
 if [[ ${#ALERTS[@]} -gt 0 ]]; then
     ALERTS_TEXT="$(printf '%s\n' "${ALERTS[@]}")"
-    CURRENT_HASH="$(printf '%s' "$ALERTS_TEXT" | md5sum | awk '{print $1}')"
+    # Нормализуем HTTP-код: иначе 000 vs 301 дают разный hash и спамят каждые 5 мин.
+    CURRENT_HASH="$(printf '%s' "$ALERTS_TEXT" | sed -E 's/HTTP [0-9]+/HTTP XXX/g' | md5sum | awk '{print $1}')"
 
     if should_send_alert "$CURRENT_HASH"; then
         MESSAGE="🚨 *Perfumer health check* on $(hostname) at $(date +'%Y-%m-%d %H:%M')\n\n${ALERTS_TEXT}"
