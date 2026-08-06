@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductSet;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
@@ -29,11 +30,13 @@ class ProductVariantAdminController extends Controller
                 'id' => $definition->id,
                 'title' => $definition->title,
                 'volume_ml' => $definition->volume_ml,
+                'volume_label' => $definition->volume_label,
                 'concentration_code' => $definition->concentration_code,
                 'concentration_label' => $definition->concentration_label,
                 'is_tester' => (bool) $definition->is_tester,
                 'is_vial' => (bool) $definition->is_vial,
                 'is_miniature' => (bool) $definition->is_miniature,
+                'is_set' => (bool) $definition->is_set,
                 'excludes_from_free_delivery_threshold' => (bool) $definition->excludes_from_free_delivery_threshold,
             ],
         ]);
@@ -41,6 +44,47 @@ class ProductVariantAdminController extends Controller
 
     public function storeDefinition(Request $request): JsonResponse
     {
+        $isSet = (bool) $request->boolean('is_set');
+
+        if ($isSet) {
+            $validated = $request->validate([
+                'is_set' => ['required', 'boolean'],
+                'concentration_label' => ['nullable', 'string', 'max:120'],
+                'volume_label' => ['nullable', 'string', 'max:120'],
+                'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
+                'sort_order' => ['nullable', 'integer', 'min:0'],
+            ]);
+
+            $definition = app(\Modules\Catalog\Support\VariantDefinitionResolver::class)->resolveOrCreateSet();
+
+            $volumeLabel = $definition->volume_label;
+            if (array_key_exists('volume_label', $validated)) {
+                $trimmedVolumeLabel = trim((string) $validated['volume_label']);
+                $volumeLabel = $trimmedVolumeLabel !== '' ? $trimmedVolumeLabel : null;
+            }
+
+            $concentrationLabel = $definition->concentration_label;
+            if (array_key_exists('concentration_label', $validated)) {
+                $trimmedConcentrationLabel = trim((string) $validated['concentration_label']);
+                $concentrationLabel = $trimmedConcentrationLabel !== ''
+                    ? $trimmedConcentrationLabel
+                    : \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL;
+            }
+
+            $definition->update([
+                'volume_label' => $volumeLabel,
+                'concentration_label' => $concentrationLabel,
+                'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
+                'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
+                'title' => \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL,
+            ]);
+
+            return response()->json([
+                'message' => 'Вариант справочника добавлен',
+                'data' => $definition->fresh(),
+            ], 201);
+        }
+
         $validated = $request->validate([
             'volume_ml' => VariantDefinitionVolume::validationRules(),
             'concentration_code' => ['required', 'string', 'max:50'],
@@ -48,6 +92,7 @@ class ProductVariantAdminController extends Controller
             'is_tester' => ['nullable', 'boolean'],
             'is_vial' => ['nullable', 'boolean'],
             'is_miniature' => ['nullable', 'boolean'],
+            'is_set' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ], VariantDefinitionVolume::validationMessages());
@@ -69,6 +114,7 @@ class ProductVariantAdminController extends Controller
             'is_tester' => $isTester,
             'is_vial' => $isVial,
             'is_miniature' => $isMiniature,
+            'is_set' => false,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
             'title' => VariantDefinitionVolume::buildTitle(
@@ -90,6 +136,42 @@ class ProductVariantAdminController extends Controller
     public function updateDefinition(Request $request, int $id): JsonResponse
     {
         $definition = VariantDefinition::query()->findOrFail($id);
+
+        if ($definition->is_set) {
+            $validated = $request->validate([
+                'concentration_label' => ['nullable', 'string', 'max:120'],
+                'volume_label' => ['nullable', 'string', 'max:120'],
+                'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
+                'sort_order' => ['nullable', 'integer', 'min:0'],
+            ]);
+
+            $volumeLabel = $definition->volume_label;
+            if (array_key_exists('volume_label', $validated)) {
+                $trimmedVolumeLabel = trim((string) $validated['volume_label']);
+                $volumeLabel = $trimmedVolumeLabel !== '' ? $trimmedVolumeLabel : null;
+            }
+
+            $concentrationLabel = $definition->concentration_label;
+            if (array_key_exists('concentration_label', $validated)) {
+                $trimmedConcentrationLabel = trim((string) $validated['concentration_label']);
+                $concentrationLabel = $trimmedConcentrationLabel !== ''
+                    ? $trimmedConcentrationLabel
+                    : \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL;
+            }
+
+            $definition->update([
+                'volume_label' => $volumeLabel,
+                'concentration_label' => $concentrationLabel,
+                'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
+                'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
+                'title' => \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL,
+            ]);
+
+            return response()->json([
+                'message' => 'Вариант справочника обновлен',
+                'data' => $definition->fresh(),
+            ]);
+        }
 
         $validated = $request->validate([
             'volume_ml' => VariantDefinitionVolume::validationRules(),
@@ -119,6 +201,7 @@ class ProductVariantAdminController extends Controller
             'is_tester' => $isTester,
             'is_vial' => $isVial,
             'is_miniature' => $isMiniature,
+            'is_set' => false,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
             'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
             'title' => VariantDefinitionVolume::buildTitle(
@@ -188,11 +271,13 @@ class ProductVariantAdminController extends Controller
                 'id' => $item->id,
                 'title' => $item->title,
                 'volume_ml' => $item->volume_ml,
+                'volume_label' => $item->volume_label,
                 'concentration_code' => $item->concentration_code,
                 'concentration_label' => $item->concentration_label,
                 'is_tester' => (bool) $item->is_tester,
                 'is_vial' => (bool) $item->is_vial,
                 'is_miniature' => (bool) $item->is_miniature,
+                'is_set' => (bool) $item->is_set,
                 'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
             ];
         };
@@ -231,7 +316,7 @@ class ProductVariantAdminController extends Controller
 
         $variants = ProductVariantLink::query()
             ->where('product_id', $product->id)
-            ->with('definition')
+            ->with(['definition', 'productSet:id,product_variant_link_id'])
             ->withCount([
                 'supplierOffers as supplier_offers_count',
                 'supplierOffers as active_supplier_offers_count' => static function ($query) {
@@ -263,6 +348,7 @@ class ProductVariantAdminController extends Controller
             $catalogListPrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
 
             return array_merge($variant->toArray(), [
+                'product_set_id' => $variant->productSet?->id,
                 'main_available_stock' => $mainAvailableStock,
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
@@ -412,7 +498,17 @@ class ProductVariantAdminController extends Controller
             ->where('product_id', $product->id)
             ->findOrFail($variantId);
 
+        ProductSet::query()
+            ->where('product_id', $product->id)
+            ->where('product_variant_link_id', $variant->id)
+            ->delete();
+
         $variant->delete();
+
+        $hasSets = ProductSet::query()->where('product_id', $product->id)->exists();
+        if ((bool) $product->is_set !== $hasSets) {
+            $product->update(['is_set' => $hasSets]);
+        }
 
         $this->syncProductStockFlags($product->fresh());
 

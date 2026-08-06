@@ -115,6 +115,7 @@ class SellerOneVariantMatcher
         $nameVariantSplit = $this->splitNameAndVariantTail($title);
         $variantTail = $nameVariantSplit['tail'];
         $variantText = $variantTail !== '' ? $variantTail : $title;
+        $isSet = $this->textContainsSetMarker($title) || $this->textContainsSetMarker($variantText);
         $tailSig = $this->parseVariantTailSignature($variantText);
         if ($ignoreExtraTokenPatterns !== []) {
             $tailSig['extra_tokens'] = $this->filterIgnoredExtraTokens(
@@ -341,6 +342,7 @@ class SellerOneVariantMatcher
                 'is_tester' => $isTester,
                 'is_vial' => $isVial,
                 'is_miniature' => $isMiniature,
+                'is_set' => $isSet,
                 'skip_auto_match' => $hasSkipMarker,
             ],
             'suggested_variant' => $variant ? [
@@ -492,6 +494,10 @@ class SellerOneVariantMatcher
      */
     public function supplierVariantTailBlocksAutoLink(string $variantTail): bool
     {
+        if ($this->textContainsSetMarker($variantTail)) {
+            return true;
+        }
+
         if ($this->textContainsComboVolumeSet($variantTail)) {
             return true;
         }
@@ -508,6 +514,11 @@ class SellerOneVariantMatcher
         $sig = $this->parseVariantTailSignature($variantTail);
 
         return $this->supplierExtraTokensBlockVariantMatch($sig['extra_tokens'] ?? []);
+    }
+
+    public function textContainsSetMarker(string $text): bool
+    {
+        return (bool) preg_match('/\bset\b/iu', $text);
     }
 
     /**
@@ -1833,6 +1844,8 @@ class SellerOneVariantMatcher
     public function variantStartPatterns(): array
     {
         return [
+            // Набор: «… set ( 90ml edt + 5ml …)» — режем по set, а не по первому ml внутри скобок
+            '/\bset\b/iu',
             // Multipack: 3*10ml, 4 x 10 ml
             '/\b\d+\s*\*\s*\d+(?:[.,]\d+)?\s*(?:ml|мл)\b/iu',
             '/\b\d+\s*\*\s*\d+(?:[.,]\d+)?(?:ml|мл)\b/iu',

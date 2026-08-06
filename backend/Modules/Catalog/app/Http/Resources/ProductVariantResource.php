@@ -42,21 +42,26 @@ class ProductVariantResource extends JsonResource
 
         $displayParts = [];
 
-        if ($this->volume) {
-            $displayParts[] = trim($this->volume . ' ' . $this->volume_unit);
-        }
+        if ($this->definition?->is_set || (bool) $this->is_set) {
+            $volumeLabel = trim((string) ($this->definition?->volume_label ?? ''));
+            $displayName = $volumeLabel !== '' ? 'Набор ('.$volumeLabel.')' : 'Набор';
+        } else {
+            if ($this->volume) {
+                $displayParts[] = trim($this->volume . ' ' . $this->volume_unit);
+            }
 
-        if ($this->concentration) {
-            $displayParts[] = strtoupper($this->concentration);
-        }
+            if ($this->concentration) {
+                $displayParts[] = strtoupper($this->concentration);
+            }
 
-        if ($this->edition) {
-            $displayParts[] = $this->edition;
-        }
+            if ($this->edition) {
+                $displayParts[] = $this->edition;
+            }
 
-        $displayName = !empty($displayParts)
-            ? implode(' / ', $displayParts)
-            : 'Нет вариантов';
+            $displayName = !empty($displayParts)
+                ? implode(' / ', $displayParts)
+                : 'Нет вариантов';
+        }
 
         $mainAvailable = $mainStock
             ? max(0, (int) $mainStock->stock - (int) $mainStock->reserved_stock)
@@ -79,6 +84,32 @@ class ProductVariantResource extends JsonResource
             'type' => $this->type,
             'concentration' => $this->concentration,
             'edition' => $this->edition,
+            'is_set' => (bool) ($this->definition?->is_set || $this->is_set),
+            'volume_label' => $this->definition?->volume_label,
+            'set_components' => $this->when(
+                (bool) ($this->definition?->is_set || $this->is_set),
+                function () use ($variant) {
+                    $set = $variant->relationLoaded('productSet')
+                        ? $variant->productSet
+                        : $variant->productSet()->with('components')->first();
+
+                    if (! $set) {
+                        return [];
+                    }
+
+                    $components = $set->relationLoaded('components')
+                        ? $set->components
+                        : $set->components()->get();
+
+                    return $components->map(static fn ($row) => [
+                        'id' => $row->id,
+                        'volume_label' => $row->volume_label,
+                        'concentration_label' => $row->concentration_label,
+                        'sort_order' => (int) $row->sort_order,
+                    ])->values()->all();
+                },
+                [],
+            ),
 
             'display_name' => $displayName,
 

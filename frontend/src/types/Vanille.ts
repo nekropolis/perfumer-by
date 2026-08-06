@@ -292,6 +292,7 @@ export type SellerOneSupplierProductItem = {
         is_tester?: boolean;
         is_vial?: boolean;
         is_miniature?: boolean;
+        is_set?: boolean;
     } | null;
     is_new: boolean;
     match_confidence: number;

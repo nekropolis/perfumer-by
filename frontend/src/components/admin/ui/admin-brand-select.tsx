@@ -3,7 +3,7 @@
 import { Search, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ProductBrandOption } from "@/lib/admin-products-api";
-import { adminBtnSecondary, adminInput } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminInput, adminSelect } from "@/lib/admin-ui-classes";
 
 type Props = {
     value: string;
@@ -11,21 +11,23 @@ type Props = {
     onChangeAction: (value: string) => void;
     label?: string;
     placeholder?: string;
+    className?: string;
 };
 
 export default function AdminBrandSelect({
-                                             value,
-                                             brands,
-                                             onChangeAction,
-                                             label = "Бренд",
-                                             placeholder = "Выберите бренд",
-                                         }: Props) {
+    value,
+    brands,
+    onChangeAction,
+    label = "Бренд",
+    placeholder = "Выберите бренд",
+    className = "",
+}: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
 
     const selectedBrand = useMemo(
         () => brands.find((brand) => String(brand.id) === value) || null,
-        [brands, value]
+        [brands, value],
     );
 
     const filteredBrands = useMemo(() => {
@@ -40,14 +42,26 @@ export default function AdminBrandSelect({
             .slice(0, 100);
     }, [brands, query]);
 
+    /** Ширина триггера = самая длинная опция (+ иконка/паддинги). */
+    const triggerWidthCh = useMemo(() => {
+        let maxLen = placeholder.length;
+        for (const brand of brands) {
+            if (brand.name.length > maxLen) {
+                maxLen = brand.name.length;
+            }
+        }
+        return Math.min(Math.max(maxLen + 4, 14), 42);
+    }, [brands, placeholder]);
+
     return (
-        <div>
+        <div className={className}>
             <label className="mb-1.5 block text-sm font-medium text-admin-text">{label}</label>
 
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className={`${adminBtnSecondary} w-full justify-between`}
+                style={{ width: `${triggerWidthCh}ch` }}
+                className={`${adminSelect} inline-flex max-w-full items-center justify-between text-left`}
             >
                 <span className={`truncate ${selectedBrand ? "text-admin-text" : "text-admin-text-muted"}`}>
                     {selectedBrand ? selectedBrand.name : placeholder}

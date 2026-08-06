@@ -31,6 +31,7 @@ export type SellerOneStatusFilter =
 export const STOCK_FILTER_OPTIONS = [
     { value: "in_stock", label: "В наличии" },
     { value: "out_of_stock", label: "Нет в наличии" },
+    { value: "set", label: "Set" },
 ] as const;
 
-export type SellerOneStockFilter = "" | "in_stock" | "out_of_stock";
+export type SellerOneStockFilter = "" | "in_stock" | "out_of_stock" | "set";

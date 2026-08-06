@@ -10,6 +10,10 @@ class VariantDefinitionResolver
 
     private const MINIATURE_MAX_VOLUME_ML = 18.0;
 
+    public const SET_CONCENTRATION_CODE = 'set';
+
+    public const SET_CONCENTRATION_LABEL = 'Набор';
+
     /** @var array<string, string> */
     private const CONCENTRATION_LABELS = [
         'edt' => 'туалетная вода',
@@ -36,6 +40,10 @@ class VariantDefinitionResolver
 
         $volumeMl = VariantDefinitionVolume::normalize($volumeMl);
         $concentrationCode = mb_strtolower(trim($concentrationCode));
+        if ($concentrationCode === self::SET_CONCENTRATION_CODE) {
+            return null;
+        }
+
         $concentrationLabel = self::CONCENTRATION_LABELS[$concentrationCode] ?? null;
         if ($concentrationLabel === null) {
             return null;
@@ -58,6 +66,7 @@ class VariantDefinitionResolver
                 'is_tester' => $isTester,
                 'is_vial' => $isVial,
                 'is_miniature' => $isMiniature,
+                'is_set' => false,
             ],
             [
                 'concentration_label' => $concentrationLabel,
@@ -71,6 +80,43 @@ class VariantDefinitionResolver
                 ),
                 'sort_order' => $sortOrder,
                 'excludes_from_free_delivery_threshold' => $isVial,
+            ],
+        );
+    }
+
+    /**
+     * Справочный вариант «Набор» под конкретный состав (volume_label отличает наборы).
+     */
+    public function resolveOrCreateSet(?string $volumeLabel = null, ?string $concentrationLabel = null): VariantDefinition
+    {
+        $volumeLabel = $volumeLabel !== null ? trim($volumeLabel) : null;
+        if ($volumeLabel === '') {
+            $volumeLabel = null;
+        }
+
+        $concentrationLabel = $concentrationLabel !== null && trim($concentrationLabel) !== ''
+            ? trim($concentrationLabel)
+            : self::SET_CONCENTRATION_LABEL;
+
+        $title = $volumeLabel
+            ? self::SET_CONCENTRATION_LABEL.' ('.$volumeLabel.')'
+            : self::SET_CONCENTRATION_LABEL;
+
+        return VariantDefinition::query()->firstOrCreate(
+            [
+                'is_set' => true,
+                'concentration_code' => self::SET_CONCENTRATION_CODE,
+                'is_tester' => false,
+                'is_vial' => false,
+                'is_miniature' => false,
+                'volume_ml' => null,
+                'volume_label' => $volumeLabel,
+            ],
+            [
+                'concentration_label' => $concentrationLabel,
+                'title' => $title,
+                'sort_order' => 90000,
+                'excludes_from_free_delivery_threshold' => false,
             ],
         );
     }

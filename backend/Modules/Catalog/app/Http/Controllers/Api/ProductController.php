@@ -94,11 +94,13 @@ class ProductController extends Controller
     private const array VARIANT_DEFINITION_COLUMNS = [
         'id',
         'volume_ml',
+        'volume_label',
         'concentration_code',
         'concentration_label',
         'is_tester',
         'is_vial',
         'is_miniature',
+        'is_set',
         'title',
     ];
 
@@ -192,6 +194,7 @@ class ProductController extends Controller
                     'is_active',
                     'is_new',
                     'is_hit',
+                    'is_set',
                     'is_out_of_stock',
                     'name',
                     'slug',
@@ -204,6 +207,7 @@ class ProductController extends Controller
                 ->with([
                     'brand:id,name,slug',
                     'mainCategory:id,name,slug',
+                    'sets.components',
                     'images' => static function ($q): void {
                         $q->select('id', 'product_id', 'path', 'is_main', 'sort_order')
                             ->orderByDesc('is_main')
@@ -225,6 +229,7 @@ class ProductController extends Controller
                                 'definition' => static function ($dq): void {
                                     $dq->select(self::VARIANT_DEFINITION_COLUMNS);
                                 },
+                                'productSet.components',
                             ]);
                     },
                 ])

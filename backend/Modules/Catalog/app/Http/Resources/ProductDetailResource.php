@@ -73,6 +73,7 @@ class ProductDetailResource extends JsonResource
             'is_active' => (bool) $this->is_active,
             'is_new' => (bool) $this->is_new,
             'is_hit' => (bool) $this->is_hit,
+            'is_set' => (bool) $this->is_set,
             'is_out_of_stock' => (bool) $this->is_out_of_stock,
             'name' => $this->name,
             'display_name' => ProductDisplayName::format($this->brand?->name, (string) $this->name),
@@ -162,6 +163,23 @@ class ProductDetailResource extends JsonResource
 
             'variants' => ProductVariantResource::collection($variants)->resolve(),
             'default_variant_id' => $defaultVariant?->id,
+            'sets' => $this->whenLoaded('sets', function () {
+                return $this->sets->map(static function ($set) {
+                    return [
+                        'id' => $set->id,
+                        'title' => $set->title,
+                        'product_variant_link_id' => $set->product_variant_link_id,
+                        'sort_order' => (int) $set->sort_order,
+                        'components' => ($set->relationLoaded('components') ? $set->components : collect())
+                            ->map(static fn ($row) => [
+                                'id' => $row->id,
+                                'volume_label' => $row->volume_label,
+                                'concentration_label' => $row->concentration_label,
+                                'sort_order' => (int) $row->sort_order,
+                            ])->values()->all(),
+                    ];
+                })->values()->all();
+            }, []),
         ];
     }
 }

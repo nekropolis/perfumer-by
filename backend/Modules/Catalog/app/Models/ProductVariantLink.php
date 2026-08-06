@@ -21,6 +21,7 @@ class ProductVariantLink extends Model
         'concentration',
         'type',
         'edition',
+        'is_set',
         'available_stock',
     ];
 
@@ -63,6 +64,11 @@ class ProductVariantLink extends Model
         return $this->hasMany(SupplierVariantOffer::class, 'product_variant_id');
     }
 
+    public function productSet(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ProductSet::class, 'product_variant_link_id');
+    }
+
     public function warehouseStocks(): HasMany
     {
         return $this->hasMany(WarehouseVariantStock::class, 'variant_id');
@@ -83,6 +89,10 @@ class ProductVariantLink extends Model
         $fromDefinition = trim((string) ($this->definition?->title ?? ''));
         if ($fromDefinition !== '') {
             return $fromDefinition;
+        }
+
+        if ($this->definition?->is_set) {
+            return 'Набор';
         }
 
         // Как ProductVariantResource::display_name — если title в definition пустой.
@@ -120,7 +130,11 @@ class ProductVariantLink extends Model
 
     public function getVolumeUnitAttribute(): ?string
     {
-        return $this->definition ? 'мл' : null;
+        if (! $this->definition || $this->definition->is_set) {
+            return null;
+        }
+
+        return 'мл';
     }
 
     public function getConcentrationAttribute(): ?string
@@ -131,6 +145,11 @@ class ProductVariantLink extends Model
     public function getTypeAttribute(): ?string
     {
         return $this->definition?->concentration_label;
+    }
+
+    public function getIsSetAttribute(): bool
+    {
+        return (bool) ($this->definition?->is_set);
     }
 
     public function getEditionAttribute(): ?string

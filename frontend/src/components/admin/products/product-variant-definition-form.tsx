@@ -11,6 +11,7 @@ export type ProductVariantDefinitionFormState = {
     is_tester: boolean;
     is_vial: boolean;
     is_miniature: boolean;
+    is_set?: boolean;
     excludes_from_free_delivery_threshold: boolean;
 };
 
@@ -39,16 +40,18 @@ export default function ProductVariantDefinitionForm({
                         onChange={(e) => onChangeAction({ ...form, volume_ml: e.target.value })}
                         className="w-full rounded-lg border px-3 py-2 text-sm"
                         placeholder="1,3 или 100 (шаг 0,1)"
+                        disabled={Boolean(form.is_set)}
                     />
                 </div>
                 <div>
                     <label className="mb-1.5 block text-sm text-admin-text-secondary">Код концентрации</label>
                     <input
                         type="text"
-                        value={form.concentration_code}
+                        value={form.is_set ? "set" : form.concentration_code}
                         onChange={(e) => onChangeAction({ ...form, concentration_code: e.target.value })}
                         className="w-full rounded-lg border px-3 py-2 text-sm"
                         placeholder="edt / edp / extrait de parfum"
+                        disabled={Boolean(form.is_set)}
                     />
                 </div>
                 <div className="md:col-span-2">
@@ -61,6 +64,28 @@ export default function ProductVariantDefinitionForm({
                         placeholder="Например: Парфюмерная вода"
                     />
                 </div>
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text md:col-span-2">
+                    <input
+                        type="checkbox"
+                        checked={Boolean(form.is_set)}
+                        onChange={(e) =>
+                            onChangeAction({
+                                ...form,
+                                is_set: e.target.checked,
+                                concentration_code: e.target.checked ? "set" : form.concentration_code,
+                                concentration_label: e.target.checked
+                                    ? form.concentration_label || "Набор"
+                                    : form.concentration_label,
+                                volume_ml: e.target.checked ? "" : form.volume_ml,
+                                is_tester: e.target.checked ? false : form.is_tester,
+                                is_vial: e.target.checked ? false : form.is_vial,
+                                is_miniature: e.target.checked ? false : form.is_miniature,
+                            })
+                        }
+                        className={adminCheckbox}
+                    />
+                    <span>Набор (set)</span>
+                </label>
                 <label className="inline-flex items-center gap-2 text-sm text-admin-text">
                     <input
                         type="checkbox"

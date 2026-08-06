@@ -8,6 +8,7 @@ import StockNotificationModal from "@/components/product/stock-notification-moda
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 import type { ProductVariantData } from "@/types/catalog";
 import {
+    formatSetComponentLines,
     formatVariantConcentrationLabel,
     formatVariantVolumeLine,
     getVariantAvailabilityState,
@@ -300,11 +301,23 @@ export default function ProductBuyBox({
                             </div>
                             <div className="text-[11px] text-admin-text-secondary">Выбранный вариант</div>
                             <div className="truncate text-sm font-medium leading-5 text-admin-text">
-                                {formatVariantVolumeLine(selectedVariant)}
+                                {selectedVariant.is_set
+                                    ? selectedVariant.display_name
+                                    : formatVariantVolumeLine(selectedVariant)}
                             </div>
-                            <div className="truncate text-xs leading-4 text-admin-text-secondary">
-                                {formatVariantConcentrationLabel(selectedVariant)}
-                            </div>
+                            {selectedVariant.is_set ? (
+                                <div className="space-y-0.5 text-xs leading-4 text-admin-text-secondary">
+                                    {formatSetComponentLines(selectedVariant).map((line) => (
+                                        <div key={line} className="truncate">
+                                            {line}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="truncate text-xs leading-4 text-admin-text-secondary">
+                                    {formatVariantConcentrationLabel(selectedVariant)}
+                                </div>
+                            )}
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                                 <span className="text-base font-semibold text-admin-text">
                                     {effectivePrice
@@ -364,11 +377,17 @@ export default function ProductBuyBox({
                             {selectedVariant.display_name}
                         </div>
 
-                        {selectedVariant.type && (
+                        {selectedVariant.is_set ? (
+                            <div className="mb-5 space-y-1 text-sm text-admin-text-secondary">
+                                {formatSetComponentLines(selectedVariant).map((line) => (
+                                    <div key={line}>{line}</div>
+                                ))}
+                            </div>
+                        ) : selectedVariant.type ? (
                             <div className="mb-5 text-sm text-admin-text-secondary">
                                 {selectedVariant.type}
                             </div>
-                        )}
+                        ) : null}
 
                         <div className="mb-4 flex flex-wrap items-end gap-2">
                             <div className="text-4xl font-semibold leading-none">

@@ -366,25 +366,27 @@ export default function AdminProductsPage() {
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={
-                    <div className="flex flex-col gap-2 md:flex-row md:items-end">
+                    <div className="flex w-full flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                            <AdminFilterSelect
+                                value={outOfStockFilter}
+                                onChangeAction={(value) => setOutOfStockFilter(value as "" | "1" | "0")}
+                                options={STOCK_FILTER_OPTIONS}
+                                placeholder="Все товары"
+                                className="min-w-[220px] md:min-w-[180px]"
+                            />
+                            <AdminFilterSelect
+                                value={statusFilter}
+                                onChangeAction={(value) => setStatusFilter(value as "" | "new" | "hit" | "discount")}
+                                options={[...PRODUCT_STATUS_FILTER_OPTIONS]}
+                                placeholder="Все статусы"
+                                className="min-w-[220px] md:min-w-[200px]"
+                            />
+                        </div>
                         <AdminSearchInput
                             value={searchInput}
                             onChangeAction={setSearchInput}
                             placeholder="Поиск по названию, slug, ID товара или ID варианта"
-                        />
-                        <AdminFilterSelect
-                            value={outOfStockFilter}
-                            onChangeAction={(value) => setOutOfStockFilter(value as "" | "1" | "0")}
-                            options={STOCK_FILTER_OPTIONS}
-                            placeholder="Все товары"
-                            className="min-w-[220px] md:min-w-[180px]"
-                        />
-                        <AdminFilterSelect
-                            value={statusFilter}
-                            onChangeAction={(value) => setStatusFilter(value as "" | "new" | "hit" | "discount")}
-                            options={[...PRODUCT_STATUS_FILTER_OPTIONS]}
-                            placeholder="Все статусы"
-                            className="min-w-[220px] md:min-w-[200px]"
                         />
                     </div>
                 }

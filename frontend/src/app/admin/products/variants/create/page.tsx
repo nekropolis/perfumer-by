@@ -19,6 +19,7 @@ const emptyForm: ProductVariantDefinitionFormState = {
     is_tester: false,
     is_vial: false,
     is_miniature: false,
+    is_set: false,
     excludes_from_free_delivery_threshold: false,
 };
 
@@ -34,6 +35,28 @@ export default function AdminProductVariantCreatePage() {
     const handleSubmit = async () => {
         setSubmitting(true);
         setError("");
+
+        if (form.is_set) {
+            if (!form.concentration_label.trim()) {
+                setError("Описание концентрации обязательно");
+                setSubmitting(false);
+                return;
+            }
+
+            try {
+                await createVariantDefinition({
+                    is_set: true,
+                    concentration_label: form.concentration_label.trim(),
+                    excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
+                });
+                router.push(VARIANTS_BASE);
+            } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : "Ошибка создания варианта");
+            } finally {
+                setSubmitting(false);
+            }
+            return;
+        }
 
         if (!form.volume_ml || !form.concentration_code.trim() || !form.concentration_label.trim()) {
             setError("Объем, код и описание обязательны");
@@ -56,6 +79,7 @@ export default function AdminProductVariantCreatePage() {
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
                 is_miniature: form.is_miniature,
+                is_set: false,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 

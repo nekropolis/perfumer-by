@@ -42,6 +42,11 @@ final class WarehousePriceRefreshService
         $touchedProductIds = [];
         /** @var list<int> */
         $manualQueuedVariantIds = [];
+        /** @var array<int, true> */
+        $pricingSupplierIds = array_fill_keys(
+            Supplier::query()->forPricing()->pluck('id')->map(static fn ($id): int => (int) $id)->all(),
+            true,
+        );
 
         $warehouseTotal = (int) WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
@@ -71,6 +76,7 @@ final class WarehousePriceRefreshService
                 &$manualQueuedVariantIds,
                 $onProgress,
                 $warehouseTotal,
+                $pricingSupplierIds,
             ): void {
                 $variantIds = $rows->pluck('variant_id')
                     ->map(static fn ($id): int => (int) $id)
@@ -156,8 +162,7 @@ final class WarehousePriceRefreshService
                         if ($priceRefreshRunId !== null) {
                             $receiptSupplierId = $receiptMeta['receipt_supplier_id'];
                             if ($receiptSupplierId !== null && $receiptSupplierId > 0) {
-                                $supplierValid = Supplier::query()->forPricing()->whereKey($receiptSupplierId)->exists();
-                                if (!$supplierValid) {
+                                if (!isset($pricingSupplierIds[$receiptSupplierId])) {
                                     $receiptSupplierId = null;
                                 }
                             }

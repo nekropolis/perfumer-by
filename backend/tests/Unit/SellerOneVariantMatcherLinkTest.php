@@ -45,6 +45,25 @@ class SellerOneVariantMatcherLinkTest extends TestCase
         $this->assertSame('m', $extract->invoke($matcher, 'Versace Crystal Noir (M) Parfum 90ml edp'));
     }
 
+    public function test_split_name_cuts_at_set_before_composition_volumes(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+
+        $split = $matcher->splitNameAndVariantTail(
+            "Issey Miyake L'Eau D'Issey (L) set ( 25ml edt + 75ml b/milk )"
+        );
+
+        $this->assertSame("Issey Miyake L'Eau D'Issey (L)", $split['name']);
+        $this->assertSame('set ( 25ml edt + 75ml b/milk )', $split['tail']);
+
+        $base = new ReflectionMethod($matcher, 'extractBaseProductName');
+        $base->setAccessible(true);
+        $this->assertSame(
+            "L'Eau D'Issey",
+            $base->invoke($matcher, $split['name'], 'Issey Miyake'),
+        );
+    }
+
     public function test_extract_base_product_name_keeps_inline_brand_word(): void
     {
         $matcher = new SellerOneVariantMatcher();

@@ -56,6 +56,10 @@ export function formatProductDetailPrice(price: string | null): string {
 
 /** Строка 1 карточки варианта: «2 мл / Пробник». */
 export function formatVariantVolumeLine(variant: ProductVariantData): string {
+    if (variant.is_set) {
+        return "Набор";
+    }
+
     if (variant.volume == null) {
         return variant.display_name;
     }
@@ -75,6 +79,10 @@ export function formatVariantVolumeLine(variant: ProductVariantData): string {
 
 /** Строка 2 карточки варианта: описание концентрации. */
 export function formatVariantConcentrationLabel(variant: ProductVariantData): string {
+    if (variant.is_set) {
+        return formatSetVolumesLine(variant) || "Набор";
+    }
+
     if (variant.type?.trim()) {
         return variant.type.trim();
     }
@@ -82,6 +90,55 @@ export function formatVariantConcentrationLabel(variant: ProductVariantData): st
         return variant.concentration.trim().toUpperCase();
     }
     return "—";
+}
+
+/** Для карточки набора: «12мл / 3мл». */
+function formatSetVolumesLine(variant: ProductVariantData): string {
+    const fromComponents = (variant.set_components ?? [])
+        .map((row) => formatSetComponentVolume(row.volume_label))
+        .filter(Boolean);
+    if (fromComponents.length > 0) {
+        return fromComponents.join(" / ");
+    }
+
+    const label = variant.volume_label?.trim() || "";
+    if (!label) {
+        return "";
+    }
+
+    return label
+        .split("/")
+        .map((part) => formatSetComponentVolume(part))
+        .filter(Boolean)
+        .join(" / ");
+}
+
+/** Строки состава набора для блока «Выбранный вариант»: «12мл / парфюмерная вода». */
+export function formatSetComponentLines(variant: ProductVariantData): string[] {
+    const components = variant.set_components ?? [];
+    if (components.length === 0) {
+        return [];
+    }
+
+    return components.map((row) => {
+        const volume = formatSetComponentVolume(row.volume_label);
+        const concentration = row.concentration_label.trim();
+        if (volume && concentration) {
+            return `${volume} / ${concentration}`;
+        }
+        return volume || concentration || "—";
+    });
+}
+
+function formatSetComponentVolume(volumeLabel: string): string {
+    const raw = volumeLabel.trim();
+    if (!raw) {
+        return "";
+    }
+    if (/мл/i.test(raw) || /ml/i.test(raw)) {
+        return raw.replace(/\s+/g, "");
+    }
+    return `${raw.replace(/\s+/g, "")}мл`;
 }
 
 export type VariantAvailabilityState = {

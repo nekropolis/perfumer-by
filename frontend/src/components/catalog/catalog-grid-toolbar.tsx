@@ -181,6 +181,26 @@ export default function CatalogGridToolbar({
             });
         }
 
+        const typeFlags: Array<{ key: "tester" | "miniature" | "set"; label: string }> = [
+            { key: "tester", label: "Тестер" },
+            { key: "miniature", label: "Миниатюра" },
+            { key: "set", label: "Набор" },
+        ];
+        for (const flag of typeFlags) {
+            if (searchParams.get(flag.key) !== "1") {
+                continue;
+            }
+            chips.push({
+                id: flag.key,
+                label: flag.label,
+                removeAction: () => {
+                    pushParams((params) => {
+                        params.delete(flag.key);
+                    });
+                },
+            });
+        }
+
         for (const [key, value] of searchParams.entries()) {
             if (!key.startsWith("attr_") || !value) {
                 continue;

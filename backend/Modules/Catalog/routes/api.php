@@ -12,6 +12,7 @@ use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
 use Modules\Catalog\Http\Controllers\Admin\ProductImageAdminController;
+use Modules\Catalog\Http\Controllers\Admin\ProductSetAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
@@ -146,6 +147,11 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::post('/{id}/variants', [ProductVariantAdminController::class, 'store']);
     Route::put('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'update']);
     Route::delete('/{id}/variants/{variantId}', [ProductVariantAdminController::class, 'destroy']);
+
+    Route::get('/{id}/sets', [ProductSetAdminController::class, 'index']);
+    Route::post('/{id}/sets', [ProductSetAdminController::class, 'store']);
+    Route::put('/{id}/sets/{setId}', [ProductSetAdminController::class, 'update']);
+    Route::delete('/{id}/sets/{setId}', [ProductSetAdminController::class, 'destroy']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/pricing')->group(function () {

@@ -95,8 +95,9 @@ export default function ProductForm({
                     </label>
                 </div>
                 
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:items-end">
                     <AdminBrandSelect
+                        className="shrink-0"
                         value={form.brand_id}
                         brands={brands}
                         onChangeAction={(value) => {
@@ -117,38 +118,38 @@ export default function ProductForm({
                             });
                         }}
                     />
-                </div>
 
-                <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
-                        Название
-                    </label>
-                    <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => {
-                            const nextName = e.target.value;
-                            const selectedBrand = brands.find(
-                                (brand) => String(brand.id) === String(form.brand_id),
-                            );
-                            const nextSlug = form.id
-                                ? form.slug
-                                : buildProductSlug(selectedBrand?.slug ?? "", nextName);
-                            const nextDisplay = selectedBrand?.name
-                                ? `${selectedBrand.name} ${nextName}`.trim()
-                                : nextName;
+                    <div className="min-w-0 flex-1">
+                        <label className="mb-1.5 block text-sm font-medium text-admin-text">
+                            Название
+                        </label>
+                        <input
+                            type="text"
+                            value={form.name}
+                            onChange={(e) => {
+                                const nextName = e.target.value;
+                                const selectedBrand = brands.find(
+                                    (brand) => String(brand.id) === String(form.brand_id),
+                                );
+                                const nextSlug = form.id
+                                    ? form.slug
+                                    : buildProductSlug(selectedBrand?.slug ?? "", nextName);
+                                const nextDisplay = selectedBrand?.name
+                                    ? `${selectedBrand.name} ${nextName}`.trim()
+                                    : nextName;
 
-                            onChangeAction({
-                                ...form,
-                                name: nextName,
-                                slug: nextSlug,
-                                h1: form.id ? form.h1 : nextDisplay,
-                                seo_title: form.id ? form.seo_title : nextDisplay,
-                            });
-                        }}
-                        className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
-                        required
-                    />
+                                onChangeAction({
+                                    ...form,
+                                    name: nextName,
+                                    slug: nextSlug,
+                                    h1: form.id ? form.h1 : nextDisplay,
+                                    seo_title: form.id ? form.seo_title : nextDisplay,
+                                });
+                            }}
+                            className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
+                            required
+                        />
+                    </div>
                 </div>
 
                 <div>

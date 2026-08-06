@@ -41,6 +41,8 @@ class CatalogProductsListingService
         'concentration_label',
         'is_tester',
         'is_vial',
+        'is_miniature',
+        'is_set',
         'title',
     ];
 
@@ -65,6 +67,7 @@ class CatalogProductsListingService
                 'products.short_description',
                 'products.is_new',
                 'products.is_hit',
+                'products.is_set',
                 'products.is_out_of_stock',
                 'products.listing_min_price',
             ]);
@@ -157,6 +160,7 @@ class CatalogProductsListingService
                         'short_description',
                         'is_new',
                         'is_hit',
+                        'is_set',
                         'is_out_of_stock',
                         'listing_min_price',
                     ]);

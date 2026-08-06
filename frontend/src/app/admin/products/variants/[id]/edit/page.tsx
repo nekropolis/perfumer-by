@@ -38,12 +38,13 @@ export default function AdminProductVariantEditPage() {
                 setForm({
                     id: item.id,
                     title: item.title,
-                    volume_ml: formatDecimalInputValue(item.volume_ml ?? 0),
+                    volume_ml: item.volume_ml != null ? formatDecimalInputValue(item.volume_ml) : "",
                     concentration_code: item.concentration_code ?? "",
                     concentration_label: item.concentration_label ?? "",
                     is_tester: !!item.is_tester,
                     is_vial: !!item.is_vial,
                     is_miniature: !!item.is_miniature,
+                    is_set: !!item.is_set,
                     excludes_from_free_delivery_threshold: !!item.excludes_from_free_delivery_threshold,
                 });
             } catch (e: unknown) {
@@ -63,6 +64,28 @@ export default function AdminProductVariantEditPage() {
 
         setSubmitting(true);
         setError("");
+
+        if (form.is_set) {
+            if (!form.concentration_label.trim()) {
+                setError("Описание концентрации обязательно");
+                setSubmitting(false);
+                return;
+            }
+
+            try {
+                await updateVariantDefinition(form.id, {
+                    is_set: true,
+                    concentration_label: form.concentration_label.trim(),
+                    excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
+                });
+                router.push(VARIANTS_BASE);
+            } catch (e: unknown) {
+                setError(e instanceof Error ? e.message : "Ошибка сохранения варианта");
+            } finally {
+                setSubmitting(false);
+            }
+            return;
+        }
 
         if (!form.volume_ml || !form.concentration_code.trim() || !form.concentration_label.trim()) {
             setError("Объем, код и описание обязательны");
@@ -85,6 +108,7 @@ export default function AdminProductVariantEditPage() {
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
                 is_miniature: form.is_miniature,
+                is_set: false,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });
 

@@ -27,6 +27,7 @@ class Product extends Model
         'is_active',
         'is_new',
         'is_hit',
+        'is_set',
         'is_out_of_stock',
         'listing_min_price',
         'listing_max_price',
@@ -37,6 +38,7 @@ class Product extends Model
         'is_active' => 'boolean',
         'is_new' => 'boolean',
         'is_hit' => 'boolean',
+        'is_set' => 'boolean',
         'is_out_of_stock' => 'boolean',
         'listing_min_price' => 'decimal:2',
         'listing_max_price' => 'decimal:2',
@@ -66,6 +68,11 @@ class Product extends Model
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariantLink::class)->orderBy('sort_order');
+    }
+
+    public function sets(): HasMany
+    {
+        return $this->hasMany(ProductSet::class)->orderBy('sort_order')->orderBy('id');
     }
 
     /**

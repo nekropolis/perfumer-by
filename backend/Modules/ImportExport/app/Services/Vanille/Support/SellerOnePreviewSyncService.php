@@ -205,7 +205,7 @@ class SellerOnePreviewSyncService
         $offers = SupplierVariantOffer::query()
             ->where('supplier_id', $supplierId)
             ->where('external_id', $externalCode)
-            ->get(['id', 'payload', 'product_variant_id']);
+            ->get(['id', 'payload', 'product_variant_id', 'is_active']);
 
         // Preload ProductVariantLink для всех variant_id батча
         $variantIds = $offers->pluck('product_variant_id')
@@ -219,7 +219,8 @@ class SellerOnePreviewSyncService
             : collect([]);
 
         foreach ($offers as $offer) {
-            $p = is_array($offer->payload) ? $offer->payload : [];
+            $beforePayload = is_array($offer->payload) ? $offer->payload : [];
+            $p = $beforePayload;
             unset($p['missing_in_latest_price'], $p['missing_marked_at'], $p['seller_one_listing_deferred']);
 
             if ($inStockFromColumn === true) {
@@ -227,6 +228,20 @@ class SellerOnePreviewSyncService
             } elseif ($inStockFromColumn === false) {
                 $p['out_of_stock_in_price_file'] = true;
                 $p['out_of_stock_marked_at'] = now()->toDateTimeString();
+            }
+
+            $needsWrite = ! $offer->is_active
+                || array_key_exists('missing_in_latest_price', $beforePayload)
+                || array_key_exists('missing_marked_at', $beforePayload)
+                || array_key_exists('seller_one_listing_deferred', $beforePayload)
+                || ($inStockFromColumn === true && (
+                    array_key_exists('out_of_stock_in_price_file', $beforePayload)
+                    || array_key_exists('out_of_stock_marked_at', $beforePayload)
+                ))
+                || ($inStockFromColumn === false && empty($beforePayload['out_of_stock_in_price_file']));
+
+            if (! $needsWrite) {
+                continue;
             }
 
             $offer->update([

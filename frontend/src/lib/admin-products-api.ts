@@ -163,6 +163,7 @@ export type ProductAdminDetail = {
     is_active: boolean;
     is_new: boolean;
     is_hit: boolean;
+    is_set?: boolean;
     is_out_of_stock?: boolean;
     h1?: string | null;
     short_description?: string | null;
@@ -182,6 +183,13 @@ export type ProductAdminDetail = {
     } | null;
 
     variants_count: number;
+
+    set_components?: Array<{
+        id?: number;
+        volume_label: string;
+        concentration_label: string;
+        sort_order?: number;
+    }>;
 
     variants?: Array<{
         id: number;
@@ -552,6 +560,12 @@ export async function createProduct(payload: {
     is_active?: boolean;
     is_new?: boolean;
     is_hit?: boolean;
+    is_set?: boolean;
+    set_components?: Array<{
+        volume_label: string;
+        concentration_label: string;
+        sort_order?: number;
+    }>;
     h1?: string;
     short_description?: string;
     description?: string;
@@ -583,6 +597,12 @@ export async function updateProduct(
         is_active?: boolean;
         is_new?: boolean;
         is_hit?: boolean;
+        is_set?: boolean;
+        set_components?: Array<{
+            volume_label: string;
+            concentration_label: string;
+            sort_order?: number;
+        }>;
         h1?: string;
         short_description?: string;
         description?: string;
@@ -603,6 +623,97 @@ export async function updateProduct(
         throw new Error(text || `Update product API error: ${res.status}`);
     }
 
+    return res.json();
+}
+
+export type ProductSetAdminItem = {
+    id: number;
+    product_id: number;
+    product_variant_link_id: number | null;
+    title: string | null;
+    sort_order: number;
+    variant?: {
+        id: number;
+        display_name?: string | null;
+        price?: string | number | null;
+        is_active?: boolean;
+    } | null;
+    components: Array<{
+        id?: number;
+        volume_label: string;
+        concentration_label: string;
+        sort_order?: number;
+    }>;
+};
+
+export async function fetchProductSets(productId: number | string): Promise<{ data: ProductSetAdminItem[] }> {
+    const res = await fetch(`${API_BASE}/admin/products/${productId}/sets`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Fetch product sets API error: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function createProductSet(
+    productId: number | string,
+    payload: { variant_definition_ids: number[]; title?: string },
+): Promise<{ message?: string; data: ProductSetAdminItem }> {
+    const res = await fetch(`${API_BASE}/admin/products/${productId}/sets`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Create product set API error: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function updateProductSetItem(
+    productId: number | string,
+    setId: number,
+    payload: {
+        variant_definition_ids?: number[];
+        set_components?: Array<{
+            volume_label: string;
+            concentration_label: string;
+            sort_order?: number;
+        }>;
+        title?: string;
+    },
+): Promise<{ message?: string; data: ProductSetAdminItem }> {
+    const res = await fetch(`${API_BASE}/admin/products/${productId}/sets/${setId}`, {
+        method: "PUT",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Update product set API error: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function deleteProductSet(
+    productId: number | string,
+    setId: number,
+): Promise<{ message?: string }> {
+    const res = await fetch(`${API_BASE}/admin/products/${productId}/sets/${setId}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Delete product set API error: ${res.status}`);
+    }
     return res.json();
 }
 

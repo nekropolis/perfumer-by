@@ -110,6 +110,7 @@ class VariantDefinitionVolume
         bool $isVial,
         bool $isMiniature = false,
         ?int $ignoreId = null,
+        bool $isSet = false,
     ): void {
         $exists = VariantDefinition::query()
             ->where('volume_ml', $volumeMl)
@@ -117,6 +118,7 @@ class VariantDefinitionVolume
             ->where('is_tester', $isTester)
             ->where('is_vial', $isVial)
             ->where('is_miniature', $isMiniature)
+            ->where('is_set', $isSet)
             ->when($ignoreId !== null, static fn ($query) => $query->where('id', '!=', $ignoreId))
             ->exists();
 

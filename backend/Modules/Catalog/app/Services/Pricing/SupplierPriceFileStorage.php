@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use Modules\Catalog\Models\SellerOneSetting;
 use Modules\Catalog\Models\Supplier;
 use Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser;
+use Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile;
 
 final class SupplierPriceFileStorage
 {
@@ -143,7 +144,13 @@ final class SupplierPriceFileStorage
 
     public function hasAnyStoredPriceFile(): bool
     {
-        foreach (Supplier::query()->forPricing()->where('is_active', true)->pluck('id') as $supplierId) {
+        foreach (
+            Supplier::query()
+                ->forPricing()
+                ->whereIn('code', SupplierPriceProfile::codes())
+                ->where('is_active', true)
+                ->pluck('id') as $supplierId
+        ) {
             if ($this->getAbsolutePath((int) $supplierId) !== null) {
                 return true;
             }
@@ -160,6 +167,7 @@ final class SupplierPriceFileStorage
         $result = [];
         $suppliers = Supplier::query()
             ->forPricing()
+            ->whereIn('code', SupplierPriceProfile::codes())
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'code']);

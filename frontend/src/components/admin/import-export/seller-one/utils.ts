@@ -11,9 +11,14 @@ export function formatParsedSupplierVariantHint(parsed: {
     is_tester?: boolean | null;
     is_vial?: boolean | null;
     is_miniature?: boolean | null;
+    is_set?: boolean | null;
 } | null | undefined): string {
     if (!parsed) {
         return "—";
+    }
+
+    if (parsed.is_set) {
+        return "SET";
     }
 
     const parts: string[] = [];
@@ -55,9 +60,14 @@ export function canConfirmSuggestedLink(row: {
     match_confidence?: number;
     match_confidence_breakdown?: { name_match_level?: string | null } | null;
     is_linked?: boolean;
+    parsed?: { is_set?: boolean | null } | null;
 }): boolean {
     if (row.is_linked) {
         return true;
+    }
+
+    if (row.parsed?.is_set) {
+        return false;
     }
 
     if (!row.suggested_variant?.id) {
@@ -116,11 +126,11 @@ export function buildInitialSearchFromRow(row: SellerOneSupplierProductItem): st
 
     if (parsedBrand && parsedName) {
         const strippedName = stripBrandPrefixFromName(parsedBrand, parsedName);
-        return `${parsedBrand} ${strippedName}`.trim();
+        return stripSetTailFromSearch(`${parsedBrand} ${strippedName}`.trim());
     }
 
     if (parsedName) {
-        return parsedName;
+        return stripSetTailFromSearch(parsedName);
     }
 
     const external = row.external_name || "";
@@ -130,7 +140,17 @@ export function buildInitialSearchFromRow(row: SellerOneSupplierProductItem): st
         .replace(/\b(edp|edt|edc|parfum|extrait)\b/gi, " ")
         .replace(/\s+/g, " ")
         .trim();
-    return compact || external;
+    return stripSetTailFromSearch(compact || external);
+}
+
+/** Убрать «set ( …)» / обрубок «set (» из строки поиска принудительной связки. */
+function stripSetTailFromSearch(value: string): string {
+    return value
+        .replace(/\bset\b\s*\(.*$/gi, " ")
+        .replace(/\bset\b\s*\(?\s*$/gi, " ")
+        .replace(/\bset\b.*$/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 export function normalizeSearchText(value: string): string {

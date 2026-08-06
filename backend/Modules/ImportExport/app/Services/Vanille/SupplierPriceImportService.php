@@ -239,7 +239,8 @@ class SupplierPriceImportService
      *  - XLSX читается ровно один раз (не на каждый батч);
      *  - variantsIndex/brands/rules собираются один раз и шарятся между батчами;
      *  - в конце каждого батча через `$onBatch` пушится прогресс (для кэша джоба);
-     *  - батч-локальные массивы unset-ятся и вызывается gc_collect_cycles().
+     *  - linked и unlinked с тем же title обновляются batch SQL без матчера;
+     *  - полный матчинг только для новых кодов и строк с изменившимся названием.
      *
      * Это заменяет прежнюю схему «цикл вокруг preview()», которая переоткрывала
      * PhpSpreadsheet и переподнимала индекс вариантов на каждой итерации и в
@@ -440,6 +441,9 @@ class SupplierPriceImportService
             // Batch-collect связанных строк → один bulk upsert
             $linkedRecords = [];
             $linkedRows = [];
+            // Unlinked, название не изменилось → без матчера (главный выигрыш на повторном прайсе)
+            $unchangedTitleRecords = [];
+            $unchangedTitleRows = [];
 
             foreach ($rows as $row) {
                 $externalCode = (string) ($row['code'] ?? '');
@@ -459,6 +463,15 @@ class SupplierPriceImportService
                 if ($existing && !empty($existing['is_linked'])) {
                     $linkedRecords[] = $existing;
                     $linkedRows[] = $row;
+                    continue;
+                }
+
+                if (
+                    $existing !== null
+                    && trim((string) ($existing['external_name'] ?? '')) === trim((string) ($row['title'] ?? ''))
+                ) {
+                    $unchangedTitleRecords[] = $existing;
+                    $unchangedTitleRows[] = $row;
                     continue;
                 }
 
@@ -525,6 +538,31 @@ class SupplierPriceImportService
                 $totalProcessed += $batchUpdated;
             }
 
+            // ── Batch-update несвязанных с тем же названием (только цена / last_seen) ──
+            if ($unchangedTitleRecords !== []) {
+                $batchUpdated = $this->previewSyncService->touchLinkedSupplierRowsBatchFromRecords(
+                    $supplier->id,
+                    $unchangedTitleRecords,
+                    $unchangedTitleRows,
+                );
+                foreach ($unchangedTitleRecords as $idx => $rec) {
+                    $row = $unchangedTitleRows[$idx] ?? [];
+                    $rec['external_name'] = (string) ($row['title'] ?? $rec['external_name']);
+                    $rec['payload'] = [
+                        ...$rec['payload'],
+                        'source' => 'seller-one-xls',
+                        'external_code' => (string) ($row['code'] ?? ''),
+                        'supplier_price' => $row['supplier_price'] ?? null,
+                        'min_price' => $row['supplier_price'] ?? null,
+                        'price_file_in_stock' => true,
+                        'last_parsed_at' => now()->toDateTimeString(),
+                    ];
+                    $supplierProductIndex['supplier-xls://'.($row['code'] ?? '')] = $rec;
+                }
+                $totalUpdated += $batchUpdated;
+                $totalProcessed += $batchUpdated;
+            }
+
             if ($onBatch) {
                 $onBatch([
                     'total_rows' => $totalRows,
@@ -539,10 +577,7 @@ class SupplierPriceImportService
                 ]);
             }
 
-            unset($rows, $linkedRecords, $linkedRows);
-            if (function_exists('gc_collect_cycles')) {
-                gc_collect_cycles();
-            }
+            unset($rows, $linkedRecords, $linkedRows, $unchangedTitleRecords, $unchangedTitleRows);
 
             if (
                 $jobId !== null
@@ -1020,6 +1055,10 @@ class SupplierPriceImportService
 
         /** @var array<int, true> */
         $touchedVariantIds = [];
+        /** @var array<int, true> */
+        $fastTouchSupplierProductIds = [];
+        /** @var array<int, true> */
+        $fastTouchOfferIds = [];
 
         foreach ($linkedProducts as $index => $supplierProduct) {
             $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
@@ -1099,6 +1138,66 @@ class SupplierPriceImportService
                     ->where('supplier_id', $supplier->id)
                     ->where('external_id', $externalCode)
                     ->first();
+
+            // Повторный прогон без изменений цены/флагов — без транзакции и лишних UPDATE.
+            if (
+                $fileInStock
+                && $this->linkedPriceRefreshIsUnchanged(
+                    $payload,
+                    $supplierPrice,
+                    $resolvedPrice,
+                    $existingOffer instanceof SupplierVariantOffer ? $existingOffer : null,
+                )
+            ) {
+                $fastTouchSupplierProductIds[(int) $supplierProduct->id] = true;
+                if ($existingOffer instanceof SupplierVariantOffer) {
+                    $fastTouchOfferIds[(int) $existingOffer->id] = true;
+                }
+                $updated++;
+
+                if ($wasListed) {
+                    if (!isset($variantFirstListedCodeInBatch[$variantId])) {
+                        $variantFirstListedCodeInBatch[$variantId] = $externalCode;
+                        $alreadyListedBeforeBatch++;
+                        if (count($alreadyListedSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                            $alreadyListedSamples[] = [
+                                'code' => $externalCode,
+                                'variant_id' => $variantId,
+                                'name' => (string) $supplierProduct->external_name,
+                            ];
+                        }
+                    } elseif ($variantFirstListedCodeInBatch[$variantId] !== $externalCode) {
+                        $duplicateVariantInBatch++;
+                        if (count($duplicateVariantSamples) < self::LISTING_DIAGNOSTIC_SAMPLE_LIMIT) {
+                            $duplicateVariantSamples[] = [
+                                'code' => $externalCode,
+                                'variant_id' => $variantId,
+                                'first_code' => $variantFirstListedCodeInBatch[$variantId],
+                                'name' => (string) $supplierProduct->external_name,
+                            ];
+                        }
+                    }
+                }
+
+                if (
+                    $onProgress !== null
+                    && $totalLinked > 0
+                    && (($index + 1) % 100 === 0 || ($index + 1) === $totalLinked)
+                ) {
+                    $onProgress([
+                        'processed' => $index + 1,
+                        'total_linked' => $totalLinked,
+                        'updated' => $updated,
+                        'skipped' => $skipped,
+                        'price_history_rows' => $priceHistoryRows,
+                        'price_changed' => $priceChanged,
+                        'became_in_stock' => $becameInStock,
+                        'message' => 'Обновление цен: ' . ($index + 1) . " / {$totalLinked}",
+                    ]);
+                }
+
+                continue;
+            }
 
             DB::transaction(function () use (
                 $supplier,
@@ -1258,7 +1357,7 @@ class SupplierPriceImportService
             if (
                 $onProgress !== null
                 && $totalLinked > 0
-                && (($index + 1) % 10 === 0 || ($index + 1) === $totalLinked)
+                && (($index + 1) % 100 === 0 || ($index + 1) === $totalLinked)
             ) {
                 $onProgress([
                     'processed' => $index + 1,
@@ -1272,6 +1371,11 @@ class SupplierPriceImportService
                 ]);
             }
         }
+
+        $this->touchLinkedPriceRefreshLastSeen(
+            array_keys($fastTouchSupplierProductIds),
+            array_keys($fastTouchOfferIds),
+        );
 
         $this->syncRetailPricesForVariants(array_keys($touchedVariantIds), (int) $supplier->id);
 
@@ -1862,6 +1966,10 @@ class SupplierPriceImportService
 
     private function tryAutoConfirmLink(Supplier $supplier, SupplierProduct $supplierProduct, array $parsed): void
     {
+        if (! empty($parsed['parsed']['is_set'])) {
+            return;
+        }
+
         $confidence = (int) (($parsed['suggested_variant']['confidence'] ?? 0));
         $variantId = (int) (($parsed['suggested_variant']['id'] ?? 0));
         if ($confidence < 100 || $variantId <= 0) {
@@ -2159,6 +2267,84 @@ class SupplierPriceImportService
             'distinct_linked_variants' => count($byVariant),
             'groups' => $groups,
         ];
+    }
+
+    /**
+     * Повторный refresh без изменения закупки/розницы и без витринных блокировок в payload.
+     * Тогда тяжёлую транзакцию можно пропустить — только last_seen.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function linkedPriceRefreshIsUnchanged(
+        array $payload,
+        float $supplierPrice,
+        float $resolvedPrice,
+        ?SupplierVariantOffer $existingOffer,
+    ): bool {
+        if (! $existingOffer instanceof SupplierVariantOffer) {
+            return false;
+        }
+        if (! $existingOffer->is_active) {
+            return false;
+        }
+
+        $offerPayload = is_array($existingOffer->payload) ? $existingOffer->payload : [];
+        if (
+            ! empty($offerPayload['missing_in_latest_price'])
+            || ! empty($offerPayload['seller_one_listing_deferred'])
+            || ! empty($offerPayload['out_of_stock_in_price_file'])
+        ) {
+            return false;
+        }
+
+        if (empty($payload['price_file_in_stock'])) {
+            return false;
+        }
+
+        $prevSupplierPrice = $this->toFloat($payload['supplier_price'] ?? ($payload['min_price'] ?? null));
+        if ($prevSupplierPrice === null || abs($prevSupplierPrice - $supplierPrice) >= 0.004) {
+            return false;
+        }
+
+        $offerPurchase = $existingOffer->purchase_price !== null ? (float) $existingOffer->purchase_price : null;
+        if ($offerPurchase === null || abs($offerPurchase - $supplierPrice) >= 0.004) {
+            return false;
+        }
+
+        $offerRetail = $existingOffer->price !== null ? (float) $existingOffer->price : null;
+        if ($offerRetail === null || abs($offerRetail - $resolvedPrice) >= 0.004) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<int>  $supplierProductIds
+     * @param  list<int>  $offerIds
+     */
+    private function touchLinkedPriceRefreshLastSeen(array $supplierProductIds, array $offerIds): void
+    {
+        $now = now();
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $supplierProductIds))), 500) as $chunk) {
+            if ($chunk === []) {
+                continue;
+            }
+            SupplierProduct::query()
+                ->whereIn('id', $chunk)
+                ->update(['last_seen_at' => $now]);
+        }
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $offerIds))), 500) as $chunk) {
+            if ($chunk === []) {
+                continue;
+            }
+            SupplierVariantOffer::query()
+                ->whereIn('id', $chunk)
+                ->update([
+                    'last_seen_at' => $now,
+                    'last_synced_at' => $now,
+                ]);
+        }
     }
 
     private function toFloat(mixed $value): ?float

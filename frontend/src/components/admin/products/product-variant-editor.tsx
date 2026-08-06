@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import {
     createProductVariant,
     deleteProductVariant,
@@ -12,10 +13,20 @@ import {
     type AdminProductVariantItem,
     type VariantDefinitionItem,
 } from "@/lib/admin-product-variants-api";
+import ProductSetCreateButton, {
+    draftsFromSetComponents,
+    ProductSetCompositionPicker,
+    type ProductSetDraftRow,
+} from "@/components/admin/products/product-sets-editor";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
 import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
+import {
+    fetchProductSets,
+    updateProductSetItem,
+} from "@/lib/admin-products-api";
+import { Layers } from "lucide-react";
 
 type Props = {
     productId: number;
@@ -72,6 +83,9 @@ function buildDisplayName(item: AdminProductVariantItem) {
 /** Строка для заголовка модалки: «100 мл / EDP - парфюмерная вода». */
 function formatVariantEditTitle(item: AdminProductVariantItem): string {
     const def = item.definition;
+    if (def?.is_set) {
+        return "Набор";
+    }
     if (def) {
         const tester = def.is_tester ? " · Тестер" : "";
         const vial = def.is_vial ? " · Пробник" : "";
@@ -259,11 +273,15 @@ export default function ProductVariantsEditor({
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createForm, setCreateForm] = useState<VariantFormState>(emptyForm);
     const [variantSearch, setVariantSearch] = useState("");
+    const [variantPickerOpen, setVariantPickerOpen] = useState(false);
     const [variantDefinitions, setVariantDefinitions] = useState<VariantDefinitionItem[]>([]);
     const [variantDefinitionsLoading, setVariantDefinitionsLoading] = useState(false);
     const debouncedCreateSearch = useDebouncedValue(variantSearch, 250);
 
     const [editForm, setEditForm] = useState<VariantFormState | null>(null);
+    const [editSetId, setEditSetId] = useState<number | null>(null);
+    const [editSetDraftRows, setEditSetDraftRows] = useState<ProductSetDraftRow[]>([]);
+    const [editSetLoading, setEditSetLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<AdminProductVariantItem | null>(null);
 
     const [submitting, setSubmitting] = useState(false);
@@ -488,20 +506,28 @@ export default function ProductVariantsEditor({
     const openCreate = () => {
         setCreateForm(emptyForm);
         setVariantSearch("");
+        setVariantDefinitions([]);
+        setVariantPickerOpen(false);
         setCreateModalOpen(true);
         setError("");
         setSuccess("");
-        void loadDefinitions("", true);
     };
 
     const loadDefinitions = useCallback(async (query: string, excludeLinkedToProduct: boolean) => {
+        const trimmed = query.trim();
+        if (trimmed === "") {
+            setVariantDefinitions([]);
+            setVariantDefinitionsLoading(false);
+            return;
+        }
+
         setVariantDefinitionsLoading(true);
         try {
             const data = await fetchVariantDefinitions({
-                search: query.trim() || undefined,
+                search: trimmed,
                 product_id: excludeLinkedToProduct ? productId : undefined,
             });
-            setVariantDefinitions(data.data || []);
+            setVariantDefinitions((data.data || []).filter((item) => !item.is_set));
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка загрузки таблицы вариантов");
         } finally {
@@ -514,22 +540,50 @@ export default function ProductVariantsEditor({
         void loadDefinitions(debouncedCreateSearch, true);
     }, [createModalOpen, debouncedCreateSearch, loadDefinitions]);
 
-    const openEdit = (item: AdminProductVariantItem) => {
+    const openEdit = async (item: AdminProductVariantItem) => {
         setEditForm(toFormState(item));
+        setEditSetId(null);
+        setEditSetDraftRows([]);
         setError("");
         setSuccess("");
+
+        const isSet = Boolean(item.definition?.is_set || item.is_set);
+        if (!isSet) {
+            return;
+        }
+
+        setEditSetLoading(true);
+        try {
+            const data = await fetchProductSets(productId);
+            const set =
+                data.data.find((row) => row.product_variant_link_id === item.id) ||
+                (item.product_set_id
+                    ? data.data.find((row) => row.id === item.product_set_id)
+                    : undefined);
+            if (set) {
+                setEditSetId(set.id);
+                setEditSetDraftRows(draftsFromSetComponents(set.components));
+            }
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить состав набора");
+        } finally {
+            setEditSetLoading(false);
+        }
     };
 
     const handleCreate = async () => {
+        if (!createForm.variant_definition_id) {
+            setError("Выберите вариант из справочника");
+            return;
+        }
+
         setSubmitting(true);
         setError("");
         setSuccess("");
 
         try {
             const result = await createProductVariant(productId, {
-                variant_definition_id: createForm.variant_definition_id
-                    ? Number(createForm.variant_definition_id)
-                    : null,
+                variant_definition_id: Number(createForm.variant_definition_id),
                 price: createForm.price || null,
                 old_price: createForm.old_price || null,
                 stock: Number(createForm.stock || 0),
@@ -556,15 +610,35 @@ export default function ProductVariantsEditor({
             return;
         }
 
+        const editingSet = Boolean(editSetId);
+        if (editingSet && editSetDraftRows.length === 0) {
+            setError("Состав набора не может быть пустым");
+            return;
+        }
+
         setSubmitting(true);
         setError("");
         setSuccess("");
 
         try {
+            if (editSetId) {
+                await updateProductSetItem(productId, editSetId, {
+                    set_components: editSetDraftRows.map((row, index) => ({
+                        volume_label: row.volume_label,
+                        concentration_label: row.concentration_label,
+                        sort_order: index,
+                    })),
+                });
+            }
+
             const result = await updateProductVariant(productId, editForm.id, {
-                variant_definition_id: editForm.variant_definition_id
-                    ? Number(editForm.variant_definition_id)
-                    : null,
+                ...(editSetId
+                    ? {}
+                    : {
+                          variant_definition_id: editForm.variant_definition_id
+                              ? Number(editForm.variant_definition_id)
+                              : null,
+                      }),
                 price: editForm.price || null,
                 old_price: editForm.old_price || null,
                 stock: Number(editForm.stock || 0),
@@ -576,6 +650,8 @@ export default function ProductVariantsEditor({
 
             setSuccess(result.message || "Вариант обновлен");
             setEditForm(null);
+            setEditSetId(null);
+            setEditSetDraftRows([]);
             await onReloadAction();
             await loadVariants();
         } catch (e: unknown) {
@@ -626,6 +702,13 @@ export default function ProductVariantsEditor({
                     <div className="text-base font-semibold">Варианты товара</div>
 
                     <div className="flex items-center gap-2">
+                        <ProductSetCreateButton
+                            productId={productId}
+                            onChangedAction={async () => {
+                                await onReloadAction();
+                                await loadVariants();
+                            }}
+                        />
                         <button
                             type="button"
                             onClick={openCreate}
@@ -757,28 +840,40 @@ export default function ProductVariantsEditor({
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v4h1M12 3a9 9 0 100 18 9 9 0 000-18z" />
                                                     </svg>
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openEdit(item)}
-                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
-                                                    title="Редактировать"
-                                                    aria-label="Редактировать"
-                                                >
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="1.8"
-                                                        className="h-3.5 w-3.5"
+                                                {Boolean(item.definition?.is_set || item.is_set) ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void openEdit(item)}
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
+                                                        title="Редактировать набор"
+                                                        aria-label="Редактировать набор"
                                                     >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
-                                                        />
-                                                    </svg>
-                                                </button>
+                                                        <Layers className="h-3.5 w-3.5" />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void openEdit(item)}
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-admin-text transition hover:bg-white"
+                                                        title="Редактировать"
+                                                        aria-label="Редактировать"
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.8"
+                                                            className="h-3.5 w-3.5"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                d="M16.862 3.487a2.25 2.25 0 113.182 3.182L9.75 16.963 6 18l1.037-3.75L16.862 3.487z"
+                                                            />
+                                                        </svg>
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeleteTarget(item)}
@@ -813,13 +908,23 @@ export default function ProductVariantsEditor({
 
             <AdminConfirmDialog
                 open={!!deleteTarget}
-                title="Удаление варианта"
+                title={
+                    deleteTarget && Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
+                        ? "Удаление набора"
+                        : "Удаление варианта"
+                }
                 message={
                     deleteTarget
-                        ? `Удалить вариант "${deleteTarget.title}"?`
+                        ? Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
+                            ? `Удалить набор "${deleteTarget.title}" целиком (включая SKU)?`
+                            : `Удалить вариант "${deleteTarget.title}"?`
                         : ""
                 }
-                confirmText="Удалить"
+                confirmText={
+                    deleteTarget && Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
+                        ? "Удалить набор"
+                        : "Удалить"
+                }
                 loading={deleting}
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={handleDelete}
@@ -835,140 +940,183 @@ export default function ProductVariantsEditor({
                 singleVariantId={suppliersModalFocusId}
             />
 
-            {createModalOpen ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
-                    <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
-                            <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold">Добавить вариант товара</h2>
+            <AdminModalShell
+                open={createModalOpen}
+                onCloseAction={() => setCreateModalOpen(false)}
+                title="Добавить вариант товара"
+                maxWidthClass="sm:max-w-3xl"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setCreateModalOpen(false)}
+                            className="rounded-lg border px-4 py-2 text-sm"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleCreate()}
+                            disabled={submitting}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                        >
+                            {submitting ? "Сохранение..." : "Сохранить"}
+                        </button>
+                    </div>
+                }
+            >
+                {error ? (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {error}
+                    </div>
+                ) : null}
+                <div className="mb-4 space-y-2 rounded-xl border bg-admin-muted p-3">
+                    <label className="block text-sm text-admin-text-secondary">
+                        Поиск варианта в справочнике
+                    </label>
+                    {createForm.variant_definition_id && !variantPickerOpen ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="min-w-0 flex-1 rounded-lg border border-admin-border bg-white px-3 py-2 text-sm font-medium text-admin-text">
+                                {createForm.variant_definition_title || "—"}
                             </div>
-
-                            <div className="overflow-y-auto px-5 py-4">
-                                <div className="mb-4 space-y-2 rounded-xl border bg-admin-muted p-3">
-                                    <label className="block text-sm text-admin-text-secondary">Поиск варианта в справочнике</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        <input
-                                            type="text"
-                                            value={variantSearch}
-                                            onChange={(e) => setVariantSearch(e.target.value)}
-                                            className="w-full max-w-md rounded-lg border px-3 py-2 text-sm"
-                                            placeholder="Например: 100"
-                                        />
-                                        <span className="inline-flex items-center text-xs text-admin-text-secondary">
-                                            Живой поиск по мл
-                                        </span>
-                                    </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setVariantSearch("");
+                                    setVariantDefinitions([]);
+                                    setVariantPickerOpen(true);
+                                }}
+                                className="rounded-lg border px-3 py-2 text-sm"
+                            >
+                                Изменить
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <input
+                                type="text"
+                                value={variantSearch}
+                                onChange={(e) => {
+                                    setVariantSearch(e.target.value);
+                                    setVariantPickerOpen(true);
+                                }}
+                                className="w-full max-w-md rounded-lg border px-3 py-2 text-sm"
+                                placeholder="Введите объём, например: 100"
+                            />
+                            <div className="text-xs text-admin-text-secondary">Результаты появятся после ввода поиска</div>
+                            {variantSearch.trim() !== "" ? (
+                                <>
                                     {variantDefinitionsLoading ? (
                                         <div className="text-xs text-admin-text-secondary">Поиск...</div>
                                     ) : null}
                                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border bg-white p-2">
-                                        {variantDefinitions.length === 0 ? (
+                                        {!variantDefinitionsLoading && variantDefinitions.length === 0 ? (
                                             <div className="px-2 py-2 text-xs text-admin-text-secondary">
-                                                Ничего не найдено по объему
+                                                Ничего не найдено
                                             </div>
                                         ) : (
                                             variantDefinitions.map((item) => (
                                                 <button
                                                     key={item.id}
                                                     type="button"
-                                                    onClick={() =>
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setError("");
                                                         setCreateForm((prev) => ({
                                                             ...prev,
                                                             variant_definition_id: String(item.id),
                                                             variant_definition_title: item.title,
-                                                        }))
-                                                    }
-                                                    className={`block w-full rounded-lg px-2 py-2 text-left text-sm ${createForm.variant_definition_id === String(item.id)
-                                                        ? "bg-admin-primary text-white"
-                                                        : "hover:bg-admin-muted"
-                                                        }`}
+                                                        }));
+                                                        setVariantSearch("");
+                                                        setVariantDefinitions([]);
+                                                        setVariantPickerOpen(false);
+                                                    }}
+                                                    className={`block w-full rounded-lg px-2 py-2 text-left text-sm ${
+                                                        createForm.variant_definition_id === String(item.id)
+                                                            ? "bg-admin-primary text-white"
+                                                            : "hover:bg-admin-muted"
+                                                    }`}
                                                 >
                                                     {item.title}
                                                 </button>
                                             ))
                                         )}
                                     </div>
-                                    <div className="text-xs text-admin-text-secondary">
-                                        Выбрано: {createForm.variant_definition_title || "—"}
-                                    </div>
-                                </div>
-                                <VariantFormFields form={createForm} setForm={setCreateForm} />
-                            </div>
-
-                            <div className="flex justify-end gap-2 border-t px-5 py-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setCreateModalOpen(false)}
-                                    className="rounded-lg border px-4 py-2 text-sm"
-                                >
-                                    Отмена
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={handleCreate}
-                                    disabled={submitting}
-                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
-                                >
-                                    {submitting ? "Сохранение..." : "Сохранить"}
-                                </button>
-                            </div>
+                                </>
+                            ) : null}
                         </div>
-                    </div>
+                    )}
                 </div>
-            ) : null}
+                <VariantFormFields form={createForm} setForm={setCreateForm} />
+            </AdminModalShell>
 
-            {editForm ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
-                    <div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
-                            <div className="border-b px-5 py-4">
-                                <h2 className="text-lg font-semibold leading-snug text-admin-text">
-                                    Редактировать вариант
-                                </h2>
-                                {editModalVariantTitle ? (
-                                    <p className="mt-1 text-base font-medium text-admin-text">
-                                        {editModalVariantTitle}
-                                    </p>
-                                ) : null}
-                            </div>
-
-                            <div className="overflow-y-auto px-5 py-4">
-                                <VariantFormFields
-                                    form={editForm}
-                                    setForm={(updater) => {
-                                        setEditForm((prev) => {
-                                            if (!prev) {
-                                                return prev;
-                                            }
-
-                                            return typeof updater === "function" ? updater(prev) : updater;
-                                        });
-                                    }}
-                                />                            </div>
-
-                            <div className="flex justify-end gap-2 border-t px-5 py-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setEditForm(null)}
-                                    className="rounded-lg border px-4 py-2 text-sm"
-                                >
-                                    Отмена
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={handleUpdate}
-                                    disabled={submitting}
-                                    className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
-                                >
-                                    {submitting ? "Сохранение..." : "Сохранить"}
-                                </button>
-                            </div>
-                        </div>
+            <AdminModalShell
+                open={Boolean(editForm)}
+                onCloseAction={() => {
+                    setEditForm(null);
+                    setEditSetId(null);
+                    setEditSetDraftRows([]);
+                }}
+                title={editSetId ? "Редактировать набор" : "Редактировать вариант"}
+                maxWidthClass="sm:max-w-3xl"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditForm(null);
+                                setEditSetId(null);
+                                setEditSetDraftRows([]);
+                            }}
+                            className="rounded-lg border px-4 py-2 text-sm"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleUpdate()}
+                            disabled={submitting || editSetLoading}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                        >
+                            {submitting ? "Сохранение..." : "Сохранить"}
+                        </button>
                     </div>
-                </div>
-            ) : null}
+                }
+            >
+                {editModalVariantTitle ? (
+                    <p className="mb-3 text-base font-medium text-admin-text">{editModalVariantTitle}</p>
+                ) : null}
+                {error ? (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {error}
+                    </div>
+                ) : null}
+                {editSetLoading ? (
+                    <div className="mb-3 text-sm text-admin-text-secondary">Загрузка состава набора...</div>
+                ) : null}
+                {editSetId ? (
+                    <div className="mb-4 rounded-xl border bg-admin-muted/40 p-3">
+                        <ProductSetCompositionPicker
+                            draftRows={editSetDraftRows}
+                            onChangeAction={setEditSetDraftRows}
+                        />
+                    </div>
+                ) : null}
+                {editForm ? (
+                    <VariantFormFields
+                        form={editForm}
+                        setForm={(updater) => {
+                            setEditForm((prev) => {
+                                if (!prev) {
+                                    return prev;
+                                }
+
+                                return typeof updater === "function" ? updater(prev) : updater;
+                            });
+                        }}
+                    />
+                ) : null}
+            </AdminModalShell>
 
         </div>
     );

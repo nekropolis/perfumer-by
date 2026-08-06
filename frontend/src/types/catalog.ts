@@ -2,6 +2,13 @@ import type { ReviewItem } from "@/types/reviews";
 
 export type ProductAvailabilitySource = "main" | "main+supplier" | "supplier_only" | "supplier_warehouse" | "unavailable";
 
+export type ProductSetComponentData = {
+    id?: number;
+    volume_label: string;
+    concentration_label: string;
+    sort_order?: number;
+};
+
 export type ProductVariantData = {
     id: number;
     volume: number | null;
@@ -9,6 +16,9 @@ export type ProductVariantData = {
     type: string | null;
     concentration: string | null;
     edition: string | null;
+    is_set?: boolean;
+    volume_label?: string | null;
+    set_components?: ProductSetComponentData[];
     display_name: string;
     price: string | null;
     old_price: string | null;
@@ -83,6 +93,7 @@ export type ProductListItem = {
 
     is_new: boolean;
     is_hit: boolean;
+    is_set?: boolean;
     is_out_of_stock: boolean;
 
     price_range: {
@@ -156,6 +167,7 @@ export type ProductDetailData = {
     is_active?: boolean;
     is_new?: boolean;
     is_hit?: boolean;
+    is_set?: boolean;
     is_out_of_stock: boolean;
     name: string;
     display_name?: string;

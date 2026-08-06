@@ -776,6 +776,11 @@ class VanilleImportController extends Controller
                 $q->where('payload->price_file_in_stock', false)
                     ->orWhereNull('payload->price_file_in_stock');
             });
+        } elseif ($stockFilter === 'set') {
+            $query->where(function ($q) {
+                $q->where('payload->parsed->is_set', true)
+                    ->orWhereRaw("LOWER(COALESCE(external_name, '')) REGEXP '(^|[^a-z])set([^a-z]|$)'");
+            });
         }
 
         $items = $query->paginate(50);

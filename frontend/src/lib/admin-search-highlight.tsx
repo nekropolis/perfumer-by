@@ -4,12 +4,19 @@ function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** L`EAU / L’Eau → L'Eau — как на бэкенде в ProductAdminController. */
+function foldAdminSearchQuotes(value: string): string {
+    return value.replace(/[`´‘’]/gu, "'");
+}
+
 /** Термины для подсветки: полная строка, stem до « - », слова, снятие бренда с префикса. */
 export function collectAdminSearchHighlightTerms(query: string, brandName?: string | null): string[] {
-    const q = query.trim();
-    if (!q) {
+    const raw = query.trim();
+    if (!raw) {
         return [];
     }
+
+    const q = foldAdminSearchQuotes(raw);
 
     const terms = new Set<string>();
     const add = (value: string) => {
@@ -19,6 +26,7 @@ export function collectAdminSearchHighlightTerms(query: string, brandName?: stri
         }
     };
 
+    add(raw);
     add(q);
 
     const stem = q.replace(/\s+-\s*.*$/u, "").trim();
@@ -31,6 +39,11 @@ export function collectAdminSearchHighlightTerms(query: string, brandName?: stri
         if (part.includes("&")) {
             add(part.replace(/\s*&\s*/gu, " & ").replace(/\s+/gu, " ").trim());
             add(part.replace(/\s*&\s*/gu, "&").trim());
+        }
+        if (part.includes("'")) {
+            // L'Eau ↔ LEAU / L Eau на случай разного написания в slug/имени.
+            add(part.replace(/'/gu, ""));
+            add(part.replace(/'/gu, " ").replace(/\s+/gu, " ").trim());
         }
     }
 
@@ -62,6 +75,10 @@ export function collectAdminSearchHighlightTerms(query: string, brandName?: stri
             }
             for (const part of stripped.split(/\s+/u)) {
                 add(part);
+                if (part.includes("'")) {
+                    add(part.replace(/'/gu, ""));
+                    add(part.replace(/'/gu, " ").replace(/\s+/gu, " ").trim());
+                }
             }
         }
     }

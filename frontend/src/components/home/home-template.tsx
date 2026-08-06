@@ -16,7 +16,7 @@ const categories = [
     { title: "Женская парфюмерия", description: "Популярные и нишевые ароматы для неё", href: "/catalog?gender=female" },
     { title: "Мужская парфюмерия", description: "Классические и современные композиции", href: "/catalog?gender=male" },
     { title: "Тестеры и миниатюры", description: "Удобный формат для знакомства с ароматом", href: "/catalog?tester=1&miniature=1" },
-    { title: "Нишевая селекция", description: "Редкие композиции и коллекционные релизы", href: "/catalog?collection=niche" },
+    { title: "Наборы", description: "Готовые комплекты ароматов и ухода", href: "/catalog?set=1" },
 ];
 
 const promos = [

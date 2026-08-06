@@ -208,6 +208,7 @@ class ProductListResource extends JsonResource
 
             'is_new' => $this->is_new,
             'is_hit' => $this->is_hit,
+            'is_set' => (bool) $this->is_set,
             'is_out_of_stock' => (bool) $this->is_out_of_stock,
 
             'price_range' => [
@@ -306,6 +307,7 @@ class ProductListResource extends JsonResource
 
             'is_new' => $product->is_new,
             'is_hit' => $product->is_hit,
+            'is_set' => (bool) $product->is_set,
             'is_out_of_stock' => (bool) $product->is_out_of_stock,
 
             'price_range' => [
@@ -340,6 +342,10 @@ class ProductListResource extends JsonResource
      */
     private static function buildVariantLabel($variant): ?string
     {
+        if ($variant->definition?->is_set || (bool) ($variant->is_set ?? false)) {
+            return 'Набор';
+        }
+
         $parts = [];
 
         if ($variant->volume) {

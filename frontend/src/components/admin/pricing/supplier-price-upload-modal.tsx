@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import { uploadSupplierPriceFile, type SupplierPriceFileMeta } from "@/lib/admin-pricing-api";
 
 type Props = {
@@ -23,6 +24,15 @@ export default function SupplierPriceUploadModal({
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState("");
 
+    const supplierOptions = useMemo(
+        () =>
+            suppliers.map((item) => ({
+                value: String(item.supplier_id),
+                label: item.supplier_name,
+            })),
+        [suppliers],
+    );
+
     useEffect(() => {
         if (!open) {
             setFile(null);
@@ -30,6 +40,14 @@ export default function SupplierPriceUploadModal({
             return;
         }
         if (supplierId === "" && suppliers.length > 0) {
+            setSupplierId(suppliers[0].supplier_id);
+            return;
+        }
+        if (
+            supplierId !== "" &&
+            suppliers.length > 0 &&
+            !suppliers.some((item) => item.supplier_id === supplierId)
+        ) {
             setSupplierId(suppliers[0].supplier_id);
         }
     }, [open, suppliers, supplierId]);
@@ -87,20 +105,17 @@ export default function SupplierPriceUploadModal({
                     Формат: XLS или XLSX. Колонки — код, название, цена (первая строка с «код» может быть заголовком).
                 </p>
 
-                <label className="block space-y-1 text-sm">
-                    <span className="text-admin-text-secondary">Поставщик</span>
-                    <select
-                        value={supplierId}
-                        onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    >
-                        {suppliers.map((item) => (
-                            <option key={item.supplier_id} value={item.supplier_id}>
-                                {item.supplier_name}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                <div className="space-y-1">
+                    <span className="block text-sm text-admin-text-secondary">Поставщик</span>
+                    <AdminStatusDropdown
+                        value={supplierId === "" ? "" : String(supplierId)}
+                        onChangeAction={(value) => setSupplierId(value ? Number(value) : "")}
+                        options={supplierOptions}
+                        widthClassName="w-full"
+                        menuWidthClassName="w-max"
+                        disabled={uploading || supplierOptions.length === 0}
+                    />
+                </div>
 
                 <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-4 text-sm transition hover:bg-admin-muted/50">
                     <span className="truncate text-admin-text-secondary">

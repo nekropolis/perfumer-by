@@ -16,6 +16,7 @@ use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Services\Pricing\BynRateService;
 use Modules\Catalog\Services\Pricing\InStockPricingPreviewService;
 use Modules\Catalog\Services\Pricing\SupplierPriceFileStorage;
+use Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile;
 use Modules\Warehouse\Models\Warehouse;
 
 class PriceRefreshController extends Controller
@@ -130,12 +131,15 @@ class PriceRefreshController extends Controller
             'supplier_id' => [
                 'required',
                 'integer',
-                Rule::exists('suppliers', 'id')->whereNotIn('code', [Supplier::CODE_VANILLE]),
+                Rule::exists('suppliers', 'id')->whereIn('code', SupplierPriceProfile::codes()),
             ],
             'file' => ['required', 'file', 'mimes:xls,xlsx'],
         ]);
 
-        $supplier = Supplier::query()->forPricing()->findOrFail((int) $validated['supplier_id']);
+        $supplier = Supplier::query()
+            ->forPricing()
+            ->whereIn('code', SupplierPriceProfile::codes())
+            ->findOrFail((int) $validated['supplier_id']);
         $stored = $storage->store($request->file('file'), $supplier);
 
         return response()->json([
@@ -152,6 +156,7 @@ class PriceRefreshController extends Controller
     {
         $suppliers = Supplier::query()
             ->forPricing()
+            ->whereIn('code', SupplierPriceProfile::codes())
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'code']);

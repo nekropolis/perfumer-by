@@ -5,6 +5,7 @@ import {
     fetchProductVariantSuppliers,
     type ProductVariantSupplierItem,
 } from "@/lib/admin-products-api";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import VariantSuppliersTableRows from "@/components/admin/products/variant-suppliers-table-rows";
 import VariantSuppliersSummaryRow, {
     formatProductSuppliersModalTitle,
@@ -161,43 +162,31 @@ export default function ProductVariantSuppliersModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
-            <div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center">
-                <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
-                    <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-                        <h2 className="min-w-0 truncate pr-3 text-xl font-semibold">{modalTitle}</h2>
-                        <button
-                            type="button"
-                            onClick={() => onCloseAction()}
-                            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
-                        >
-                            Закрыть
-                        </button>
-                    </div>
-
-                    <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
-                        {loading ? (
-                            <div className="text-sm text-admin-text-secondary">Загрузка привязок поставщиков...</div>
-                        ) : error ? (
-                            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                                {error}
-                            </div>
-                        ) : layout === "flat" ? (
-                            <ProductVariantSuppliersFlatTable
-                                variants={items}
-                                highlightVariantId={highlightVariantId}
-                                flatTableOptions={flatTableOptions}
-                            />
-                        ) : (
-                            <ProductVariantSuppliersGroupedTable
-                                variants={items}
-                                highlightVariantId={highlightVariantId}
-                                renderVariantToolbarAction={renderVariantToolbarAction}
-                            />
-                        )}
-                    </div>
+        <AdminModalShell
+            open={open}
+            onCloseAction={onCloseAction}
+            title={modalTitle}
+            maxWidthClass="sm:max-w-5xl"
+        >
+            {loading ? (
+                <div className="text-sm text-admin-text-secondary">Загрузка привязок поставщиков...</div>
+            ) : error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {error}
                 </div>
-            </div>
-        </div>
+            ) : layout === "flat" ? (
+                <ProductVariantSuppliersFlatTable
+                    variants={items}
+                    highlightVariantId={highlightVariantId}
+                    flatTableOptions={flatTableOptions}
+                />
+            ) : (
+                <ProductVariantSuppliersGroupedTable
+                    variants={items}
+                    highlightVariantId={highlightVariantId}
+                    renderVariantToolbarAction={renderVariantToolbarAction}
+                />
+            )}
+        </AdminModalShell>
     );
 }

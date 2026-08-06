@@ -48,6 +48,8 @@ class ProductAdminController extends Controller
 
         if ($request->filled('search')) {
             $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
+            // L`EAU / L’Eau → L'Eau: иначе exact ranking и LIKE ломаются на backtick/типографских кавычках.
+            $search = str_replace(["`", '´', "\u{2018}", "\u{2019}"], "'", $search);
             $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
             $searchAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $search));
             $stemAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $stem));
@@ -208,6 +210,7 @@ class ProductAdminController extends Controller
             'is_active' => $validated['is_active'] ?? true,
             'is_new' => (bool) ($validated['is_new'] ?? false),
             'is_hit' => (bool) ($validated['is_hit'] ?? false),
+            'is_set' => false,
             'is_out_of_stock' => true,
             'sort_order' => 0,
         ]);
@@ -216,7 +219,7 @@ class ProductAdminController extends Controller
 
         return response()->json([
             'message' => 'Продукт создан',
-            'data' => $product->load(['brand'])->loadCount('variants'),
+            'data' => $product->load(['brand', 'sets.components'])->loadCount('variants'),
         ], 201);
     }
 
@@ -273,7 +276,7 @@ class ProductAdminController extends Controller
 
         return response()->json([
             'message' => 'Продукт обновлён',
-            'data' => $product->fresh()->load(['brand'])->loadCount('variants'),
+            'data' => $product->fresh()->load(['brand', 'sets.components'])->loadCount('variants'),
         ]);
     }
 
@@ -323,7 +326,9 @@ class ProductAdminController extends Controller
             ->with([
                 'brand',
                 'images',
-                'variants',
+                'variants.definition',
+                'variants.productSet.components',
+                'sets.components',
                 'attributeValues.productAttribute.activeOptions',
                 'attributeValues.selectedOptions.productAttributeOption',
             ])

@@ -129,6 +129,7 @@ export function catalogListingFilterActive(sp: Record<string, string | undefined
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
+    if (sp.set?.trim()) return true;
     if (sp.sale?.trim()) return true;
     if (sp.new?.trim()) return true;
     if (sp.hit?.trim()) return true;
@@ -145,6 +146,7 @@ export function brandListingFilterActive(sp: Record<string, string | undefined>)
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
+    if (sp.set?.trim()) return true;
     if (Object.keys(sp).some((k) => k.startsWith("attr_") && String(sp[k] ?? "").trim())) return true;
     return false;
 }

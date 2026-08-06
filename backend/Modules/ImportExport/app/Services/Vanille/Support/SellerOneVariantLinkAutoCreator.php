@@ -73,6 +73,10 @@ class SellerOneVariantLinkAutoCreator
         }
 
         $parsedData = $parsed['parsed'] ?? [];
+        if (! empty($parsedData['is_set'])) {
+            return $parsed;
+        }
+
         $volume = $parsedData['volume'] ?? null;
         $concentration = $parsedData['concentration'] ?? null;
         $isTester = (bool) ($parsedData['is_tester'] ?? false);

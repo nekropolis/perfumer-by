@@ -20,6 +20,7 @@ function getAdminHeaders() {
 export type AdminProductVariantItem = {
     id: number;
     variant_definition_id?: number | null;
+    product_set_id?: number | null;
     title: string;
     display_name?: string;
     volume?: number | null;
@@ -38,6 +39,7 @@ export type AdminProductVariantItem = {
     is_preorder?: boolean;
     is_active?: boolean;
     is_promotion?: boolean;
+    is_set?: boolean;
     active_supplier_offers_count?: number;
     /** Как цена уходит на витрину (null — не показываем «висячую» розницу без канала продаж). */
     catalog_list_price?: number | null;
@@ -45,12 +47,13 @@ export type AdminProductVariantItem = {
     definition?: {
         id: number;
         title: string;
-        volume_ml: number;
+        volume_ml: number | null;
         concentration_code: string;
         concentration_label: string;
         is_tester: boolean;
         is_vial?: boolean;
         is_miniature?: boolean;
+        is_set?: boolean;
         excludes_from_free_delivery_threshold?: boolean;
     };
 };
@@ -78,12 +81,14 @@ export type ProductVariantPayload = {
 export type VariantDefinitionItem = {
     id: number;
     title: string;
-    volume_ml: number;
+    volume_ml: number | null;
+    volume_label?: string | null;
     concentration_code: string;
     concentration_label: string;
     is_tester: boolean;
     is_vial?: boolean;
     is_miniature?: boolean;
+    is_set?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
 };
 
@@ -98,12 +103,14 @@ export type VariantDefinitionsResponse = {
 };
 
 export type VariantDefinitionPayload = {
-    volume_ml: number;
-    concentration_code: string;
+    volume_ml?: number | null;
+    volume_label?: string | null;
+    concentration_code?: string;
     concentration_label: string;
     is_tester?: boolean;
     is_vial?: boolean;
     is_miniature?: boolean;
+    is_set?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
     sort_order?: number;
 };
