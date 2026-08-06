@@ -676,7 +676,7 @@ export async function fetchSellerOneDuplicateVariantLinks(): Promise<{ data: Sel
 export async function fetchSellerOneSupplierProducts(params?: {
     search?: string;
     status?: "confirmed" | "found_unconfirmed" | "new" | "unlinked" | "parsing_inactive" | "";
-    stock?: "in_stock" | "out_of_stock" | "";
+    stock?: "in_stock" | "out_of_stock" | "set" | "";
     supplier?: string;
     page?: number;
 }): Promise<SellerOneSupplierProductsResponse> {

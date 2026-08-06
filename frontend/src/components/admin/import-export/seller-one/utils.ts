@@ -60,7 +60,8 @@ export function canConfirmSuggestedLink(row: {
     match_confidence?: number;
     match_confidence_breakdown?: { name_match_level?: string | null } | null;
     is_linked?: boolean;
-    parsed?: { is_set?: boolean | null } | null;
+    /** Seller One / Allparfume / приход — формы `parsed` разные, читаем только `is_set`. */
+    parsed?: { is_set?: boolean | null; [key: string]: unknown } | null;
 }): boolean {
     if (row.is_linked) {
         return true;
@@ -1589,7 +1590,7 @@ export function normalizeConcentrationCode(value: string | null | undefined): st
 export function getVariantVolumeMl(variant: {
     volume?: number | null;
     definition?: {
-        volume_ml?: number;
+        volume_ml?: number | null;
     } | null;
 }): number | null {
     const raw = variant.volume ?? variant.definition?.volume_ml ?? null;
@@ -1618,7 +1619,7 @@ export function variantMatchesVolumeHint(
     variant: {
         volume?: number | null;
         definition?: {
-            volume_ml?: number;
+            volume_ml?: number | null;
         } | null;
     },
     hint: SupplierVariantHint,
@@ -1662,12 +1663,14 @@ export function getVariantMatchFlags(
     variant: {
         volume?: number | null;
         concentration?: string | null;
+        is_set?: boolean;
         definition?: {
-            volume_ml?: number;
+            volume_ml?: number | null;
             concentration_code?: string;
             is_tester?: boolean;
             is_vial?: boolean;
             is_miniature?: boolean;
+            is_set?: boolean;
         } | null;
     },
     hint: SupplierVariantHint,
