@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, User, Store, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Menu, User, Store, PanelLeftClose, PanelLeftOpen, RefreshCw } from "lucide-react";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import AdminBynRateControl from "@/components/admin/pricing/admin-byn-rate-control";
+import AdminWaitingDiscountDateControl from "@/components/admin/admin-waiting-discount-date-control";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleLabel } from "@/constants/admin-roles";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
@@ -21,7 +22,7 @@ import {
     isAdminPhoneSearchReady,
     normalizeAdminPhoneSearchDigits,
 } from "@/lib/admin-phone-search";
-import { adminBtnSecondary, adminIconBtn } from "@/lib/admin-ui-classes";
+import { adminIconBtn } from "@/lib/admin-ui-classes";
 
 type Props = {
     sidebarCollapsed: boolean;
@@ -511,6 +512,10 @@ export default function AdminHeader({
                         <AdminActiveTasksWidget onActiveChangeAction={setHasActiveTasks} />
                     </div>
 
+                    <div className="hidden sm:block">
+                        <AdminWaitingDiscountDateControl />
+                    </div>
+
                     {!hasActiveTasks ? (
                         <div className="hidden sm:block">
                             <AdminBynRateControl />
@@ -521,30 +526,33 @@ export default function AdminHeader({
                         type="button"
                         onClick={() => void handleResetCatalogCache()}
                         disabled={cacheResetBusy}
-                        className={`${adminBtnSecondary} hidden sm:inline-flex disabled:opacity-60`}
+                        className={`${adminIconBtn} hidden sm:inline-flex`}
+                        aria-label="Сбросить кеш"
                         title="Сбросить кеш"
                     >
-                        {cacheResetBusy ? "Сбрасываем..." : "Сбросить кеш"}
+                        <RefreshCw size={18} className={cacheResetBusy ? "animate-spin" : ""} />
                     </button>
 
                     <a
                         href="/"
                         target="_blank"
                         rel="noreferrer"
-                        className={`${adminBtnSecondary} hidden gap-2 sm:inline-flex`}
+                        className={`${adminIconBtn} hidden sm:inline-flex`}
+                        aria-label="Открыть магазин"
+                        title="Магазин"
                     >
                         <Store size={18} />
-                        Магазин
                     </a>
 
                     <div className="relative hidden sm:block" ref={accountRef}>
                         <button
                             type="button"
-                            className={`${adminBtnSecondary} gap-2`}
+                            className={adminIconBtn}
                             onClick={() => setAccountOpen((prev) => !prev)}
+                            aria-label={user?.name || "Пользователь"}
+                            title={user?.name || "Пользователь"}
                         >
                             <User size={18} />
-                            <span className="max-w-[8rem] truncate">{user?.name || "Пользователь"}</span>
                         </button>
 
                         {accountOpen && (

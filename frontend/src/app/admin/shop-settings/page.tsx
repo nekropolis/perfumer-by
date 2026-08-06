@@ -20,7 +20,7 @@ import {
 import OrderTagsManager from "@/components/admin/shop-settings/order-tags-manager";
 import OrderStatusesManager from "@/components/admin/shop-settings/order-statuses-manager";
 
-type ShopTab = "delivery" | "contacts" | "discounts" | "brands" | "tags" | "statuses";
+type ShopTab = "delivery" | "contacts" | "brands" | "tags" | "statuses";
 
 const HOME_POPULAR_BRANDS_MAX = 5;
 const SEARCH_POPULAR_BRANDS_MAX = 8;
@@ -47,24 +47,9 @@ const tabButtonClass = (active: boolean) =>
             : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
     }`;
 
-function parseDisplayDateToIso(displayDate: string): string | null {
-    const match = displayDate.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (!match) return null;
-    const [, day, month, year] = match;
-    return `${year}-${month}-${day}`;
-}
-
-function formatIsoToDisplayDate(isoDate: string): string {
-    const match = isoDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return isoDate;
-    const [, year, month, day] = match;
-    return `${day}.${month}.${year}`;
-}
-
 function tabDescription(tab: ShopTab): string {
     if (tab === "delivery") return "Пороги и тарифы доставки для витрины (Минск / РБ).";
     if (tab === "contacts") return "Телефоны и мессенджеры для шапки и контактов на витрине.";
-    if (tab === "discounts") return "Настройки скидки за ожидание доставки.";
     if (tab === "tags") return "Теги заказов: название и цвет.";
     if (tab === "statuses") return "Статусы заказов: название, цвет и активность.";
     return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
@@ -225,7 +210,6 @@ export default function AdminShopSettingsPage() {
                           contact_phone_life: form.contact_phone_life,
                           contact_telegram_url: form.contact_telegram_url,
                           contact_viber_url: form.contact_viber_url,
-                          waiting_discount_delivery_date: form.waiting_discount_delivery_date,
                       };
             const res = await updateAdminShopDeliverySettings(payload);
             setForm({
@@ -262,9 +246,6 @@ export default function AdminShopSettingsPage() {
                 </button>
                 <button type="button" className={tabButtonClass(tab === "contacts")} onClick={() => setTab("contacts")}>
                     Контакты
-                </button>
-                <button type="button" className={tabButtonClass(tab === "discounts")} onClick={() => setTab("discounts")}>
-                    Скидки
                 </button>
                 <button type="button" className={tabButtonClass(tab === "brands")} onClick={() => setTab("brands")}>
                     Бренды
@@ -333,30 +314,6 @@ export default function AdminShopSettingsPage() {
                                     }
                                     className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                 />
-                            </div>
-                        </div>
-                    ) : tab === "discounts" ? (
-                        <div className="max-w-xl space-y-5 rounded-2xl border border-admin-border bg-white p-5">
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-admin-text">
-                                    Дата отправки товаров под заказ (скидка 3%)
-                                </label>
-                                <input
-                                    type="date"
-                                    value={parseDisplayDateToIso(form.waiting_discount_delivery_date) ?? ""}
-                                    onChange={(e) =>
-                                        setForm((f) => ({
-                                            ...f,
-                                            waiting_discount_delivery_date: e.target.value
-                                                ? formatIsoToDisplayDate(e.target.value)
-                                                : "",
-                                        }))
-                                    }
-                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
-                                />
-                                <p className="mt-1 text-xs text-admin-text-secondary">
-                                    Отображается в карточке товара и корзине для позиций со скидкой за ожидание.
-                                </p>
                             </div>
                         </div>
                     ) : tab === "brands" ? (

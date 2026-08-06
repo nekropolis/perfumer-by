@@ -8,6 +8,7 @@ import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import AdminBynRateControl from "@/components/admin/pricing/admin-byn-rate-control";
+import AdminWaitingDiscountDateControl from "@/components/admin/admin-waiting-discount-date-control";
 import AdminScrollToTopButton from "@/components/admin/ui/admin-scroll-to-top-button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { resetCatalogApiCache } from "@/lib/admin-products-api";
@@ -197,6 +198,11 @@ export default function AdminShell({ children }: Props) {
                                                 onBeforeOpenAction={() => setMobileActionsOpen(false)}
                                             />
                                         ) : null}
+
+                                        <AdminWaitingDiscountDateControl
+                                            fullWidth
+                                            className="px-3 py-2"
+                                        />
 
                                         <button
                                             type="button"
