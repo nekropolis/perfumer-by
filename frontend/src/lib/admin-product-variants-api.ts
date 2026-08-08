@@ -28,8 +28,8 @@ export type AdminProductVariantItem = {
     type?: string | null;
     concentration?: string | null;
     edition?: string | null;
-    price?: string | null;
-    old_price?: string | null;
+    price?: string | number | null;
+    old_price?: string | number | null;
     stock?: number;
     main_available_stock?: number;
     /** Доступно для витрины/корзины (канал main → supplier прайс → supplier склад). */
