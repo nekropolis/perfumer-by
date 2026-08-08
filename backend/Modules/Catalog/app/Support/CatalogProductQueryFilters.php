@@ -134,6 +134,19 @@ final class CatalogProductQueryFilters
     }
 
     /**
+     * Storefront brands: only brands that have at least one catalog-listable product
+     * (active product with at least one active variant). Does not apply to search.
+     *
+     * @param  Builder<\Modules\Catalog\Models\Brand>  $query
+     */
+    public static function applyStorefrontBrandVisibilityFilter(Builder $query): void
+    {
+        $query->whereHas('products', static function (Builder $productQuery): void {
+            self::applyCatalogListingProductFilter($productQuery);
+        });
+    }
+
+    /**
      * In stock first, then preorder-only, then temporarily out of stock.
      *
      * @param  Builder<Product>  $query

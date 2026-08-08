@@ -29,11 +29,6 @@ type Props = {
     submitting?: boolean;
     onChangeAction: (value: ProductFormState) => void;
     onSubmitAction: () => void;
-    /** Legacy (импорт): уникализация описания недоступна */
-    isLegacyForImport?: boolean;
-    descriptionRewrittenAt?: string | null;
-    descriptionRewriting?: boolean;
-    onRewriteDescriptionAction?: () => void | Promise<void>;
 };
 
 export default function ProductForm({
@@ -42,10 +37,6 @@ export default function ProductForm({
                                         submitting = false,
                                         onChangeAction,
                                         onSubmitAction,
-                                        isLegacyForImport = false,
-                                        descriptionRewrittenAt = null,
-                                        descriptionRewriting = false,
-                                        onRewriteDescriptionAction,
                                     }: Props) {
     return (
         <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
@@ -114,7 +105,6 @@ export default function ProductForm({
                                 brand_id: value,
                                 slug: nextSlug,
                                 h1: form.id ? form.h1 : nextDisplay,
-                                seo_title: form.id ? form.seo_title : nextDisplay,
                             });
                         }}
                     />
@@ -143,7 +133,6 @@ export default function ProductForm({
                                     name: nextName,
                                     slug: nextSlug,
                                     h1: form.id ? form.h1 : nextDisplay,
-                                    seo_title: form.id ? form.seo_title : nextDisplay,
                                 });
                             }}
                             className="w-full min-h-10 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
@@ -191,38 +180,9 @@ export default function ProductForm({
                 </div>
 
                 <div className="md:col-span-2">
-                    <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                        <label className="block text-sm font-medium text-admin-text">
-                            Описание
-                            {descriptionRewrittenAt ? (
-                                <span className="ml-2 font-normal text-xs text-admin-text-secondary">
-                                    (уникализировано: {new Date(descriptionRewrittenAt).toLocaleString()})
-                                </span>
-                            ) : null}
-                        </label>
-                        {form.id ? (
-                            <button
-                                type="button"
-                                onClick={() => void onRewriteDescriptionAction?.()}
-                                disabled={
-                                    descriptionRewriting || Boolean(isLegacyForImport) || !onRewriteDescriptionAction
-                                }
-                                title={
-                                    isLegacyForImport
-                                        ? "Legacy-товар — уникализация недоступна"
-                                        : "Переписать описание через LLM и сохранить в карточку"
-                                }
-                                className="rounded-lg border bg-white px-3 py-1.5 text-xs disabled:opacity-50"
-                            >
-                                {descriptionRewriting ? "LLM…" : "Уникализировать описание"}
-                            </button>
-                        ) : null}
-                    </div>
-                    {isLegacyForImport ? (
-                        <div className="mb-2 text-xs text-admin-text-secondary">
-                            Товар помечен как legacy — описание через LLM не меняется.
-                        </div>
-                    ) : null}
+                    <label className="mb-1.5 block text-sm font-medium text-admin-text">
+                        Описание
+                    </label>
                     <AdminRichTextEditor
                         value={form.description}
                         onChangeAction={(value) => onChangeAction({ ...form, description: value })}

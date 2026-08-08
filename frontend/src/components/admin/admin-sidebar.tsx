@@ -7,11 +7,14 @@ import {
     AlertTriangle,
     BarChart3,
     BellRing,
+    Boxes,
     CreditCard,
     FileBarChart,
+    FileText,
     FolderSync,
     Inbox,
     LayoutDashboard,
+    Link2,
     ListFilter,
     MapPin,
     MessageSquare,
@@ -87,7 +90,9 @@ const sections: SidebarSection[] = [
         items: [
             { type: "link", href: "/admin/brands", label: "Бренды", icon: Tags },
             { type: "link", href: "/admin/products", label: "Продукты", icon: Package },
-            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },],
+            { type: "link", href: "/admin/products/variants", label: "Варианты", icon: Boxes },
+            { type: "link", href: "/admin/attributes", label: "Атрибуты", icon: ListFilter },
+        ],
     },
     {
         key: "loyalty",
@@ -115,6 +120,30 @@ const sections: SidebarSection[] = [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
             { type: "link", href: "/admin/import-export/allparfume", label: "Allparfume", icon: FolderSync },
             { type: "link", href: "/admin/import-export/seller-pars", label: "Парсинг поставщиков", icon: FolderSync },
+        ],
+    },
+    {
+        key: "seo",
+        label: "SEO",
+        items: [
+            {
+                type: "link",
+                href: "/admin/seo/product-descriptions",
+                label: "Описание продуктов",
+                icon: FileText,
+            },
+            {
+                type: "link",
+                href: "/admin/seo-redirects",
+                label: "Редиректы",
+                icon: Link2,
+            },
+            {
+                type: "link",
+                href: "/admin/legacy-products",
+                label: "Legacy products",
+                icon: Link2,
+            },
         ],
     },
     {
@@ -252,6 +281,10 @@ function isItemActive(
 
     if (pathname === targetPath) {
         return true;
+    }
+
+    if (targetPath === "/admin/products" && pathname.startsWith("/admin/products/variants")) {
+        return false;
     }
 
     // Раздел «Обновление цен»: все вложенные страницы (/history, /formulas, …)

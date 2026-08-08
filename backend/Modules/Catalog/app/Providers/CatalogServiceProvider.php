@@ -2,6 +2,26 @@
 
 namespace Modules\Catalog\Providers;
 
+use Illuminate\Console\Scheduling\Schedule;
+use Modules\Catalog\Console\Commands\FixBrokenSeoProductNamesCommand;
+use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
+use Modules\Catalog\Console\Commands\MergeDuplicateBrandsCommand;
+use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
+use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
+use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
+use Modules\Catalog\Console\Commands\PullProductSeoReadyCommand;
+use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
+use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
+use Modules\Catalog\Console\Commands\RepairVanilleCatalogImageOrderCommand;
+use Modules\Catalog\Console\Commands\RepairVanilleProductNamesCommand;
+use Modules\Catalog\Console\Commands\RepairVanilleProductVariantsCommand;
+use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
+use Modules\Catalog\Console\Commands\SyncListingMinPricesCommand;
+use Modules\Catalog\Console\Commands\VanilleBrandCommand;
+use Modules\Catalog\Console\Commands\VanilleBrendyiTotalCommand;
+use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
+use Modules\Catalog\Console\Commands\VanilleSyncCommand;
+use Modules\Catalog\Console\Commands\WarmCatalogCacheCommand;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Category;
 use Modules\Catalog\Models\Product;
@@ -15,29 +35,10 @@ use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Services\ListingMinPriceService;
-use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
-use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
-use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
-use Modules\Catalog\Console\Commands\RepairVanilleCatalogImageOrderCommand;
-use Modules\Catalog\Console\Commands\RepairVanilleProductNamesCommand;
-use Modules\Catalog\Console\Commands\RepairVanilleProductVariantsCommand;
-use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
-use Modules\Catalog\Console\Commands\MergeDuplicateBrandsCommand;
-use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
-use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
-use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
-use Modules\Catalog\Console\Commands\FixBrokenSeoProductNamesCommand;
-use Modules\Catalog\Console\Commands\StripBrandFromProductNamesCommand;
-use Modules\Catalog\Console\Commands\SyncListingMinPricesCommand;
-use Modules\Catalog\Console\Commands\WarmCatalogCacheCommand;
-use Modules\Catalog\Console\Commands\VanilleBrandCommand;
-use Modules\Catalog\Console\Commands\VanilleSyncCommand;
-use Modules\Catalog\Console\Commands\VanilleBrendyiTotalCommand;
-use Modules\Catalog\Console\Commands\VanilleImportQueueCommand;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Nwidart\Modules\Support\ModuleServiceProvider;
-use Illuminate\Console\Scheduling\Schedule;
 
 class CatalogServiceProvider extends ModuleServiceProvider
 {
@@ -71,7 +72,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
     /**
      * Define module schedules.
      *
-     * @param $schedule
+     * @param  $schedule
      */
     // protected function configureSchedules(Schedule $schedule): void
     // {
@@ -97,6 +98,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         VanilleSyncCommand::class,
         SyncListingMinPricesCommand::class,
         WarmCatalogCacheCommand::class,
+        PullProductSeoReadyCommand::class,
     ];
 
     public function register(): void
@@ -132,14 +134,14 @@ class CatalogServiceProvider extends ModuleServiceProvider
         }
 
         Product::saved(function (Product $product): void {
-            if (!(bool) config('services.catalog_search.enabled', false)) {
+            if (! (bool) config('services.catalog_search.enabled', false)) {
                 return;
             }
 
             app(ProductSearchIndexer::class)->queueProductSync((int) $product->id);
         });
         Product::deleted(function (Product $product): void {
-            if (!(bool) config('services.catalog_search.enabled', false)) {
+            if (! (bool) config('services.catalog_search.enabled', false)) {
                 return;
             }
 
@@ -188,5 +190,4 @@ class CatalogServiceProvider extends ModuleServiceProvider
             $syncListingMinPrice((int) $stock->product_id);
         });
     }
-
 }

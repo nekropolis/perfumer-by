@@ -214,7 +214,7 @@ function parseOrdersPerPage(raw: string | null): (typeof ORDERS_PER_PAGE_OPTIONS
     if (value === 25 || value === 50 || value === 100) {
         return value;
     }
-    return 25;
+    return 50;
 }
 
 function parseOrdersPage(raw: string | null): number {
@@ -1042,15 +1042,15 @@ export default function AdminOrdersPage() {
                     return prev.map((row) =>
                         row.order_id === orderId
                             ? {
-                                  ...row,
-                                  order_status: resolvedStatus,
-                                  order_status_label:
-                                      updated.status_label ??
-                                      getOrderStatusLabel(resolvedStatus, row.order_status_label),
-                                  order_status_color:
-                                      updated.status_color ??
-                                      getOrderStatusColor(resolvedStatus, row.order_status_color),
-                              }
+                                ...row,
+                                order_status: resolvedStatus,
+                                order_status_label:
+                                    updated.status_label ??
+                                    getOrderStatusLabel(resolvedStatus, row.order_status_label),
+                                order_status_color:
+                                    updated.status_color ??
+                                    getOrderStatusColor(resolvedStatus, row.order_status_color),
+                            }
                             : row,
                     );
                 });
@@ -1121,10 +1121,10 @@ export default function AdminOrdersPage() {
                 (typeof supplier.offer_id === "number" && supplier.offer_id > 0
                     ? "offer"
                     : typeof supplier.lot_id === "number" && supplier.lot_id > 0
-                      ? "warehouse"
-                      : supplier.name === "Склад"
                         ? "warehouse"
-                        : null);
+                        : supplier.name === "Склад"
+                            ? "warehouse"
+                            : null);
             if (kind !== "warehouse" && kind !== "offer") {
                 return;
             }
@@ -1158,10 +1158,10 @@ export default function AdminOrdersPage() {
                                     (typeof s.offer_id === "number" && s.offer_id > 0
                                         ? "offer"
                                         : typeof s.lot_id === "number" && s.lot_id > 0
-                                          ? "warehouse"
-                                          : s.name === "Склад"
                                             ? "warehouse"
-                                            : null);
+                                            : s.name === "Склад"
+                                                ? "warehouse"
+                                                : null);
                                 let isSelected = false;
                                 if (sKind === "warehouse") {
                                     isSelected =
@@ -1483,6 +1483,11 @@ export default function AdminOrdersPage() {
                     <div className="flex w-full min-w-0 flex-col gap-4">
                         <div className="flex flex-nowrap items-center gap-1.5 md:flex-wrap md:items-end md:justify-between md:gap-3">
                             <div className="flex shrink-0 items-center gap-1 md:gap-2">
+                                {ordersMeta !== null && (
+                                    <div className="mr-1 whitespace-nowrap text-sm text-admin-text-secondary md:mr-2">
+                                        Всего заказов: {ordersMeta.total}
+                                    </div>
+                                )}
                                 <OrdersIconActionButton
                                     label={receiptOptionsLoading ? "Загрузка…" : "Печать"}
                                     disabled={selectedOrders.length === 0 || receiptOptionsLoading}
@@ -1587,30 +1592,30 @@ export default function AdminOrdersPage() {
                         {supplierDraftForming ? "Формирование…" : "Сформировать заявку"}
                     </button>
                     <div className="flex items-center gap-1.5">
-                    <select
-                        value={orderFilter}
-                        onChange={(e) => setOrderFilter(e.target.value ? Number(e.target.value) : "")}
-                        className="h-8 rounded-md border border-admin-border bg-white px-2 text-sm"
-                    >
-                        <option value="">Все заказы</option>
-                        {orderProductsFilterOrders.map((id) => (
-                            <option key={id} value={id}>
-                                #{id}
-                            </option>
-                        ))}
-                    </select>
-
-                    {hasProductsFilters ? (
-                        <button
-                            type="button"
-                            onClick={handleReset}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-admin-border bg-white text-admin-text-secondary transition hover:bg-white/80 hover:text-admin-text"
-                            title="Сбросить фильтры"
-                            aria-label="Сбросить фильтры"
+                        <select
+                            value={orderFilter}
+                            onChange={(e) => setOrderFilter(e.target.value ? Number(e.target.value) : "")}
+                            className="h-8 rounded-md border border-admin-border bg-white px-2 text-sm"
                         >
-                            <FilterX size={14} strokeWidth={2} />
-                        </button>
-                    ) : null}
+                            <option value="">Все заказы</option>
+                            {orderProductsFilterOrders.map((id) => (
+                                <option key={id} value={id}>
+                                    #{id}
+                                </option>
+                            ))}
+                        </select>
+
+                        {hasProductsFilters ? (
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-admin-border bg-white text-admin-text-secondary transition hover:bg-white/80 hover:text-admin-text"
+                                title="Сбросить фильтры"
+                                aria-label="Сбросить фильтры"
+                            >
+                                <FilterX size={14} strokeWidth={2} />
+                            </button>
+                        ) : null}
                     </div>
                 </div>
             ) : activeTab === "supplier_order" ? (
@@ -1696,10 +1701,10 @@ export default function AdminOrdersPage() {
                         activeTab === "orders"
                             ? "Загрузка заказов…"
                             : activeTab === "supplier_order"
-                              ? "Загрузка заявки…"
-                              : activeTab === "supplier_orders"
-                                ? "Загрузка заказов поставщикам…"
-                                : "Загрузка…"
+                                ? "Загрузка заявки…"
+                                : activeTab === "supplier_orders"
+                                    ? "Загрузка заказов поставщикам…"
+                                    : "Загрузка…"
                     }
                 />
             )}
@@ -1757,7 +1762,6 @@ export default function AdminOrdersPage() {
                                     }
                                 />
                             </div>
-                            <div className="text-sm text-admin-text-secondary sm:text-right">Всего заказов: {ordersMeta.total}</div>
                         </div>
                     )}
                 </>
@@ -1782,9 +1786,9 @@ export default function AdminOrdersPage() {
                                         supplierProductsColWidth === null
                                             ? { width: "14rem" }
                                             : {
-                                                  width: `${supplierProductsColWidth}px`,
-                                                  minWidth: `${supplierProductsColWidth}px`,
-                                              }
+                                                width: `${supplierProductsColWidth}px`,
+                                                minWidth: `${supplierProductsColWidth}px`,
+                                            }
                                     }
                                 />
                                 <col style={{ width: "5.5rem" }} />
@@ -1807,11 +1811,10 @@ export default function AdminOrdersPage() {
                                             title="Потяните, чтобы изменить ширину. Двойной клик — авто"
                                             onMouseDown={onSupplierProductsColResizeStart}
                                             onDoubleClick={() => setSupplierProductsColWidth(null)}
-                                            className={`absolute inset-y-1 right-0 flex w-3 cursor-col-resize touch-none items-center justify-center rounded-sm border-r-2 transition ${
-                                                supplierProductsColWidth !== null
+                                            className={`absolute inset-y-1 right-0 flex w-3 cursor-col-resize touch-none items-center justify-center rounded-sm border-r-2 transition ${supplierProductsColWidth !== null
                                                     ? "border-admin-primary/50 bg-admin-primary/10 text-admin-primary"
                                                     : "border-transparent text-admin-text-muted/50 hover:border-admin-primary/40 hover:bg-admin-primary/10 hover:text-admin-primary"
-                                            }`}
+                                                }`}
                                         >
                                             <GripVertical size={12} strokeWidth={2.25} aria-hidden className="opacity-80" />
                                         </span>
@@ -1921,11 +1924,10 @@ export default function AdminOrdersPage() {
                                                                     onClick={() =>
                                                                         void selectOrderProductSupplier(row, supplier)
                                                                     }
-                                                                    className={`inline-flex items-center gap-1 rounded-sm transition duration-150 enabled:hover:scale-105 enabled:hover:underline disabled:cursor-default ${
-                                                                        selected
+                                                                    className={`inline-flex items-center gap-1 rounded-sm transition duration-150 enabled:hover:scale-105 enabled:hover:underline disabled:cursor-default ${selected
                                                                             ? "font-semibold text-emerald-600"
                                                                             : "text-inherit enabled:cursor-pointer"
-                                                                    }`}
+                                                                        }`}
                                                                     title={
                                                                         selected
                                                                             ? "Уже выбран в заказе"
@@ -2040,9 +2042,8 @@ export default function AdminOrdersPage() {
                                 return (
                                     <tr
                                         key={item.id}
-                                        className={`border-b last:border-0 ${
-                                            item.offer_missing ? "bg-red-50" : ""
-                                        }`}
+                                        className={`border-b last:border-0 ${item.offer_missing ? "bg-red-50" : ""
+                                            }`}
                                     >
                                         <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                                             {item.order_id != null ? `#${item.order_id}` : "—"}
@@ -2060,13 +2061,12 @@ export default function AdminOrdersPage() {
                                             {item.purchase_price_at_order ?? "—"}
                                         </td>
                                         <td
-                                            className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${
-                                                tone === "higher"
+                                            className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${tone === "higher"
                                                     ? "font-medium text-red-600"
                                                     : tone === "lower"
-                                                      ? "font-medium text-emerald-600"
-                                                      : ""
-                                            }`}
+                                                        ? "font-medium text-emerald-600"
+                                                        : ""
+                                                }`}
                                         >
                                             {item.current_purchase_price ?? "—"}
                                         </td>
@@ -2190,7 +2190,7 @@ export default function AdminOrdersPage() {
                                                                 Загрузка состава…
                                                             </div>
                                                         ) : expandedSupplierOrder?.items &&
-                                                          expandedSupplierOrder.items.length > 0 ? (
+                                                            expandedSupplierOrder.items.length > 0 ? (
                                                             <table className="min-w-full text-xs">
                                                                 <thead>
                                                                     <tr className="text-left text-admin-text-secondary">

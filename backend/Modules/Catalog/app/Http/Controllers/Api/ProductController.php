@@ -302,8 +302,10 @@ class ProductController extends Controller
     public function brands(): JsonResponse
     {
         $brands = $this->cacheService->rememberBrands(static function () {
-            return Brand::query()
-                ->where('is_active', true)
+            $query = Brand::query()->where('is_active', true);
+            CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($query);
+
+            return $query
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug'])
                 ->toArray();
@@ -317,18 +319,20 @@ class ProductController extends Controller
     public function brandBySlug(string $slug): JsonResponse
     {
         $payload = $this->cacheService->rememberBrandBySlug($slug, function () use ($slug) {
-            $row = Brand::query()
+            $query = Brand::query()
                 ->where('slug', $slug)
-                ->where('is_active', true)
-                ->first([
-                    'id',
-                    'name',
-                    'slug',
-                    'description',
-                    'seo_title',
-                    'seo_description',
-                    'seo_keyword',
-                ]);
+                ->where('is_active', true);
+            CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($query);
+
+            $row = $query->first([
+                'id',
+                'name',
+                'slug',
+                'description',
+                'seo_title',
+                'seo_description',
+                'seo_keyword',
+            ]);
 
             return $row?->toArray() ?? [];
         });

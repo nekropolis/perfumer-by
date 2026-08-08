@@ -5,6 +5,7 @@ namespace Modules\Settings\Services;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\Brand;
+use Modules\Catalog\Support\CatalogProductQueryFilters;
 use Modules\Settings\Models\ShopSetting;
 use Modules\Settings\Support\WaitingDiscountDeliveryDate;
 
@@ -165,7 +166,9 @@ class ShopSettingService
 
         $byId = Brand::query()
             ->whereIn('id', $ids)
-            ->where('is_active', true)
+            ->where('is_active', true);
+        CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($byId);
+        $byId = $byId
             ->get(['id', 'name', 'slug'])
             ->keyBy('id');
 

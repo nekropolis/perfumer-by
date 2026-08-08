@@ -22,7 +22,7 @@ import {
 } from "@/lib/admin-seo-redirects-api";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import ContentCatalogTabs from "@/components/admin/pages/content-catalog-tabs";
+import SeoSectionTabs from "@/components/admin/seo/seo-section-tabs";
 
 type RedirectFormState = {
     id?: number;
@@ -165,7 +165,7 @@ export default function AdminSeoRedirectsPage() {
                 description="Таблица 301/302/410 редиректов"
             />
 
-            <ContentCatalogTabs />
+            <SeoSectionTabs />
 
             {error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />

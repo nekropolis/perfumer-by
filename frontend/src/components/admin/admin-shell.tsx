@@ -190,7 +190,7 @@ export default function AdminShell({ children }: Props) {
                             </div>
 
                             {mobileActionsOpen ? (
-                                <div className="absolute right-4 top-[calc(100%+0.5rem)] z-[210] w-[min(88vw,22rem)] rounded-xl border border-admin-border bg-admin-surface p-2 shadow-xl">
+                                <div className="absolute left-4 right-4 top-[calc(100%+0.5rem)] z-[210] rounded-xl border border-admin-border bg-admin-surface p-2 shadow-xl">
                                     <div className="flex flex-col gap-1">
                                         {!hasActiveTasks ? (
                                             <AdminBynRateControl

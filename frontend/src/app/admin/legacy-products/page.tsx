@@ -22,7 +22,7 @@ import {
     type LegacyUnmatchedProductDetail,
     type LegacyUnmatchedProductItem,
 } from "@/lib/admin-legacy-products-api";
-import ContentCatalogTabs from "@/components/admin/pages/content-catalog-tabs";
+import SeoSectionTabs from "@/components/admin/seo/seo-section-tabs";
 
 export default function AdminLegacyProductsPage() {
     const [items, setItems] = useState<LegacyUnmatchedProductItem[]>([]);
@@ -162,7 +162,7 @@ export default function AdminLegacyProductsPage() {
                 description="Ручная обработка unmatched товаров: связать или пропустить"
             />
 
-            <ContentCatalogTabs />
+            <SeoSectionTabs />
 
             {error ? <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} /> : null}
             {success ? <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} /> : null}

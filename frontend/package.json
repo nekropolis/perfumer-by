@@ -6,7 +6,8 @@
     "dev": "node ./node_modules/next/dist/bin/next dev -p 3000 --webpack",
     "build": "node ./node_modules/next/dist/bin/next build --webpack",
     "start": "node ./node_modules/next/dist/bin/next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tiptap/extension-link": "^3.22.3",
@@ -30,7 +31,8 @@
     "eslint-config-next": "16.2.4",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "sharp@0.34.5": true,

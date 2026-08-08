@@ -1,19 +1,64 @@
 import type { ProductDetailData } from "@/types/catalog";
 import { productDisplayName } from "@/lib/product-display-name";
 import { formatBynAmountDisplay } from "@/lib/format-byn";
-import { SITE_NAME } from "@/lib/seo";
 import { stripHtml, truncateByWords } from "@/lib/seo-text";
 
-export function buildProductMetaTitle(product: ProductDetailData): string {
-    if (product.seo_title?.trim()) {
-        return product.seo_title.trim();
+export const PRODUCT_META_TITLE_MAX_LENGTH = 60;
+
+export type ProductMetaTitleInput = {
+    name: string;
+    brand?: { name: string } | null;
+    display_name?: string | null;
+    seo_title?: string | null;
+    price_range?: { min: string | null } | null;
+};
+
+export function hasManualProductSeoTitle(
+    seoTitle: string | null | undefined,
+    displayName: string,
+): boolean {
+    const trimmed = seoTitle?.trim() ?? "";
+    return trimmed !== "" && trimmed !== displayName;
+}
+
+/** Авто-title без учёта ручного override в БД. */
+export function buildAutomaticProductMetaTitle(
+    displayName: string,
+    priceMin?: string | null,
+): string {
+    const name = displayName.trim();
+    const price = priceMin ? formatBynAmountDisplay(priceMin) : "";
+
+    const withPrice = price
+        ? `${name} купить в Минске и Беларуси — цена ${price} BYN`
+        : null;
+    if (withPrice && withPrice.length <= PRODUCT_META_TITLE_MAX_LENGTH) {
+        return withPrice;
     }
+
+    const candidates = [
+        `${name} купить в Минске и Беларуси`,
+        `${name} купить в Минске`,
+        `${name} купить`,
+        name,
+    ];
+
+    for (const candidate of candidates) {
+        if (candidate.length <= PRODUCT_META_TITLE_MAX_LENGTH) {
+            return candidate;
+        }
+    }
+
+    return name.slice(0, PRODUCT_META_TITLE_MAX_LENGTH);
+}
+
+export function buildProductMetaTitle(product: ProductMetaTitleInput): string {
     const titleName = productDisplayName(product);
-    const price = product.price_range?.min ? formatBynAmountDisplay(product.price_range.min) : "";
-    if (price) {
-        return `${titleName} купить в Минске и Беларуси — цена ${price} BYN | ${SITE_NAME}`;
+    if (hasManualProductSeoTitle(product.seo_title, titleName)) {
+        return (product.seo_title as string).trim();
     }
-    return `${titleName} купить в Минске и Беларуси | ${SITE_NAME}`;
+
+    return buildAutomaticProductMetaTitle(titleName, product.price_range?.min);
 }
 
 export function buildProductMetaDescription(product: ProductDetailData): string {

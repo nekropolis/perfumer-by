@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Support\CatalogProductQueryFilters;
 use Modules\Pages\Models\CmsPage;
 use Modules\Pages\Models\CmsPost;
 
@@ -16,7 +17,7 @@ use Modules\Pages\Models\CmsPost;
  */
 class SeoSitemapService
 {
-    public const CACHE_KEY = 'seo:sitemap-urls:v1';
+    public const CACHE_KEY = 'seo:sitemap-urls:v2';
 
     public const CACHE_TTL_SECONDS = 3600;
 
@@ -110,7 +111,9 @@ class SeoSitemapService
         }
 
         $brands = Brand::query()
-            ->where('is_active', true)
+            ->where('is_active', true);
+        CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($brands);
+        $brands = $brands
             ->select(['slug', 'name', 'updated_at'])
             ->get();
 

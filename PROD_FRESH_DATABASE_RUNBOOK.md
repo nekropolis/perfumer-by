@@ -145,14 +145,15 @@ php artisan catalog:prune-brands-without-products
 cd /var/www/perfumer-by/current/backend
 
 php artisan legacy:map-brands-by-slug --dry-run
-php artisan legacy:map-products-by-slug --dry-run --export-unmatched=storage/app/legacy-unmatched-products.csv
+php artisan legacy:map-products-by-slug --dry-run --sync-fields --dump=/var/www/perfumer-by/perfumer_db.sql --export-unmatched=storage/app/legacy-unmatched-products.csv
 ```
 
 Если результат нормальный:
 
 ```bash
 php artisan legacy:map-brands-by-slug --truncate
-php artisan legacy:map-products-by-slug --truncate
+# --sync-fields: подтянуть description / seo_title / seo_description (+ name/h1) из legacy в matched продукты
+php artisan legacy:map-products-by-slug --truncate --sync-fields --dump=/var/www/perfumer-by/perfumer_db.sql
 ```
 
 ## 6. Legacy: импорт product images
@@ -278,9 +279,9 @@ php artisan optimize:clear
 
 # Если нужны legacy product images:
 php artisan legacy:map-brands-by-slug --dry-run
-php artisan legacy:map-products-by-slug --dry-run --export-unmatched=storage/app/legacy-unmatched-products.csv
+php artisan legacy:map-products-by-slug --dry-run --sync-fields --export-unmatched=storage/app/legacy-unmatched-products.csv
 php artisan legacy:map-brands-by-slug --truncate
-php artisan legacy:map-products-by-slug --truncate
+php artisan legacy:map-products-by-slug --truncate --sync-fields
 php artisan legacy:import-product-images --dry-run
 php artisan legacy:import-product-images
 

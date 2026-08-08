@@ -5,10 +5,12 @@ namespace Modules\Catalog\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Modules\Catalog\Support\ProductDisplayName;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Modules\Catalog\Models\ProductSet as CatalogProductSet;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
 
 class Product extends Model
 {
@@ -72,13 +74,13 @@ class Product extends Model
 
     public function sets(): HasMany
     {
-        return $this->hasMany(ProductSet::class)->orderBy('sort_order')->orderBy('id');
+        return $this->hasMany(CatalogProductSet::class)->orderBy('sort_order')->orderBy('id');
     }
 
     /**
      * Варианты для витрины: предзаказ, либо активный вариант с каналом отгрузки
      * (строка на складе main/supplier или канал прайса поставщика — те же условия, что
-     * {@see \Modules\Catalog\Support\CatalogVariantStockPresenter::supplierListingActive()}).
+     * {@see CatalogVariantStockPresenter::supplierListingActive()}).
      */
     public function activeVariants(): HasMany
     {
@@ -106,5 +108,20 @@ class Product extends Model
     public function supplierProducts(): HasMany
     {
         return $this->hasMany(SupplierProduct::class);
+    }
+
+    public function seoGenerations(): HasMany
+    {
+        return $this->hasMany(ProductSeoGeneration::class);
+    }
+
+    public function seoFieldReceipts(): HasMany
+    {
+        return $this->hasMany(ProductSeoFieldReceipt::class);
+    }
+
+    public function seoBatchItems(): HasMany
+    {
+        return $this->hasMany(ProductSeoBatchItem::class);
     }
 }

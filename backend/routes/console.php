@@ -38,6 +38,14 @@ Schedule::command('seo:warm-sitemap')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('seo:pull-product-ready')
+    ->everyFiveMinutes()
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground()
+    ->when(fn () => trim((string) config('seo_description.token')) !== '');
+
 Schedule::command('veter:sync-cities')
     ->dailyAt('03:10')
     ->timezone('Europe/Minsk')

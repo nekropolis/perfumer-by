@@ -416,9 +416,14 @@ function formatOrderCityDisplay(city?: string | null): string {
         return "—";
     }
 
-    const commaIdx = raw.indexOf(",");
-    const withoutRegion = commaIdx === -1 ? raw : raw.slice(0, commaIdx).trim();
-    const addressMarkerMatch = withoutRegion.match(/\s(?:ул\.?|улица|пр-т|просп\.?|проспект|пер\.?|переулок|д\.?|дом|кв\.?)/iu);
+    // «Красносельский гп. (Волковысский р/н)» → «Красносельский гп.»
+    // «Большие Лепесы д. (…)» → «Большие Лепесы д.» (тип НП «д.» не режем как «дом»)
+    const withoutDistrict = raw.replace(/\s*\([^)]*\)\s*$/u, "").trim() || raw;
+    const commaIdx = withoutDistrict.indexOf(",");
+    const withoutRegion = commaIdx === -1 ? withoutDistrict : withoutDistrict.slice(0, commaIdx).trim();
+    const addressMarkerMatch = withoutRegion.match(
+        /\s(?:ул\.?|улица|пр-т|просп\.?|проспект|пер\.?|переулок|д\.?\s*\d|дом\s*\d|кв\.?\s*\d)/iu,
+    );
 
     return (addressMarkerMatch ? withoutRegion.slice(0, addressMarkerMatch.index).trim() : withoutRegion) || "—";
 }
@@ -690,31 +695,21 @@ function AdminOrderAddressCell({
     const deliveryIso = deliveryDate?.trim() || "";
     const hasDeliveryDate = Boolean(deliveryIso && /^\d{4}-\d{2}-\d{2}/.test(deliveryIso));
     const tooltipCity = cityRaw || cityLine;
-    const cityWasShortened = cityRaw !== "" && cityRaw !== cityLine;
 
     const showTooltip = (element: HTMLElement) => {
         const truncatedLine = Array.from(
             element.querySelectorAll<HTMLElement>("[data-truncate-check]"),
         ).some(isTextOverflowing);
 
-        // Дата доставки — всегда в тултипе, если есть (даже когда адрес полностью влез).
-        if (hasDeliveryDate) {
-            onShowAction({
-                lines: hasAddress ? [tooltipCity, addressLine] : [],
-                deliveryDate: deliveryIso.slice(0, 10),
-                ...getTooltipPosition(element),
-            });
-            return;
-        }
-
-        if (!hasAddress || (!truncatedLine && !cityWasShortened)) {
+        // «Доставка» только в тултипе — показываем при дате или обрезке адреса.
+        if (!hasDeliveryDate && (!hasAddress || !truncatedLine)) {
             onHideAction();
             return;
         }
 
         onShowAction({
-            lines: [tooltipCity, addressLine],
-            deliveryDate: null,
+            lines: hasAddress ? [tooltipCity, addressLine] : [],
+            deliveryDate: hasDeliveryDate ? deliveryIso.slice(0, 10) : null,
             ...getTooltipPosition(element),
         });
     };

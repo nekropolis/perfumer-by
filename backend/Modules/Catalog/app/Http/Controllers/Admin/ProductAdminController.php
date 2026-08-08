@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
@@ -18,8 +17,8 @@ use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\ProductMetaTitleBuilder;
 use Modules\Catalog\Support\VariantDefinitionVolume;
-use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\ImportExport\Support\LegacyProductDetector;
 use Modules\ImportExport\Support\VanilleHelper;
 use Modules\Warehouse\Models\StockReceiptItem;
@@ -195,6 +194,10 @@ class ProductAdminController extends Controller
         }
 
         $displayName = ProductDisplayName::format($brand->name, $validated['name']);
+        $seoTitle = trim((string) ($validated['seo_title'] ?? ''));
+        if ($seoTitle === '') {
+            $seoTitle = ProductMetaTitleBuilder::buildAutomatic($displayName);
+        }
 
         $product = Product::create([
             'brand_id' => $validated['brand_id'],
@@ -204,7 +207,7 @@ class ProductAdminController extends Controller
             'h1' => $validated['h1'] ?: $displayName,
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
-            'seo_title' => $validated['seo_title'] ?: $displayName,
+            'seo_title' => $seoTitle,
             'seo_description' => $validated['seo_description'] ?? null,
             'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
@@ -264,7 +267,7 @@ class ProductAdminController extends Controller
             'h1' => $validated['h1'] ?: $displayName,
             'short_description' => $validated['short_description'] ?? null,
             'description' => $validated['description'] ?? null,
-            'seo_title' => $validated['seo_title'] ?: $displayName,
+            'seo_title' => ($validated['seo_title'] ?? null) ?: null,
             'seo_description' => $validated['seo_description'] ?? null,
             'seo_keyword' => $validated['seo_keyword'] ?? null,
             'is_active' => $validated['is_active'] ?? $product->is_active,
@@ -346,58 +349,6 @@ class ProductAdminController extends Controller
                 'description_rewritten_at' => optional($product->description_rewritten_at)?->toIso8601String(),
             ]),
         ]);
-    }
-
-    public function rewriteDescription(
-        int $id,
-        ProductDescriptionRewriter $rewriter
-    ): JsonResponse {
-        $product = Product::query()->findOrFail($id);
-
-        $result = $rewriter->rewriteProduct($product);
-        if (! ($result['ok'] ?? false)) {
-            $error = (string) ($result['error'] ?? 'unknown');
-
-            return response()->json([
-                'message' => $this->mapDescriptionRewriteErrorMessage($error),
-                'error' => $error,
-            ], 422);
-        }
-
-        DB::transaction(function () use ($product, $result): void {
-            $product->update([
-                'description' => $result['description'],
-                'description_rewritten_at' => now(),
-            ]);
-        });
-
-        $fresh = $product->fresh();
-
-        return response()->json([
-            'message' => 'Описание обновлено (уникализация)',
-            'data' => [
-                'description' => $fresh?->description,
-                'description_rewritten_at' => optional($fresh?->description_rewritten_at)?->toIso8601String(),
-            ],
-        ]);
-    }
-
-    private function mapDescriptionRewriteErrorMessage(string $error): string
-    {
-        if ($error === 'legacy_skip') {
-            return 'Этот товар отмечен как legacy — уникализация описания недоступна.';
-        }
-        if ($error === 'source_too_short') {
-            return 'Описание слишком короткое для уникализации (см. min_source_length в конфиге LLM).';
-        }
-        if (str_starts_with($error, 'llm:')) {
-            return 'Ошибка LLM: '.mb_substr($error, 4);
-        }
-        if (str_starts_with($error, 'validation:')) {
-            return 'Ответ модели не прошёл проверку: '.mb_substr($error, 11);
-        }
-
-        return 'Не удалось уникализировать описание: '.$error;
     }
 
     public function variantSuppliers(Request $request, int $id, StockLotService $stockLotService): JsonResponse

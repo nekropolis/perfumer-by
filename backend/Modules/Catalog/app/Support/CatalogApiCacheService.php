@@ -14,7 +14,7 @@ class CatalogApiCacheService
     public const VERSION_KEY = 'catalog:api:version';
     public const SEARCH_VERSION_KEY = 'catalog:search:version';
     public const TTL_SECONDS = 900;
-    private const SCHEMA_VERSION = 16;
+    private const SCHEMA_VERSION = 17;
 
     private int $deferDepth = 0;
     private bool $invalidationPending = false;

@@ -36,8 +36,10 @@ class CatalogBootstrapService
 
         $sectionStartedAt = microtime(true);
         $brandsTracked = $this->cacheService->rememberBrandsTracked(static function () {
-            return Brand::query()
-                ->where('is_active', true)
+            $query = Brand::query()->where('is_active', true);
+            CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($query);
+
+            return $query
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug'])
                 ->toArray();
@@ -107,18 +109,20 @@ class CatalogBootstrapService
     private function resolveBrandBySlug(string $slug): ?array
     {
         $row = $this->cacheService->rememberBrandBySlug($slug, function () use ($slug): array {
-            $brand = Brand::query()
+            $query = Brand::query()
                 ->where('slug', $slug)
-                ->where('is_active', true)
-                ->first([
-                    'id',
-                    'name',
-                    'slug',
-                    'description',
-                    'seo_title',
-                    'seo_description',
-                    'seo_keyword',
-                ]);
+                ->where('is_active', true);
+            CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($query);
+
+            $brand = $query->first([
+                'id',
+                'name',
+                'slug',
+                'description',
+                'seo_title',
+                'seo_description',
+                'seo_keyword',
+            ]);
 
             return $brand?->toArray() ?? [];
         });

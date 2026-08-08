@@ -198,8 +198,8 @@ export type ProductAdminDetail = {
         volume?: number | null;
         volume_unit?: string | null;
         type?: string | null;
-        price?: string | null;
-        old_price?: string | null;
+        price?: string | number | null;
+        old_price?: string | number | null;
         stock?: number;
         available_stock?: number;
         is_available?: boolean;
@@ -244,6 +244,44 @@ export type ProductAdminDetail = {
 
 export type ProductAdminDetailResponse = {
     data: ProductAdminDetail;
+};
+
+export type ProductSeoField =
+    | "seo_description"
+    | "short_description"
+    | "description";
+
+export type ProductSeoFieldState = {
+    state: "new" | "generated" | "manually_changed";
+    current: string | null;
+};
+
+export type ProductSeoGeneration = {
+    id: number;
+    product_id: number;
+    status: "pending" | "submitted" | "polling" | "completed" | "failed" | "conflicted";
+    external_status: "pending" | "researching" | "generating" | "completed" | "failed" | null;
+    requested_fields: ProductSeoField[];
+    result: Partial<Record<ProductSeoField, string>> | null;
+    request_payload: Record<string, unknown>;
+    raw_result: Record<string, unknown> | null;
+    error: string | null;
+    conflict: boolean;
+    attempts: number;
+    created_at: string | null;
+    finished_at: string | null;
+};
+
+export type ProductSeoPreviewResponse = {
+    data: {
+        fields: Record<ProductSeoField, ProductSeoFieldState>;
+        active_generation: ProductSeoGeneration | null;
+    };
+};
+
+export type ProductSeoGenerationResponse = {
+    message?: string;
+    data: ProductSeoGeneration;
 };
 
 export type ProductVariantSupplierItem = {
@@ -499,33 +537,77 @@ export async function fetchProductById(id: number | string): Promise<ProductAdmi
     return res.json();
 }
 
-export async function rewriteProductDescription(id: number): Promise<{
-    message?: string;
-    data?: { description?: string | null; description_rewritten_at?: string | null };
-}> {
-    const res = await fetch(`${API_BASE}/admin/products/${id}/rewrite-description`, {
+export async function fetchProductSeoPreview(
+    id: number,
+    signal?: AbortSignal,
+): Promise<ProductSeoPreviewResponse> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/generate-seo/preview`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+        signal,
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `SEO preview API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function startProductSeoGeneration(
+    id: number,
+    fields: Partial<Record<ProductSeoField, string | null>>,
+    confirmManualChanges: boolean,
+): Promise<ProductSeoGenerationResponse> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/generate-seo`, {
         method: "POST",
         headers: getAdminHeaders(),
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+            fields,
+            confirm_manual_changes: confirmManualChanges,
+        }),
         cache: "no-store",
     });
 
-    type RewriteDescriptionResponse = {
-        message?: string;
-        data?: { description?: string | null; description_rewritten_at?: string | null };
-    };
     const text = await res.text();
-    let parsed: RewriteDescriptionResponse | null = null;
+    let parsed: (ProductSeoGenerationResponse & { message?: string }) | null = null;
     try {
-        parsed = JSON.parse(text) as RewriteDescriptionResponse;
+        parsed = text ? JSON.parse(text) as ProductSeoGenerationResponse : null;
     } catch {
         parsed = null;
     }
     if (!res.ok) {
-        throw new Error(parsed?.message || text || `Rewrite description API error: ${res.status}`);
+        throw new Error(parsed?.message || text || `SEO generation API error: ${res.status}`);
     }
 
-    return (parsed || {}) as Awaited<ReturnType<typeof rewriteProductDescription>>;
+    if (!parsed?.data) {
+        throw new Error("SEO generation API returned an invalid response");
+    }
+
+    return parsed;
+}
+
+export async function fetchProductSeoGeneration(
+    productId: number,
+    generationId: number,
+    signal?: AbortSignal,
+): Promise<ProductSeoGenerationResponse> {
+    const res = await fetch(
+        `${API_BASE}/admin/products/${productId}/generate-seo/${generationId}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+            signal,
+        },
+    );
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `SEO generation status API error: ${res.status}`);
+    }
+
+    return res.json();
 }
 
 export async function fetchProductVariantSuppliers(

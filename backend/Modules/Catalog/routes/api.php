@@ -1,21 +1,23 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Catalog\Http\Controllers\Admin\AdminProductLinkSearchController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeOptionController;
 use Modules\Catalog\Http\Controllers\Admin\BrandController;
-use Modules\Catalog\Http\Controllers\Admin\AdminProductLinkSearchController;
 use Modules\Catalog\Http\Controllers\Admin\PriceFormulaController;
 use Modules\Catalog\Http\Controllers\Admin\PriceRefreshController;
-use Modules\Catalog\Http\Controllers\Admin\WarehouseManualPriceReviewController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductAttributeValueController;
 use Modules\Catalog\Http\Controllers\Admin\ProductImageAdminController;
+use Modules\Catalog\Http\Controllers\Admin\ProductSeoGenerationAdminController;
+use Modules\Catalog\Http\Controllers\Admin\ProductSeoWorkAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductSetAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
-use Modules\Catalog\Http\Controllers\Api\ProductController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
+use Modules\Catalog\Http\Controllers\Admin\WarehouseManualPriceReviewController;
+use Modules\Catalog\Http\Controllers\Api\ProductController;
 
 Route::prefix('catalog')->group(function () {
     Route::get('/bootstrap', [ProductController::class, 'bootstrap']);
@@ -111,6 +113,13 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(f
     Route::delete('/{id}', [BrandController::class, 'destroy']);
 });
 
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/seo')->group(function () {
+    Route::get('/product-descriptions', [ProductSeoWorkAdminController::class, 'overview']);
+    Route::get('/product-descriptions/batches', [ProductSeoWorkAdminController::class, 'batches']);
+    Route::post('/product-descriptions/work', [ProductSeoWorkAdminController::class, 'submitWork']);
+    Route::post('/product-descriptions/ready', [ProductSeoWorkAdminController::class, 'pullReady']);
+});
+
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group(function () {
     Route::get('/', [ProductAdminController::class, 'index']);
     Route::get('/link-search', [AdminProductLinkSearchController::class, 'index']);
@@ -125,8 +134,10 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::get('/brands/options', [ProductAdminController::class, 'brands']);
     Route::get('/{id}', [ProductAdminController::class, 'show']);
     Route::get('/{id}/variant-suppliers', [ProductAdminController::class, 'variantSuppliers']);
+    Route::get('/{id}/generate-seo/preview', [ProductSeoGenerationAdminController::class, 'preview']);
+    Route::post('/{id}/generate-seo', [ProductSeoGenerationAdminController::class, 'store']);
+    Route::get('/{id}/generate-seo/{generation}', [ProductSeoGenerationAdminController::class, 'show']);
     Route::put('/{id}', [ProductAdminController::class, 'update']);
-    Route::post('/{id}/rewrite-description', [ProductAdminController::class, 'rewriteDescription']);
     Route::delete('/{id}', [ProductAdminController::class, 'destroy']);
     Route::post('/{id}/images', [ProductImageAdminController::class, 'upload']);
     Route::put('/{id}/images/{imageId}/usage-type', [ProductImageAdminController::class, 'updateUsageType']);
