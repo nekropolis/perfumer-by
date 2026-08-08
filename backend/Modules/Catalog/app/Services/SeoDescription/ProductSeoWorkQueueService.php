@@ -194,6 +194,16 @@ class ProductSeoWorkQueueService
 
             try {
                 $validated = $this->resultValidator->validateAvailable($row['result']);
+                $requested = is_array($item?->requested_fields) ? $item->requested_fields : null;
+                if ($requested !== null) {
+                    $validated = array_intersect_key($validated, array_flip($requested));
+                }
+                if ($this->isLegacyProductId((int) $product->id)) {
+                    $validated = $this->onlyEmptyFields($product, $validated);
+                }
+                if ($validated === []) {
+                    throw new SeoDescriptionException('SEO API result has no applicable fields.');
+                }
                 $this->applyResult($product, $validated, $item);
                 if ($item !== null) {
                     $item->update([
@@ -240,32 +250,46 @@ class ProductSeoWorkQueueService
     public function eligibleQuery(bool $force = false, ?array $onlyFields = null): Builder
     {
         $fields = $onlyFields ?? ProductSeoPayloadBuilder::FIELDS;
-        $query = Product::query()->where($this->legacyExclusion());
 
-        if ($force) {
-            return $query;
-        }
+        return Product::query()->where(function (Builder $root) use ($fields, $force): void {
+            $root->where(function (Builder $nonLegacy) use ($fields, $force): void {
+                $nonLegacy->where($this->notLegacy());
+                if ($force) {
+                    return;
+                }
 
-        return $query->where(function (Builder $outer) use ($fields): void {
-            foreach ($fields as $field) {
-                $outer->orWhere(function (Builder $inner) use ($field): void {
-                    $inner->where(function (Builder $valueQuery) use ($field): void {
-                        $valueQuery->whereNull($field)->orWhere($field, '');
-                    })->orWhereNotExists(function ($receipt) use ($field): void {
-                        $receipt->select(DB::raw(1))
-                            ->from('product_seo_field_receipts')
-                            ->whereColumn('product_seo_field_receipts.product_id', 'products.id')
-                            ->where('product_seo_field_receipts.field', $field);
-                    });
+                $nonLegacy->where(function (Builder $outer) use ($fields): void {
+                    foreach ($fields as $field) {
+                        $outer->orWhere(function (Builder $inner) use ($field): void {
+                            $inner->where(function (Builder $valueQuery) use ($field): void {
+                                $valueQuery->whereNull($field)->orWhere($field, '');
+                            })->orWhereNotExists(function ($receipt) use ($field): void {
+                                $receipt->select(DB::raw(1))
+                                    ->from('product_seo_field_receipts')
+                                    ->whereColumn('product_seo_field_receipts.product_id', 'products.id')
+                                    ->where('product_seo_field_receipts.field', $field);
+                            });
+                        });
+                    }
                 });
-            }
+            })->orWhere(function (Builder $legacy) use ($fields): void {
+                // Legacy: только пустые поля (заполненные из legacy не перезаписываем).
+                $legacy->where($this->isLegacy())
+                    ->where(function (Builder $outer) use ($fields): void {
+                        foreach ($fields as $field) {
+                            $outer->orWhere(function (Builder $inner) use ($field): void {
+                                $inner->whereNull($field)->orWhere($field, '');
+                            });
+                        }
+                    });
+            });
         });
     }
 
     /**
      * @return \Closure(Builder): void
      */
-    private function legacyExclusion(): \Closure
+    private function notLegacy(): \Closure
     {
         return static function (Builder $query): void {
             $query->whereNotExists(function ($legacy) {
@@ -285,6 +309,46 @@ class ProductSeoWorkQueueService
     }
 
     /**
+     * @return \Closure(Builder): void
+     */
+    private function isLegacy(): \Closure
+    {
+        return static function (Builder $query): void {
+            $query->where(function (Builder $legacy) {
+                $legacy->whereExists(function ($matched) {
+                    $matched->select(DB::raw(1))
+                        ->from('legacy_map_products')
+                        ->where('legacy_map_products.status', 'matched')
+                        ->whereNotNull('legacy_map_products.product_id')
+                        ->whereColumn('legacy_map_products.product_id', 'products.id');
+                })->orWhereExists(function ($linked) {
+                    $linked->select(DB::raw(1))
+                        ->from('legacy_unmatched_products')
+                        ->where('legacy_unmatched_products.status', 'linked')
+                        ->whereNotNull('legacy_unmatched_products.linked_product_id')
+                        ->whereColumn('legacy_unmatched_products.linked_product_id', 'products.id');
+                });
+            });
+        };
+    }
+
+    private function isLegacyProductId(int $productId): bool
+    {
+        if ($productId <= 0) {
+            return false;
+        }
+
+        return DB::table('legacy_map_products')
+            ->where('status', 'matched')
+            ->where('product_id', $productId)
+            ->exists()
+            || DB::table('legacy_unmatched_products')
+                ->where('status', 'linked')
+                ->where('linked_product_id', $productId)
+                ->exists();
+    }
+
+    /**
      * @return array<string, string|null>
      */
     private function fieldsForProduct(Product $product, bool $force): array
@@ -298,6 +362,7 @@ class ProductSeoWorkQueueService
                 ->keyBy('field')
                 ->all();
 
+        $isLegacy = $this->isLegacyProductId((int) $product->id);
         $fields = [];
         foreach (ProductSeoPayloadBuilder::FIELDS as $field) {
             $current = $product->getAttribute($field);
@@ -305,12 +370,38 @@ class ProductSeoWorkQueueService
             $isEmpty = $currentString === null || trim($currentString) === '';
             $hasReceipt = array_key_exists($field, $receipts);
 
+            if ($isLegacy) {
+                if ($isEmpty) {
+                    $fields[$field] = null;
+                }
+
+                continue;
+            }
+
             if ($force || $isEmpty || ! $hasReceipt) {
                 $fields[$field] = $isEmpty ? null : $currentString;
             }
         }
 
         return $fields;
+    }
+
+    /**
+     * @param  array<string, string>  $validated
+     * @return array<string, string>
+     */
+    private function onlyEmptyFields(Product $product, array $validated): array
+    {
+        $filtered = [];
+        foreach ($validated as $field => $value) {
+            $current = $product->getAttribute($field);
+            $currentString = $current === null ? null : (string) $current;
+            if ($currentString === null || trim($currentString) === '') {
+                $filtered[$field] = $value;
+            }
+        }
+
+        return $filtered;
     }
 
     /**

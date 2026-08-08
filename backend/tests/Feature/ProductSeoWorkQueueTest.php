@@ -49,19 +49,22 @@ class ProductSeoWorkQueueTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_submit_work_excludes_legacy_and_sends_chunk(): void
+    public function test_submit_work_excludes_filled_legacy_and_sends_chunk(): void
     {
         [$user, $product] = $this->adminAndProduct([
             'description' => '<p>Есть текст</p>',
         ]);
-        $legacy = Product::query()->create([
+        $legacyFilled = Product::query()->create([
             'brand_id' => $product->brand_id,
-            'name' => 'Legacy',
-            'slug' => 'legacy-product',
+            'name' => 'Legacy filled',
+            'slug' => 'legacy-filled',
+            'seo_description' => 'Legacy meta description text.',
+            'short_description' => str_repeat('Краткое описание товара. ', 8),
+            'description' => '<p>'.str_repeat('Полное описание аромата. ', 40).'</p>',
         ]);
         DB::table('legacy_map_products')->insert([
             'legacy_product_id' => 1,
-            'product_id' => $legacy->id,
+            'product_id' => $legacyFilled->id,
             'status' => 'matched',
             'created_at' => now(),
             'updated_at' => now(),
@@ -86,7 +89,7 @@ class ProductSeoWorkQueueTest extends TestCase
             'external_id' => (string) $product->id,
         ]);
         $this->assertDatabaseMissing('product_seo_batch_items', [
-            'product_id' => $legacy->id,
+            'product_id' => $legacyFilled->id,
         ]);
 
         Http::assertSent(function ($request) use ($product): bool {
@@ -105,6 +108,73 @@ class ProductSeoWorkQueueTest extends TestCase
                 && array_key_exists('description', $row['fields'])
                 && ! array_key_exists('seo_title', $row['fields'])
                 && ! array_key_exists('h1', $row['fields']);
+        });
+    }
+
+    public function test_submit_work_sends_only_empty_fields_for_legacy_product(): void
+    {
+        [$user, $product] = $this->adminAndProduct([
+            'seo_description' => 'Already has meta.',
+            'short_description' => str_repeat('Краткое описание товара. ', 8),
+            'description' => '<p>'.str_repeat('Полное описание аромата. ', 40).'</p>',
+        ]);
+        foreach (['seo_description', 'short_description', 'description'] as $field) {
+            ProductSeoFieldReceipt::query()->create([
+                'product_id' => $product->id,
+                'field' => $field,
+                'value_hash' => hash('sha256', (string) $product->getAttribute($field)),
+                'received_at' => now(),
+            ]);
+        }
+
+        $legacy = Product::query()->create([
+            'brand_id' => $product->brand_id,
+            'name' => 'Legacy partial',
+            'slug' => 'legacy-partial',
+            'seo_description' => null,
+            'short_description' => str_repeat('Краткое описание товара. ', 8),
+            'description' => '<p>'.str_repeat('Полное описание аромата. ', 40).'</p>',
+        ]);
+        DB::table('legacy_map_products')->insert([
+            'legacy_product_id' => 2,
+            'product_id' => $legacy->id,
+            'status' => 'matched',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Http::fake([
+            'http://seo.test/api/products/work' => Http::response([
+                'batch_id' => 'batch-legacy',
+                'accepted' => 1,
+                'queued' => 1,
+            ], 200),
+        ]);
+
+        $this->actingAs($user, 'sanctum');
+        $response = $this->postJson('/api/admin/seo/product-descriptions/work')
+            ->assertStatus(202);
+
+        $this->assertSame(1, $response->json('data.requested_count'));
+        $this->assertDatabaseHas('product_seo_batch_items', [
+            'product_id' => $legacy->id,
+            'external_id' => (string) $legacy->id,
+        ]);
+
+        Http::assertSent(function ($request) use ($legacy): bool {
+            if ($request->url() !== 'http://seo.test/api/products/work') {
+                return false;
+            }
+            $products = $request['products'] ?? [];
+            if (count($products) !== 1) {
+                return false;
+            }
+            $row = $products[0];
+            $fields = $row['fields'] ?? [];
+
+            return $row['external_id'] === (string) $legacy->id
+                && array_keys($fields) === ['seo_description']
+                && $fields['seo_description'] === null;
         });
     }
 
@@ -174,6 +244,71 @@ class ProductSeoWorkQueueTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'http://seo.test/api/products/ack'
             && $request['external_ids'] === [(string) $product->id]);
+    }
+
+    public function test_pull_ready_applies_only_empty_legacy_fields(): void
+    {
+        [, $product] = $this->adminAndProduct([
+            'seo_description' => null,
+            'short_description' => str_repeat('Краткое описание товара. ', 8),
+            'description' => '<p>'.str_repeat('Полное описание аромата. ', 40).'</p>',
+        ]);
+        DB::table('legacy_map_products')->insert([
+            'legacy_product_id' => 3,
+            'product_id' => $product->id,
+            'status' => 'matched',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $batch = ProductSeoBatch::query()->create([
+            'external_batch_id' => 'batch-legacy-ready',
+            'status' => ProductSeoBatch::STATUS_SUBMITTED,
+            'requested_count' => 1,
+            'accepted_count' => 1,
+            'queued_count' => 1,
+            'submitted_at' => now(),
+        ]);
+        $batch->items()->create([
+            'product_id' => $product->id,
+            'external_id' => (string) $product->id,
+            'requested_fields' => ['seo_description'],
+            'status' => 'submitted',
+        ]);
+
+        $originalShort = $product->short_description;
+        $originalDescription = $product->description;
+        $description = '<p>'.str_repeat('Оригинальный аромат с проверенными характеристиками. ', 20).'</p>';
+
+        Http::fake([
+            'http://seo.test/api/products/ready*' => Http::response([
+                'data' => [[
+                    'external_id' => (string) $product->id,
+                    'result' => [
+                        'seo_description' => 'Купить оригинальный аромат в Минске.',
+                        'short_description' => str_repeat('Новое краткое описание аромата. ', 5),
+                        'description' => $description,
+                    ],
+                ]],
+            ]),
+            'http://seo.test/api/products/ack' => Http::response(['acked' => 1]),
+        ]);
+
+        $result = app(ProductSeoWorkQueueService::class)->pullAndApplyReady();
+        $fresh = $product->fresh();
+
+        $this->assertSame(1, $result['applied']);
+        $this->assertSame('Купить оригинальный аромат в Минске.', $fresh->seo_description);
+        $this->assertSame($originalShort, $fresh->short_description);
+        $this->assertSame($originalDescription, $fresh->description);
+        $this->assertDatabaseHas('product_seo_field_receipts', [
+            'product_id' => $product->id,
+            'field' => 'seo_description',
+        ]);
+        $this->assertDatabaseMissing('product_seo_field_receipts', [
+            'product_id' => $product->id,
+            'field' => 'description',
+        ]);
     }
 
     /**
