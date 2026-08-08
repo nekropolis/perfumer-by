@@ -67,7 +67,7 @@ export type ProductSmartSearchVariantPreview = {
     available_stock: number;
     is_available: boolean;
     is_preorder: boolean;
-    price?: string | null;
+    price?: string | number | null;
     can_fulfill_main?: boolean;
     can_fulfill_offer?: boolean;
 };
