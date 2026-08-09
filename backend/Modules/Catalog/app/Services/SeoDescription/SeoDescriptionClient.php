@@ -130,9 +130,7 @@ class SeoDescriptionClient
         }
 
         if (! $response->successful()) {
-            throw new SeoDescriptionException(
-                'SEO API work request failed (HTTP '.$response->status().').',
-            );
+            throw new SeoDescriptionException($this->httpFailureMessage($response, 'work'));
         }
 
         $data = $this->jsonObject($response, 'work');
@@ -301,5 +299,22 @@ class SeoDescriptionClient
         }
 
         return $data;
+    }
+
+    private function httpFailureMessage(Response $response, string $operation): string
+    {
+        $status = $response->status();
+        $apiMessage = $response->json('message');
+        $suffix = is_string($apiMessage) && trim($apiMessage) !== ''
+            ? ': '.mb_substr(trim($apiMessage), 0, 300)
+            : '';
+
+        return match ($status) {
+            401 => 'SEO API: неверный или отсутствующий токен (HTTP 401).'.$suffix,
+            403 => 'SEO API: доступ запрещён для сайта/тарифа (HTTP 403).'.$suffix,
+            413 => 'SEO API: слишком большой запрос (HTTP 413). Уменьшите размер чанка.',
+            422 => 'SEO API: невалидный запрос (HTTP 422).'.$suffix,
+            default => 'SEO API '.$operation.' request failed (HTTP '.$status.').'.$suffix,
+        };
     }
 }

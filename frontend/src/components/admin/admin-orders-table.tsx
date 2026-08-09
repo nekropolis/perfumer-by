@@ -15,6 +15,7 @@ import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import AdminDeliveryTimeInput, {
+    AdminDeliveryTimePresets,
     formatDeliveryClockTime,
     snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
@@ -1087,19 +1088,30 @@ function AdminOrderDeliveryTimeCell({
                     </div>
                 }
             >
-                <div className="grid grid-cols-2 gap-3">
-                    <label className="text-sm text-admin-text-secondary">
-                        С
-                        <div className="mt-1">
-                            <AdminDeliveryTimeInput value={draftFrom} onChangeAction={setDraftFrom} disabled={saving} />
-                        </div>
-                    </label>
-                    <label className="text-sm text-admin-text-secondary">
-                        По
-                        <div className="mt-1">
-                            <AdminDeliveryTimeInput value={draftTo} onChangeAction={setDraftTo} disabled={saving} />
-                        </div>
-                    </label>
+                <div className="space-y-3">
+                    <AdminDeliveryTimePresets
+                        from={draftFrom}
+                        to={draftTo}
+                        disabled={saving}
+                        onSelectAction={(nextFrom, nextTo) => {
+                            setDraftFrom(nextFrom);
+                            setDraftTo(nextTo);
+                        }}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm text-admin-text-secondary">
+                            С
+                            <div className="mt-1">
+                                <AdminDeliveryTimeInput value={draftFrom} onChangeAction={setDraftFrom} disabled={saving} />
+                            </div>
+                        </label>
+                        <label className="text-sm text-admin-text-secondary">
+                            По
+                            <div className="mt-1">
+                                <AdminDeliveryTimeInput value={draftTo} onChangeAction={setDraftTo} disabled={saving} />
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </AdminModalShell>
         </>

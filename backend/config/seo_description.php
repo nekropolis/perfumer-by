@@ -11,7 +11,7 @@ return [
     'poll_interval' => (int) env('SEO_DESCRIPTION_POLL_INTERVAL', 5),
     'deadline' => (int) env('SEO_DESCRIPTION_DEADLINE', 600),
     'queue' => env('SEO_DESCRIPTION_QUEUE', 'default'),
-    'work_chunk_size' => (int) env('SEO_DESCRIPTION_WORK_CHUNK_SIZE', 500),
+    'work_chunk_size' => (int) env('SEO_DESCRIPTION_WORK_CHUNK_SIZE', 25),
     'ready_limit' => (int) env('SEO_DESCRIPTION_READY_LIMIT', 100),
-    'ready_poll_minutes' => (int) env('SEO_DESCRIPTION_READY_POLL_MINUTES', 5),
+    'ready_poll_minutes' => (int) env('SEO_DESCRIPTION_READY_POLL_MINUTES', 2),
 ];

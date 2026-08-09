@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\SupplierVariantOffer;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
@@ -52,7 +53,7 @@ class StockReportController extends Controller
             ->all();
 
         $items = $baseQuery
-            ->with(['product', 'variant'])
+            ->with(['product.brand:id,name', 'variant'])
             ->when($productId > 0, fn ($subQuery) => $subQuery->where('order_items.product_id', $productId))
             ->when($orderId > 0, fn ($subQuery) => $subQuery->where('order_items.order_id', $orderId))
             ->orderByDesc('orders.id')
@@ -208,13 +209,23 @@ class StockReportController extends Controller
                 ? OrderStatus::displayForCode($orderStatusCode)
                 : ['label' => '—', 'color' => '#64748B'];
 
+            $brandName = trim((string) ($item->brand_name ?? $item->product?->brand?->name ?? ''));
+            $productName = trim((string) ($item->product_name ?: $item->product?->name ?? ''));
+            if ($brandName !== '' && $productName !== '') {
+                $stripped = ProductDisplayName::stripBrandFromName($brandName, $productName);
+                $shortName = $stripped['found'] ? (string) $stripped['name'] : $productName;
+                $displayProductName = ProductDisplayName::format($brandName, $shortName);
+            } else {
+                $displayProductName = $productName !== '' ? $productName : $brandName;
+            }
+
             $rows[] = [
                 'id' => "oi-{$item->id}",
                 'order_item_id' => (int) $item->id,
                 'order_id' => (int) $item->order_id,
                 'product_id' => (int) $item->product_id,
                 'variant_id' => (int) $item->variant_id,
-                'product_name' => $item->product_name ?: $item->product?->name,
+                'product_name' => $displayProductName !== '' ? $displayProductName : null,
                 'variant_title' => $item->variant_title ?: $item->variant?->title,
                 'qty' => (int) $item->qty,
                 'availability_source' => $availabilitySource !== '' ? $availabilitySource : null,

@@ -24,6 +24,20 @@ class ProductSeoResultValidatorTest extends TestCase
         $this->assertSame($description, $result['description']);
     }
 
+    public function test_accepts_short_description_under_150_chars(): void
+    {
+        $short = 'Мужской фужерно-пряный аромат Antonio Banderas.';
+        $this->assertLessThan(150, mb_strlen($short));
+
+        $result = (new ProductSeoResultValidator)->validateAvailable([
+            'seo_description' => 'Купить оригинал в Минске с доставкой.',
+            'short_description' => $short,
+            'description' => '<p>'.str_repeat('Оригинальный аромат с проверенными характеристиками. ', 20).'</p>',
+        ]);
+
+        $this->assertSame($short, $result['short_description']);
+    }
+
     public function test_rejects_attributes_in_description_html(): void
     {
         $this->expectException(SeoDescriptionException::class);

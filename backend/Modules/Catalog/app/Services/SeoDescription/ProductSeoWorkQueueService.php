@@ -174,17 +174,24 @@ class ProductSeoWorkQueueService
             $product = Product::query()->find($productId);
             $item = ProductSeoBatchItem::query()
                 ->where('external_id', $externalId)
-                ->where('status', ProductSeoBatchItem::STATUS_SUBMITTED)
+                ->whereIn('status', [
+                    ProductSeoBatchItem::STATUS_SUBMITTED,
+                    ProductSeoBatchItem::STATUS_FAILED,
+                ])
                 ->latest('id')
                 ->first();
 
             if ($product === null) {
                 if ($item !== null) {
+                    $wasFailed = $item->status === ProductSeoBatchItem::STATUS_FAILED;
                     $item->update([
                         'status' => ProductSeoBatchItem::STATUS_SKIPPED,
                         'result' => $row['result'],
                         'error' => 'Товар не найден.',
                     ]);
+                    if ($wasFailed) {
+                        $this->bumpBatchCounters((int) $item->product_seo_batch_id, failed: -1);
+                    }
                 }
                 $ackIds[] = $externalId;
                 $skipped++;
@@ -206,24 +213,32 @@ class ProductSeoWorkQueueService
                 }
                 $this->applyResult($product, $validated, $item);
                 if ($item !== null) {
+                    $wasFailed = $item->status === ProductSeoBatchItem::STATUS_FAILED;
                     $item->update([
                         'status' => ProductSeoBatchItem::STATUS_APPLIED,
                         'result' => $row['result'],
                         'applied_fields' => array_keys($validated),
                         'error' => null,
                     ]);
-                    $this->bumpBatchCounters((int) $item->product_seo_batch_id, applied: 1);
+                    $this->bumpBatchCounters(
+                        (int) $item->product_seo_batch_id,
+                        applied: 1,
+                        failed: $wasFailed ? -1 : 0,
+                    );
                 }
                 $ackIds[] = $externalId;
                 $applied++;
             } catch (SeoDescriptionException $e) {
                 if ($item !== null) {
+                    $wasFailed = $item->status === ProductSeoBatchItem::STATUS_FAILED;
                     $item->update([
                         'status' => ProductSeoBatchItem::STATUS_FAILED,
                         'result' => $row['result'],
                         'error' => mb_substr($e->getMessage(), 0, 2000),
                     ]);
-                    $this->bumpBatchCounters((int) $item->product_seo_batch_id, failed: 1);
+                    if (! $wasFailed) {
+                        $this->bumpBatchCounters((int) $item->product_seo_batch_id, failed: 1);
+                    }
                 }
                 $failed++;
             }

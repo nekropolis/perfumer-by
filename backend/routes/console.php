@@ -39,7 +39,7 @@ Schedule::command('seo:warm-sitemap')
     ->runInBackground();
 
 Schedule::command('seo:pull-product-ready')
-    ->everyFiveMinutes()
+    ->everyTwoMinutes()
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->onOneServer()

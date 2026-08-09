@@ -36,7 +36,8 @@ class ProductSeoResultValidator
             $value = trim($value);
             match ($field) {
                 'seo_description' => $this->validatePlainText($value, 1, 160, $field),
-                'short_description' => $this->validatePlainText($value, 150, 500, $field),
+                // SEO API часто отдаёт короче прежнего контракта 150–500; принимаем 1–500.
+                'short_description' => $this->validatePlainText($value, 1, 500, $field),
                 'description' => $this->validateDescription($value),
                 default => throw new SeoDescriptionException('Unsupported SEO result field: '.$field.'.'),
             };
@@ -65,7 +66,8 @@ class ProductSeoResultValidator
             $value = trim($value);
             match ($field) {
                 'seo_description' => $this->validatePlainText($value, 1, 160, $field),
-                'short_description' => $this->validatePlainText($value, 150, 500, $field),
+                // SEO API часто отдаёт короче прежнего контракта 150–500; принимаем 1–500.
+                'short_description' => $this->validatePlainText($value, 1, 500, $field),
                 'description' => $this->validateDescription($value),
                 default => throw new SeoDescriptionException('Unsupported SEO result field: '.$field.'.'),
             };

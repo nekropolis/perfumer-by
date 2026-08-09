@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductSeoBatch;
+use Modules\Catalog\Models\ProductSeoBatchItem;
 use Modules\Catalog\Models\ProductSeoFieldReceipt;
 use Modules\Catalog\Services\SeoDescription\ProductSeoWorkQueueService;
 use Modules\Users\Enums\Role;
@@ -27,7 +28,7 @@ class ProductSeoWorkQueueTest extends TestCase
         config()->set('seo_description.token', 'site-token');
         config()->set('seo_description.site', 'perfumer');
         config()->set('seo_description.get_retries', 0);
-        config()->set('seo_description.work_chunk_size', 500);
+        config()->set('seo_description.work_chunk_size', 25);
         config()->set('services.catalog_search.enabled', false);
     }
 
@@ -244,6 +245,54 @@ class ProductSeoWorkQueueTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'http://seo.test/api/products/ack'
             && $request['external_ids'] === [(string) $product->id]);
+    }
+
+    public function test_pull_ready_retries_failed_items_and_fixes_counters(): void
+    {
+        [, $product] = $this->adminAndProduct();
+        $batch = ProductSeoBatch::query()->create([
+            'external_batch_id' => 'batch-failed-retry',
+            'status' => ProductSeoBatch::STATUS_SUBMITTED,
+            'requested_count' => 1,
+            'accepted_count' => 1,
+            'queued_count' => 1,
+            'applied_count' => 0,
+            'failed_count' => 1,
+            'submitted_at' => now(),
+        ]);
+        $item = $batch->items()->create([
+            'product_id' => $product->id,
+            'external_id' => (string) $product->id,
+            'requested_fields' => ['seo_description', 'short_description', 'description'],
+            'status' => ProductSeoBatchItem::STATUS_FAILED,
+            'error' => 'SEO API short_description length is invalid.',
+        ]);
+
+        $description = '<p>'.str_repeat('Оригинальный аромат с проверенными характеристиками. ', 20).'</p>';
+        Http::fake([
+            'http://seo.test/api/products/ready*' => Http::response([
+                'products' => [[
+                    'external_id' => (string) $product->id,
+                    'result' => [
+                        'seo_description' => 'Купить оригинальный аромат в Минске.',
+                        'short_description' => 'Короткий текст от SEO API.',
+                        'description' => $description,
+                    ],
+                ]],
+            ]),
+            'http://seo.test/api/products/ack' => Http::response(['acked' => 1]),
+        ]);
+
+        $result = app(ProductSeoWorkQueueService::class)->pullAndApplyReady();
+        $freshBatch = $batch->fresh();
+        $freshItem = $item->fresh();
+
+        $this->assertSame(1, $result['applied']);
+        $this->assertSame(ProductSeoBatchItem::STATUS_APPLIED, $freshItem->status);
+        $this->assertNull($freshItem->error);
+        $this->assertSame(1, $freshBatch->applied_count);
+        $this->assertSame(0, $freshBatch->failed_count);
+        $this->assertSame('Короткий текст от SEO API.', $product->fresh()->short_description);
     }
 
     public function test_pull_ready_applies_only_empty_legacy_fields(): void

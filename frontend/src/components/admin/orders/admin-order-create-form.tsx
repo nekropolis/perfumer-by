@@ -54,6 +54,7 @@ import { formatMoneyRub } from "@/lib/format-money-display";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
 import AdminDeliveryTimeInput, {
+  AdminDeliveryTimePresets,
   formatDeliveryClockTime,
   snapDeliveryClockToTenMinutes,
 } from "@/components/admin/orders/admin-delivery-time-input";
@@ -3491,25 +3492,35 @@ export default function AdminOrderCreateForm({
                 </div>
               }
             >
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm text-admin-text-secondary">
-                  С
-                  <div className="mt-1">
-                    <AdminDeliveryTimeInput
-                      value={draftDeliveryTimeFrom}
-                      onChangeAction={setDraftDeliveryTimeFrom}
-                    />
-                  </div>
-                </label>
-                <label className="text-sm text-admin-text-secondary">
-                  По
-                  <div className="mt-1">
-                    <AdminDeliveryTimeInput
-                      value={draftDeliveryTimeTo}
-                      onChangeAction={setDraftDeliveryTimeTo}
-                    />
-                  </div>
-                </label>
+              <div className="space-y-3">
+                <AdminDeliveryTimePresets
+                  from={draftDeliveryTimeFrom}
+                  to={draftDeliveryTimeTo}
+                  onSelectAction={(nextFrom, nextTo) => {
+                    setDraftDeliveryTimeFrom(nextFrom);
+                    setDraftDeliveryTimeTo(nextTo);
+                  }}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm text-admin-text-secondary">
+                    С
+                    <div className="mt-1">
+                      <AdminDeliveryTimeInput
+                        value={draftDeliveryTimeFrom}
+                        onChangeAction={setDraftDeliveryTimeFrom}
+                      />
+                    </div>
+                  </label>
+                  <label className="text-sm text-admin-text-secondary">
+                    По
+                    <div className="mt-1">
+                      <AdminDeliveryTimeInput
+                        value={draftDeliveryTimeTo}
+                        onChangeAction={setDraftDeliveryTimeTo}
+                      />
+                    </div>
+                  </label>
+                </div>
               </div>
             </AdminModalShell>
           </div>

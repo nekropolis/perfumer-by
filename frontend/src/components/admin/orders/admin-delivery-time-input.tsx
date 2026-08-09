@@ -38,6 +38,54 @@ export function snapDeliveryClockToTenMinutes(value?: string | null): string {
     return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+export const DELIVERY_TIME_PRESETS = [
+    { label: "14–17", from: "14:00", to: "17:00" },
+    { label: "18–23", from: "18:00", to: "23:00" },
+] as const;
+
+type DeliveryTimePresetsProps = {
+    from: string;
+    to: string;
+    onSelectAction: (from: string, to: string) => void;
+    disabled?: boolean;
+    className?: string;
+};
+
+/** Быстрый выбор предустановленных интервалов «с–по». */
+export function AdminDeliveryTimePresets({
+    from,
+    to,
+    onSelectAction,
+    disabled = false,
+    className = "",
+}: DeliveryTimePresetsProps) {
+    const activeFrom = snapDeliveryClockToTenMinutes(from);
+    const activeTo = snapDeliveryClockToTenMinutes(to);
+
+    return (
+        <div className={`flex flex-wrap gap-2 ${className}`}>
+            {DELIVERY_TIME_PRESETS.map((preset) => {
+                const selected = activeFrom === preset.from && activeTo === preset.to;
+                return (
+                    <button
+                        key={preset.label}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => onSelectAction(preset.from, preset.to)}
+                        className={`rounded-lg border px-2.5 py-1 text-sm tabular-nums transition disabled:opacity-50 ${
+                            selected
+                                ? "border-admin-primary/40 bg-admin-primary/10 font-medium text-admin-primary"
+                                : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted"
+                        }`}
+                    >
+                        {preset.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 type Props = {
     value: string;
     onChangeAction: (value: string) => void;
@@ -58,6 +106,9 @@ function WheelColumn({ options, value, ariaLabel, disabled = false, onChangeActi
     const scrollerRef = useRef<HTMLDivElement>(null);
     const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const suppressEmitRef = useRef(false);
+    const lastWheelStepAtRef = useRef(0);
+    const valueRef = useRef(value);
+    valueRef.current = value;
 
     const scrollToValue = useCallback(
         (next: string, smooth: boolean) => {
@@ -72,6 +123,20 @@ function WheelColumn({ options, value, ariaLabel, disabled = false, onChangeActi
             }, smooth ? 280 : 40);
         },
         [options],
+    );
+
+    const stepBy = useCallback(
+        (dir: 1 | -1) => {
+            if (disabled) return;
+            const current = valueRef.current;
+            const idx = Math.max(0, options.indexOf(current));
+            const nextIdx = Math.max(0, Math.min(options.length - 1, idx + dir));
+            const next = options[nextIdx];
+            if (next === undefined || next === current) return;
+            scrollToValue(next, true);
+            onChangeAction(next);
+        },
+        [disabled, onChangeAction, options, scrollToValue],
     );
 
     useLayoutEffect(() => {
@@ -102,6 +167,38 @@ function WheelColumn({ options, value, ariaLabel, disabled = false, onChangeActi
             settle();
         }, 80);
     };
+
+    // Только для Windows/Linux + колёсико мыши: шаг на 1.
+    // На Mac / тачпаде оставляем нативную плавную прокрутку.
+    useEffect(() => {
+        const el = scrollerRef.current;
+        if (!el || disabled) return;
+
+        const platform = navigator.platform || "";
+        const ua = navigator.userAgent || "";
+        const isApple = /Mac|iPhone|iPad|iPod/i.test(platform) || /Macintosh/.test(ua);
+        if (isApple) return;
+
+        const onWheel = (e: WheelEvent) => {
+            // Precision touchpad: мелкие пиксельные дельты — не трогаем.
+            if (e.deltaMode === 0 && Math.abs(e.deltaY) < 50) {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const now = Date.now();
+            if (now - lastWheelStepAtRef.current < 55) return;
+            lastWheelStepAtRef.current = now;
+            stepBy(e.deltaY > 0 ? 1 : -1);
+        };
+
+        el.addEventListener("wheel", onWheel, { passive: false });
+        return () => {
+            el.removeEventListener("wheel", onWheel);
+        };
+    }, [disabled, stepBy]);
 
     useEffect(() => {
         return () => {
