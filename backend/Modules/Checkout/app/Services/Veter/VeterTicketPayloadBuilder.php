@@ -301,15 +301,15 @@ class VeterTicketPayloadBuilder
     private function buildComments(Order $order): string
     {
         $parts = [];
-        $deliveryComment = trim((string) ($order->delivery_comment ?? ''));
-        if ($deliveryComment !== '') {
-            $parts[] = $deliveryComment;
-        }
-
         $from = $this->formatClock($order->delivery_time_from);
         $to = $this->formatClock($order->delivery_time_to);
         if ($from !== null || $to !== null) {
-            $parts[] = 'Время доставки: '.($from ?? '—').' – '.($to ?? '—');
+            $parts[] = ($from ?? '—').' – '.($to ?? '—');
+        }
+        
+        $deliveryComment = trim((string) ($order->delivery_comment ?? ''));
+        if ($deliveryComment !== '') {
+            $parts[] = $deliveryComment;
         }
 
         return implode("\n", $parts);
