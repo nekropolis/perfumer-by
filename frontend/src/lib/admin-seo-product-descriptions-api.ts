@@ -15,6 +15,19 @@ function getAdminHeaders() {
     };
 }
 
+export type ProductSeoRemoteStats = {
+    pending: number;
+    queued: number;
+    processing: number;
+    in_flight: number;
+    completed: number;
+    failed: number;
+    skipped: number;
+    undelivered: number;
+    daily_used: number;
+    daily_limit: number;
+};
+
 export type ProductSeoWorkOverview = {
     eligible_products: number;
     missing_fields: {
@@ -23,7 +36,7 @@ export type ProductSeoWorkOverview = {
         description: number;
     };
     receipts_complete: number;
-    remote: Record<string, unknown> | null;
+    remote: ProductSeoRemoteStats | null;
     remote_error: string | null;
 };
 

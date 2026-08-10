@@ -179,6 +179,32 @@ class ProductSeoWorkQueueTest extends TestCase
         });
     }
 
+    public function test_submit_work_excludes_products_already_in_submitted_batch(): void
+    {
+        [$user, $product] = $this->adminAndProduct([
+            'description' => '<p>Есть текст</p>',
+        ]);
+
+        Http::fake([
+            'http://seo.test/api/products/work' => Http::response([
+                'batch_id' => 'batch-first',
+                'accepted' => 1,
+                'queued' => 1,
+            ], 200),
+        ]);
+
+        $this->actingAs($user, 'sanctum');
+        $this->postJson('/api/admin/seo/product-descriptions/work')
+            ->assertStatus(202);
+
+        $service = app(ProductSeoWorkQueueService::class);
+        $this->assertSame(0, $service->eligibleQuery()->count());
+
+        $this->postJson('/api/admin/seo/product-descriptions/work')
+            ->assertStatus(422)
+            ->assertJsonFragment(['message' => 'Нет товаров для отправки в SEO API.']);
+    }
+
     public function test_complete_receipts_exclude_product_until_field_cleared(): void
     {
         [, $product] = $this->adminAndProduct([

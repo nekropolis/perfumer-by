@@ -22,7 +22,18 @@ class ProductSeoWorkQueueService
      *     eligible_products: int,
      *     missing_fields: array<string, int>,
      *     receipts_complete: int,
-     *     remote: array<string, mixed>|null,
+     *     remote: array{
+     *         pending: int,
+     *         queued: int,
+     *         processing: int,
+     *         in_flight: int,
+     *         completed: int,
+     *         failed: int,
+     *         skipped: int,
+     *         undelivered: int,
+     *         daily_used: int,
+     *         daily_limit: int
+     *     }|null,
      *     remote_error: string|null
      * }
      */
@@ -36,7 +47,7 @@ class ProductSeoWorkQueueService
         $remote = null;
         $remoteError = null;
         try {
-            $remote = $this->client->stats();
+            $remote = $this->normalizeRemoteStats($this->client->stats());
         } catch (SeoDescriptionException $e) {
             $remoteError = $e->getMessage();
         }
@@ -266,7 +277,9 @@ class ProductSeoWorkQueueService
     {
         $fields = $onlyFields ?? ProductSeoPayloadBuilder::FIELDS;
 
-        return Product::query()->where(function (Builder $root) use ($fields, $force): void {
+        return Product::query()
+            ->where($this->notInFlight())
+            ->where(function (Builder $root) use ($fields, $force): void {
             $root->where(function (Builder $nonLegacy) use ($fields, $force): void {
                 $nonLegacy->where($this->notLegacy());
                 if ($force) {
@@ -299,6 +312,23 @@ class ProductSeoWorkQueueService
                     });
             });
         });
+    }
+
+    /**
+     * Товары уже отправленные и ещё не применённые не уходят повторно.
+     *
+     * @return \Closure(Builder): void
+     */
+    private function notInFlight(): \Closure
+    {
+        return static function (Builder $query): void {
+            $query->whereNotExists(function ($inFlight) {
+                $inFlight->select(DB::raw(1))
+                    ->from('product_seo_batch_items')
+                    ->whereColumn('product_seo_batch_items.product_id', 'products.id')
+                    ->where('product_seo_batch_items.status', ProductSeoBatchItem::STATUS_SUBMITTED);
+            });
+        };
     }
 
     /**
@@ -475,5 +505,40 @@ class ProductSeoWorkQueueService
             ->havingRaw('COUNT(*) >= ?', [$fieldCount])
             ->get()
             ->count();
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     * @return array{
+     *     pending: int,
+     *     queued: int,
+     *     processing: int,
+     *     in_flight: int,
+     *     completed: int,
+     *     failed: int,
+     *     skipped: int,
+     *     undelivered: int,
+     *     daily_used: int,
+     *     daily_limit: int
+     * }
+     */
+    private function normalizeRemoteStats(array $raw): array
+    {
+        $pending = (int) ($raw['pending'] ?? 0);
+        $queued = (int) ($raw['queued'] ?? 0);
+        $processing = (int) ($raw['processing'] ?? 0);
+
+        return [
+            'pending' => $pending,
+            'queued' => $queued,
+            'processing' => $processing,
+            'in_flight' => $pending + $queued + $processing,
+            'completed' => (int) ($raw['completed'] ?? 0),
+            'failed' => (int) ($raw['failed'] ?? 0),
+            'skipped' => (int) ($raw['skipped'] ?? 0),
+            'undelivered' => (int) ($raw['undelivered'] ?? 0),
+            'daily_used' => (int) ($raw['daily_used'] ?? 0),
+            'daily_limit' => (int) ($raw['daily_limit'] ?? 0),
+        ];
     }
 }

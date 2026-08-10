@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -11,6 +11,7 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import SeoSectionTabs from "@/components/admin/seo/seo-section-tabs";
 import { adminBtnPrimary, adminBtnSecondary } from "@/lib/admin-ui-classes";
 import useUrlPage from "@/hooks/use-url-page";
+import useSmartPolling from "@/hooks/use-smart-polling";
 import {
     fetchProductSeoBatches,
     fetchProductSeoWorkOverview,
@@ -40,6 +41,26 @@ function statusLabel(status: ProductSeoBatchItem["status"]): string {
     }
 }
 
+function isActiveBatch(batch: ProductSeoBatchItem): boolean {
+    if (batch.status === "pending") {
+        return true;
+    }
+    if (batch.status !== "submitted") {
+        return false;
+    }
+    return batch.applied_count + batch.failed_count < batch.requested_count;
+}
+
+function isWorkActive(
+    overview: ProductSeoWorkOverview | null,
+    batches: ProductSeoBatchItem[],
+): boolean {
+    if ((overview?.remote?.in_flight ?? 0) > 0) {
+        return true;
+    }
+    return batches.some(isActiveBatch);
+}
+
 export default function AdminSeoProductDescriptionsPage() {
     const [page, setPage] = useUrlPage();
     const [overview, setOverview] = useState<ProductSeoWorkOverview | null>(null);
@@ -52,17 +73,20 @@ export default function AdminSeoProductDescriptionsPage() {
     const [loading, setLoading] = useState(true);
     const [working, setWorking] = useState(false);
     const [pulling, setPulling] = useState(false);
+    const [liveUpdating, setLiveUpdating] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const pageRef = useRef(page);
+    pageRef.current = page;
+    const busyRef = useRef(false);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const [overviewRes, batchesRes] = await Promise.all([
-                fetchProductSeoWorkOverview(),
-                fetchProductSeoBatches({ page, per_page: 25 }),
-            ]);
+    const applyLoaded = useCallback(
+        (overviewRes: { data: ProductSeoWorkOverview }, batchesRes: {
+            data: ProductSeoBatchItem[];
+            current_page: number;
+            last_page: number;
+            total: number;
+        }) => {
             setOverview(overviewRes.data);
             setBatches(batchesRes.data || []);
             setMeta({
@@ -70,16 +94,79 @@ export default function AdminSeoProductDescriptionsPage() {
                 last_page: batchesRes.last_page,
                 total: batchesRes.total,
             });
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Ошибка загрузки SEO-очереди");
-        } finally {
-            setLoading(false);
+        },
+        [],
+    );
+
+    const load = useCallback(async (opts?: { silent?: boolean }) => {
+        const silent = Boolean(opts?.silent);
+        if (!silent) {
+            setLoading(true);
+            setError("");
         }
-    }, [page]);
+        try {
+            const [overviewRes, batchesRes] = await Promise.all([
+                fetchProductSeoWorkOverview(),
+                fetchProductSeoBatches({ page: pageRef.current, per_page: 25 }),
+            ]);
+            applyLoaded(overviewRes, batchesRes);
+            return { overview: overviewRes.data, batches: batchesRes.data || [] };
+        } catch (e: unknown) {
+            if (!silent) {
+                setError(e instanceof Error ? e.message : "Ошибка загрузки SEO-очереди");
+            }
+            return null;
+        } finally {
+            if (!silent) {
+                setLoading(false);
+            }
+        }
+    }, [applyLoaded]);
 
     useEffect(() => {
         void load();
-    }, [load]);
+    }, [load, page]);
+
+    useSmartPolling({
+        activeIntervalMs: 5_000,
+        idleIntervalMs: 30_000,
+        fetcherAction: async () => {
+            if (busyRef.current || working || pulling) {
+                return { active: true };
+            }
+
+            busyRef.current = true;
+            setLiveUpdating(true);
+            try {
+                const loaded = await load({ silent: true });
+                if (!loaded) {
+                    return { active: false };
+                }
+
+                let nextOverview = loaded.overview;
+                let nextBatches = loaded.batches;
+                const shouldPull = isWorkActive(nextOverview, nextBatches);
+
+                if (shouldPull) {
+                    try {
+                        await pullProductSeoReady();
+                        const afterPull = await load({ silent: true });
+                        if (afterPull) {
+                            nextOverview = afterPull.overview;
+                            nextBatches = afterPull.batches;
+                        }
+                    } catch {
+                        // Live-pull не должен ронять страницу: крон догонит.
+                    }
+                }
+
+                return { active: isWorkActive(nextOverview, nextBatches) };
+            } finally {
+                busyRef.current = false;
+                setLiveUpdating(false);
+            }
+        },
+    });
 
     const handleSubmitWork = async () => {
         setWorking(true);
@@ -116,6 +203,8 @@ export default function AdminSeoProductDescriptionsPage() {
         }
     };
 
+    const workActive = isWorkActive(overview, batches);
+
     return (
         <AdminPageCard>
             <Breadcrumbs
@@ -135,13 +224,18 @@ export default function AdminSeoProductDescriptionsPage() {
                     <p className="mt-1 text-sm text-admin-text-secondary">
                         Отправка чанков в SEO Description и забор готовых полей:
                         SEO description, краткое описание, описание.
+                        {workActive ? (
+                            <span className="ml-1 text-emerald-700">
+                                · обновляется{liveUpdating ? "…" : ""}
+                            </span>
+                        ) : null}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
                         type="button"
                         className={adminBtnSecondary}
-                        disabled={pulling || loading}
+                        disabled={pulling || loading || liveUpdating}
                         onClick={() => void handlePullReady()}
                     >
                         {pulling ? "Забираем…" : "Забрать готовые"}
@@ -149,7 +243,7 @@ export default function AdminSeoProductDescriptionsPage() {
                     <button
                         type="button"
                         className={adminBtnPrimary}
-                        disabled={working || loading}
+                        disabled={working || loading || (overview?.eligible_products ?? 0) === 0}
                         onClick={() => void handleSubmitWork()}
                     >
                         {working ? "Отправка…" : "Получить описание"}
@@ -188,15 +282,23 @@ export default function AdminSeoProductDescriptionsPage() {
                             </div>
                         </div>
                         <div className="rounded-xl border border-admin-border bg-white p-3">
-                            <div className="text-xs text-admin-text-secondary">Нет SEO description</div>
+                            <div className="text-xs text-admin-text-secondary">На сервисе в работе</div>
                             <div className="mt-1 text-xl font-semibold tabular-nums">
-                                {overview?.missing_fields.seo_description ?? 0}
+                                {overview?.remote?.in_flight ?? "—"}
                             </div>
+                            {overview?.remote ? (
+                                <div className="mt-1 text-[11px] text-admin-text-secondary">
+                                    processing {overview.remote.processing} · queued{" "}
+                                    {overview.remote.queued} · pending {overview.remote.pending}
+                                </div>
+                            ) : null}
                         </div>
                         <div className="rounded-xl border border-admin-border bg-white p-3">
-                            <div className="text-xs text-admin-text-secondary">Нет краткого описания</div>
+                            <div className="text-xs text-admin-text-secondary">Дневной лимит сервиса</div>
                             <div className="mt-1 text-xl font-semibold tabular-nums">
-                                {overview?.missing_fields.short_description ?? 0}
+                                {overview?.remote
+                                    ? `${overview.remote.daily_used} / ${overview.remote.daily_limit}`
+                                    : "—"}
                             </div>
                         </div>
                         <div className="rounded-xl border border-admin-border bg-white p-3">
@@ -207,13 +309,37 @@ export default function AdminSeoProductDescriptionsPage() {
                         </div>
                     </div>
 
+                    <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-xl border border-admin-border bg-white p-3">
+                            <div className="text-xs text-admin-text-secondary">Нет SEO description</div>
+                            <div className="mt-1 text-lg font-semibold tabular-nums">
+                                {overview?.missing_fields.seo_description ?? 0}
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-admin-border bg-white p-3">
+                            <div className="text-xs text-admin-text-secondary">Нет краткого описания</div>
+                            <div className="mt-1 text-lg font-semibold tabular-nums">
+                                {overview?.missing_fields.short_description ?? 0}
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-admin-border bg-white p-3">
+                            <div className="text-xs text-admin-text-secondary">Нет описания</div>
+                            <div className="mt-1 text-lg font-semibold tabular-nums">
+                                {overview?.missing_fields.description ?? 0}
+                            </div>
+                        </div>
+                    </div>
+
                     {overview?.remote_error ? (
                         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                             Статистика SEO API недоступна: {overview.remote_error}
                         </div>
                     ) : overview?.remote ? (
                         <div className="mb-4 rounded-lg border border-admin-border bg-admin-muted px-3 py-2 text-xs text-admin-text-secondary">
-                            Remote: {JSON.stringify(overview.remote)}
+                            На сервисе: completed {overview.remote.completed}, failed{" "}
+                            {overview.remote.failed}, undelivered {overview.remote.undelivered}.
+                            Уже отправленные товары (status submitted) повторно не уходят, пока не
+                            применятся.
                         </div>
                     ) : null}
 

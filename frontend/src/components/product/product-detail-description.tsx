@@ -13,7 +13,7 @@ export default function ProductDetailDescription({ description }: Props) {
                 Описание продукта
             </h2>
             <div
-                className="prose prose-sm max-w-none text-admin-text sm:prose-base"
+                className="ProseMirror prose prose-sm max-w-none text-admin-text sm:prose-base"
                 dangerouslySetInnerHTML={{ __html: description }}
             />
         </section>
