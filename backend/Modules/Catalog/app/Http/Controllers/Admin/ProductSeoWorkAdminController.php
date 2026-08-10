@@ -18,6 +18,13 @@ class ProductSeoWorkAdminController extends Controller
         ]);
     }
 
+    public function queueBadge(ProductSeoWorkQueueService $service): JsonResponse
+    {
+        return response()->json([
+            'data' => $service->queueBadge(),
+        ]);
+    }
+
     public function batches(Request $request): JsonResponse
     {
         $perPage = max(1, min((int) $request->input('per_page', 25), 100));

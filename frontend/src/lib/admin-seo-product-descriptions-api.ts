@@ -84,6 +84,20 @@ export async function fetchProductSeoWorkOverview(): Promise<{ data: ProductSeoW
     return res.json();
 }
 
+export async function fetchProductSeoQueueBadge(
+    signal?: AbortSignal,
+): Promise<{ data: { queued: number; remote_error: string | null } }> {
+    const res = await fetch(`${API_BASE}/admin/seo/product-descriptions/queue-badge`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+        signal,
+    });
+    if (!res.ok) {
+        throw new Error(await parseError(res, `SEO queue badge API error: ${res.status}`));
+    }
+    return res.json();
+}
+
 export async function fetchProductSeoBatches(params?: {
     page?: number;
     per_page?: number;

@@ -115,6 +115,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(f
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/seo')->group(function () {
     Route::get('/product-descriptions', [ProductSeoWorkAdminController::class, 'overview']);
+    Route::get('/product-descriptions/queue-badge', [ProductSeoWorkAdminController::class, 'queueBadge']);
     Route::get('/product-descriptions/batches', [ProductSeoWorkAdminController::class, 'batches']);
     Route::post('/product-descriptions/work', [ProductSeoWorkAdminController::class, 'submitWork']);
     Route::post('/product-descriptions/ready', [ProductSeoWorkAdminController::class, 'pullReady']);

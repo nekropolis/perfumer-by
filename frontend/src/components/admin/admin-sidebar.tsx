@@ -35,10 +35,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { fetchOrdersStats } from "@/lib/admin-orders-api";
 import { fetchAdminReviewsStats } from "@/lib/admin-reviews-api";
+import { fetchProductSeoQueueBadge } from "@/lib/admin-seo-product-descriptions-api";
 import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
-type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending";
+type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending" | "seoQueued";
 type AlertBadgeKey = "ordersOverdue";
 
 type LinkItem = {
@@ -47,6 +48,7 @@ type LinkItem = {
     label: string;
     icon: LucideIcon;
     badgeKey?: BadgeKey;
+    badgeLabel?: string;
     alertBadgeKey?: AlertBadgeKey;
 };
 type SidebarItem = LinkItem;
@@ -131,6 +133,8 @@ const sections: SidebarSection[] = [
                 href: "/admin/seo/product-descriptions",
                 label: "Описание продуктов",
                 icon: FileText,
+                badgeKey: "seoQueued",
+                badgeLabel: "В очереди",
             },
             {
                 type: "link",
@@ -184,9 +188,11 @@ function formatBadgeCount(count: number): string {
 function SidebarBadge({
     count,
     compact,
+    label = "Новых",
 }: {
     count: number;
     compact: boolean;
+    label?: string;
 }) {
     if (count <= 0) return null;
 
@@ -194,7 +200,7 @@ function SidebarBadge({
         return (
             <span
                 className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-admin-sidebar"
-                aria-label={`Новых: ${count}`}
+                aria-label={`${label}: ${count}`}
             >
                 {formatBadgeCount(count)}
             </span>
@@ -204,7 +210,7 @@ function SidebarBadge({
     return (
         <span
             className="ml-2 inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(244,63,94,0.45)]"
-            aria-label={`Новых: ${count}`}
+            aria-label={`${label}: ${count}`}
         >
             {formatBadgeCount(count)}
         </span>
@@ -305,6 +311,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const [overdueOrdersCount, setOverdueOrdersCount] = useState(0);
     const [stockProductRequestsNew, setStockProductRequestsNew] = useState(0);
     const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
+    const [seoQueuedCount, setSeoQueuedCount] = useState(0);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
     const _hasItems = flatItems.length > 0;
@@ -312,10 +319,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
     const loadSidebarBadgeStats = useCallback(
         async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            const [ordersResult, stockResult, reviewsResult] = await Promise.allSettled([
+            const [ordersResult, stockResult, reviewsResult, seoResult] = await Promise.allSettled([
                 fetchOrdersStats(signal),
                 fetchAdminStockNotificationStats(signal),
                 fetchAdminReviewsStats(signal),
+                fetchProductSeoQueueBadge(signal),
             ]);
 
             let ordersNew = 0;
@@ -341,12 +349,19 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                 setReviewsPendingCount(reviewsPending);
             }
 
+            let seoQueued = 0;
+            if (seoResult.status === "fulfilled") {
+                seoQueued = seoResult.value.data.queued ?? 0;
+                setSeoQueuedCount(seoQueued);
+            }
+
             const active =
                 ordersNew > 0 ||
                 ordersOverdue > 0 ||
                 backInStock > 0 ||
                 callback > 0 ||
-                reviewsPending > 0;
+                reviewsPending > 0 ||
+                seoQueued > 0;
             return { active };
         },
         [],
@@ -358,7 +373,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
         fetcherAction: loadSidebarBadgeStats,
     });
 
-    // Переход между страницами админки — освежить бейджи (заказы, заявки, отзывы).
+    // Переход между страницами админки — освежить бейджи (заказы, заявки, отзывы, SEO).
     // На первом рендере ничего не делаем: useSmartPolling сам уже запросил данные.
     const prevPathRef = useRef<string | null>(null);
     useEffect(() => {
@@ -372,6 +387,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
         ordersNew: newOrdersCount,
         stockProductRequestsNew: stockProductRequestsNew,
         reviewsPending: reviewsPendingCount,
+        seoQueued: seoQueuedCount,
     };
     const alertBadgeCounts: Record<AlertBadgeKey, number> = {
         ordersOverdue: overdueOrdersCount,
@@ -446,7 +462,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 <Icon size={17} />
                                                 {collapsed ? (
                                                     <>
-                                                        <SidebarBadge count={badgeCount} compact />
+                                                        <SidebarBadge
+                                                            count={badgeCount}
+                                                            compact
+                                                            label={item.badgeLabel}
+                                                        />
                                                         <SidebarAlertBadge count={alertCount} compact />
                                                     </>
                                                 ) : null}
@@ -457,7 +477,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                     <div className="truncate leading-5">
                                                         {item.label}
                                                     </div>
-                                                    <SidebarBadge count={badgeCount} compact={false} />
+                                                    <SidebarBadge
+                                                        count={badgeCount}
+                                                        compact={false}
+                                                        label={item.badgeLabel}
+                                                    />
                                                     <SidebarAlertBadge count={alertCount} compact={false} />
                                                 </div>
                                             ) : null}

@@ -64,6 +64,28 @@ class ProductSeoWorkQueueService
         ];
     }
 
+    /**
+     * Лёгкий счётчик для бейджа сайдбара (только remote queued).
+     *
+     * @return array{queued: int, remote_error: string|null}
+     */
+    public function queueBadge(): array
+    {
+        try {
+            $remote = $this->normalizeRemoteStats($this->client->stats());
+
+            return [
+                'queued' => $remote['queued'],
+                'remote_error' => null,
+            ];
+        } catch (SeoDescriptionException $e) {
+            return [
+                'queued' => 0,
+                'remote_error' => $e->getMessage(),
+            ];
+        }
+    }
+
     public function submitChunk(?int $limit = null, bool $force = false): ProductSeoBatch
     {
         $chunkSize = max(1, min(
