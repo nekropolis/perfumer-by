@@ -231,7 +231,7 @@ export default function CatalogFilters({
 
         const configured = (siteContent.filter_popular_brands ?? [])
             .map((item) => brandsById.get(item.id))
-            .filter((brand): brand is CatalogBrandItem => Boolean(brand) && !selectedIds.has(brand.id));
+            .filter((brand): brand is CatalogBrandItem => brand != null && !selectedIds.has(brand.id));
 
         const configuredIds = new Set(configured.map((brand) => brand.id));
         const rest = brands.filter(
