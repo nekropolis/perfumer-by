@@ -38,6 +38,30 @@ class ProductSeoResultValidatorTest extends TestCase
         $this->assertSame($short, $result['short_description']);
     }
 
+    public function test_accepts_description_from_500_chars(): void
+    {
+        $plain = str_repeat('Аромат с характерными нотами. ', 18);
+        $this->assertGreaterThanOrEqual(500, mb_strlen($plain));
+        $this->assertLessThan(700, mb_strlen($plain));
+
+        $description = '<p>'.$plain.'</p>';
+        $result = (new ProductSeoResultValidator)->validateAvailable([
+            'description' => $description,
+        ]);
+
+        $this->assertSame($description, $result['description']);
+    }
+
+    public function test_rejects_description_under_500_chars(): void
+    {
+        $this->expectException(SeoDescriptionException::class);
+        $this->expectExceptionMessage('description length is invalid');
+
+        (new ProductSeoResultValidator)->validateAvailable([
+            'description' => '<p>'.str_repeat('Короткий текст. ', 10).'</p>',
+        ]);
+    }
+
     public function test_rejects_attributes_in_description_html(): void
     {
         $this->expectException(SeoDescriptionException::class);

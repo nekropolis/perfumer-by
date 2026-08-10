@@ -1,2 +1,4 @@
+# Laravel API / backend public — не витрина.
+# Индексация магазина управляется Next.js: frontend/src/app/robots.ts → /robots.txt
 User-agent: *
-Disallow:
+Disallow: /

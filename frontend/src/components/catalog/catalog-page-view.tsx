@@ -139,7 +139,7 @@ export default function CatalogPageView({
                                                         : product.id
                                                 }
                                                 product={product}
-                                                eager={index < 4}
+                                                eager={index < 2}
                                             />
                                         ))}
                                     </div>

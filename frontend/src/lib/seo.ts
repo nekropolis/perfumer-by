@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import type { ProductDetailData } from "@/types/catalog";
-import { listingQueryWithPage } from "@/lib/catalog-listing-query";
+import {
+    listingPathWithQuery,
+    listingQueryWithPage,
+    CATALOG_DEFAULT_SORT,
+    BRAND_DEFAULT_SORT,
+    CATALOG_GENDER_ATTRIBUTE_ID,
+    getCatalogGenderBucketByOptionId,
+} from "@/lib/catalog-listing-query";
 import { normalizeProductImageUrl } from "@/lib/product-image-url";
 
 /** Пока разработка: весь сайт в noindex, nofollow. Перед продом — `true` + проверить матрицу ниже. */
@@ -45,13 +52,20 @@ export function getSiteDefaultRobots(): NonNullable<Metadata["robots"]> {
 }
 
 /** Metadata для сегментов из матрицы noindex — не убирать при включении индексации витрины. */
-export function matrixRouteMetadata(): Pick<Metadata, "robots"> {
-    return { robots: SEO_ROBOTS_NOINDEX_NOFOLLOW };
+export function matrixRouteMetadata(title?: string): Pick<Metadata, "title" | "robots"> {
+    return {
+        ...(title ? { title } : {}),
+        robots: SEO_ROBOTS_NOINDEX_NOFOLLOW,
+    };
 }
 
 /** Поиск: много дублей по query — не индексировать, но передавать вес по ссылкам (план §5). */
-export function searchRouteMetadata(): Pick<Metadata, "robots"> {
-    return { robots: { index: false, follow: true } };
+export function searchRouteMetadata(): Pick<Metadata, "title" | "description" | "robots"> {
+    return {
+        title: "Поиск",
+        description: "Поиск по каталогу парфюмерии Perfumer.",
+        robots: { index: false, follow: true },
+    };
 }
 
 type SeoInput = {
@@ -120,43 +134,113 @@ function pathnameOnly(canonicalPath: string): string {
     return p.split("?")[0] ?? p;
 }
 
-/** Каталог: есть фильтры/не дефолтная сортировка (не только пагинация). */
+/**
+ * Посадочные query из меню (sale/new/hit/gender) — индексируемые.
+ * Комбинации facet-фильтров / недефолтный sort — noindex.
+ */
+function catalogCuratedPublicParams(
+    sp: Record<string, string | undefined>,
+    options?: { includePage?: boolean },
+): URLSearchParams {
+    const q = new URLSearchParams();
+    if (sp.sale === "1") {
+        q.set("sale", "1");
+    } else if (sp.hit === "1") {
+        q.set("hit", "1");
+    } else if (sp.new === "1") {
+        q.set("new", "1");
+    } else {
+        const genderRaw = sp.gender?.trim();
+        if (genderRaw === "female" || genderRaw === "male" || genderRaw === "unisex") {
+            q.set("gender", genderRaw);
+        } else {
+            const attr2 = sp[`attr_${CATALOG_GENDER_ATTRIBUTE_ID}`]?.trim();
+            if (attr2) {
+                const optionIds = attr2
+                    .split(",")
+                    .map((value) => Number(value))
+                    .filter((value) => Number.isInteger(value) && value > 0);
+                if (optionIds.length === 1) {
+                    const bucket = getCatalogGenderBucketByOptionId(optionIds[0]!);
+                    if (bucket) {
+                        q.set("gender", bucket);
+                    }
+                }
+            }
+        }
+    }
+
+    if (options?.includePage) {
+        const page = Math.max(1, Number(sp.page || "1") || 1);
+        if (page > 1) {
+            q.set("page", String(page));
+        }
+    }
+    return q;
+}
+
+function catalogHasNonGenderAttrFilter(sp: Record<string, string | undefined>): boolean {
+    const genderAttrKey = `attr_${CATALOG_GENDER_ATTRIBUTE_ID}`;
+    for (const key of Object.keys(sp)) {
+        if (!key.startsWith("attr_")) continue;
+        const value = String(sp[key] ?? "").trim();
+        if (!value) continue;
+        if (key === genderAttrKey) {
+            // gender= в URL — публичный алиас; чистый attr_2 без gender считаем facet.
+            if (sp.gender?.trim()) continue;
+            const optionIds = value
+                .split(",")
+                .map((v) => Number(v))
+                .filter((v) => Number.isInteger(v) && v > 0);
+            if (optionIds.length === 1 && getCatalogGenderBucketByOptionId(optionIds[0]!)) {
+                continue;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+/** Каталог: facet-фильтры / недефолтная сортировка (не посадочные sale/new/hit/gender и не page). */
 export function catalogListingFilterActive(sp: Record<string, string | undefined>): boolean {
-    const sort = sp.sort ?? "price_asc";
-    if (sort !== "price_asc") return true;
+    const sort = sp.sort ?? CATALOG_DEFAULT_SORT;
+    if (sort !== CATALOG_DEFAULT_SORT) return true;
     if (sp.brand?.trim()) return true;
     if (sp.price_min?.trim() || sp.price_max?.trim()) return true;
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
     if (sp.set?.trim()) return true;
-    if (sp.sale?.trim()) return true;
-    if (sp.new?.trim()) return true;
-    if (sp.hit?.trim()) return true;
-    if (sp.gender?.trim()) return true;
-    if (Object.keys(sp).some((k) => k.startsWith("attr_") && String(sp[k] ?? "").trim())) return true;
+
+    const curatedFlags = [sp.sale === "1", sp.new === "1", sp.hit === "1", Boolean(sp.gender?.trim())].filter(
+        Boolean,
+    ).length;
+    if (curatedFlags > 1) return true;
+
+    if (catalogHasNonGenderAttrFilter(sp)) return true;
     return false;
 }
 
 /** Страница бренда в каталоге: фильтры по цене/объёму/атрибутам/сортировке. */
 export function brandListingFilterActive(sp: Record<string, string | undefined>): boolean {
-    const sort = sp.sort ?? "price_asc";
-    if (sort !== "price_asc") return true;
+    const sort = sp.sort ?? BRAND_DEFAULT_SORT;
+    if (sort !== BRAND_DEFAULT_SORT) return true;
     if (sp.price_min?.trim() || sp.price_max?.trim()) return true;
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
     if (sp.set?.trim()) return true;
+    if (sp.sale?.trim() || sp.new?.trim() || sp.hit?.trim() || sp.gender?.trim()) return true;
     if (Object.keys(sp).some((k) => k.startsWith("attr_") && String(sp[k] ?? "").trim())) return true;
     return false;
 }
 
 export function catalogCanonicalPath(sp: Record<string, string | undefined>): string {
     if (catalogListingFilterActive(sp)) {
-        return "/catalog";
+        // Сводим facet-дубли к чистой посадочной (или /catalog).
+        return listingPathWithQuery("/catalog", catalogCuratedPublicParams(sp));
     }
-    const page = Math.max(1, Number(sp.page || "1") || 1);
-    return page > 1 ? `/catalog?page=${page}` : "/catalog";
+    return listingPathWithQuery("/catalog", catalogCuratedPublicParams(sp, { includePage: true }));
 }
 
 export function brandCanonicalPath(brandSlug: string, sp: Record<string, string | undefined>): string {
@@ -180,8 +264,9 @@ export function resolveListingPaginationLinks(args: {
     query: URLSearchParams;
     currentPage: number;
     lastPage: number;
+    defaultSort: string;
 }): Metadata["pagination"] | undefined {
-    const { basePath, query, currentPage, lastPage } = args;
+    const { basePath, query, currentPage, lastPage, defaultSort } = args;
     if (lastPage <= 1) {
         return undefined;
     }
@@ -189,10 +274,10 @@ export function resolveListingPaginationLinks(args: {
     const path = basePath.startsWith("/") ? basePath : `/${basePath}`;
     const pagination: NonNullable<Metadata["pagination"]> = {};
     if (currentPage > 1) {
-        pagination.previous = `${site}${path}?${listingQueryWithPage(query, currentPage - 1).toString()}`;
+        pagination.previous = `${site}${listingPathWithQuery(path, listingQueryWithPage(query, currentPage - 1, { defaultSort }))}`;
     }
     if (currentPage < lastPage) {
-        pagination.next = `${site}${path}?${listingQueryWithPage(query, currentPage + 1).toString()}`;
+        pagination.next = `${site}${listingPathWithQuery(path, listingQueryWithPage(query, currentPage + 1, { defaultSort }))}`;
     }
     if (!pagination.previous && !pagination.next) {
         return undefined;

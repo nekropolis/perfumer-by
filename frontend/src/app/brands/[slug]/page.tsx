@@ -1,12 +1,16 @@
 import { isApiNotFoundError } from "@/lib/api";
 import CatalogPageView from "@/components/catalog/catalog-page-view";
 import { fetchCatalogBootstrap } from "@/lib/catalog-api";
-import { buildBrandProductsQuery } from "@/lib/catalog-listing-query";
+import {
+    buildBrandProductsQuery,
+    BRAND_DEFAULT_SORT,
+    toPublicListingQueryParams,
+} from "@/lib/catalog-listing-query";
 import JsonLd from "@/components/seo/json-ld";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { breadcrumbListJsonLd } from "@/lib/json-ld";
+import { breadcrumbListJsonLd, catalogCollectionJsonLd } from "@/lib/json-ld";
 import {
     brandCanonicalPath,
     brandListingFilterActive,
@@ -55,6 +59,7 @@ export async function generateMetadata({
             query: productsQuery,
             currentPage,
             lastPage,
+            defaultSort: BRAND_DEFAULT_SORT,
         });
     } catch {
         pagination = undefined;
@@ -101,7 +106,9 @@ export default async function BrandPage({
     const slug = resolvedParams.slug;
 
     const productsQuery = buildBrandProductsQuery(slug, resolvedSearchParams || {});
-    const paginationQuery = new URLSearchParams(productsQuery.toString());
+    const paginationQuery = toPublicListingQueryParams(productsQuery, {
+        defaultSort: BRAND_DEFAULT_SORT,
+    });
     paginationQuery.delete("page");
 
     let bootstrap;
@@ -129,9 +136,24 @@ export default async function BrandPage({
         { label: brand.data.name },
     ] as const;
 
+    const seoDescription =
+        brand.data.seo_description?.trim() ||
+        `Парфюмерия бренда ${brand.data.name}. Актуальные варианты, цены и наличие.`;
+    const collectionPath = brandCanonicalPath(brand.data.slug, resolvedSearchParams || {});
+
     return (
         <>
-            <JsonLd data={breadcrumbListJsonLd([...brandCrumbs])} />
+            <JsonLd
+                data={[
+                    breadcrumbListJsonLd([...brandCrumbs]),
+                    catalogCollectionJsonLd({
+                        name: brand.data.name,
+                        description: seoDescription,
+                        urlPath: collectionPath,
+                        products: products.data ?? [],
+                    }),
+                ]}
+            />
             <CatalogPageView
                 title={brand.data.name}
                 breadcrumbs={[...brandCrumbs]}

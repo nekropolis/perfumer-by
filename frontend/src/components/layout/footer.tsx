@@ -4,11 +4,8 @@ import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
 import { siteNavLink } from "@/lib/site-ui-classes";
 
 const INFO_LINKS = [
-    { label: "Дисконтная программа", href: "#" },
     { label: "Подарочные сертификаты", href: "/gift-certificates" },
     { label: "Отзывы о магазине", href: "/reviews" },
-    { label: "О нас", href: "#" },
-    { label: "Доставка", href: "#" },
     { label: "Акции и скидки", href: "/catalog?sale=1" },
 ] as const;
 

@@ -9,8 +9,9 @@ import type { CatalogBrandItem } from "@/types/catalog";
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildSeoMetadata({
-    title: "Бренды парфюмерии",
-    description: "Каталог брендов парфюмерии и косметики в ассортименте магазина.",
+    title: "Бренды парфюмерии — каталог производителей | Perfumer",
+    description:
+        "Каталог брендов оригинальной парфюмерии в магазине Perfumer: люкс и ниша с доставкой по Беларуси.",
     canonicalPath: "/brands",
 });
 

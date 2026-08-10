@@ -33,10 +33,17 @@ export type BuiltSitemapEntry = {
 export const SITEMAP_STATIC_PATHS: { path: string; priority: number; title: string }[] = [
     { path: "/", priority: 1, title: "Главная" },
     { path: "/catalog", priority: 0.9, title: "Каталог" },
+    { path: "/catalog?sale=1", priority: 0.85, title: "Акции" },
+    { path: "/catalog?new=1", priority: 0.85, title: "Новинки" },
+    { path: "/catalog?hit=1", priority: 0.85, title: "Хиты" },
+    { path: "/catalog?gender=female", priority: 0.85, title: "Женская парфюмерия" },
+    { path: "/catalog?gender=male", priority: 0.85, title: "Мужская парфюмерия" },
+    { path: "/catalog?gender=unisex", priority: 0.8, title: "Унисекс парфюмерия" },
     { path: "/brands", priority: 0.85, title: "Бренды" },
     { path: "/articles", priority: 0.85, title: "Статьи" },
     { path: "/news", priority: 0.85, title: "Новости" },
     { path: "/reviews", priority: 0.85, title: "Отзывы о магазине" },
+    { path: "/contacts", priority: 0.8, title: "Контакты" },
     { path: "/gift-certificates", priority: 0.7, title: "Подарочные сертификаты" },
 ];
 

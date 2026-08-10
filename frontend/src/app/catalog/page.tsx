@@ -1,8 +1,12 @@
 import CatalogPageView from "@/components/catalog/catalog-page-view";
 import JsonLd from "@/components/seo/json-ld";
 import { fetchCatalogBootstrap } from "@/lib/catalog-api";
-import { buildCatalogProductsQuery } from "@/lib/catalog-listing-query";
-import { breadcrumbListJsonLd } from "@/lib/json-ld";
+import {
+    buildCatalogProductsQuery,
+    CATALOG_DEFAULT_SORT,
+    toPublicListingQueryParams,
+} from "@/lib/catalog-listing-query";
+import { breadcrumbListJsonLd, catalogCollectionJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import { cache } from "react";
 import {
@@ -38,6 +42,7 @@ export async function generateMetadata({
             query: productsQuery,
             currentPage,
             lastPage,
+            defaultSort: CATALOG_DEFAULT_SORT,
         });
     } catch {
         pagination = undefined;
@@ -72,7 +77,7 @@ export default async function CatalogPage({
 
     const query = buildCatalogProductsQuery(resolvedSearchParams || {});
 
-    const paginationQuery = new URLSearchParams(query.toString());
+    const paginationQuery = toPublicListingQueryParams(query, { defaultSort: CATALOG_DEFAULT_SORT });
     paginationQuery.delete("page");
 
     const bootstrap = await getCatalogBootstrap(query.toString());
@@ -80,6 +85,7 @@ export default async function CatalogPage({
     const brands = bootstrap.data.brands;
     const filters = bootstrap.data.filters;
     const pageCopy = getCatalogPageCopy(resolvedSearchParams || {});
+    const canonicalPath = catalogCanonicalPath(resolvedSearchParams || {});
 
     const catalogCrumbs = [
         { label: "Главная", href: "/" },
@@ -88,9 +94,19 @@ export default async function CatalogPage({
 
     return (
         <>
-            <JsonLd data={breadcrumbListJsonLd([...catalogCrumbs])} />
+            <JsonLd
+                data={[
+                    breadcrumbListJsonLd([...catalogCrumbs]),
+                    catalogCollectionJsonLd({
+                        name: pageCopy.h1,
+                        description: pageCopy.description,
+                        urlPath: canonicalPath,
+                        products: products.data ?? [],
+                    }),
+                ]}
+            />
             <CatalogPageView
-                title={pageCopy.title}
+                title={pageCopy.h1}
                 intro={pageCopy.intro}
                 breadcrumbs={[...catalogCrumbs]}
                 products={products}

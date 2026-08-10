@@ -33,6 +33,7 @@ const empty: ShopSettings = {
     contact_phone_mts: "+375336408833",
     contact_phone_a1: "+375296408833",
     contact_phone_life: "+375256408833",
+    contact_email: "admin@perfumer.by",
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
     waiting_discount_delivery_date: "10.07.2026",
@@ -49,7 +50,7 @@ const tabButtonClass = (active: boolean) =>
 
 function tabDescription(tab: ShopTab): string {
     if (tab === "delivery") return "Пороги и тарифы доставки для витрины (Минск / РБ).";
-    if (tab === "contacts") return "Телефоны и мессенджеры для шапки и контактов на витрине.";
+    if (tab === "contacts") return "Телефоны, email и мессенджеры для шапки и контактов на витрине.";
     if (tab === "tags") return "Теги заказов: название и цвет.";
     if (tab === "statuses") return "Статусы заказов: название, цвет и активность.";
     return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
@@ -208,6 +209,7 @@ export default function AdminShopSettingsPage() {
                           contact_phone_mts: form.contact_phone_mts,
                           contact_phone_a1: form.contact_phone_a1,
                           contact_phone_life: form.contact_phone_life,
+                          contact_email: form.contact_email,
                           contact_telegram_url: form.contact_telegram_url,
                           contact_viber_url: form.contact_viber_url,
                       };
@@ -403,6 +405,16 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) => setForm((f) => ({ ...f, contact_phone_life: e.target.value }))}
                                     className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="Номер"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Email</label>
+                                <input
+                                    type="email"
+                                    value={form.contact_email}
+                                    onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+                                    placeholder="admin@perfumer.by"
                                 />
                             </div>
                             <div>

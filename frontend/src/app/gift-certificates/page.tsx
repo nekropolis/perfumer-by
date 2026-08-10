@@ -1,6 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import GiftCertificateTemplateCard from "@/components/gift-certificates/gift-certificate-template-card";
 import CmsSnippet from "@/components/cms/cms-snippet";
@@ -12,31 +9,16 @@ const crumbs = [
     { label: "Подарочные сертификаты" },
 ] as const;
 
-export default function GiftCertificatesCatalogPage() {
-    const [templates, setTemplates] = useState<GiftCertificateTemplatePublic[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+export default async function GiftCertificatesCatalogPage() {
+    let templates: GiftCertificateTemplatePublic[] = [];
+    let error = "";
 
-    useEffect(() => {
-        let cancelled = false;
-        void fetchGiftCertificateTemplates()
-            .then((res) => {
-                if (cancelled) return;
-                setTemplates(res.data);
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setError("Не удалось загрузить шаблоны сертификатов");
-            })
-            .finally(() => {
-                if (cancelled) return;
-                setLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    try {
+        const res = await fetchGiftCertificateTemplates();
+        templates = res.data ?? [];
+    } catch {
+        error = "Не удалось загрузить шаблоны сертификатов";
+    }
 
     return (
         <main className="min-h-screen bg-admin-bg text-admin-text">
@@ -51,10 +33,9 @@ export default function GiftCertificatesCatalogPage() {
                     </p>
                 </div>
 
-                {loading ? <div className="text-sm text-admin-text-secondary">Загрузка…</div> : null}
                 {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
-                {!loading && !error && templates.length === 0 ? (
+                {!error && templates.length === 0 ? (
                     <div className={`${siteCard} px-6 py-10 text-sm text-admin-text-secondary`}>
                         Сертификаты временно недоступны.
                     </div>

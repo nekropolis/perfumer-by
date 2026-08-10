@@ -176,7 +176,7 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
                                             loader={productImageLoader}
                                             alt={image.alt?.trim() || `${productDisplayName(product)} — фото ${index + 1}`}
                                             fill
-                                            loading="eager"
+                                            loading="lazy"
                                             sizes="96px"
                                             className="object-contain"
                                         />

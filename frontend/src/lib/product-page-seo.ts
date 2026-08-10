@@ -83,6 +83,18 @@ export function buildProductMetaDescription(product: ProductDetailData): string 
         ),
     ];
 
+    const concentrations = [
+        ...new Set(
+            (product.variants ?? [])
+                .map((v) => {
+                    if (v.type?.trim()) return v.type.trim();
+                    if (v.concentration?.trim()) return v.concentration.trim().toUpperCase();
+                    return "";
+                })
+                .filter(Boolean),
+        ),
+    ];
+
     const priceFrom = product.price_range?.min
         ? `Цена от ${formatBynAmountDisplay(product.price_range.min)} BYN.`
         : "";
@@ -92,11 +104,19 @@ export function buildProductMetaDescription(product: ProductDetailData): string 
         ? `${display} — аромат ${product.brand.name}.`
         : `${display}.`;
 
+    const variantsLine = volumes.length
+        ? `В наличии варианты: ${volumes.join(", ")}${
+              concentrations.length ? ` (${concentrations.join(", ")})` : ""
+          }.`
+        : concentrations.length
+          ? `В наличии: ${concentrations.join(", ")}.`
+          : "";
+
     const description = [
         lead,
-        volumes.length ? `В наличии варианты: ${volumes.join(", ")}.` : "",
-        "Купить в Минске и с доставкой по Беларуси.",
         priceFrom,
+        variantsLine,
+        "Купить в Минске и с доставкой по Беларуси.",
     ]
         .filter(Boolean)
         .join(" ")

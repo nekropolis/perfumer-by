@@ -5,6 +5,7 @@ import type { ProductDetailData, ProductImageData, ProductVariantData } from "@/
 import type { ReviewItem } from "@/types/reviews";
 import type { SiteContent } from "@/lib/site-content-api";
 import { formatBynAmountDisplay } from "@/lib/format-byn";
+import { applyWaitingDiscount } from "@/lib/loyalty-pricing";
 import { stripHtml } from "@/lib/seo-text";
 import { getSiteUrl } from "@/lib/seo";
 import { productDisplayName } from "@/lib/product-display-name";
@@ -60,6 +61,38 @@ function variantOfferAvailability(product: ProductDetailData, variant: ProductVa
     return "https://schema.org/InStock";
 }
 
+/**
+ * Цена Offer как на витрине по умолчанию: для supplier_only — waiting_price,
+ * без персональной скидки карты. Акции и остальные каналы — каталожная price.
+ */
+function variantOfferPrice(variant: ProductVariantData): string | null {
+    const useWaiting =
+        !variant.is_promotion && variant.availability_source === "supplier_only";
+    const raw = useWaiting
+        ? (variant.waiting_price ?? applyWaitingDiscount(variant.price))
+        : variant.price;
+    if (raw == null || String(raw).trim() === "") {
+        return null;
+    }
+    return formatBynAmountDisplay(raw);
+}
+
+/** Описание Product без HTML и литералов вроде &nbsp;. */
+function productJsonLdDescription(product: ProductDetailData): string {
+    const descFromHtml = stripHtml(product.description || "")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+    const descRaw =
+        descFromHtml ||
+        product.short_description?.trim() ||
+        `Купить ${productDisplayName(product)}`;
+    return descRaw.slice(0, 5000);
+}
+
 function productImagesForJsonLd(images: ProductImageData[]): string[] {
     if (!images.length) return [];
     const sorted = [...images].sort((a, b) => {
@@ -92,6 +125,41 @@ export function breadcrumbListJsonLd(items: BreadcrumbJsonLdItem[]): Record<stri
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         itemListElement: listItems,
+    };
+}
+
+type CatalogCollectionProduct = {
+    name: string;
+    display_name?: string | null;
+    slug: string;
+    brand?: { name: string } | null;
+};
+
+/** CollectionPage + ItemList для листинга каталога (товары текущей страницы). */
+export function catalogCollectionJsonLd(args: {
+    name: string;
+    description: string;
+    urlPath: string;
+    products: CatalogCollectionProduct[];
+}): Record<string, unknown> {
+    const itemListElement = args.products.map((product, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: productDisplayName(product),
+        url: toAbsolutePublicUrl(`/${product.slug}`),
+    }));
+
+    return {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: args.name,
+        description: args.description,
+        url: toAbsolutePublicUrl(args.urlPath),
+        mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: itemListElement.length,
+            itemListElement,
+        },
     };
 }
 
@@ -132,6 +200,7 @@ export function localBusinessJsonLd(content: SiteContent): Record<string, unknow
         name: SITE_LABEL,
         url: base,
         ...(phones[0] ? { telephone: phones[0] } : {}),
+        ...(content.contact_email?.trim() ? { email: content.contact_email.trim() } : {}),
         ...(contactPoint.length
             ? { contactPoint: contactPoint.length === 1 ? contactPoint[0] : contactPoint }
             : {}),
@@ -205,12 +274,7 @@ function productReviewsJsonLdPayload(reviews: ReviewItem[]): {
 export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]): Record<string, unknown> {
     const site = getSiteUrl();
     const productUrl = `${site}/${product.slug}`;
-    const descFromHtml = stripHtml(product.description || "");
-    const descRaw =
-        descFromHtml ||
-        product.short_description?.trim() ||
-        `Купить ${productDisplayName(product)}`;
-    const description = descRaw.slice(0, 5000);
+    const description = productJsonLdDescription(product);
 
     const images = productImagesForJsonLd(product.images || []);
     const brand = product.brand
@@ -235,8 +299,9 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
                 sku: `${product.id}-${variant.id}`,
                 name: `${productDisplayName(product)} ${variant.display_name}`.replace(/\s+/g, " ").trim(),
             };
-            if (variant.price != null && String(variant.price).trim() !== "") {
-                offer.price = formatBynAmountDisplay(variant.price);
+            const price = variantOfferPrice(variant);
+            if (price) {
+                offer.price = price;
             }
             return offer;
         });
@@ -438,7 +503,13 @@ export function faqPageJsonLd(items: HomePageFaqItem[]): Record<string, unknown>
 
 export function homeStoreJsonLd(
     reviews: HomePageReviewSnippet[],
-    options?: { name?: string; description?: string },
+    options?: {
+        name?: string;
+        description?: string;
+        urlPath?: string;
+        /** Полная статистика магазина (страница /reviews) — предпочтительнее среза из сниппетов. */
+        stats?: { total: number; average: number | null } | null;
+    },
 ): Record<string, unknown> {
     const name = options?.name ?? "Интернет-магазин оригинальной парфюмерии";
     const description =
@@ -450,22 +521,36 @@ export function homeStoreJsonLd(
         "@type": "Store",
         name,
         description,
-        url: getSiteUrl(),
+        url: options?.urlPath ? toAbsolutePublicUrl(options.urlPath) : getSiteUrl(),
     };
+
+    const statsTotal = options?.stats?.total ?? 0;
+    const statsAverage = options?.stats?.average;
+
+    if (statsTotal > 0 && statsAverage != null && Number.isFinite(statsAverage)) {
+        base.aggregateRating = {
+            "@type": "AggregateRating",
+            ratingValue: String(Math.round(statsAverage * 10) / 10),
+            reviewCount: String(statsTotal),
+            bestRating: "5",
+            worstRating: "1",
+        };
+    } else if (reviews.length > 0) {
+        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+        const avg = sum / reviews.length;
+        base.aggregateRating = {
+            "@type": "AggregateRating",
+            ratingValue: String(Math.round(avg * 10) / 10),
+            reviewCount: String(reviews.length),
+            bestRating: "5",
+            worstRating: "1",
+        };
+    }
 
     if (reviews.length === 0) {
         return base;
     }
 
-    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    const avg = sum / reviews.length;
-    base.aggregateRating = {
-        "@type": "AggregateRating",
-        ratingValue: String(Math.round(avg * 10) / 10),
-        reviewCount: String(reviews.length),
-        bestRating: "5",
-        worstRating: "1",
-    };
     base.review = reviews.map((review) => {
         const row: Record<string, unknown> = {
             "@type": "Review",

@@ -25,8 +25,13 @@ export default function CatalogPagination({
 
     const buildPageHref = (page: number) => {
         const params = new URLSearchParams(queryString);
-        params.set("page", String(page));
-        return `${basePath}?${params.toString()}`;
+        if (page <= 1) {
+            params.delete("page");
+        } else {
+            params.set("page", String(page));
+        }
+        const qs = params.toString();
+        return qs ? `${basePath}?${qs}` : basePath;
     };
 
     const handlePageClick = (event: MouseEvent<HTMLAnchorElement>, page: number) => {

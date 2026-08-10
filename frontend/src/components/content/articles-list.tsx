@@ -14,9 +14,6 @@ export default async function ArticlesList({ limit = 6 }: { limit?: number }) {
 
     return (
         <section className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-admin-text">Статьи</h2>
-            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {items.map((item) => (
                     <article
@@ -28,7 +25,7 @@ export default async function ArticlesList({ limit = 6 }: { limit?: number }) {
                             <img src={item.cover_image} alt={item.title} className="h-44 w-full shrink-0 object-cover" />
                         ) : null}
                         <div className="flex flex-1 flex-col gap-2 p-4">
-                            <h3 className="line-clamp-2 text-base font-semibold text-admin-text">{item.title}</h3>
+                            <h2 className="line-clamp-2 text-base font-semibold text-admin-text">{item.title}</h2>
                             <p className="line-clamp-3 text-sm text-admin-text-secondary">{item.excerpt || "—"}</p>
                             <div className="mt-auto flex items-center justify-between pt-2 text-sm">
                                 <span className="text-admin-text-secondary">{formatDate(item.created_at)}</span>

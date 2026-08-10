@@ -2,10 +2,19 @@
  * Единая сборка query для `GET /catalog/products` — страницы каталога и SEO `generateMetadata`.
  */
 
+/** Дефолт сортировки витрины каталога (должен совпадать с SEO filter detection). */
+export const CATALOG_DEFAULT_SORT = "popular";
+
+/** Дефолт сортировки страницы бренда. */
+export const BRAND_DEFAULT_SORT = "price_asc";
+
+/** Только для API bootstrap — не попадают в публичные URL листинга. */
+const LISTING_INTERNAL_QUERY_KEYS = ["brand_slug"] as const;
+
 export function buildCatalogProductsQuery(sp: Record<string, string | undefined>): URLSearchParams {
     const currentPage = Math.max(1, Number(sp?.page || "1") || 1);
     const brand = sp?.brand ? String(sp.brand) : "";
-    const sort = sp?.sort ? String(sp.sort) : "popular";
+    const sort = sp?.sort ? String(sp.sort) : CATALOG_DEFAULT_SORT;
     const priceMin = sp?.price_min ? String(sp.price_min) : "";
     const priceMax = sp?.price_max ? String(sp.price_max) : "";
     const volume = sp?.volume ? String(sp.volume) : "";
@@ -68,7 +77,7 @@ export function buildCatalogProductsQuery(sp: Record<string, string | undefined>
 
 export function buildBrandProductsQuery(slug: string, sp: Record<string, string | undefined>): URLSearchParams {
     const currentPage = Math.max(1, Number(sp?.page || "1") || 1);
-    const sort = sp?.sort ? String(sp.sort) : "price_asc";
+    const sort = sp?.sort ? String(sp.sort) : BRAND_DEFAULT_SORT;
     const priceMin = sp?.price_min ? String(sp.price_min) : "";
     const priceMax = sp?.price_max ? String(sp.price_max) : "";
     const volume = sp?.volume ? String(sp.volume) : "";
@@ -131,11 +140,61 @@ export function buildBrandProductsQuery(slug: string, sp: Record<string, string 
     return query;
 }
 
-/** Копия query с другим `page` (rel prev/next). */
-export function listingQueryWithPage(query: URLSearchParams, page: number): URLSearchParams {
+/**
+ * Публичный query листинга: без внутренних ключей API, без дефолтного sort,
+ * page=1 не включаем.
+ */
+export function toPublicListingQueryParams(
+    query: URLSearchParams,
+    options: { page?: number; defaultSort: string },
+): URLSearchParams {
     const next = new URLSearchParams(query.toString());
-    next.set("page", String(page));
+    for (const key of LISTING_INTERNAL_QUERY_KEYS) {
+        next.delete(key);
+    }
+    if (options.page !== undefined) {
+        if (options.page <= 1) {
+            next.delete("page");
+        } else {
+            next.set("page", String(options.page));
+        }
+    }
+    if (next.get("sort") === options.defaultSort) {
+        next.delete("sort");
+    }
+
+    // Публичный URL: gender=… вместо attr_2=optionId (как в меню).
+    const genderAttrKey = `attr_${CATALOG_GENDER_ATTRIBUTE_ID}`;
+    const attr2 = next.get(genderAttrKey);
+    if (attr2 && !next.get("gender")) {
+        const optionIds = attr2
+            .split(",")
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0);
+        if (optionIds.length === 1) {
+            const bucket = getCatalogGenderBucketByOptionId(optionIds[0]!);
+            if (bucket) {
+                next.delete(genderAttrKey);
+                next.set("gender", bucket);
+            }
+        }
+    }
+
     return next;
+}
+
+export function listingPathWithQuery(basePath: string, query: URLSearchParams): string {
+    const qs = query.toString();
+    return qs ? `${basePath}?${qs}` : basePath;
+}
+
+/** Копия query с другим `page` для rel prev/next и пагинации. */
+export function listingQueryWithPage(
+    query: URLSearchParams,
+    page: number,
+    options: { defaultSort: string },
+): URLSearchParams {
+    return toPublicListingQueryParams(query, { page, defaultSort: options.defaultSort });
 }
 
 /** Параметры разделов меню (Новинки / Хиты / Акции / пол), не путать с фильтрами каталога. */
