@@ -1655,15 +1655,51 @@ class ProductController extends Controller
                 ->filter()
                 ->unique()
                 ->values() ?? collect();
-            // Как витрина: только listing-eligible варианты и цена > 0
-            // (иначе неактивный вариант с price=0 даёт «0,00 - …» в поиске).
+            // Как витрина: цена только если вариант реально доступен на listing.
             $prices = $product->activeVariants
-                ?->pluck('price')
-                ->filter(static fn ($value) => $value !== null && is_numeric((string) $value) && (float) $value > 0)
+                ?->map(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $roughAvailability) {
+                    if ($roughAvailability) {
+                        $available = max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
+                        if ($available <= 0 && !(bool) $variant->is_preorder) {
+                            return null;
+                        }
+
+                        return $variant->price !== null && is_numeric((string) $variant->price) && (float) $variant->price > 0
+                            ? (float) $variant->price
+                            : null;
+                    }
+
+                    $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                    $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                    $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                    $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+
+                    return CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
+                })
+                ->filter(static fn ($value) => $value !== null && (float) $value > 0)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
             $oldPrices = $product->activeVariants
-                ?->pluck('old_price')
+                ?->map(function ($variant) use ($stocksByVariantId, $mainWarehouseId, $supplierWarehouseId, $roughAvailability) {
+                    if ($roughAvailability) {
+                        $available = max(0, (int) $variant->stock - (int) ($variant->reserved_stock ?? 0));
+                        if ($available <= 0 && !(bool) $variant->is_preorder) {
+                            return null;
+                        }
+
+                        return $variant->old_price !== null && is_numeric((string) $variant->old_price) && (float) $variant->old_price > 0
+                            ? (float) $variant->old_price
+                            : null;
+                    }
+
+                    $variantStocks = $stocksByVariantId->get($variant->id, collect())->keyBy('warehouse_id');
+                    $mainStock = $mainWarehouseId > 0 ? $variantStocks->get($mainWarehouseId) : null;
+                    $supplierStock = $supplierWarehouseId > 0 ? $variantStocks->get($supplierWarehouseId) : null;
+                    $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
+                    $price = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
+
+                    return $price !== null ? $variant->old_price : null;
+                })
                 ->filter(static fn ($value) => $value !== null && is_numeric((string) $value) && (float) $value > 0)
                 ->map(static fn ($value) => (float) $value)
                 ->values() ?? collect();
@@ -1765,7 +1801,7 @@ class ProductController extends Controller
                 'image' => $mainImagePath ? (string) $mainImagePath : null,
                 'is_new' => (bool) $product->is_new,
                 'is_hit' => (bool) $product->is_hit,
-                'is_out_of_stock' => (bool) $product->is_out_of_stock,
+                'is_out_of_stock' => $listingAvailableTotal <= 0 && !$isPreorderAvailable,
                 'price_range' => [
                     'min' => $minPrice,
                     'max' => $maxPrice,
