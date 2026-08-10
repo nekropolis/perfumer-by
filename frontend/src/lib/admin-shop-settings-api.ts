@@ -36,11 +36,13 @@ export type ShopSettings = ShopDeliverySettings &
     ShopContactSettings & {
         home_popular_brands: ShopBrandOption[];
         search_popular_brands: ShopBrandOption[];
+        filter_popular_brands: ShopBrandOption[];
     };
 
 export type ShopSettingsUpdatePayload = Partial<ShopDeliverySettings & ShopContactSettings> & {
     home_popular_brand_ids?: number[];
     search_popular_brand_ids?: number[];
+    filter_popular_brand_ids?: number[];
 };
 
 function getAdminHeaders() {

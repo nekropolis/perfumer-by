@@ -5,6 +5,7 @@ import { useCatalogSearchParams } from "@/components/catalog/catalog-search-para
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
+import { useSiteContent } from "@/components/layout/site-content-context";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
 import {
@@ -47,6 +48,7 @@ export default function CatalogFilters({
 }: Props) {
     const { navigate } = useCatalogNavigation();
     const searchParams = useCatalogSearchParams();
+    const siteContent = useSiteContent();
 
     const [priceMinDraft, setPriceMinDraft] = useState(searchParams.get("price_min") ?? "");
     const [priceMaxDraft, setPriceMaxDraft] = useState(searchParams.get("price_max") ?? "");
@@ -224,9 +226,21 @@ export default function CatalogFilters({
     }, [brands, brandQuery]);
     const previewBrands = useMemo(() => {
         const selected = brands.filter((brand) => optimisticBrandIds.includes(brand.id));
-        const rest = brands.filter((brand) => !optimisticBrandIds.includes(brand.id));
-        return [...selected, ...rest].slice(0, Math.max(5, selected.length));
-    }, [brands, optimisticBrandIds]);
+        const selectedIds = new Set(selected.map((brand) => brand.id));
+        const brandsById = new Map(brands.map((brand) => [brand.id, brand]));
+
+        const configured = (siteContent.filter_popular_brands ?? [])
+            .map((item) => brandsById.get(item.id))
+            .filter((brand): brand is CatalogBrandItem => Boolean(brand) && !selectedIds.has(brand.id));
+
+        const configuredIds = new Set(configured.map((brand) => brand.id));
+        const rest = brands.filter(
+            (brand) => !selectedIds.has(brand.id) && !configuredIds.has(brand.id),
+        );
+        const filler = configured.length > 0 ? [...configured, ...rest] : rest;
+
+        return [...selected, ...filler].slice(0, Math.max(5, selected.length));
+    }, [brands, optimisticBrandIds, siteContent.filter_popular_brands]);
     const displayBrands = useMemo(() => {
         if (brandQuery.trim()) {
             return filteredBrands.slice(0, 20);

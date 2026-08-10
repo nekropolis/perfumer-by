@@ -24,6 +24,7 @@ type ShopTab = "delivery" | "contacts" | "brands" | "tags" | "statuses";
 
 const HOME_POPULAR_BRANDS_MAX = 5;
 const SEARCH_POPULAR_BRANDS_MAX = 8;
+const FILTER_POPULAR_BRANDS_MAX = 5;
 
 const empty: ShopSettings = {
     delivery_minsk_free_threshold: 50,
@@ -42,6 +43,7 @@ const empty: ShopSettings = {
     waiting_discount_delivery_date: "10.07.2026",
     home_popular_brands: [],
     search_popular_brands: [],
+    filter_popular_brands: [],
 };
 
 const tabButtonClass = (active: boolean) =>
@@ -56,7 +58,7 @@ function tabDescription(tab: ShopTab): string {
     if (tab === "contacts") return "Телефоны, email, реквизиты и мессенджеры для витрины.";
     if (tab === "tags") return "Теги заказов: название и цвет.";
     if (tab === "statuses") return "Статусы заказов: название, цвет и активность.";
-    return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
+    return "Бренды на главной (до 5), в поиске (до 8) и в фильтре каталога (до 5).";
 }
 
 function BrandPicker({
@@ -178,6 +180,7 @@ export default function AdminShopSettingsPage() {
                         ...settingsRes.data,
                         home_popular_brands: settingsRes.data.home_popular_brands ?? [],
                         search_popular_brands: settingsRes.data.search_popular_brands ?? [],
+                        filter_popular_brands: settingsRes.data.filter_popular_brands ?? [],
                     });
                     setBrandOptions(brandsRes.data ?? []);
                 }
@@ -203,6 +206,7 @@ export default function AdminShopSettingsPage() {
                     ? {
                           home_popular_brand_ids: form.home_popular_brands.map((b) => b.id),
                           search_popular_brand_ids: form.search_popular_brands.map((b) => b.id),
+                          filter_popular_brand_ids: form.filter_popular_brands.map((b) => b.id),
                       }
                     : {
                           delivery_minsk_free_threshold: form.delivery_minsk_free_threshold,
@@ -225,6 +229,7 @@ export default function AdminShopSettingsPage() {
                 ...res.data,
                 home_popular_brands: res.data.home_popular_brands ?? [],
                 search_popular_brands: res.data.search_popular_brands ?? [],
+                filter_popular_brands: res.data.filter_popular_brands ?? [],
             });
             setMessage({ type: "success", text: "Сохранено" });
         } catch (e) {
@@ -374,6 +379,31 @@ export default function AdminShopSettingsPage() {
                                 }
                                 onLimitExceeded={() =>
                                     setMessage({ type: "error", text: "Можно выбрать не более 8 брендов" })
+                                }
+                            />
+                            <BrandPicker
+                                label="Бренды фильтра"
+                                selected={form.filter_popular_brands}
+                                brandOptions={brandOptions}
+                                max={FILTER_POPULAR_BRANDS_MAX}
+                                onAdd={(brand) => {
+                                    setMessage(null);
+                                    setForm((f) => ({
+                                        ...f,
+                                        filter_popular_brands: [
+                                            ...f.filter_popular_brands,
+                                            { id: brand.id, name: brand.name, slug: brand.slug },
+                                        ],
+                                    }));
+                                }}
+                                onRemove={(id) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        filter_popular_brands: f.filter_popular_brands.filter((b) => b.id !== id),
+                                    }))
+                                }
+                                onLimitExceeded={() =>
+                                    setMessage({ type: "error", text: "Можно выбрать не более 5 брендов" })
                                 }
                             />
                         </div>

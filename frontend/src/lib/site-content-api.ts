@@ -24,6 +24,7 @@ export type SiteContent = {
     waiting_discount_delivery_date: string;
     home_popular_brands: HomePopularBrand[];
     search_popular_brands: HomePopularBrand[];
+    filter_popular_brands: HomePopularBrand[];
 };
 
 export type SiteContentResponse = {
@@ -48,6 +49,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     waiting_discount_delivery_date: "10.07.2026",
     home_popular_brands: [],
     search_popular_brands: [],
+    filter_popular_brands: [],
 };
 
 type FetchSiteContentOptions = {
@@ -83,6 +85,9 @@ export async function fetchSiteContent(options?: FetchSiteContentOptions): Promi
                 : [],
             search_popular_brands: Array.isArray(json.data?.search_popular_brands)
                 ? json.data.search_popular_brands
+                : [],
+            filter_popular_brands: Array.isArray(json.data?.filter_popular_brands)
+                ? json.data.filter_popular_brands
                 : [],
         },
     };

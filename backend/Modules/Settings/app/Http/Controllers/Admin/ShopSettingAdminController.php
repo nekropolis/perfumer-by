@@ -29,6 +29,7 @@ class ShopSettingAdminController extends Controller
                 'waiting_discount_delivery_date' => (string) $settings->get('waiting_discount_delivery_date', '10.07.2026'),
                 'home_popular_brands' => $settings->homePopularBrands(),
                 'search_popular_brands' => $settings->searchPopularBrands(),
+                'filter_popular_brands' => $settings->filterPopularBrands(),
             ],
         ]);
     }
@@ -54,6 +55,8 @@ class ShopSettingAdminController extends Controller
             'home_popular_brand_ids.*' => ['integer', 'distinct', 'exists:brands,id'],
             'search_popular_brand_ids' => ['sometimes', 'array', 'max:'.ShopSettingService::SEARCH_POPULAR_BRANDS_MAX],
             'search_popular_brand_ids.*' => ['integer', 'distinct', 'exists:brands,id'],
+            'filter_popular_brand_ids' => ['sometimes', 'array', 'max:'.ShopSettingService::FILTER_POPULAR_BRANDS_MAX],
+            'filter_popular_brand_ids.*' => ['integer', 'distinct', 'exists:brands,id'],
         ]);
 
         $map = [];
@@ -90,6 +93,11 @@ class ShopSettingAdminController extends Controller
         if (array_key_exists('search_popular_brand_ids', $validated)) {
             $ids = array_values(array_map('intval', $validated['search_popular_brand_ids']));
             $map[ShopSettingService::SEARCH_POPULAR_BRAND_IDS_KEY] = json_encode($ids);
+        }
+
+        if (array_key_exists('filter_popular_brand_ids', $validated)) {
+            $ids = array_values(array_map('intval', $validated['filter_popular_brand_ids']));
+            $map[ShopSettingService::FILTER_POPULAR_BRAND_IDS_KEY] = json_encode($ids);
         }
 
         if ($map !== []) {

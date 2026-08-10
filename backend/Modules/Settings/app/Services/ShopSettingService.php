@@ -15,9 +15,13 @@ class ShopSettingService
 
     public const SEARCH_POPULAR_BRAND_IDS_KEY = 'search_popular_brand_ids';
 
+    public const FILTER_POPULAR_BRAND_IDS_KEY = 'filter_popular_brand_ids';
+
     public const HOME_POPULAR_BRANDS_MAX = 5;
 
     public const SEARCH_POPULAR_BRANDS_MAX = 8;
+
+    public const FILTER_POPULAR_BRANDS_MAX = 5;
 
     private const PUBLIC_SETTINGS_CACHE_KEY = 'settings:shop-settings:all-map';
 
@@ -98,6 +102,7 @@ class ShopSettingService
             ),
             'home_popular_brands' => $this->homePopularBrands(),
             'search_popular_brands' => $this->searchPopularBrands(),
+            'filter_popular_brands' => $this->filterPopularBrands(),
         ]);
     }
 
@@ -131,6 +136,22 @@ class ShopSettingService
     public function searchPopularBrands(): array
     {
         return $this->resolveActiveBrands($this->searchPopularBrandIds());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function filterPopularBrandIds(): array
+    {
+        return $this->brandIdsFromSetting(self::FILTER_POPULAR_BRAND_IDS_KEY, self::FILTER_POPULAR_BRANDS_MAX);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, slug: string}>
+     */
+    public function filterPopularBrands(): array
+    {
+        return $this->resolveActiveBrands($this->filterPopularBrandIds());
     }
 
     /**
