@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OrderData, OrderItem } from "@/types/orders";
 import { lineItemProductTitle } from "@/lib/product-display-name";
+import { syncReceiptMadeInCountries } from "@/lib/admin-orders-api";
 
 type ReceiptItemDraft = {
     key: string;
+    productId: number | null;
     name: string;
     qty: number;
     price: string;
     total: string;
     country: string;
+    originalCountry: string;
 };
 
 type ReceiptDraft = {
@@ -134,19 +137,26 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
         deliveryFee: order.delivery_fee ?? "0.00",
         discountAmount: order.discount_amount ?? "0.00",
         total: order.total,
-        items: order.items.map((item) => ({
-            key: `${order.id}-${item.id}`,
-            name: receiptItemDisplayName(item),
-            qty: item.qty,
-            price: item.price,
-            total: item.total,
-            country: item.product_country?.trim() ?? "",
-        })),
+        items: order.items.map((item) => {
+            const country = item.product_country?.trim() ?? "";
+            return {
+                key: `${order.id}-${item.id}`,
+                productId: item.product_id ?? null,
+                name: receiptItemDisplayName(item),
+                qty: item.qty,
+                price: item.price,
+                total: item.total,
+                country,
+                originalCountry: country,
+            };
+        }),
     }));
 }
 
 export default function AdminOrderReceiptsModal({ orders, countryOptions, onCloseAction }: Props) {
     const [drafts, setDrafts] = useState<ReceiptDraft[]>(() => buildReceiptDrafts(orders));
+    const [printing, setPrinting] = useState(false);
+    const [printError, setPrintError] = useState("");
 
     useEffect(() => {
         setDrafts(buildReceiptDrafts(orders));
@@ -189,16 +199,66 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
         );
     };
 
-    const handlePrint = () => {
-        document.body.classList.add("admin-order-receipts-printing");
+    const handlePrint = async () => {
+        if (printing) {
+            return;
+        }
 
-        const cleanup = () => {
-            document.body.classList.remove("admin-order-receipts-printing");
-            window.removeEventListener("afterprint", cleanup);
-        };
+        setPrintError("");
+        setPrinting(true);
 
-        window.addEventListener("afterprint", cleanup);
-        window.print();
+        try {
+            const byProductId = new Map<number, string>();
+            drafts.forEach((draft) => {
+                draft.items.forEach((item) => {
+                    if (item.productId == null) {
+                        return;
+                    }
+                    if (item.country.trim() === item.originalCountry.trim()) {
+                        return;
+                    }
+                    byProductId.set(item.productId, item.country.trim());
+                });
+            });
+
+            if (byProductId.size > 0) {
+                await syncReceiptMadeInCountries(
+                    Array.from(byProductId.entries()).map(([product_id, country]) => ({
+                        product_id,
+                        country: country || null,
+                    })),
+                );
+
+                setDrafts((prev) =>
+                    prev.map((draft) => ({
+                        ...draft,
+                        items: draft.items.map((item) => ({
+                            ...item,
+                            originalCountry: item.country,
+                        })),
+                    })),
+                );
+            }
+
+            document.body.classList.add("admin-order-receipts-printing");
+
+            const cleanup = () => {
+                document.body.classList.remove("admin-order-receipts-printing");
+                window.removeEventListener("afterprint", cleanup);
+            };
+
+            window.addEventListener("afterprint", cleanup);
+            window.print();
+        } catch (error) {
+            console.error(error);
+            setPrintError(
+                error instanceof Error
+                    ? error.message
+                    : "Не удалось сохранить страны товаров",
+            );
+        } finally {
+            setPrinting(false);
+        }
     };
 
     if (typeof document === "undefined") {
@@ -226,7 +286,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                     Печать товарных чеков
                                 </h3>
                                 <p className="mt-0.5 text-xs text-admin-text-secondary">
-                                    Проверьте страны товаров перед печатью. Страна не сохраняется в заказе.
+                                    Страна берётся из атрибута «Сделано в». Изменение при печати сохранится в товар.
                                 </p>
                             </div>
 
@@ -289,20 +349,25 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 border-t border-admin-border px-4 py-3 sm:flex-row sm:justify-end">
+                    <div className="flex flex-col gap-2 border-t border-admin-border px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
+                        {printError ? (
+                            <p className="mr-auto text-xs text-red-600">{printError}</p>
+                        ) : null}
                         <button
                             type="button"
                             onClick={onCloseAction}
-                            className="rounded-lg border border-admin-border px-4 py-2.5 text-sm transition hover:bg-admin-muted"
+                            disabled={printing}
+                            className="rounded-lg border border-admin-border px-4 py-2.5 text-sm transition hover:bg-admin-muted disabled:opacity-60"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
-                            onClick={handlePrint}
-                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover"
+                            onClick={() => void handlePrint()}
+                            disabled={printing}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-60"
                         >
-                            Печать
+                            {printing ? "Сохранение…" : "Печать"}
                         </button>
                     </div>
                 </div>

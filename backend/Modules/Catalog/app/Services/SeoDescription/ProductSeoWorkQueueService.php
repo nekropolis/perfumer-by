@@ -32,7 +32,10 @@ class ProductSeoWorkQueueService
      *         skipped: int,
      *         undelivered: int,
      *         daily_used: int,
-     *         daily_limit: int
+     *         daily_limit: int|null,
+     *         daily_unlimited: bool,
+     *         monthly_used: int,
+     *         monthly_quota: int|null
      *     }|null,
      *     remote_error: string|null
      * }
@@ -519,7 +522,10 @@ class ProductSeoWorkQueueService
      *     skipped: int,
      *     undelivered: int,
      *     daily_used: int,
-     *     daily_limit: int
+     *     daily_limit: int|null,
+     *     daily_unlimited: bool,
+     *     monthly_used: int,
+     *     monthly_quota: int|null
      * }
      */
     private function normalizeRemoteStats(array $raw): array
@@ -527,6 +533,13 @@ class ProductSeoWorkQueueService
         $pending = (int) ($raw['pending'] ?? 0);
         $queued = (int) ($raw['queued'] ?? 0);
         $processing = (int) ($raw['processing'] ?? 0);
+
+        $dailyLimit = $this->nullableIntLimit(
+            array_key_exists('daily_limit', $raw)
+                ? $raw['daily_limit']
+                : ($raw['daily_generation_limit'] ?? null),
+        );
+        $dailyUnlimited = (bool) ($raw['daily_unlimited'] ?? false) || $dailyLimit === null;
 
         return [
             'pending' => $pending,
@@ -537,8 +550,23 @@ class ProductSeoWorkQueueService
             'failed' => (int) ($raw['failed'] ?? 0),
             'skipped' => (int) ($raw['skipped'] ?? 0),
             'undelivered' => (int) ($raw['undelivered'] ?? 0),
-            'daily_used' => (int) ($raw['daily_used'] ?? 0),
-            'daily_limit' => (int) ($raw['daily_limit'] ?? 0),
+            'daily_used' => (int) ($raw['daily_used'] ?? $raw['daily_generated'] ?? 0),
+            'daily_limit' => $dailyUnlimited ? null : $dailyLimit,
+            'daily_unlimited' => $dailyUnlimited,
+            'monthly_used' => (int) ($raw['monthly_used'] ?? $raw['monthly_generated'] ?? 0),
+            'monthly_quota' => $this->nullableIntLimit($raw['monthly_quota'] ?? null),
         ];
+    }
+
+    /**
+     * null / '' → null (безлимит); иначе неотрицательный int.
+     */
+    private function nullableIntLimit(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return max(0, (int) $value);
     }
 }

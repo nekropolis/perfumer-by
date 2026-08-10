@@ -10,6 +10,9 @@ namespace Modules\Catalog\Support;
  */
 final class CatalogProductAttributeIds
 {
+    /** product_attributes: «Сделано в» (страна производства) */
+    public const int MADE_IN_ATTRIBUTE_ID = 13;
+
     /** product_attributes: «Для кого» */
     public const int GENDER_ATTRIBUTE_ID = 2;
 

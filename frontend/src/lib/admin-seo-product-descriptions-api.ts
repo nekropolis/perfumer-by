@@ -25,7 +25,12 @@ export type ProductSeoRemoteStats = {
     skipped: number;
     undelivered: number;
     daily_used: number;
-    daily_limit: number;
+    /** null = безлимит */
+    daily_limit: number | null;
+    daily_unlimited: boolean;
+    monthly_used: number;
+    /** null или 0 = безлимит */
+    monthly_quota: number | null;
 };
 
 export type ProductSeoWorkOverview = {

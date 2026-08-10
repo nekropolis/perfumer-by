@@ -41,6 +41,26 @@ function statusLabel(status: ProductSeoBatchItem["status"]): string {
     }
 }
 
+/** Всегда показываем used; безлимит по флагу / null limit. */
+function formatDailyRemoteQuota(
+    used: number,
+    limit: number | null | undefined,
+    unlimited: boolean,
+): string {
+    if (unlimited || limit == null) {
+        return `${used} / безлимит`;
+    }
+    return `${used} / ${limit}`;
+}
+
+/** null или 0 у сервиса = безлимит */
+function formatMonthlyRemoteQuota(used: number, limit: number | null | undefined): string {
+    if (limit == null || limit === 0) {
+        return `${used} / безлимит`;
+    }
+    return `${used} / ${limit}`;
+}
+
 function isActiveBatch(batch: ProductSeoBatchItem): boolean {
     if (batch.status === "pending") {
         return true;
@@ -294,12 +314,32 @@ export default function AdminSeoProductDescriptionsPage() {
                             ) : null}
                         </div>
                         <div className="rounded-xl border border-admin-border bg-white p-3">
-                            <div className="text-xs text-admin-text-secondary">Дневной лимит сервиса</div>
-                            <div className="mt-1 text-xl font-semibold tabular-nums">
-                                {overview?.remote
-                                    ? `${overview.remote.daily_used} / ${overview.remote.daily_limit}`
-                                    : "—"}
-                            </div>
+                            <div className="text-xs text-admin-text-secondary">Лимиты сервиса</div>
+                            {overview?.remote ? (
+                                <div className="mt-1 space-y-0.5 text-sm tabular-nums">
+                                    <div>
+                                        <span className="text-admin-text-secondary">День: </span>
+                                        <span className="font-semibold">
+                                            {formatDailyRemoteQuota(
+                                                overview.remote.daily_used,
+                                                overview.remote.daily_limit,
+                                                overview.remote.daily_unlimited,
+                                            )}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-admin-text-secondary">Месяц: </span>
+                                        <span className="font-semibold">
+                                            {formatMonthlyRemoteQuota(
+                                                overview.remote.monthly_used,
+                                                overview.remote.monthly_quota,
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-1 text-xl font-semibold tabular-nums">—</div>
+                            )}
                         </div>
                         <div className="rounded-xl border border-admin-border bg-white p-3">
                             <div className="text-xs text-admin-text-secondary">Полностью получено</div>

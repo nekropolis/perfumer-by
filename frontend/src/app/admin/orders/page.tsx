@@ -1221,9 +1221,7 @@ export default function AdminOrdersPage() {
             setReceiptOptionsLoading(true);
             setToast(null);
             const response = await fetchAttributeBindingOptions();
-            const countryAttribute = response.data.find(
-                (attribute) => attribute.name.trim().toLocaleLowerCase("ru-RU") === "страна тм",
-            );
+            const countryAttribute = response.data.find((attribute) => attribute.id === 13);
             setReceiptCountryOptions(countryAttribute?.options.map((option) => option.name) ?? []);
             setReceiptModalOpen(true);
         } catch (error) {

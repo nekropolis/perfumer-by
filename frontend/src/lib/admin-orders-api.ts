@@ -563,6 +563,28 @@ export async function syncLegacyCustomersAndOrders(): Promise<{
   return res.json();
 }
 
+export type ReceiptMadeInUpdate = {
+  product_id: number;
+  country: string | null;
+};
+
+export async function syncReceiptMadeInCountries(
+  updates: ReceiptMadeInUpdate[],
+): Promise<{ data: { updated: number[]; skipped: number[] }; message?: string }> {
+  const res = await fetch(`${API_BASE}/admin/orders/receipt-made-in`, {
+    method: "POST",
+    headers: getAdminHeaders(),
+    body: JSON.stringify({ updates }),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Receipt made-in sync API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 /** @deprecated Используйте deleteOrder — DELETE теперь удаляет заказ, а не отменяет. */
 export async function cancelOrder(id: number): Promise<{ message?: string }> {
   return deleteOrder(id);

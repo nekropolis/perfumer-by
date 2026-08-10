@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
@@ -16,8 +17,6 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class OrderResource extends JsonResource
 {
-    private const TRADEMARK_COUNTRY_ATTRIBUTE = 'страна тм';
-
     public function toArray(Request $request): array
     {
         $variantIds = $this->items
@@ -542,8 +541,7 @@ class OrderResource extends JsonResource
         }
 
         foreach ($item->product->attributeValues as $value) {
-            $attributeName = mb_strtolower(trim((string) ($value->productAttribute?->name ?? '')));
-            if ($attributeName !== self::TRADEMARK_COUNTRY_ATTRIBUTE) {
+            if ((int) $value->product_attribute_id !== CatalogProductAttributeIds::MADE_IN_ATTRIBUTE_ID) {
                 continue;
             }
 
