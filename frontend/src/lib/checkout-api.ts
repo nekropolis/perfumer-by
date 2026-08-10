@@ -27,6 +27,12 @@ export type CheckoutPayload = {
     delivery_korpus?: string | null;
     delivery_apartment?: string | null;
     payment_method: CheckoutPaymentMethod;
+    /** Обязательное принятие публичной оферты. */
+    consent_offer: boolean;
+    /** Обязательное согласие на обработку ПДн. */
+    consent_privacy: boolean;
+    /** Добровольное согласие на маркетинг. */
+    consent_marketing?: boolean;
     /** Частичное оформление: id строк `cart_items` в корзине; вместе с `gift_certificate_cart_item_ids` заменяет полную корзину. */
     cart_item_ids?: number[];
     gift_certificate_cart_item_ids?: number[];

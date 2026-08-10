@@ -5,6 +5,8 @@ import { AuthProvider } from "@/components/auth/auth-provider";
 import { CartProvider } from "@/components/cart/cart-provider";
 import { WishlistProvider } from "@/components/wishlist/wishlist-provider";
 import { SiteContentProvider } from "@/components/layout/site-content-context";
+import { CookieConsentProvider } from "@/components/legal/cookie-consent-provider";
+import CookieConsentBanner from "@/components/legal/cookie-consent-banner";
 import type { SiteContent } from "@/lib/site-content-api";
 import { DEFAULT_SITE_CONTENT } from "@/lib/site-content-api";
 
@@ -17,11 +19,16 @@ type Props = {
 export default function Providers({ children, siteContent = DEFAULT_SITE_CONTENT }: Props) {
     return (
         <SiteContentProvider value={siteContent}>
-            <AuthProvider>
-                <WishlistProvider>
-                    <CartProvider>{children}</CartProvider>
-                </WishlistProvider>
-            </AuthProvider>
+            <CookieConsentProvider>
+                <AuthProvider>
+                    <WishlistProvider>
+                        <CartProvider>
+                            {children}
+                            <CookieConsentBanner />
+                        </CartProvider>
+                    </WishlistProvider>
+                </AuthProvider>
+            </CookieConsentProvider>
         </SiteContentProvider>
     );
 }

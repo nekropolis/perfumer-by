@@ -23,6 +23,7 @@ class CallbackRequestController extends Controller
             'phone' => ['required', 'string', 'max:64'],
             'phone_plain_digits' => ['sometimes', 'boolean'],
             'comment' => ['nullable', 'string', 'max:1000'],
+            'consent_privacy' => ['accepted'],
         ]);
 
         Phone::assertValidFlexible(

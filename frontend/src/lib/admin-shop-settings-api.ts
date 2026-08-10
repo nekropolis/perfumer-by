@@ -18,6 +18,9 @@ export type ShopContactSettings = {
     contact_phone_a1: string;
     contact_phone_life: string;
     contact_email: string;
+    legal_name: string;
+    legal_unp: string;
+    legal_address: string;
     contact_telegram_url: string;
     contact_viber_url: string;
     waiting_discount_delivery_date: string;

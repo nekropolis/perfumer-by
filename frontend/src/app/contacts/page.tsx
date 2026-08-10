@@ -44,6 +44,9 @@ export default async function ContactsPage() {
         contact_phone_a1: data?.contact_phone_a1 ?? DEFAULT_SITE_CONTENT.contact_phone_a1,
         contact_phone_life: data?.contact_phone_life ?? DEFAULT_SITE_CONTENT.contact_phone_life,
         contact_email: data?.contact_email ?? DEFAULT_SITE_CONTENT.contact_email,
+        legal_name: data?.legal_name ?? DEFAULT_SITE_CONTENT.legal_name,
+        legal_unp: data?.legal_unp ?? DEFAULT_SITE_CONTENT.legal_unp,
+        legal_address: data?.legal_address ?? DEFAULT_SITE_CONTENT.legal_address,
         contact_telegram_url: data?.contact_telegram_url ?? DEFAULT_SITE_CONTENT.contact_telegram_url,
         contact_viber_url: data?.contact_viber_url ?? DEFAULT_SITE_CONTENT.contact_viber_url,
     };
@@ -115,6 +118,19 @@ export default async function ContactsPage() {
                                 </a>
                             </div>
                         ) : null}
+
+                        {(site.legal_name.trim() || site.legal_unp.trim() || site.legal_address.trim()) && (
+                            <div className="mt-6 border-t border-admin-border pt-5">
+                                <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-admin-text-secondary">
+                                    Реквизиты
+                                </h2>
+                                <div className="mt-3 space-y-1 text-sm text-admin-text">
+                                    {site.legal_name.trim() ? <div>{site.legal_name.trim()}</div> : null}
+                                    {site.legal_unp.trim() ? <div>УНП {site.legal_unp.trim()}</div> : null}
+                                    {site.legal_address.trim() ? <div>{site.legal_address.trim()}</div> : null}
+                                </div>
+                            </div>
+                        )}
                     </section>
 
                     <section className={`${siteCard} p-5 sm:p-6`}>

@@ -34,6 +34,9 @@ const empty: ShopSettings = {
     contact_phone_a1: "+375296408833",
     contact_phone_life: "+375256408833",
     contact_email: "admin@perfumer.by",
+    legal_name: "ИП Гришкевич П.А.",
+    legal_unp: "191168408",
+    legal_address: "",
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
     waiting_discount_delivery_date: "10.07.2026",
@@ -50,7 +53,7 @@ const tabButtonClass = (active: boolean) =>
 
 function tabDescription(tab: ShopTab): string {
     if (tab === "delivery") return "Пороги и тарифы доставки для витрины (Минск / РБ).";
-    if (tab === "contacts") return "Телефоны, email и мессенджеры для шапки и контактов на витрине.";
+    if (tab === "contacts") return "Телефоны, email, реквизиты и мессенджеры для витрины.";
     if (tab === "tags") return "Теги заказов: название и цвет.";
     if (tab === "statuses") return "Статусы заказов: название, цвет и активность.";
     return "Бренды на главной (до 5) и популярные бренды в поиске (до 8).";
@@ -210,6 +213,9 @@ export default function AdminShopSettingsPage() {
                           contact_phone_a1: form.contact_phone_a1,
                           contact_phone_life: form.contact_phone_life,
                           contact_email: form.contact_email,
+                          legal_name: form.legal_name,
+                          legal_unp: form.legal_unp,
+                          legal_address: form.legal_address,
                           contact_telegram_url: form.contact_telegram_url,
                           contact_viber_url: form.contact_viber_url,
                       };
@@ -415,6 +421,36 @@ export default function AdminShopSettingsPage() {
                                     onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
                                     className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
                                     placeholder="admin@perfumer.by"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Юр. название</label>
+                                <input
+                                    type="text"
+                                    value={form.legal_name}
+                                    onChange={(e) => setForm((f) => ({ ...f, legal_name: e.target.value }))}
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+                                    placeholder="ИП …"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">УНП</label>
+                                <input
+                                    type="text"
+                                    value={form.legal_unp}
+                                    onChange={(e) => setForm((f) => ({ ...f, legal_unp: e.target.value }))}
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+                                    placeholder="191168408"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-admin-text">Адрес</label>
+                                <input
+                                    type="text"
+                                    value={form.legal_address}
+                                    onChange={(e) => setForm((f) => ({ ...f, legal_address: e.target.value }))}
+                                    className="w-full rounded-lg border border-admin-border px-3 py-2 text-sm"
+                                    placeholder="г. Минск, …"
                                 />
                             </div>
                             <div>

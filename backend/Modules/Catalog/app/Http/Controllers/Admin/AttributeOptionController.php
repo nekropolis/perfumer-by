@@ -21,7 +21,7 @@ class AttributeOptionController extends Controller
         ]);
 
         $option = ProductAttributeOption::query()->create([
-            'attribute_id' => $attribute->id,
+            'product_attribute_id' => $attribute->id,
             'name' => $validated['name'],
             'sort_order' => $validated['sort_order'] ?? 0,
             'is_active' => $validated['is_active'] ?? true,
@@ -38,7 +38,7 @@ class AttributeOptionController extends Controller
         $attribute = ProductAttribute::query()->findOrFail($attributeId);
 
         $option = ProductAttributeOption::query()
-            ->where('attribute_id', $attribute->id)
+            ->where('product_attribute_id', $attribute->id)
             ->findOrFail($optionId);
 
         $validated = $request->validate([
@@ -64,7 +64,7 @@ class AttributeOptionController extends Controller
         $attribute = ProductAttribute::query()->findOrFail($attributeId);
 
         $option = ProductAttributeOption::query()
-            ->where('attribute_id', $attribute->id)
+            ->where('product_attribute_id', $attribute->id)
             ->withCount('productValueOptions')
             ->findOrFail($optionId);
 

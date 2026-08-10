@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SiteContent } from "@/lib/site-content-api";
 import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
+import { LEGAL_FOOTER_LINKS } from "@/lib/legal-links";
 import { siteNavLink } from "@/lib/site-ui-classes";
 
 const INFO_LINKS = [
@@ -31,6 +32,10 @@ export default function Footer({ siteContent: site }: Props) {
         ? site.delivery_minsk_free_threshold
         : 50;
 
+    const legalName = site.legal_name?.trim();
+    const legalUnp = site.legal_unp?.trim();
+    const legalAddress = site.legal_address?.trim();
+
     return (
         <footer className="mt-auto border-t border-admin-border bg-admin-surface">
             <div className="border-b border-admin-border bg-admin-muted/60">
@@ -56,6 +61,13 @@ export default function Footer({ siteContent: site }: Props) {
                         <p className="mt-3 max-w-xs text-sm leading-relaxed text-admin-text-secondary">
                             Интернет-магазин парфюмерии с доставкой по Беларуси.
                         </p>
+                        {(legalName || legalUnp || legalAddress) && (
+                            <div className="mt-4 space-y-1 text-xs leading-relaxed text-admin-text-secondary">
+                                {legalName ? <div>{legalName}</div> : null}
+                                {legalUnp ? <div>УНП {legalUnp}</div> : null}
+                                {legalAddress ? <div>{legalAddress}</div> : null}
+                            </div>
+                        )}
                     </div>
 
                     <div>
@@ -75,6 +87,14 @@ export default function Footer({ siteContent: site }: Props) {
                                     {formatBelarusDisplay(value)}
                                 </a>
                             ))}
+                            {site.contact_email?.trim() ? (
+                                <a
+                                    href={`mailto:${site.contact_email.trim()}`}
+                                    className="block text-sm text-admin-text transition hover:text-admin-primary"
+                                >
+                                    {site.contact_email.trim()}
+                                </a>
+                            ) : null}
                         </div>
                     </div>
 
@@ -85,6 +105,11 @@ export default function Footer({ siteContent: site }: Props) {
                         <nav className="flex flex-col gap-2">
                             {INFO_LINKS.map((item) => (
                                 <Link key={item.href + item.label} href={item.href} className={siteNavLink}>
+                                    {item.label}
+                                </Link>
+                            ))}
+                            {LEGAL_FOOTER_LINKS.map((item) => (
+                                <Link key={item.href} href={item.href} className={siteNavLink}>
                                     {item.label}
                                 </Link>
                             ))}

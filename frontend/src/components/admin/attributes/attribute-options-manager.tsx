@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import type { AttributeOptionAdminItem } from "@/lib/admin-attributes-api";
 import {
     createAttributeOption,
@@ -258,164 +259,162 @@ export default function AttributeOptionsManager({
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={handleDelete}
             />
-            {createModalOpen ? (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 px-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-semibold">Добавить опцию</h2>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="mb-1 block text-sm text-admin-text-secondary">
-                                    Название
-                                </label>
-                                <input
-                                    type="text"
-                                    value={createForm.name}
-                                    onChange={(e) =>
-                                        setCreateForm({
-                                            ...createForm,
-                                            name: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="mb-1 block text-sm text-admin-text-secondary">
-                                    Sort order
-                                </label>
-                                <input
-                                    type="number"
-                                    value={createForm.sort_order}
-                                    onChange={(e) =>
-                                        setCreateForm({
-                                            ...createForm,
-                                            sort_order: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                                />
-                            </div>
-
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={createForm.is_active}
-                                    onChange={(e) =>
-                                        setCreateForm({
-                                            ...createForm,
-                                            is_active: e.target.checked,
-                                        })
-                                    }
-                                    className={adminCheckbox}
-                                />
-                                Активна
-                            </label>
-                        </div>
-
-                        <div className="mt-6 flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setCreateModalOpen(false)}
-                                className="rounded-lg border px-4 py-2 text-sm"
-                            >
-                                Отмена
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleCreate}
-                                disabled={submitting}
-                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
-                            >
-                                {submitting ? "Сохранение..." : "Сохранить"}
-                            </button>
-                        </div>
+            <AdminModalShell
+                open={createModalOpen}
+                onCloseAction={() => !submitting && setCreateModalOpen(false)}
+                title="Добавить опцию"
+                maxWidthClass="sm:max-w-lg"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setCreateModalOpen(false)}
+                            disabled={submitting}
+                            className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCreate}
+                            disabled={submitting}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                        >
+                            {submitting ? "Сохранение..." : "Сохранить"}
+                        </button>
                     </div>
-                </div>
-            ) : null}
-            {editForm ? (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 px-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-semibold">Редактировать опцию</h2>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="mb-1 block text-sm text-admin-text-secondary">
-                                    Название
-                                </label>
-                                <input
-                                    type="text"
-                                    value={editForm.name}
-                                    onChange={(e) =>
-                                        setEditForm({
-                                            ...editForm,
-                                            name: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="mb-1 block text-sm text-admin-text-secondary">
-                                    Sort order
-                                </label>
-                                <input
-                                    type="number"
-                                    value={editForm.sort_order}
-                                    onChange={(e) =>
-                                        setEditForm({
-                                            ...editForm,
-                                            sort_order: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                                />
-                            </div>
-
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={editForm.is_active}
-                                    onChange={(e) =>
-                                        setEditForm({
-                                            ...editForm,
-                                            is_active: e.target.checked,
-                                        })
-                                    }
-                                    className={adminCheckbox}
-                                />
-                                Активна
-                            </label>
-                        </div>
-
-                        <div className="mt-6 flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setEditForm(null)}
-                                className="rounded-lg border px-4 py-2 text-sm"
-                            >
-                                Отмена
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleUpdate}
-                                disabled={submitting}
-                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
-                            >
-                                {submitting ? "Сохранение..." : "Сохранить"}
-                            </button>
-                        </div>
+                }
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
+                            Название
+                        </label>
+                        <input
+                            type="text"
+                            value={createForm.name}
+                            onChange={(e) =>
+                                setCreateForm({
+                                    ...createForm,
+                                    name: e.target.value,
+                                })
+                            }
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
                     </div>
+
+                    <div>
+                        <label className="mb-1 block text-sm text-admin-text-secondary">
+                            Sort order
+                        </label>
+                        <input
+                            type="number"
+                            value={createForm.sort_order}
+                            onChange={(e) =>
+                                setCreateForm({
+                                    ...createForm,
+                                    sort_order: e.target.value,
+                                })
+                            }
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={createForm.is_active}
+                            onChange={(e) =>
+                                setCreateForm({
+                                    ...createForm,
+                                    is_active: e.target.checked,
+                                })
+                            }
+                            className={adminCheckbox}
+                        />
+                        Активна
+                    </label>
                 </div>
-            ) : null}
+            </AdminModalShell>
+            <AdminModalShell
+                open={!!editForm}
+                onCloseAction={() => !submitting && setEditForm(null)}
+                title="Редактировать опцию"
+                maxWidthClass="sm:max-w-lg"
+                footer={
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setEditForm(null)}
+                            disabled={submitting}
+                            className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleUpdate}
+                            disabled={submitting}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
+                        >
+                            {submitting ? "Сохранение..." : "Сохранить"}
+                        </button>
+                    </div>
+                }
+            >
+                {editForm ? (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="mb-1 block text-sm text-admin-text-secondary">
+                                Название
+                            </label>
+                            <input
+                                type="text"
+                                value={editForm.name}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        name: e.target.value,
+                                    })
+                                }
+                                className="w-full rounded-lg border px-3 py-2 text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-1 block text-sm text-admin-text-secondary">
+                                Sort order
+                            </label>
+                            <input
+                                type="number"
+                                value={editForm.sort_order}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        sort_order: e.target.value,
+                                    })
+                                }
+                                className="w-full rounded-lg border px-3 py-2 text-sm"
+                            />
+                        </div>
+
+                        <label className="flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={editForm.is_active}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        is_active: e.target.checked,
+                                    })
+                                }
+                                className={adminCheckbox}
+                            />
+                            Активна
+                        </label>
+                    </div>
+                ) : null}
+            </AdminModalShell>
         </div>
     );
 }

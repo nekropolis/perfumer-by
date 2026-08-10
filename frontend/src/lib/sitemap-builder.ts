@@ -44,6 +44,11 @@ export const SITEMAP_STATIC_PATHS: { path: string; priority: number; title: stri
     { path: "/news", priority: 0.85, title: "Новости" },
     { path: "/reviews", priority: 0.85, title: "Отзывы о магазине" },
     { path: "/contacts", priority: 0.8, title: "Контакты" },
+    { path: "/publichnaya-oferta", priority: 0.4, title: "Публичная оферта" },
+    { path: "/politika-obrabotki-personalnyh-dannyh", priority: 0.4, title: "Политика ПДн" },
+    { path: "/politika-cookies", priority: 0.4, title: "Политика cookies" },
+    { path: "/dostavka", priority: 0.6, title: "Доставка" },
+    { path: "/vozvrat-i-obmen", priority: 0.5, title: "Возврат и обмен" },
     { path: "/gift-certificates", priority: 0.7, title: "Подарочные сертификаты" },
 ];
 

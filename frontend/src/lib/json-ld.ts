@@ -197,10 +197,22 @@ export function localBusinessJsonLd(content: SiteContent): Record<string, unknow
     const payload: Record<string, unknown> = {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
-        name: SITE_LABEL,
+        name: content.legal_name?.trim() || SITE_LABEL,
         url: base,
         ...(phones[0] ? { telephone: phones[0] } : {}),
         ...(content.contact_email?.trim() ? { email: content.contact_email.trim() } : {}),
+        ...(content.legal_address?.trim()
+            ? {
+                  address: {
+                      "@type": "PostalAddress",
+                      streetAddress: content.legal_address.trim(),
+                      addressCountry: "BY",
+                  },
+              }
+            : {}),
+        ...(content.legal_unp?.trim()
+            ? { taxID: content.legal_unp.trim(), identifier: content.legal_unp.trim() }
+            : {}),
         ...(contactPoint.length
             ? { contactPoint: contactPoint.length === 1 ? contactPoint[0] : contactPoint }
             : {}),

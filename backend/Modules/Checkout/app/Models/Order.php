@@ -44,6 +44,10 @@ class Order extends Model
         'delivery_time_to',
         'delivery_fee',
         'payment_method',
+        'consent_offer',
+        'consent_privacy',
+        'consent_marketing',
+        'consents_accepted_at',
         'discount_card_id',
         'discount_card_number',
         'discount_percent_snapshot',
@@ -55,6 +59,10 @@ class Order extends Model
         'delivery_date' => 'date',
         'delivery_fee' => 'decimal:2',
         'shipment_status_at' => 'datetime',
+        'consent_offer' => 'boolean',
+        'consent_privacy' => 'boolean',
+        'consent_marketing' => 'boolean',
+        'consents_accepted_at' => 'datetime',
     ];
 
     /** Списание подарочного сертификата: только `order_gift_certificates` (колонки на `orders` сняты в v2 миграции). */

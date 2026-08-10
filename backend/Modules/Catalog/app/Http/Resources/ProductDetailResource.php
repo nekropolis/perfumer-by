@@ -68,13 +68,21 @@ class ProductDetailResource extends JsonResource
             return $presented['is_available'] || $variant->is_preorder;
         }) ?? $variants->first();
 
+        $isOutOfStock = !$variants->contains(function ($variant) use ($presentedByVariant): bool {
+            if (!$variant instanceof ProductVariantLink) {
+                return false;
+            }
+
+            return !empty($presentedByVariant[(int) $variant->id]['is_available']);
+        });
+
         return [
             'id' => $this->id,
             'is_active' => (bool) $this->is_active,
             'is_new' => (bool) $this->is_new,
             'is_hit' => (bool) $this->is_hit,
             'is_set' => (bool) $this->is_set,
-            'is_out_of_stock' => (bool) $this->is_out_of_stock,
+            'is_out_of_stock' => $isOutOfStock,
             'name' => $this->name,
             'display_name' => ProductDisplayName::format($this->brand?->name, (string) $this->name),
             'slug' => $this->slug,

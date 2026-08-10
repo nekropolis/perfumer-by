@@ -16,6 +16,9 @@ export type SiteContent = {
     contact_phone_a1: string;
     contact_phone_life: string;
     contact_email: string;
+    legal_name: string;
+    legal_unp: string;
+    legal_address: string;
     contact_telegram_url: string;
     contact_viber_url: string;
     waiting_discount_delivery_date: string;
@@ -37,6 +40,9 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     contact_phone_a1: "+375296408833",
     contact_phone_life: "+375256408833",
     contact_email: "admin@perfumer.by",
+    legal_name: "ИП Гришкевич П.А.",
+    legal_unp: "191168408",
+    legal_address: "",
     contact_telegram_url: "https://t.me/perfumer_support",
     contact_viber_url: "viber://chat?number=%2B375296408833",
     waiting_discount_delivery_date: "10.07.2026",

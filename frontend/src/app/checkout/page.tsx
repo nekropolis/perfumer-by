@@ -33,6 +33,8 @@ import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useAuth } from "@/components/auth/auth-provider";
 import { authUserCheckoutName } from "@/lib/auth-api";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
+import LegalHelpIcon from "@/components/legal/legal-help-icon";
+import { LEGAL_PAGE_PATHS } from "@/lib/legal-links";
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
 import PhoneInput, {
     isBelarusPhoneComplete,
@@ -166,12 +168,15 @@ export default function CheckoutPage() {
     const [phoneTouched, setPhoneTouched] = useState(false);
     const [addressTouched, setAddressTouched] = useState(false);
     const [submitAttempted, setSubmitAttempted] = useState(false);
+    const [consentTerms, setConsentTerms] = useState(false);
 
     const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
     const addressRequired = deliveryMethod !== "pickup";
     const addressIsValid = !addressRequired || deliveryAddress.trim().length > 0;
+    const consentsValid = consentTerms;
     const showPhoneError = (phoneTouched || submitAttempted) && !phoneIsValid;
     const showAddressError = (addressTouched || submitAttempted) && addressRequired && !addressIsValid;
+    const showConsentError = submitAttempted && !consentsValid;
 
     useEffect(() => {
         try {
@@ -412,6 +417,11 @@ export default function CheckoutPage() {
             return;
         }
 
+        if (!consentTerms) {
+            setErrorMessage("Примите условия публичной оферты и обработки персональных данных");
+            return;
+        }
+
         const orderDeliveryAddress = deliveryMethod === "pickup"
             ? "Самовывоз"
             : deliveryAddress.trim();
@@ -435,6 +445,8 @@ export default function CheckoutPage() {
                     delivery_apartment:
                         deliveryMethod === "pickup" ? null : deliveryApartment.trim() || null,
                     payment_method: paymentMethod,
+                    consent_offer: true,
+                    consent_privacy: true,
                     ...(lineSelection
                         ? {
                               cart_item_ids: lineSelection.cart_item_ids,
@@ -872,9 +884,62 @@ export default function CheckoutPage() {
                         />
                     </div>
 
+                    <div className="mb-5 space-y-3 rounded-2xl border border-admin-border bg-admin-muted/40 p-4">
+                        <label
+                            htmlFor="checkout-consent-terms"
+                            className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-admin-text"
+                        >
+                            <input
+                                id="checkout-consent-terms"
+                                type="checkbox"
+                                checked={consentTerms}
+                                onChange={(e) => setConsentTerms(e.target.checked)}
+                                className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
+                                    showConsentError
+                                        ? "outline outline-2 outline-offset-1 outline-red-500"
+                                        : ""
+                                }`}
+                            />
+                            <span>
+                                Нажимая «Подтвердить заказ», я принимаю условия{" "}
+                                <Link
+                                    href={LEGAL_PAGE_PATHS.offer}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
+                                >
+                                    публичной оферты
+                                </Link>
+                                <LegalHelpIcon
+                                    href={LEGAL_PAGE_PATHS.offer}
+                                    label="Открыть публичную оферту"
+                                />{" "}
+                                и согласен(а) на обработку персональных данных согласно{" "}
+                                <Link
+                                    href={LEGAL_PAGE_PATHS.privacy}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
+                                >
+                                    политике
+                                </Link>
+                                <LegalHelpIcon
+                                    href={LEGAL_PAGE_PATHS.privacy}
+                                    label="Открыть политику обработки персональных данных"
+                                />
+                                .
+                                {showConsentError ? (
+                                    <span className="mt-1 block text-xs text-red-600">
+                                        Отметьте согласие, чтобы оформить заказ.
+                                    </span>
+                                ) : null}
+                            </span>
+                        </label>
+                    </div>
+
                     <button
                         type="submit"
-                        disabled={isPending || !phoneIsValid || !addressIsValid}
+                        disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
                         className={`${siteBtnPrimary} w-full px-5 py-3 text-base sm:w-auto`}
                     >
                         {isPending ? "Оформление..." : "Подтвердить заказ"}

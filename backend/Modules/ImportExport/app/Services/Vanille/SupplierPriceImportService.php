@@ -1309,6 +1309,7 @@ class SupplierPriceImportService
             }, 8);
 
             $touchedVariantIds[(int) $variant->id] = true;
+            $deferStockCb((int) $variant->product_id);
 
             $nowListed = CatalogVariantStockPresenter::supplierListingActive($variant);
             if ($nowListed && !$wasListed) {

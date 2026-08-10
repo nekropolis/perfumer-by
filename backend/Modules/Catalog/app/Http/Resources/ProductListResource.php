@@ -130,6 +130,9 @@ class ProductListResource extends JsonResource
             fn ($variant) => $presentedByVariant[(int) $variant->id]['stock']
         );
         $preorderAvailable = $variants->contains(fn ($variant) => (bool) $variant->is_preorder);
+        $isOutOfStock = !$variants->contains(
+            static fn ($variant): bool => !empty($presentedByVariant[(int) $variant->id]['is_available'])
+        );
 
         $images = $this->relationLoaded('images') ? $this->images : collect();
         $catalogPaths = $images
@@ -209,7 +212,7 @@ class ProductListResource extends JsonResource
             'is_new' => $this->is_new,
             'is_hit' => $this->is_hit,
             'is_set' => (bool) $this->is_set,
-            'is_out_of_stock' => (bool) $this->is_out_of_stock,
+            'is_out_of_stock' => $isOutOfStock,
 
             'price_range' => [
                 'min' => $minPrice,
@@ -308,7 +311,7 @@ class ProductListResource extends JsonResource
             'is_new' => $product->is_new,
             'is_hit' => $product->is_hit,
             'is_set' => (bool) $product->is_set,
-            'is_out_of_stock' => (bool) $product->is_out_of_stock,
+            'is_out_of_stock' => empty($presented['is_available']),
 
             'price_range' => [
                 'min' => $price,
