@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Services\CatalogProductLinkSearchService;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 use Modules\Reviews\Models\Review;
@@ -85,7 +86,13 @@ class LegacyUnmatchedProductAdminController extends Controller
 
         $productsQuery = Product::query()
             ->select(['products.id', 'products.name', 'products.slug', 'products.brand_id'])
-            ->with(['brand:id,name'])
+            ->with([
+                'brand:id,name',
+                'attributeValues' => static function ($q): void {
+                    $q->where('product_attribute_id', CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID);
+                },
+                'attributeValues.selectedOptions.productAttributeOption:id,name',
+            ])
             ->whereNotIn('products.id', function ($sub): void {
                 $sub->from('legacy_unmatched_products')
                     ->select('linked_product_id')
@@ -106,11 +113,21 @@ class LegacyUnmatchedProductAdminController extends Controller
             ->limit(25)
             ->get()
             ->map(static function (Product $product): array {
+                $genderLabel = $product->attributeValues
+                    ->flatMap(static fn ($attributeValue) => $attributeValue->selectedOptions)
+                    ->map(static fn ($selectedOption) => $selectedOption->productAttributeOption?->name)
+                    ->filter(static fn ($name): bool => is_string($name) && trim($name) !== '')
+                    ->map(static fn ($name): string => trim((string) $name))
+                    ->unique()
+                    ->values()
+                    ->implode(', ');
+
                 return [
                     'id' => (int) $product->id,
                     'name' => (string) $product->name,
                     'slug' => (string) $product->slug,
                     'brand_name' => $product->brand?->name !== null ? (string) $product->brand->name : null,
+                    'gender_label' => $genderLabel !== '' ? $genderLabel : null,
                 ];
             })
             ->values()

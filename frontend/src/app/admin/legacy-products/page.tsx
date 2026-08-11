@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
@@ -311,26 +312,53 @@ export default function AdminLegacyProductsPage() {
                                             targetCandidates.map((candidate) => {
                                                 const label = formatLegacyTargetLabel(candidate);
                                                 return (
-                                                <label key={candidate.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
+                                                <div key={candidate.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
                                                     <input
                                                         type="radio"
                                                         name="target_product"
                                                         checked={selectedTargetId === candidate.id}
                                                         onChange={() => setSelectedTargetId(candidate.id)}
+                                                        className="mt-1"
+                                                        id={`legacy-target-${candidate.id}`}
                                                     />
-                                                    <span className="text-sm">
-                                                        <span className="font-medium">
+                                                    <div className="min-w-0 flex-1">
+                                                        <label
+                                                            htmlFor={`legacy-target-${candidate.id}`}
+                                                            className="block cursor-pointer text-sm font-medium"
+                                                        >
                                                             {highlightAdminSearchTerms(
                                                                 label,
                                                                 targetSearchInput,
                                                                 candidate.brand_name,
                                                             )}
+                                                        </label>
+                                                        <a
+                                                            href={`/${candidate.slug}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="mt-0.5 inline-block text-xs text-admin-text-secondary underline decoration-admin-text-secondary/40 underline-offset-2 hover:text-admin-primary hover:decoration-admin-primary"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            {candidate.slug}
+                                                        </a>
+                                                    </div>
+                                                    {candidate.gender_label ? (
+                                                        <span className="mt-1 shrink-0 text-xs text-admin-text-secondary">
+                                                            · {candidate.gender_label}
                                                         </span>
-                                                        <span className="ml-1 text-xs text-admin-text-secondary">
-                                                            ({candidate.slug})
-                                                        </span>
-                                                    </span>
-                                                </label>
+                                                    ) : null}
+                                                    <a
+                                                        href={`/${candidate.slug}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        aria-label={`Открыть ${label}`}
+                                                        title="Открыть на сайте"
+                                                        className="mt-1 inline-flex shrink-0 text-admin-text-secondary transition hover:text-admin-primary"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <ArrowUpRight size={14} strokeWidth={2.25} aria-hidden />
+                                                    </a>
+                                                </div>
                                                 );
                                             })
                                         )}

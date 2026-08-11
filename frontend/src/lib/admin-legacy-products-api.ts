@@ -52,6 +52,7 @@ export type LegacyTargetProductCandidate = {
     name: string;
     slug: string;
     brand_name: string | null;
+    gender_label?: string | null;
 };
 
 export async function fetchAdminLegacyProducts(params?: {
