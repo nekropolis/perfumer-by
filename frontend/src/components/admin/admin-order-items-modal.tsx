@@ -8,6 +8,7 @@ import type { OrderData } from "@/types/orders";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import { formatDeliveryClockTime } from "@/components/admin/orders/admin-delivery-time-input";
+import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import {
     fetchAdminOrderCustomerContext,
     type AdminOrderCustomerContext,
@@ -317,10 +318,17 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
             : "0.00");
     const giftBalance = giftLine?.balance_amount ?? null;
 
-    const deliveryAddress = order.delivery_address || order.delivery_city || "—";
+    const deliveryAddressLine = formatDeliveryAddressLine({
+        prefix: order.delivery_street_prefix,
+        street: order.delivery_address,
+        house: order.delivery_house,
+        korpus: order.delivery_korpus,
+        apartment: order.delivery_apartment,
+    });
+    const deliveryAddress =
+        [order.delivery_city?.trim(), deliveryAddressLine].filter(Boolean).join(", ") || "—";
     const deliveryMethod = order.delivery_method_label || order.delivery_method || "—";
     const paymentMethod = order.payment_method_label || order.payment_method || "—";
-    const deliveryCity = order.delivery_city || "—";
     const shipmentDateLabel = formatDeliveryDate(order.shipment_date);
     const deliveryTimeLabel = formatDeliveryTimeRange(order.delivery_time_from, order.delivery_time_to);
     const managerComment = order.manager_comment?.trim() || "";
@@ -501,7 +509,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                 <div className="col-span-2">
                                     <InfoItem
                                         label="Адрес"
-                                        value={deliveryCity + ", " + deliveryAddress}
+                                        value={deliveryAddress}
                                     />
                                 </div>
 

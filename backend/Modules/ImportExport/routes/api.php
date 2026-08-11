@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use Modules\ImportExport\Http\Controllers\Admin\AllparfumeAdminController;
 use Modules\ImportExport\Http\Controllers\Admin\LegacyUnmatchedProductAdminController;
 use Modules\ImportExport\Http\Controllers\Admin\SeoRedirectAdminController;
+use Modules\ImportExport\Http\Controllers\Api\SeoRedirectController;
+
+Route::post('seo-redirects/resolve', [SeoRedirectController::class, 'resolve']);
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/seo-redirects')->group(function () {
     Route::get('/', [SeoRedirectAdminController::class, 'index']);
