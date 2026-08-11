@@ -291,7 +291,21 @@ export default function AdminLegacyProductsPage() {
                                 <div className="rounded-xl border p-3">
                                     <div className="mb-1 text-xs text-admin-text-secondary">Legacy</div>
                                     <div className="text-sm"><b>ID:</b> {linkDetail.legacy_product_id}</div>
-                                    <div className="text-sm"><b>Slug:</b> {linkDetail.legacy_slug || "—"}</div>
+                                    <div className="text-sm">
+                                        <b>Slug:</b>{" "}
+                                        {linkDetail.legacy_slug ? (
+                                            <a
+                                                href={`https://perfumer.by/${linkDetail.legacy_slug.replace(/^\//, "")}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-admin-primary underline decoration-admin-primary/40 underline-offset-2 hover:decoration-admin-primary"
+                                            >
+                                                {linkDetail.legacy_slug}
+                                            </a>
+                                        ) : (
+                                            "—"
+                                        )}
+                                    </div>
                                     <div className="text-sm"><b>Name:</b> {linkDetail.legacy_name || "—"}</div>
                                     <div className="mt-2 text-xs text-admin-text-secondary line-clamp-6">{linkDetail.legacy_meta_description || linkDetail.legacy_description || "—"}</div>
                                 </div>
