@@ -7,12 +7,18 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
+use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
 use Modules\Reviews\Models\Review;
 
 class LegacyUnmatchedProductAdminController extends Controller
 {
+    public function __construct(
+        private readonly CatalogProductLinkSearchService $linkSearchService,
+    ) {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = DB::table('legacy_unmatched_products as lup')
@@ -78,13 +84,8 @@ class LegacyUnmatchedProductAdminController extends Controller
         }
 
         $productsQuery = Product::query()
-            ->select(['products.id', 'products.name', 'products.slug', 'brands.name as brand_name'])
-            ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
-            ->where(function ($inner) use ($q): void {
-                $inner->where('products.name', 'like', "%{$q}%")
-                    ->orWhere('products.slug', 'like', "%{$q}%")
-                    ->orWhere('brands.name', 'like', "%{$q}%");
-            })
+            ->select(['products.id', 'products.name', 'products.slug', 'products.brand_id'])
+            ->with(['brand:id,name'])
             ->whereNotIn('products.id', function ($sub): void {
                 $sub->from('legacy_unmatched_products')
                     ->select('linked_product_id')
@@ -96,11 +97,26 @@ class LegacyUnmatchedProductAdminController extends Controller
                     ->select('product_id')
                     ->where('status', '=', 'matched')
                     ->whereNotNull('product_id');
-            })
-            ->orderBy('products.name')
-            ->limit(25);
+            });
 
-        return response()->json(['data' => $productsQuery->get()]);
+        $this->linkSearchService->applyAdminProductListSearch($productsQuery, $q);
+
+        $data = $productsQuery
+            ->orderBy('products.name')
+            ->limit(25)
+            ->get()
+            ->map(static function (Product $product): array {
+                return [
+                    'id' => (int) $product->id,
+                    'name' => (string) $product->name,
+                    'slug' => (string) $product->slug,
+                    'brand_name' => $product->brand?->name !== null ? (string) $product->brand->name : null,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json(['data' => $data]);
     }
 
     public function link(Request $request, int $id): JsonResponse

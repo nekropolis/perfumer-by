@@ -22,7 +22,22 @@ import {
     type LegacyUnmatchedProductDetail,
     type LegacyUnmatchedProductItem,
 } from "@/lib/admin-legacy-products-api";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import SeoSectionTabs from "@/components/admin/seo/seo-section-tabs";
+
+function formatLegacyTargetLabel(candidate: LegacyTargetProductCandidate): string {
+    const brand = candidate.brand_name?.trim() || "";
+    const name = candidate.name.trim();
+    if (!brand) {
+        return name;
+    }
+    const nameLower = name.toLowerCase();
+    const brandLower = brand.toLowerCase();
+    if (nameLower === brandLower || nameLower.startsWith(`${brandLower} `)) {
+        return name;
+    }
+    return `${brand} ${name}`.trim();
+}
 
 export default function AdminLegacyProductsPage() {
     const [items, setItems] = useState<LegacyUnmatchedProductItem[]>([]);
@@ -286,14 +301,16 @@ export default function AdminLegacyProductsPage() {
                                         type="text"
                                         value={targetSearchInput}
                                         onChange={(e) => setTargetSearchInput(e.target.value)}
-                                        placeholder="Поиск по name/slug (мин. 2 символа)"
+                                        placeholder="Поиск по бренду / названию / slug (мин. 2 символа)"
                                         className="mb-2 w-full rounded-lg border px-3 py-2 text-sm"
                                     />
                                     <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-2">
                                         {targetCandidates.length === 0 ? (
                                             <div className="text-xs text-admin-text-secondary">Ничего не найдено</div>
                                         ) : (
-                                            targetCandidates.map((candidate) => (
+                                            targetCandidates.map((candidate) => {
+                                                const label = formatLegacyTargetLabel(candidate);
+                                                return (
                                                 <label key={candidate.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
                                                     <input
                                                         type="radio"
@@ -302,14 +319,20 @@ export default function AdminLegacyProductsPage() {
                                                         onChange={() => setSelectedTargetId(candidate.id)}
                                                     />
                                                     <span className="text-sm">
-                                                        <span className="font-medium">{candidate.name}</span>
-                                                        <span className="ml-1 text-xs text-admin-text-secondary">({candidate.slug})</span>
-                                                        {candidate.brand_name ? (
-                                                            <span className="ml-1 text-xs text-admin-text-secondary">· {candidate.brand_name}</span>
-                                                        ) : null}
+                                                        <span className="font-medium">
+                                                            {highlightAdminSearchTerms(
+                                                                label,
+                                                                targetSearchInput,
+                                                                candidate.brand_name,
+                                                            )}
+                                                        </span>
+                                                        <span className="ml-1 text-xs text-admin-text-secondary">
+                                                            ({candidate.slug})
+                                                        </span>
                                                     </span>
                                                 </label>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>
