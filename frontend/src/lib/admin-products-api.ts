@@ -1,5 +1,5 @@
 import { getAuthToken } from "@/lib/auth-token";
-import { formatMoneyRub } from "@/lib/format-money-display";
+import { formatMoneyRubText } from "@/lib/format-money-display";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -135,7 +135,7 @@ export function productSmartSearchShowsPrice(variant: ProductSmartSearchVariantP
 
 export function productSmartSearchPriceLabel(variant: ProductSmartSearchVariantPreview): string {
     const raw = variant.price;
-    return raw != null && String(raw).trim() !== "" ? formatMoneyRub(raw) : "—";
+    return raw != null && String(raw).trim() !== "" ? formatMoneyRubText(raw) : "—";
 }
 
 export type ProductSmartSearchItem = {

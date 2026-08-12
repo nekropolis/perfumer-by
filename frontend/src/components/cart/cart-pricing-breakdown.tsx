@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
+import { withBynSign } from "@/lib/byn-sign";
 
 type DiscountCardLine = {
     number: string;
@@ -78,7 +79,7 @@ export default function CartPricingBreakdown({
                             <span className="text-emerald-700/90"> ({discountCard!.discount_percent}%)</span>
                         </span>
                         <span className="shrink-0 font-medium">
-                            −{formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount} руб.
+                            −{withBynSign(formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount)}
                         </span>
                     </div>
                 </div>
@@ -88,7 +89,7 @@ export default function CartPricingBreakdown({
                 <div className="flex items-center justify-between text-amber-700">
                     <span>Скидка 3% за ожидание доставки</span>
                     <span className="font-medium">
-                        −{formatMoneyDisplay(waitingDiscountAmount!) ?? waitingDiscountAmount} руб.
+                        −{withBynSign(formatMoneyDisplay(waitingDiscountAmount!) ?? waitingDiscountAmount!)}
                     </span>
                 </div>
             ) : null}
@@ -97,7 +98,7 @@ export default function CartPricingBreakdown({
                 <div className="flex items-center justify-between text-emerald-700">
                     <span>Сертификат {giftCertificate!.code || giftCertificate!.number}</span>
                     <span className="font-medium">
-                        −{formatMoneyDisplay(giftCertificate!.amount) ?? giftCertificate!.amount} руб.
+                        −{withBynSign(formatMoneyDisplay(giftCertificate!.amount) ?? giftCertificate!.amount)}
                     </span>
                 </div>
             ) : null}

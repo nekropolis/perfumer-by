@@ -7,22 +7,24 @@ import { ShoppingBag } from "lucide-react";
 import { useCart } from "@/components/cart/cart-provider";
 import { addGiftCertificateTemplateToCart } from "@/lib/cart-api";
 import type { GiftCertificateTemplatePublic } from "@/lib/cart-api";
+import type { ReactNode } from "react";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { withBynSign, withBynSignReplacingCode } from "@/lib/byn-sign";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 type Props = {
     template: GiftCertificateTemplatePublic;
 };
 
-function formatNominalOnCard(amount: string): string {
+function formatNominalOnCard(amount: string): ReactNode {
     const formatted = formatMoneyDisplay(amount);
     if (!formatted) {
         return amount;
     }
     if (formatted.endsWith(",00")) {
-        return `${formatted.slice(0, -3)} BYN`;
+        return withBynSign(formatted.slice(0, -3));
     }
-    return `${formatted} BYN`;
+    return withBynSign(formatted);
 }
 
 export default function GiftCertificateTemplateCard({ template }: Props) {
@@ -71,7 +73,9 @@ export default function GiftCertificateTemplateCard({ template }: Props) {
                     <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-admin-primary">
                         {nominal}
                     </p>
-                    <p className="mt-1 text-xs text-admin-text-secondary">{template.title}</p>
+                    <p className="mt-1 text-xs text-admin-text-secondary">
+                        {withBynSignReplacingCode(template.title)}
+                    </p>
                 </div>
             </div>
 

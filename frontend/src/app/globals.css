@@ -37,6 +37,14 @@
   --font-display: Georgia, "Times New Roman", serif;
 }
 
+/* Official NBRB Belarusian ruble sign (SVG). Sized to digit cap-height. */
+.byn-sign {
+  display: inline-block;
+  width: auto;
+  height: 0.72em;
+  vertical-align: baseline;
+}
+
 html {
   scrollbar-gutter: stable;
 }

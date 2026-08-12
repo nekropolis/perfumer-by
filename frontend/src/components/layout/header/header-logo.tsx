@@ -15,13 +15,13 @@ export default function HeaderLogo() {
             height={64}
             decoding="async"
             fetchPriority="high"
-            className="h-auto w-[112px] object-contain sm:w-[128px] md:w-[168px]"
+            className="h-10 w-auto object-contain object-left sm:h-11 md:h-[52px]"
         />
     );
 
     if (isHomePage) {
         return (
-            <div className="shrink-0" aria-label="Perfumer">
+            <div className="flex h-11 shrink-0 items-center" aria-label="Perfumer">
                 {logoImage}
             </div>
         );
@@ -30,7 +30,7 @@ export default function HeaderLogo() {
     return (
         <Link
             href="/"
-            className="shrink-0 transition hover:opacity-80"
+            className="flex h-11 shrink-0 items-center transition hover:opacity-80"
             aria-label="Perfumer"
         >
             {logoImage}

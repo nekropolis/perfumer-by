@@ -7,6 +7,7 @@ import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
 import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { withBynSign } from "@/lib/byn-sign";
 import { formatOrderLoyaltyCardDiscountReason } from "@/lib/loyalty-pricing";
 import type { AuthUserProfile } from "@/lib/auth-api";
 import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
@@ -170,7 +171,7 @@ export default function OrdersAccount({
                                 Сумма
                             </div>
                             <div className="mt-2 text-2xl font-semibold text-admin-text">
-                                {formatMoneyDisplay(totalSpent) ?? "0,00"} BYN
+                                {withBynSign(formatMoneyDisplay(totalSpent) ?? "0,00")}
                             </div>
                         </div>
                     </div>
@@ -222,7 +223,7 @@ export default function OrdersAccount({
 
                                                 <div className="mt-2 text-sm text-admin-text-secondary">
                                                     {order.items_qty} товаров ·{" "}
-                                                    {formatMoneyDisplay(order.total) ?? order.total} BYN
+                                                    {withBynSign(formatMoneyDisplay(order.total) ?? String(order.total))}
                                                 </div>
                                                 {(() => {
                                                     const cardDiscount = parseMoney(order.discount_amount);
@@ -247,8 +248,7 @@ export default function OrdersAccount({
 
                                                     return (
                                                         <div className="mt-1 text-xs font-medium text-emerald-700">
-                                                            Скидка: −{formatMoneyDisplay(totalDiscount) ?? "0,00"}{" "}
-                                                            BYN
+                                                            Скидка: −{withBynSign(formatMoneyDisplay(totalDiscount) ?? "0,00")}
                                                             {reasonParts.length > 0 ? ` · ${reasonParts.join(", ")}` : ""}
                                                         </div>
                                                     );

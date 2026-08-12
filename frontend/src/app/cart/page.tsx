@@ -32,6 +32,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import SiteConfirmDialog from "@/components/ui/site-confirm-dialog";
+import { withBynSignReplacingCode, withBynSignReplacingCodeText } from "@/lib/byn-sign";
 import { formatMoneyRub } from "@/lib/format-money-display";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
@@ -446,7 +447,9 @@ export default function CartPage() {
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="mb-1 text-xs uppercase tracking-wide text-[var(--text-secondary)]">Сертификат</div>
-                                    <div className="block text-lg font-medium leading-6 text-[var(--foreground)]">{item.title}</div>
+                                    <div className="block text-lg font-medium leading-6 text-[var(--foreground)]">
+                                        {withBynSignReplacingCode(item.title)}
+                                    </div>
                                     <div className="mt-3 text-sm font-medium text-[var(--foreground)]">{formatMoneyRub(item.amount)}</div>
                                 </div>
                                 <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
@@ -942,7 +945,7 @@ export default function CartPage() {
                 title="Удалить из корзины?"
                 message={
                     pendingDelete
-                        ? `Убрать «${pendingDelete.title}» из корзины?`
+                        ? `Убрать «${withBynSignReplacingCodeText(pendingDelete.title)}» из корзины?`
                         : ""
                 }
                 confirmText="Удалить"

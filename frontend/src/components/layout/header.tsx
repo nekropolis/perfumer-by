@@ -15,6 +15,8 @@ import {
     HEADER_MAIN_LINKS,
 } from "@/components/layout/header/config";
 import { useSiteContent } from "@/components/layout/site-content-context";
+import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
+import { withBynSignText } from "@/lib/byn-sign";
 import {
     buildContactLinks,
     buildHeaderPhoneDropdown,
@@ -30,7 +32,7 @@ const HeaderMobileMenu = dynamic(() => import("@/components/layout/header/mobile
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;
-    return `Бесплатная доставка по Минску от ${n} BYN`;
+    return `Бесплатная доставка по Минску от ${withBynSignText(String(n))}`;
 }
 
 export default function Header() {
@@ -440,6 +442,8 @@ export default function Header() {
                     onToggleBurgerMenuAction={() => setIsBurgerOpen((prev) => !prev)}
                     onCloseBurgerMenuAction={() => setIsBurgerOpen(false)}
                 />
+                {/* Product/mobile sticky title portals here so it rubber-bands with the header. */}
+                <div id={HEADER_STICKY_EXTENSION_ID} />
             </header>
 
             <Suspense fallback={<HeaderNavFallback isCompact={false} links={HEADER_CATEGORY_PILLS} />}>

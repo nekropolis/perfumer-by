@@ -35,7 +35,8 @@ import { authUserCheckoutName } from "@/lib/auth-api";
 import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
 import LegalHelpIcon from "@/components/legal/legal-help-icon";
 import { LEGAL_PAGE_PATHS } from "@/lib/legal-links";
-import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
+import { formatMoneyDisplay, formatMoneyRub, formatMoneyRubText } from "@/lib/format-money-display";
+import { withBynSign, withBynSignReplacingCode } from "@/lib/byn-sign";
 import PhoneInput, {
     isBelarusPhoneComplete,
     isPlainByPhoneComplete,
@@ -105,12 +106,12 @@ function deliveryHint(
         return PICKUP_HINT;
     }
     if (method === "minsk_courier") {
-        const threshold = formatMoneyRub(String(shopSettings?.delivery_minsk_free_threshold ?? 50));
-        const fee = formatMoneyRub(String(shopSettings?.delivery_minsk_fee ?? 3));
+        const threshold = formatMoneyRubText(String(shopSettings?.delivery_minsk_free_threshold ?? 50));
+        const fee = formatMoneyRubText(String(shopSettings?.delivery_minsk_fee ?? 3));
         return `Доставка осуществляется по Минску бесплатно, если сумма заказа более ${threshold}. Стоимость доставки меньше этой суммы составляет ${fee} Данный способ доставки дает вам возможность получить товар прямо в руки, курьером в Минске. Время доставки оговаривайте с менеджером в момент заказа товара в интернет-магазине.`;
     }
     const minLines = shopSettings?.delivery_belarus_free_min_lines ?? 2;
-    const fee = formatMoneyRub(String(shopSettings?.delivery_belarus_fee ?? 6));
+    const fee = formatMoneyRubText(String(shopSettings?.delivery_belarus_fee ?? 6));
     return `Доставка по РБ курьерской службой осуществляется бесплатно при заказе от ${minLines} единиц. В остальных случаях стоимость такой доставки составляет всего ${fee} Сроки доставки 1-2 дня. Оплата курьеру при получении товара.`;
 }
 
@@ -967,7 +968,7 @@ export default function CheckoutPage() {
                                 className="border-b border-[var(--line)] pb-4 last:border-b-0"
                             >
                                 <div className="text-sm text-[var(--text-secondary)]">Сертификат</div>
-                                <div className="font-medium">{item.title}</div>
+                                <div className="font-medium">{withBynSignReplacingCode(item.title)}</div>
                                 <div className="mt-1 text-sm text-[var(--text-secondary)]">
                                     {item.qty} × {formatMoneyRub(item.amount)}
                                 </div>
@@ -1232,12 +1233,12 @@ export default function CheckoutPage() {
                             {paymentMethod === "card"
                                 ? " При оплате картой процент скидки к заказу не применяется."
                                 : parseCheckoutMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
-                                  ? ` Скидка: ${quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−${
+                                  ? <> Скидка: {quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−{withBynSign(
                                         formatMoneyDisplay(
                                             quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount,
                                         ) ??
-                                        (quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount)
-                                    } руб.).`
+                                            (quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount),
+                                    )}).</>
                                   : " Скидка по карте для текущих условий не применяется."}
                         </p>
                     ) : null}

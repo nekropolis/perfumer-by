@@ -3,6 +3,7 @@
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ProductListItem } from "@/types/catalog";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { withBynSign, withBynSignRange } from "@/lib/byn-sign";
 import {
     resolveActiveLoyaltyCard,
     resolveDiscountedPrice,
@@ -57,8 +58,8 @@ export default function ProductCardLoyaltyPrice({ product }: Props) {
     const loyaltyPriceText =
         loyaltyMinFmt && loyaltyMaxFmt
             ? loyaltyMinFmt !== loyaltyMaxFmt
-                ? `${loyaltyMinFmt} – ${loyaltyMaxFmt} BYN`
-                : `${loyaltyMinFmt} BYN`
+                ? withBynSignRange(loyaltyMinFmt, loyaltyMaxFmt)
+                : withBynSign(loyaltyMinFmt)
             : null;
 
     if (!loyaltyPriceText) {

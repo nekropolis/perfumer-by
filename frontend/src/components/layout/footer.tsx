@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { SiteContent } from "@/lib/site-content-api";
+import BynSign from "@/components/ui/byn-sign";
 import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
 import { LEGAL_FOOTER_LINKS } from "@/lib/legal-links";
 import { siteNavLink } from "@/lib/site-ui-classes";
@@ -41,7 +42,9 @@ export default function Footer({ siteContent: site }: Props) {
             <div className="border-b border-admin-border bg-admin-muted/60">
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-3 text-center text-sm text-admin-text sm:flex-row sm:px-6 sm:text-left">
                     <span className="font-medium text-admin-text">
-                        Бесплатная доставка по Минску от {threshold} BYN
+                        Бесплатная доставка по Минску от {threshold}
+                        {"\u00A0"}
+                        <BynSign />
                     </span>
                     <Link
                         href="/catalog"

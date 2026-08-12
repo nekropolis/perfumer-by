@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatMoneyRub } from "@/lib/format-money-display";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import type { OrderItem } from "@/types/orders";
 
@@ -64,8 +65,8 @@ export default function OrderItemCard({ item, linkMode }: Props) {
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-700">
                 <div>SKU: {item.sku || "—"}</div>
                 <div>Количество: {item.qty}</div>
-                <div>Цена: {item.price} руб.</div>
-                <div>Сумма: {item.total} руб.</div>
+                <div>Цена: {formatMoneyRub(item.price)}</div>
+                <div>Сумма: {formatMoneyRub(item.total)}</div>
             </div>
         </div>
     );

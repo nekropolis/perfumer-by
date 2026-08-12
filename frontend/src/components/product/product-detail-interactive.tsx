@@ -2,7 +2,8 @@
 
 import { Heart } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart, updateCartItem } from "@/lib/cart-api";
@@ -10,6 +11,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CopyText from "@/components/ui/copy-text";
+import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductServiceInfo, {
     type ProductServiceDeliveryInfo,
@@ -34,6 +36,10 @@ import {
     getVariantAvailabilityState,
     normalizeProductVariants,
 } from "@/lib/product-detail-utils";
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 type Props = {
     product: ProductDetailData;
@@ -75,6 +81,10 @@ export default function ProductDetailInteractive({
 
     const [selectedVariantId, setSelectedVariantId] = useState<number | null>(initialVariantId);
     const [waitingDiscountByVariant, setWaitingDiscountByVariant] = useState<Record<number, boolean>>({});
+    const [isTitlePinned, setIsTitlePinned] = useState(false);
+    const [titleBarEntered, setTitleBarEntered] = useState(false);
+    const titleRef = useRef<HTMLHeadingElement | null>(null);
+    const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
@@ -121,6 +131,84 @@ export default function ProductDetailInteractive({
     const genderLabel = getProductAttributeDisplayValue(product.attribute_values, "Для кого");
     const seasonLabel = getProductAttributeDisplayValue(product.attribute_values, "Сезон");
     const reviewsMetaLabel = formatReviewsCountLabel(reviewsTabCount);
+
+    const productTitle = product.h1 || productDisplayName(product);
+
+    useEffect(() => {
+        const titleEl = titleRef.current;
+        if (!titleEl || typeof window === "undefined") {
+            return;
+        }
+
+        let observer: IntersectionObserver | null = null;
+
+        const readStickyTop = () => {
+            const stickyTopRaw = getComputedStyle(document.documentElement)
+                .getPropertyValue("--catalog-toolbar-sticky-top")
+                .trim();
+            return Number.parseFloat(stickyTopRaw) || 130;
+        };
+
+        const updatePinned = () => {
+            if (window.matchMedia("(min-width: 1280px)").matches) {
+                setIsTitlePinned(false);
+                return;
+            }
+
+            // Only pin after the in-flow title has scrolled up past the header.
+            // (Title still below the fold must not show the bar.)
+            setIsTitlePinned(titleEl.getBoundingClientRect().bottom <= readStickyTop());
+        };
+
+        const disconnect = () => {
+            observer?.disconnect();
+            observer = null;
+        };
+
+        const setup = () => {
+            disconnect();
+            updatePinned();
+
+            if (window.matchMedia("(min-width: 1280px)").matches) {
+                return;
+            }
+
+            const stickyTop = readStickyTop();
+            observer = new IntersectionObserver(
+                () => {
+                    updatePinned();
+                },
+                {
+                    root: null,
+                    rootMargin: `-${stickyTop}px 0px 0px 0px`,
+                    threshold: [0, 1],
+                },
+            );
+            observer.observe(titleEl);
+        };
+
+        setup();
+        window.addEventListener("scroll", updatePinned, { passive: true });
+        window.addEventListener("resize", setup);
+
+        return () => {
+            window.removeEventListener("scroll", updatePinned);
+            window.removeEventListener("resize", setup);
+            disconnect();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isTitlePinned) {
+            setTitleBarEntered(false);
+            return;
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            setTitleBarEntered(true);
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [isTitlePinned]);
 
     const openReviewsTab = () => {
         setActiveTab("reviews");
@@ -179,8 +267,32 @@ export default function ProductDetailInteractive({
         });
     };
 
+    const headerTitleSlot =
+        isClient && typeof document !== "undefined"
+            ? document.getElementById(HEADER_STICKY_EXTENSION_ID)
+            : null;
+
     return (
         <>
+            {isTitlePinned && headerTitleSlot
+                ? createPortal(
+                      <div
+                          className={[
+                              "border-t border-admin-border bg-admin-surface px-4 py-3 transition-[opacity,transform] duration-300 ease-out xl:hidden",
+                              titleBarEntered
+                                  ? "translate-y-0 opacity-100"
+                                  : "-translate-y-2 opacity-0",
+                          ].join(" ")}
+                          aria-hidden
+                      >
+                          <div className="mx-auto max-w-7xl truncate font-display text-xl font-semibold leading-snug text-admin-text sm:px-2 sm:text-2xl">
+                              {productTitle}
+                          </div>
+                      </div>,
+                      headerTitleSlot,
+                  )
+                : null}
+
             <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-stretch xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
                 <div className="xl:[grid-area:gallery]">
                     <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
@@ -221,8 +333,11 @@ export default function ProductDetailInteractive({
                         </button>
                     </div>
 
-                    <h1 className="mb-2.5 font-display text-3xl font-semibold leading-tight sm:text-4xl">
-                        {product.h1 || productDisplayName(product)}
+                    <h1
+                        ref={titleRef}
+                        className="mb-2.5 font-display text-3xl font-semibold leading-tight sm:text-4xl"
+                    >
+                        {productTitle}
                     </h1>
 
                     <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
@@ -303,11 +418,11 @@ export default function ProductDetailInteractive({
 
                                                 <div className="flex items-baseline gap-1.5 pt-0.5">
                                                     {gridPrice ? (
-                                                        <span className="text-[13px] font-semibold leading-4 text-admin-text">
+                                                        <span className="text-[15px] font-semibold leading-5 text-admin-text">
                                                             {formatProductDetailPrice(gridPrice)}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-[13px] font-semibold leading-4 text-admin-text-secondary">
+                                                        <span className="text-[15px] font-semibold leading-5 text-admin-text-secondary">
                                                             —
                                                         </span>
                                                     )}

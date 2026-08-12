@@ -3,7 +3,9 @@ import type {
     ProductImageData,
     ProductVariantData,
 } from "@/types/catalog";
+import type { ReactNode } from "react";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { withBynSign } from "@/lib/byn-sign";
 import { compareVariantsByVolume } from "@/lib/product-card-utils";
 
 /** Значение атрибута по имени (опции или custom_value). */
@@ -46,12 +48,12 @@ export function formatReviewsCountLabel(count: number): string {
 export const SIMILAR_PRODUCTS_MIN_TO_SHOW = 4;
 export const SIMILAR_GAP_PX = 12;
 
-export function formatProductDetailPrice(price: string | null): string {
+export function formatProductDetailPrice(price: string | null): ReactNode {
     if (!price) {
         return "—";
     }
     const v = formatMoneyDisplay(price);
-    return v ? `${v} BYN` : "—";
+    return v ? withBynSign(v) : "—";
 }
 
 /** Строка 1 карточки варианта: «2 мл / Пробник». */

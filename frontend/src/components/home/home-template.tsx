@@ -2,6 +2,7 @@ import Link from "next/link";
 import HomeStoreReviewsSection from "@/components/home/home-store-reviews-section";
 import HomeFaqAccordion from "@/components/home/home-faq-accordion";
 import { HOME_PAGE_FAQ_ITEMS as faq, type HomePageReviewSnippet } from "@/lib/json-ld";
+import { withBynSign } from "@/lib/byn-sign";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteFilterChip, siteFilterChipInactive } from "@/lib/site-ui-classes";
 
 type HomeTemplateProps = {
@@ -64,8 +65,10 @@ function FeaturedProductCard({
             <div className="mb-1 text-sm text-admin-text-secondary">{brand}</div>
             <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-admin-text">{name}</div>
             <div className="mt-4 flex items-end gap-2">
-                <div className="text-lg font-semibold text-admin-text">{price} BYN</div>
-                {oldPrice ? <div className="text-sm text-admin-text-secondary line-through">{oldPrice} BYN</div> : null}
+                <div className="text-lg font-semibold text-admin-text">{withBynSign(price)}</div>
+                {oldPrice ? (
+                    <div className="text-sm text-admin-text-secondary line-through">{withBynSign(oldPrice)}</div>
+                ) : null}
             </div>
         </div>
     );

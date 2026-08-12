@@ -8,6 +8,7 @@ import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { useSiteContent } from "@/components/layout/site-content-context";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
+import BynSign from "@/components/ui/byn-sign";
 import {
     buildCatalogFacetedFiltersResetPath,
     CATALOG_GENDER_ATTRIBUTE_ID,
@@ -378,7 +379,7 @@ export default function CatalogFilters({
 
                 <section className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
                     <div className={sectionTitleClass}>
-                        Цена, BYN
+                        Цена, <BynSign />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <input

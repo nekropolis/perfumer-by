@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import type { ProductListItem, ProductVariantData } from "@/types/catalog";
+import { withBynSign, withBynSignRange } from "@/lib/byn-sign";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { productDisplayName } from "@/lib/product-display-name";
 
@@ -31,7 +33,7 @@ export function sortVariantLabelsByVolume(labels: string[]): string[] {
     });
 }
 
-export function formatProductCardPrice(product: ProductListItem): string {
+export function formatProductCardPrice(product: ProductListItem): ReactNode {
     const min = product.price_range?.min;
     const max = product.price_range?.max;
 
@@ -51,13 +53,13 @@ export function formatProductCardPrice(product: ProductListItem): string {
     const fmtMax = formatMoneyDisplay(max);
 
     if (fmtMin && fmtMax && fmtMin !== fmtMax) {
-        return `${fmtMin} – ${fmtMax} BYN`;
+        return withBynSignRange(fmtMin, fmtMax);
     }
 
-    return `${fmtMin || fmtMax} BYN`;
+    return withBynSign(fmtMin || fmtMax || "");
 }
 
-export function formatProductCardOldPrice(product: ProductListItem): string | null {
+export function formatProductCardOldPrice(product: ProductListItem): ReactNode | null {
     if (!product.has_discount) {
         return null;
     }
@@ -73,10 +75,11 @@ export function formatProductCardOldPrice(product: ProductListItem): string | nu
     const fmtMax = formatMoneyDisplay(max);
 
     if (fmtMin && fmtMax && fmtMin !== fmtMax) {
-        return `${fmtMin} – ${fmtMax} BYN`;
+        return withBynSignRange(fmtMin, fmtMax);
     }
 
-    return fmtMin || fmtMax;
+    const single = fmtMin || fmtMax;
+    return single ? withBynSign(single) : null;
 }
 
 export function compactVariantLabel(label: string): string {

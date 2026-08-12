@@ -13,7 +13,7 @@ class GiftCertificateTemplatesSeeder extends Seeder
             GiftCertificateTemplate::query()->updateOrCreate(
                 ['amount' => number_format((float) $amount, 2, '.', '')],
                 [
-                    'title' => "Сертификат {$amount} BYN",
+                    'title' => "Сертификат {$amount} руб.",
                     'is_active' => true,
                 ]
             );

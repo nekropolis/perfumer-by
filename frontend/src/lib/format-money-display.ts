@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+import { withBynSign, withBynSignText } from "@/lib/byn-sign";
+
 export type MoneyRawInput = string | number | null | undefined;
 
 /**
@@ -32,12 +35,22 @@ export function formatMoneyDisplay(raw: MoneyRawInput): string | null {
     }).format(n);
 }
 
-/** Подпись для корзины/чекаута: «22,20 руб.» */
-export function formatMoneyRub(raw: MoneyRawInput): string {
+/** Подпись для корзины/чекаута с официальным знаком рубля (SVG). */
+export function formatMoneyRub(raw: MoneyRawInput): ReactNode {
     const v = formatMoneyDisplay(raw);
     if (v !== null) {
-        return `${v} руб.`;
+        return withBynSign(v);
     }
     const s = typeof raw === "number" ? "" : String(raw ?? "").trim();
-    return s !== "" ? `${s} руб.` : "0,00 руб.";
+    return s !== "" ? withBynSign(s) : withBynSign("0,00");
+}
+
+/** Plain-text вариант для строк-подсказок без React. */
+export function formatMoneyRubText(raw: MoneyRawInput): string {
+    const v = formatMoneyDisplay(raw);
+    if (v !== null) {
+        return withBynSignText(v);
+    }
+    const s = typeof raw === "number" ? "" : String(raw ?? "").trim();
+    return s !== "" ? withBynSignText(s) : withBynSignText("0,00");
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
@@ -15,12 +16,16 @@ import {
 } from "@/lib/product-detail-utils";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 type Props = {
     selectedVariant: ProductVariantData | null;
     isSelectedVariantInCart: boolean;
     isPending: boolean;
     onAddToCartAction: () => void;
-    formatPriceAction: (price: string | null) => string;
+    formatPriceAction: (price: string | null) => ReactNode;
     productId: number;
     productName: string;
     /** Нет остатка на своём складе; заказ через поставщика — другой текст, чем «В наличии». */
@@ -61,7 +66,7 @@ export default function ProductBuyBox({
     const showMobile = surface === "all" || surface === "mobile";
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
-    const [mobileBarPortalReady, setMobileBarPortalReady] = useState(false);
+    const mobileBarPortalReady = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
@@ -93,10 +98,11 @@ export default function ProductBuyBox({
             return null;
         }
 
-        // Офер / скидка за ожидание — дата отправки (в т.ч. supplier_only с принудительной скидкой).
+        // Офер / скидка за ожидание — статус отдельно, дата отправки отдельно (мобильный бар).
         if (waitingDiscountApplicable && (waitingDiscountActive || waitingDiscountForced)) {
             return {
-                text: `Доступен к заказу. Отправка с ${deliveryDateText}`,
+                status: "Доступен к заказу",
+                shipping: `Отправка с ${deliveryDateText}`,
                 className: "text-amber-600",
             };
         }
@@ -106,17 +112,22 @@ export default function ProductBuyBox({
             selectedVariant.availability_source === "main+supplier";
 
         if (hasStoreStock) {
-            return { text: "Наличие в магазине", className: "text-emerald-600" };
+            return {
+                status: "Наличие в магазине",
+                shipping: null as string | null,
+                className: "text-emerald-600",
+            };
         }
 
-        return getVariantAvailabilityState(selectedVariant, isProductOutOfStock);
+        const state = getVariantAvailabilityState(selectedVariant, isProductOutOfStock);
+        return {
+            status: state.text,
+            shipping: null as string | null,
+            className: state.className,
+        };
     }, [selectedVariant, waitingDiscountApplicable, waitingDiscountForced, waitingDiscountActive, deliveryDateText, isProductOutOfStock]);
 
     const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
-
-    useEffect(() => {
-        setMobileBarPortalReady(true);
-    }, []);
 
     useEffect(() => {
         if (!showMobile) {
@@ -162,18 +173,26 @@ export default function ProductBuyBox({
         </button>
     );
 
-    const renderWaitingDiscountRow = () => {
+    const renderWaitingDiscountRow = (compact = false) => {
         if (!showWaitingCheckbox) {
             return null;
         }
 
+        const label = waitingDiscountActive
+            ? `Скидка ${waitingDiscountPercent}% за ожидание`
+            : `Хочу скидку ${waitingDiscountPercent}% за ожидание`;
+
         return (
             <label
-                className={`flex cursor-pointer items-start gap-2.5 text-xs ${
-                    waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""
-                }`}
+                className={`flex cursor-pointer text-admin-text ${
+                    compact ? "items-center gap-2 text-[11px] leading-4" : "items-center gap-2.5 text-xs"
+                } ${waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""}`}
             >
-                <span className="relative flex h-5 w-5 shrink-0 select-none items-center justify-center pt-0.5">
+                <span
+                    className={`relative flex shrink-0 select-none items-center justify-center ${
+                        compact ? "h-4 w-4" : "h-5 w-5"
+                    }`}
+                >
                     <input
                         type="checkbox"
                         checked={waitingDiscountActive}
@@ -184,7 +203,8 @@ export default function ProductBuyBox({
                     <span
                         aria-hidden
                         className={[
-                            "pointer-events-none flex h-5 w-5 items-center justify-center rounded-md border-2 bg-admin-surface shadow-sm transition-all duration-200 ease-out",
+                            "pointer-events-none flex items-center justify-center rounded-md border-2 bg-admin-surface shadow-sm transition-all duration-200 ease-out",
+                            compact ? "h-4 w-4" : "h-5 w-5",
                             "border-admin-border",
                             "peer-hover:border-admin-border-strong peer-hover:shadow-md",
                             "peer-focus-visible:ring-2 peer-focus-visible:ring-admin-primary/20 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-admin-surface",
@@ -194,7 +214,12 @@ export default function ProductBuyBox({
                             waitingDiscountForced ? "opacity-70" : "",
                         ].join(" ")}
                     >
-                        <svg viewBox="0 0 12 10" fill="none" className="h-2.5 w-2.5 text-white transition-[opacity,transform] duration-200 ease-out" aria-hidden>
+                        <svg
+                            viewBox="0 0 12 10"
+                            fill="none"
+                            className={`text-white transition-[opacity,transform] duration-200 ease-out ${compact ? "h-2 w-2" : "h-2.5 w-2.5"}`}
+                            aria-hidden
+                        >
                             <path
                                 d="M1 5l3.5 3.5L11 1.5"
                                 stroke="currentColor"
@@ -205,9 +230,7 @@ export default function ProductBuyBox({
                         </svg>
                     </span>
                 </span>
-                <span className="text-admin-text">
-                    Хочу скидку {waitingDiscountPercent}% за ожидание доставки
-                </span>
+                <span className={compact ? "min-w-0 truncate" : undefined}>{label}</span>
             </label>
         );
     };
@@ -292,75 +315,81 @@ export default function ProductBuyBox({
                 paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
             }}
         >
-            <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
-                <div className="min-w-0 flex-1">
-                    {hasVariant ? (
-                        <>
-                            <div className="truncate text-sm font-semibold leading-5 text-admin-text">
-                                {productName}
-                            </div>
-                            <div className="text-[11px] text-admin-text-secondary">Выбранный вариант</div>
-                            <div className="truncate text-sm font-medium leading-5 text-admin-text">
-                                {selectedVariant.is_set
-                                    ? selectedVariant.display_name
-                                    : formatVariantVolumeLine(selectedVariant)}
-                            </div>
-                            {selectedVariant.is_set ? (
-                                <div className="space-y-0.5 text-xs leading-4 text-admin-text-secondary">
-                                    {formatSetComponentLines(selectedVariant).map((line) => (
-                                        <div key={line} className="truncate">
-                                            {line}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="truncate text-xs leading-4 text-admin-text-secondary">
-                                    {formatVariantConcentrationLabel(selectedVariant)}
-                                </div>
-                            )}
-                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <span className="text-base font-semibold text-admin-text">
-                                    {effectivePrice
-                                        ? formatPriceAction(effectivePrice)
-                                        : selectedVariant.is_preorder
-                                            ? "Предзаказ"
-                                            : "Цена уточняется"}
-                                </span>
-                                {(selectedVariant.old_price || hasAnyDiscount) ? (
-                                    <span className="text-sm text-admin-text-secondary line-through">
-                                        {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+            <div className="mx-auto w-full max-w-7xl">
+                <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                        {hasVariant ? (
+                            <>
+                                <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+                                    <span className="truncate text-sm font-medium leading-5 text-admin-text">
+                                        {selectedVariant.is_set
+                                            ? selectedVariant.display_name
+                                            : formatVariantVolumeLine(selectedVariant)}
                                     </span>
+                                    {availability ? (
+                                        <span className={`truncate text-xs font-medium leading-5 ${availability.className}`}>
+                                            · {availability.status}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                {selectedVariant.is_set ? (
+                                    <div className="space-y-0.5 text-xs leading-4 text-admin-text-secondary">
+                                        {formatSetComponentLines(selectedVariant).map((line) => (
+                                            <div key={line} className="truncate">
+                                                {line}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="truncate text-xs leading-4 text-admin-text-secondary">
+                                        {formatVariantConcentrationLabel(selectedVariant)}
+                                    </div>
+                                )}
+                                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                    <span className="text-2xl font-semibold leading-none tabular-nums text-admin-text">
+                                        {effectivePrice
+                                            ? formatPriceAction(effectivePrice)
+                                            : selectedVariant.is_preorder
+                                                ? "Предзаказ"
+                                                : "Цена уточняется"}
+                                    </span>
+                                    {(selectedVariant.old_price || hasAnyDiscount) ? (
+                                        <span className="text-sm text-admin-text-secondary line-through">
+                                            {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                {hasLoyaltyDiscount ? (
+                                    <div className="mt-0.5 text-xs leading-4 text-green-700">
+                                        Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
+                                    </div>
                                 ) : null}
-                            </div>
-                            {hasLoyaltyDiscount ? (
-                                <div className="text-xs text-green-700">
-                                    Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                                </div>
-                            ) : null}
-                            {hasWaitingDiscount ? (
-                                <div className="text-xs text-green-700">
-                                    Скидка {waitingDiscountPercent}% за ожидание доставки
-                                </div>
-                            ) : null}
-                            {availability ? (
-                                <div className={`text-xs ${availability.className}`}>
-                                    {availability.text}
-                                </div>
-                            ) : null}
-                            {showWaitingCheckbox && (
-                                <div className="mt-1">{renderWaitingDiscountRow()}</div>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <div className="truncate text-sm font-medium text-admin-text">
-                                {productName}
-                            </div>
+                                {/* When checkbox is shown below, skip duplicate green line. */}
+                                {hasWaitingDiscount && !showWaitingCheckbox ? (
+                                    <div className="mt-0.5 text-xs leading-4 text-green-700">
+                                        Скидка {waitingDiscountPercent}% за ожидание доставки
+                                    </div>
+                                ) : null}
+                            </>
+                        ) : (
                             <div className="text-xs text-admin-text-secondary">Выберите вариант</div>
-                        </>
-                    )}
+                        )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-center justify-center gap-1">
+                        {renderCartAction(true)}
+                        {availability?.shipping ? (
+                            <div className="max-w-[6.75rem] text-center text-[10px] leading-tight text-amber-600">
+                                {availability.shipping}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
-                {renderCartAction(true)}
+
+                {showWaitingCheckbox ? (
+                    <div className="mt-2 border-t border-admin-border/80 pt-2">
+                        {renderWaitingDiscountRow(true)}
+                    </div>
+                ) : null}
             </div>
         </div>
     );
@@ -371,8 +400,6 @@ export default function ProductBuyBox({
             <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
                 {hasVariant ? (
                     <>
-                        <div className="mb-2 text-sm text-admin-text-secondary">Выбранный вариант</div>
-
                         <div className="mb-1 text-2xl font-semibold leading-tight">
                             {selectedVariant.display_name}
                         </div>
@@ -426,7 +453,7 @@ export default function ProductBuyBox({
                         <div className="mb-4">
                             {availability ? (
                                 <div className={`text-sm font-medium ${availability.className}`}>
-                                    {availability.text}
+                                    {[availability.status, availability.shipping].filter(Boolean).join(". ")}
                                 </div>
                             ) : null}
                         </div>

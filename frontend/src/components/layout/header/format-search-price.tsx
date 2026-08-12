@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { HeaderSearchItem } from "@/components/layout/header/types";
+import BynSign from "@/components/ui/byn-sign";
 
 function positivePrice(value: string | null | undefined): string | null {
     if (value == null) {
@@ -47,14 +48,20 @@ export function formatSearchPrice(item: HeaderSearchItem): ReactNode {
     if (nMin && nMax && nMin !== nMax) {
         return (
             <strong>
-                {nMin} - {nMax} <small>BYN</small>
+                {nMin} - {nMax}{" "}
+                <small>
+                    <BynSign />
+                </small>
             </strong>
         );
     }
 
     return (
         <strong>
-            {nMin || nMax} <small>BYN</small>
+            {nMin || nMax}{" "}
+            <small>
+                <BynSign />
+            </small>
         </strong>
     );
 }
