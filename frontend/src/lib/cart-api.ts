@@ -136,7 +136,7 @@ export async function applyGiftCertificate(code: string): Promise<CartResponse> 
     const token = typeof window !== "undefined" ? getCartToken() : "";
     const authToken = typeof window !== "undefined" ? getAuthToken() : "";
     const trimmed = code.trim();
-    const res = await fetch(`${API_BASE}/cart/gift-certificate/apply`, {
+    const res = await fetch(`${getApiBase()}/cart/gift-certificate/apply`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -175,7 +175,7 @@ export async function applyDiscountCard(number: string, sessionOnly = false): Pr
     const token = typeof window !== "undefined" ? getCartToken() : "";
     const authToken = typeof window !== "undefined" ? getAuthToken() : "";
 
-    const res = await fetch(`${API_BASE}/cart/discount-card/apply`, {
+    const res = await fetch(`${getApiBase()}/cart/discount-card/apply`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
