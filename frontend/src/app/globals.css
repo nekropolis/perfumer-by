@@ -47,6 +47,8 @@
 
 html {
   scrollbar-gutter: stable;
+  /* Reduce iOS rubber-band that pulls sticky/fixed chrome off the viewport edges. */
+  overscroll-behavior-y: none;
 }
 
 html,

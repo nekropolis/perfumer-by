@@ -49,7 +49,6 @@ export default function Header() {
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
     const [isMainRowPinned, setIsMainRowPinned] = useState(false);
     const [mainRowHeight, setMainRowHeight] = useState(78);
-    const [viewportTopOffset, setViewportTopOffset] = useState(0);
     const [menuTopOffset, setMenuTopOffset] = useState(64);
     const [menuAnchorBottom, setMenuAnchorBottom] = useState(0);
 
@@ -184,34 +183,16 @@ export default function Header() {
             return;
         }
 
-        const updateViewportOffset = () => {
-            const vv = window.visualViewport;
-            if (!vv) {
-                setViewportTopOffset(0);
-                return;
-            }
-            setViewportTopOffset(Math.max(0, vv.offsetTop));
-        };
-
-        updateViewportOffset();
-        window.visualViewport?.addEventListener("resize", updateViewportOffset);
-        window.visualViewport?.addEventListener("scroll", updateViewportOffset);
-        window.addEventListener("resize", updateViewportOffset);
-
-        return () => {
-            window.visualViewport?.removeEventListener("resize", updateViewportOffset);
-            window.visualViewport?.removeEventListener("scroll", updateViewportOffset);
-            window.removeEventListener("resize", updateViewportOffset);
-        };
-    }, []);
-
-    useEffect(() => {
+        // Derive sticky offsets from header height — do not read getBoundingClientRect on
+        // scroll/visualViewport (Chrome URL-bar show/hide makes the header lag a frame).
+        const SERVICE_BAR_PX = 36;
         const measure = () => {
-            const mainRowBottom = mainRowRef.current?.getBoundingClientRect().bottom ?? 0;
-            const catalogToolbarStickyTop = Math.max(64, mainRowBottom);
-            const menuTop = Math.max(64, catalogToolbarStickyTop);
-
-            setMenuTopOffset(menuTop);
+            const desktop = window.matchMedia("(min-width: 768px)").matches;
+            const catalogToolbarStickyTop = Math.max(
+                64,
+                mainRowHeight + (desktop && !isMainRowPinned ? SERVICE_BAR_PX : 0),
+            );
+            setMenuTopOffset(catalogToolbarStickyTop);
             document.documentElement.style.setProperty(
                 "--catalog-toolbar-sticky-top",
                 `${catalogToolbarStickyTop}px`,
@@ -223,21 +204,13 @@ export default function Header() {
         };
 
         measure();
-        window.addEventListener("scroll", measure, { passive: true });
         window.addEventListener("resize", measure);
-        const row = mainRowRef.current;
-        const ro = new ResizeObserver(() => measure());
-        if (row) {
-            ro.observe(row);
-        }
         return () => {
-            window.removeEventListener("scroll", measure);
             window.removeEventListener("resize", measure);
-            ro.disconnect();
             document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
             document.documentElement.style.removeProperty("--page-sidebar-sticky-top");
         };
-    }, [mainRowHeight, viewportTopOffset, isPhoneDropdownOpen, isMobileOpen, searchOpen]);
+    }, [mainRowHeight, isMainRowPinned, isPhoneDropdownOpen, isMobileOpen, searchOpen]);
 
     useEffect(() => {
         if (!isMobileOpen) {
@@ -261,7 +234,7 @@ export default function Header() {
             window.removeEventListener("resize", measureAnchor);
             ro?.disconnect();
         };
-    }, [isMobileOpen, menuTopOffset, mainRowHeight, searchOpen, viewportTopOffset, isMainRowPinned]);
+    }, [isMobileOpen, menuTopOffset, mainRowHeight, searchOpen, isMainRowPinned]);
 
     useEffect(() => {
         if (!isMobileOpen) {
@@ -391,12 +364,17 @@ export default function Header() {
             {/* Sentinel sits above sticky row: when it leaves, row is pinned (shadow). */}
             <div ref={mainRowSentinelRef} aria-hidden className="h-px w-full" />
 
+            {/* Mobile: always fixed + spacer. Service bar is md+ only, so no overlap. */}
+            <div className="md:hidden" style={{ height: mainRowHeight }} aria-hidden />
+
             <header
                 ref={mainRowRef}
-                className={`sticky z-[140] bg-admin-surface ${
-                    isMobileOpen ? "shadow-none" : "border-b border-admin-border"
-                } ${isMainRowPinned ? "shadow-admin-header" : ""}`}
-                style={{ top: `${viewportTopOffset}px` }}
+                className={[
+                    "z-[140] bg-admin-surface top-0",
+                    "fixed inset-x-0 md:sticky md:inset-x-auto",
+                    isMobileOpen ? "shadow-none" : "border-b border-admin-border",
+                    isMainRowPinned ? "shadow-admin-header" : "",
+                ].join(" ")}
             >
                 <HeaderMainRow
                     searchRef={searchRef}

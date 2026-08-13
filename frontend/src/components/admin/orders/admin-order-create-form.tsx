@@ -26,6 +26,7 @@ import {
 } from "@/lib/admin-warehouse-api";
 import {
   fetchProductById,
+  fetchProductVariantSuppliers,
   flattenProductSmartSearchHits,
   productSmartSearchAvailabilityClass,
   productSmartSearchAvailabilityLabel,
@@ -377,6 +378,64 @@ async function resolveMainLotChoices(
   return {
     choices,
     selected_lot_id: pickPreferredLotId(choices),
+  };
+}
+
+function fulfillmentOptionsFromVariantSuppliers(
+  suppliers: Array<{
+    offer_id: number;
+    supplier_name: string | null;
+    supplier_code: string | null;
+    supplier_product_name: string | null;
+    supplier_price: number | string | null;
+  }>,
+): OrderItemFulfillmentOption[] {
+  return suppliers
+    .map((row) => {
+      const offerId = Number(row.offer_id);
+      if (!Number.isFinite(offerId) || offerId <= 0) {
+        return null;
+      }
+      return {
+        channel: "offer" as const,
+        label: row.supplier_name?.trim() || "Офер",
+        code: row.supplier_code,
+        title: row.supplier_product_name,
+        purchase_price: row.supplier_price != null ? String(row.supplier_price) : null,
+        qty: 0,
+        offer_id: offerId,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null);
+}
+
+async function resolveOfferChoices(
+  productId: number,
+  variantId: number,
+  fulfillmentOptions: OrderItemFulfillmentOption[],
+): Promise<{
+  choices: OfferChoice[];
+  options: OrderItemFulfillmentOption[];
+  selected_offer_id: number | null;
+}> {
+  const fromOptions = offerChoicesFromFulfillment(fulfillmentOptions);
+  if (fromOptions.length > 0) {
+    return {
+      choices: fromOptions,
+      options: fulfillmentOptions,
+      selected_offer_id: pickPreferredOfferId(fromOptions),
+    };
+  }
+
+  const response = await fetchProductVariantSuppliers(productId, { variantId });
+  const variant =
+    (response.data ?? []).find((row) => row.id === variantId) ?? (response.data ?? [])[0];
+  const offerOptions = fulfillmentOptionsFromVariantSuppliers(variant?.suppliers ?? []);
+  const choices = offerChoicesFromFulfillment(offerOptions);
+  return {
+    choices,
+    options: [...fulfillmentOptions.filter((row) => row.channel !== "offer"), ...offerOptions],
+    selected_offer_id: pickPreferredOfferId(choices),
   };
 }
 
@@ -1020,6 +1079,7 @@ export default function AdminOrderCreateForm({
         if (choices.length === 0) {
           return;
         }
+        const nextOfferChoices = offerChoicesFromFulfillment(fulfillmentOptions);
         setLines((prev) =>
           prev.map((row, i) =>
             i === lineIdx
@@ -1027,11 +1087,13 @@ export default function AdminOrderCreateForm({
                   ...row,
                   main_lot_choices: choices,
                   selected_lot_id: row.selected_lot_id ?? selected_lot_id,
-                  offer_choices: offerChoicesFromFulfillment(fulfillmentOptions),
+                  offer_choices: nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
                   selected_offer_id:
                     channelFromSource(row.availability_source) === "offer"
                       ? (row.selected_offer_id ??
-                        pickPreferredOfferId(offerChoicesFromFulfillment(fulfillmentOptions)))
+                        pickPreferredOfferId(
+                          nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
+                        ))
                       : row.selected_offer_id,
                 }
               : row,
@@ -1044,22 +1106,70 @@ export default function AdminOrderCreateForm({
     [],
   );
 
+  const syncOfferChoicesForLine = useCallback(
+    async (
+      lineIdx: number,
+      productId: number,
+      variantId: number,
+      fulfillmentOptions: OrderItemFulfillmentOption[],
+    ) => {
+      try {
+        const { choices, options, selected_offer_id } = await resolveOfferChoices(
+          productId,
+          variantId,
+          fulfillmentOptions,
+        );
+        if (choices.length === 0) {
+          return;
+        }
+        setLines((prev) =>
+          prev.map((row, i) =>
+            i === lineIdx
+              ? {
+                  ...row,
+                  fulfillment_options: options,
+                  offer_choices: choices,
+                  selected_offer_id:
+                    channelFromSource(row.availability_source) === "offer"
+                      ? (row.selected_offer_id ?? selected_offer_id)
+                      : row.selected_offer_id,
+                }
+              : row,
+          ),
+        );
+      } catch {
+        // оферы опциональны до сохранения
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!initialOrder) {
       return;
     }
     lines.forEach((line, idx) => {
-      if (!line.variant_id || channelFromSource(line.availability_source) !== "main") {
+      if (!line.variant_id) {
         return;
       }
-      if (line.main_lot_choices.length > 0) {
-        return;
+      if (
+        channelFromSource(line.availability_source) === "main" &&
+        line.main_lot_choices.length === 0
+      ) {
+        void syncMainLotsForLine(idx, line.variant_id, line.fulfillment_options);
       }
-      void syncMainLotsForLine(idx, line.variant_id, line.fulfillment_options);
+      if (line.product_id && line.can_fulfill_offer && line.offer_choices.length === 0) {
+        void syncOfferChoicesForLine(
+          idx,
+          line.product_id,
+          line.variant_id,
+          line.fulfillment_options,
+        );
+      }
     });
     // только при открытии заказа на редактирование
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialOrder?.id, syncMainLotsForLine]);
+  }, [initialOrder?.id, syncMainLotsForLine, syncOfferChoicesForLine]);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState("");
@@ -1979,9 +2089,12 @@ export default function AdminOrderCreateForm({
       );
       setActiveLine(null);
       setPickerProductId(null);
+      const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
       if (variant.can_fulfill_main ?? variantPreview.can_fulfill_main) {
-        const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
         void syncMainLotsForLine(lineIdx, variant.id, priorOptions);
+      }
+      if (variant.can_fulfill_offer ?? variantPreview.can_fulfill_offer) {
+        void syncOfferChoicesForLine(lineIdx, detail.id, variant.id, priorOptions);
       }
     } finally {
       setLoadingProductLineIdx(null);
@@ -2026,6 +2139,14 @@ export default function AdminOrderCreateForm({
       const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
       void syncMainLotsForLine(lineIdx, v.id, priorOptions);
     }
+    if (v.can_fulfill_offer) {
+      void syncOfferChoicesForLine(
+        lineIdx,
+        detail.id,
+        v.id,
+        lines[lineIdx]?.fulfillment_options ?? [],
+      );
+    }
     setActiveLine(null);
     setPickerProductId(null);
     setProductHits([]);
@@ -2052,6 +2173,7 @@ export default function AdminOrderCreateForm({
 
   const setLineChannel = (idx: number, channel: FulfillmentChannel) => {
     if (itemsLocked) return;
+    const current = lines[idx];
     setLines((prev) =>
       prev.map((row, i) => {
         if (i !== idx) return row;
@@ -2084,6 +2206,19 @@ export default function AdminOrderCreateForm({
         };
       }),
     );
+    if (
+      channel === "offer" &&
+      current?.product_id &&
+      current.variant_id &&
+      current.offer_choices.length === 0
+    ) {
+      void syncOfferChoicesForLine(
+        idx,
+        current.product_id,
+        current.variant_id,
+        current.fulfillment_options,
+      );
+    }
   };
 
   const setLinePrice = (idx: number, price: number) => {

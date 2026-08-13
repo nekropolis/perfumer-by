@@ -219,12 +219,18 @@ export default function AdminWarehouseReceiptsPage() {
             return;
         }
 
+        setError("");
         try {
             await deleteStockReceipt(deleteTarget.id);
             setDeleteTarget(null);
             await loadReceipts(page, debouncedSearch, warehouseId);
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Не удалось удалить приход");
+            setDeleteTarget(null);
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : "Не удалось удалить приход. Если по партиям есть резервы — сначала снимите их.",
+            );
         }
     };
 
@@ -382,7 +388,15 @@ export default function AdminWarehouseReceiptsPage() {
             <AdminConfirmDialog
                 open={!!deleteTarget}
                 title="Удаление прихода"
-                message={deleteTarget ? `Удалить приход #${deleteTarget.document_no ?? deleteTarget.id}?` : ""}
+                message={
+                    deleteTarget
+                        ? `Удалить приход #${deleteTarget.document_no ?? deleteTarget.id}?${
+                              deleteTarget.status === STOCK_RECEIPT_STATUS.POSTED
+                                  ? " Документ оприходован: если по партиям есть резервы под заказы, удаление будет запрещено."
+                                  : ""
+                          }`
+                        : ""
+                }
                 confirmText="Удалить"
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={() => void confirmDelete()}

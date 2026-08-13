@@ -465,13 +465,13 @@ final class StockLotService
         $qty = (int) $item->qty;
         if ((int) $lot->reserved_qty > 0) {
             throw ValidationException::withMessages([
-                'receipt' => "Нельзя откатить приход: по партии #{$lot->id} есть резерв ({$lot->reserved_qty} шт.)",
+                'receipt' => "Нельзя удалить приход: по партии #{$lot->id} есть резерв ({$lot->reserved_qty} шт.). Сначала снимите резерв с заказов, привязанных к этой партии.",
             ]);
         }
 
         if ((int) $lot->qty < $qty) {
             throw ValidationException::withMessages([
-                'receipt' => "Нельзя откатить приход: по партии #{$lot->id} осталось {$lot->qty} шт., нужно {$qty}",
+                'receipt' => "Нельзя удалить приход: по партии #{$lot->id} осталось {$lot->qty} шт., нужно {$qty}. Часть товара уже списана или израсходована.",
             ]);
         }
 

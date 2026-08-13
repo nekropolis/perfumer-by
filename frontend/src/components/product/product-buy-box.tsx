@@ -138,9 +138,16 @@ export default function ProductBuyBox({
             return;
         }
 
+        // Lift only for the virtual keyboard — visualViewport scroll during iOS
+        // overscroll otherwise pulls the bar off the bottom edge.
         const updateViewportOffsets = () => {
             const vv = window.visualViewport;
             if (!vv) {
+                setMobileBarBottomOffset(0);
+                return;
+            }
+            const shrunkBy = window.innerHeight - vv.height;
+            if (shrunkBy <= 120) {
                 setMobileBarBottomOffset(0);
                 return;
             }
@@ -149,11 +156,11 @@ export default function ProductBuyBox({
 
         updateViewportOffsets();
         window.visualViewport?.addEventListener("resize", updateViewportOffsets);
-        window.visualViewport?.addEventListener("scroll", updateViewportOffsets);
+        window.addEventListener("resize", updateViewportOffsets);
 
         return () => {
             window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
-            window.visualViewport?.removeEventListener("scroll", updateViewportOffsets);
+            window.removeEventListener("resize", updateViewportOffsets);
         };
     }, [showMobile]);
 

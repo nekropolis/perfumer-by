@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
@@ -14,7 +15,9 @@ import {
     fetchStockReceipt,
     fetchWarehouses,
     fetchWarehouseSuppliers,
+    importStockReceiptSupplierXlsx,
     lookupStockReceiptBySku,
+    postAndDistributeStockReceipt,
     postStockReceipt,
     updateStockReceipt,
     type StockReceiptPayload,
@@ -30,6 +33,7 @@ import {
     type ProductSmartSearchVariantPreview,
 } from "@/lib/admin-products-api";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
+import { adminIconBtn, adminInput } from "@/lib/admin-ui-classes";
 
 type ReceiptFormItem = {
     product_id: number | null;
@@ -108,6 +112,8 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [loading, setLoading] = useState(isEdit);
     const [saving, setSaving] = useState(false);
     const [posting, setPosting] = useState(false);
+    const [distributing, setDistributing] = useState(false);
+    const [importingXlsx, setImportingXlsx] = useState(false);
     const [error, setError] = useState("");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
@@ -115,6 +121,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
     const [successMessage, setSuccessMessage] = useState("");
     const [skuLookupPending, setSkuLookupPending] = useState(false);
     const supplierProductNameTouchedRef = useRef(false);
+    const xlsxInputRef = useRef<HTMLInputElement | null>(null);
     const debouncedSupplierSku = useDebouncedValue(draftItem.supplier_sku, 350);
     const debouncedProductQuery = useDebouncedValue(draftItem.product_query, 350);
 
@@ -382,6 +389,61 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         }
     };
 
+    const postAndDistributeReceipt = async () => {
+        if (!isEdit || !receiptId) {
+            return;
+        }
+        setDistributing(true);
+        setError("");
+        try {
+            const res = await postAndDistributeStockReceipt(receiptId);
+            setReceiptStatus(res.data.status ?? STOCK_RECEIPT_STATUS.POSTED);
+            const distributed = typeof res.distributed_items === "number" ? res.distributed_items : 0;
+            const updatedOrders = typeof res.updated_orders === "number" ? res.updated_orders : 0;
+            const statusChanged = typeof res.status_changed_orders === "number" ? res.status_changed_orders : 0;
+            setSuccessMessage(
+                res.message
+                    || `Приход разнесён и оприходован. Позиций: ${distributed}, заказов: ${updatedOrders}, статусов «На складе»: ${statusChanged}`,
+            );
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось разнести и провести приход");
+        } finally {
+            setDistributing(false);
+        }
+    };
+
+    const importSupplierXlsx = async (file: File) => {
+        if (!form.supplier_id) {
+            setError("Сначала выберите поставщика");
+            return;
+        }
+        setImportingXlsx(true);
+        setError("");
+        try {
+            const res = await importStockReceiptSupplierXlsx({
+                file,
+                supplier_id: form.supplier_id,
+                warehouse_id: form.warehouse_id,
+                supplier_code: form.supplier_code || null,
+                supplier_name: form.supplier_name || null,
+                received_at: form.received_at || null,
+                comment: form.comment.trim() || null,
+            });
+            const createdId = res.data?.id;
+            if (!createdId) {
+                throw new Error("Не получен id черновика прихода");
+            }
+            router.replace(`/admin/warehouse/receipts/${createdId}/edit`);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить XLSX");
+        } finally {
+            setImportingXlsx(false);
+            if (xlsxInputRef.current) {
+                xlsxInputRef.current.value = "";
+            }
+        }
+    };
+
     const readOnlyPosted = isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED;
 
     const addDraftItem = () => {
@@ -529,35 +591,61 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
 
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-                        {isEdit ? `Редактировать приход #${receiptId}` : "Новый приход"}
-                    </h1>
-                    {isEdit && receiptStatus ? (
-                        <p className="mt-1 text-sm font-medium text-slate-700">
-                            Статус: {getStockReceiptStatusLabel(receiptStatus)}
-                        </p>
-                    ) : null}
-                    <p className="mt-1 text-sm text-slate-600">
-                        Сначала сохраняется черновик; проведение (оприходование) переносит товар на склад и обновляет цены.
-                        Отмена проводки пока недоступна.
-                    </p>
+                    <div className="flex items-start gap-3">
+                        <Link
+                            href="/admin/warehouse/receipts"
+                            className={`${adminIconBtn} mt-0.5`}
+                            aria-label="Назад к списку приходов"
+                            title="Назад"
+                        >
+                            <ArrowLeft className="h-4 w-4" aria-hidden />
+                        </Link>
+                        <div>
+                            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+                                {isEdit ? `Редактировать приход #${receiptId}` : "Новый приход"}
+                            </h1>
+                            {isEdit && receiptStatus ? (
+                                <p className="mt-1 text-sm font-medium text-slate-700">
+                                    Статус: {getStockReceiptStatusLabel(receiptStatus)}
+                                </p>
+                            ) : null}
+                            <p className="mt-1 text-sm text-slate-600">
+                                Сначала сохраняется черновик; проведение (оприходование) переносит товар на склад и обновляет цены.
+                                Отмена проводки пока недоступна.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                    <Link
-                        href="/admin/warehouse/receipts"
-                        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 text-sm font-medium text-admin-text hover:bg-admin-muted sm:w-auto"
-                    >
-                        Назад
-                    </Link>
                     {isEdit && receiptStatus === STOCK_RECEIPT_STATUS.DRAFT ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => void postAndDistributeReceipt()}
+                                disabled={posting || distributing || loading || saving}
+                                className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-sky-700 bg-sky-50 px-4 text-sm font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-60 sm:w-auto"
+                            >
+                                {distributing ? "Разносим..." : "Разнести и провести"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void postReceipt()}
+                                disabled={posting || distributing || loading || saving}
+                                className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-emerald-700 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60 sm:w-auto"
+                            >
+                                {posting ? "Проводим..." : "Провести оприходование"}
+                            </button>
+                        </>
+                    ) : null}
+                    {isEdit && receiptStatus === STOCK_RECEIPT_STATUS.POSTED ? (
                         <button
                             type="button"
-                            onClick={() => void postReceipt()}
-                            disabled={posting || loading || saving}
-                            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-emerald-700 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60 sm:w-auto"
+                            onClick={() => void postAndDistributeReceipt()}
+                            disabled={distributing || loading}
+                            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-sky-700 bg-sky-50 px-4 text-sm font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-60 sm:w-auto"
                         >
-                            {posting ? "Проводим..." : "Провести оприходование"}
+                            {distributing ? "Разносим..." : "Разнести по заказам"}
                         </button>
                     ) : null}
                     <button
@@ -597,32 +685,33 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                 <div className="space-y-4">
                     <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-3 shadow-sm sm:p-4">
                         <div className="flex flex-wrap items-end gap-3 xl:flex-nowrap">
-                            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm">
-                                <span className="text-slate-600">Склад</span>
-                                <select
-                                    value={form.warehouse_id ?? ""}
+                            <div className="flex min-w-[220px] flex-1 flex-col gap-1.5 text-sm">
+                                <span className="font-medium text-admin-text-secondary">Склад</span>
+                                <AdminStatusDropdown
+                                    value={form.warehouse_id != null ? String(form.warehouse_id) : ""}
+                                    onChangeAction={(value) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            warehouse_id: value ? Number(value) : null,
+                                        }))
+                                    }
+                                    options={warehouses.map((item) => ({
+                                        value: String(item.id),
+                                        label: item.name,
+                                    }))}
+                                    widthClassName="w-full"
+                                    menuWidthClassName="w-max"
                                     disabled={readOnlyPosted}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, warehouse_id: e.target.value ? Number(e.target.value) : null }))}
-                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
-                                >
-                                    <option value="">Выберите склад</option>
-                                    {warehouses.map((item) => (
-                                        <option key={item.id} value={item.id}>
-                                            {item.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm">
-                                <span className="text-slate-600">
+                                />
+                            </div>
+                            <div className="flex min-w-[220px] flex-1 flex-col gap-1.5 text-sm">
+                                <span className="font-medium text-admin-text-secondary">
                                     Поставщик <span className="text-red-600">*</span>
                                 </span>
-                                <select
-                                    required
-                                    value={form.supplier_id ?? ""}
-                                    disabled={readOnlyPosted}
-                                    onChange={(e) => {
-                                        const supplierId = e.target.value ? Number(e.target.value) : null;
+                                <AdminStatusDropdown
+                                    value={form.supplier_id != null ? String(form.supplier_id) : ""}
+                                    onChangeAction={(value) => {
+                                        const supplierId = value ? Number(value) : null;
                                         const supplier = suppliers.find((item) => item.id === supplierId) ?? null;
                                         setForm((prev) => ({
                                             ...prev,
@@ -631,25 +720,25 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                                             supplier_name: supplier?.name ?? "",
                                         }));
                                     }}
-                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
-                                >
-                                    <option value="">Выберите поставщика</option>
-                                    {suppliers.map((item) => (
-                                        <option key={item.id} value={item.id}>
-                                            {item.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
+                                    options={suppliers.map((item) => ({
+                                        value: String(item.id),
+                                        label: item.name,
+                                    }))}
+                                    placeholder="Выберите поставщика"
+                                    widthClassName="w-full"
+                                    menuWidthClassName="w-max"
+                                    disabled={readOnlyPosted}
+                                />
+                            </div>
 
-                            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm xl:w-[260px] xl:min-w-[260px] xl:shrink-0">
-                                <span className="text-slate-600">Дата прихода</span>
+                            <label className="flex min-w-[220px] flex-1 flex-col gap-1.5 text-sm xl:w-[260px] xl:min-w-[260px] xl:shrink-0">
+                                <span className="font-medium text-admin-text-secondary">Дата прихода</span>
                                 <input
                                     type="datetime-local"
                                     value={form.received_at}
                                     disabled={readOnlyPosted}
                                     onChange={(e) => setForm((prev) => ({ ...prev, received_at: e.target.value }))}
-                                    className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white disabled:opacity-60"
+                                    className={`${adminInput} disabled:cursor-not-allowed disabled:opacity-60`}
                                 />
                             </label>
                         </div>
@@ -669,14 +758,49 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
                     <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-sm">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                             <div className="text-sm font-semibold text-slate-900">Документ</div>
-                            <button
-                                type="button"
-                                onClick={openAddItemModal}
-                                disabled={readOnlyPosted}
-                                className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
-                            >
-                                Добавить товар
-                            </button>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                <input
+                                    ref={xlsxInputRef}
+                                    type="file"
+                                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            void importSupplierXlsx(file);
+                                        }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!form.supplier_id) {
+                                            setError("Сначала выберите поставщика");
+                                            return;
+                                        }
+                                        xlsxInputRef.current?.click();
+                                    }}
+                                    disabled={readOnlyPosted || importingXlsx || isEdit || !form.supplier_id}
+                                    className="inline-flex h-10 items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 text-sm font-medium text-admin-text hover:bg-admin-muted disabled:opacity-60"
+                                    title={
+                                        !form.supplier_id
+                                            ? "Сначала выберите поставщика"
+                                            : isEdit
+                                              ? "Загрузка XLSX доступна при создании нового прихода"
+                                              : undefined
+                                    }
+                                >
+                                    {importingXlsx ? "Загружаем..." : "Приход XLSX"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openAddItemModal}
+                                    disabled={readOnlyPosted}
+                                    className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-60"
+                                >
+                                    Добавить товар
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-3 sm:p-4">

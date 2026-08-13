@@ -71,43 +71,57 @@ class StockReceiptService
     {
         return $this->inventoryService->runWithCatalogCacheCommit(function () use ($receipt): StockReceipt {
             return DB::transaction(function () use ($receipt): StockReceipt {
-            if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
-                abort(422, 'Можно провести только черновик прихода');
-            }
-
-            $receipt->load('items');
-            if ($receipt->items->isEmpty()) {
-                abort(422, 'Нельзя провести пустой приход');
-            }
-
-            foreach ($receipt->items as $item) {
-                $this->applyPostedInventoryForItem($receipt, $item);
-            }
-
-            $receipt->update([
-                'status' => StockReceipt::STATUS_POSTED,
-                'updated_by' => Auth::id(),
-            ]);
-
-            $receipt->refresh();
-
-            $this->writeAudit(
-                AuditLogService::ENTITY_STOCK_RECEIPT,
-                $receipt->id,
-                AuditLogService::ACTION_UPDATED,
-                "Проведён приход (оприходован) #{$receipt->document_no}",
-                [
-                    'supplier_name' => $receipt->supplier_name,
-                    'items_count' => $receipt->items->count(),
-                    'warehouse_id' => $receipt->warehouse_id,
-                    'warehouse_name' => Warehouse::query()->find((int) $receipt->warehouse_id)?->name,
-                ],
-                (int) $receipt->warehouse_id
-            );
-
-            return $receipt->fresh(['supplier', 'items']);
+                return $this->postInTransaction($receipt);
             });
         });
+    }
+
+    /**
+     * Проводка внутри уже открытой транзакции / catalog-cache commit.
+     *
+     * Передайте $receipt->setAttribute('skip_retail_price_update', true),
+     * чтобы не пересчитывать розничную цену (закупка в лоты сохраняется).
+     */
+    public function postInTransaction(StockReceipt $receipt): StockReceipt
+    {
+        $updateRetailPrice = ! (bool) $receipt->getAttribute('skip_retail_price_update');
+        $receipt->offsetUnset('skip_retail_price_update');
+
+        if ($receipt->status !== StockReceipt::STATUS_DRAFT) {
+            abort(422, 'Можно провести только черновик прихода');
+        }
+
+        $receipt->load('items');
+        if ($receipt->items->isEmpty()) {
+            abort(422, 'Нельзя провести пустой приход');
+        }
+
+        foreach ($receipt->items as $item) {
+            $this->applyPostedInventoryForItem($receipt, $item, $updateRetailPrice);
+        }
+
+        $receipt->update([
+            'status' => StockReceipt::STATUS_POSTED,
+            'updated_by' => Auth::id(),
+        ]);
+
+        $receipt->refresh();
+
+        $this->writeAudit(
+            AuditLogService::ENTITY_STOCK_RECEIPT,
+            $receipt->id,
+            AuditLogService::ACTION_UPDATED,
+            "Проведён приход (оприходован) #{$receipt->document_no}",
+            [
+                'supplier_name' => $receipt->supplier_name,
+                'items_count' => $receipt->items->count(),
+                'warehouse_id' => $receipt->warehouse_id,
+                'warehouse_name' => Warehouse::query()->find((int) $receipt->warehouse_id)?->name,
+            ],
+            (int) $receipt->warehouse_id
+        );
+
+        return $receipt->fresh(['supplier', 'items']);
     }
 
     /**
@@ -286,8 +300,11 @@ class StockReceiptService
         ]);
     }
 
-    private function applyPostedInventoryForItem(StockReceipt $receipt, StockReceiptItem $storedItem): void
-    {
+    private function applyPostedInventoryForItem(
+        StockReceipt $receipt,
+        StockReceiptItem $storedItem,
+        bool $updateRetailPrice = true,
+    ): void {
         $variant = ProductVariantLink::query()->findOrFail((int) $storedItem->variant_id);
 
         $qty = (int) $storedItem->qty;
@@ -295,7 +312,7 @@ class StockReceiptService
         $isMainWarehouseReceipt = (int) $receipt->warehouse_id === $this->inventoryService->getMainWarehouseId();
 
         $retailPrice = null;
-        if ($supplierPrice > 0 && ! $isMainWarehouseReceipt) {
+        if ($updateRetailPrice && $supplierPrice > 0 && ! $isMainWarehouseReceipt) {
             $retailPrice = round($this->pricingService->calculateRetailPriceForWarehouse(
                 $variant,
                 (int) $receipt->warehouse_id,
@@ -327,7 +344,7 @@ class StockReceiptService
 
         $this->stockLotService->createFromReceiptItem($receipt, $storedItem);
 
-        if ($isMainWarehouseReceipt && $supplierPrice > 0) {
+        if ($updateRetailPrice && $isMainWarehouseReceipt && $supplierPrice > 0) {
             $variantId = (int) $storedItem->variant_id;
             $warehouseId = (int) $receipt->warehouse_id;
             $avgMap = $this->stockLotService->avgPurchaseByVariant([$variantId], $warehouseId);

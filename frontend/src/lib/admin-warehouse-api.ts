@@ -35,6 +35,51 @@ function getAdminAuthHeaders() {
     };
 }
 
+function readApiErrorMessage(raw: string, fallback: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return fallback;
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed) as {
+            message?: unknown;
+            errors?: Record<string, unknown>;
+        };
+        const message = typeof parsed.message === "string" ? parsed.message.trim() : "";
+        if (message && !message.toLowerCase().includes("given data was invalid")) {
+            return message;
+        }
+
+        const errors = parsed.errors;
+        if (errors && typeof errors === "object") {
+            const parts: string[] = [];
+            for (const value of Object.values(errors)) {
+                if (Array.isArray(value)) {
+                    for (const item of value) {
+                        if (typeof item === "string" && item.trim()) {
+                            parts.push(item.trim());
+                        }
+                    }
+                } else if (typeof value === "string" && value.trim()) {
+                    parts.push(value.trim());
+                }
+            }
+            if (parts.length > 0) {
+                return parts.join(" ");
+            }
+        }
+
+        if (message) {
+            return message;
+        }
+    } catch {
+        // not JSON
+    }
+
+    return trimmed.replace(/\s+/g, " ").slice(0, 400) || fallback;
+}
+
 export type WarehouseSupplierOption = {
     id: number;
     name: string;
@@ -530,7 +575,7 @@ export async function deleteStockReceipt(id: number | string): Promise<{ message
 
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `Delete stock receipt API error: ${res.status}`);
+        throw new Error(readApiErrorMessage(text, `Не удалось удалить приход (${res.status})`));
     }
 
     return res.json();
@@ -712,6 +757,62 @@ export async function postStockReceipt(id: number | string): Promise<{ message?:
     }
 
     return res.json() as Promise<{ message?: string; data: StockReceiptListItem }>;
+}
+
+export async function importStockReceiptSupplierXlsx(payload: {
+    file: File;
+    supplier_id: number;
+    warehouse_id?: number | null;
+    supplier_code?: string | null;
+    supplier_name?: string | null;
+    received_at?: string | null;
+    comment?: string | null;
+}): Promise<{ message?: string; data: StockReceiptListItem }> {
+    const formData = new FormData();
+    formData.append("file", payload.file);
+    formData.append("supplier_id", String(payload.supplier_id));
+    if (typeof payload.warehouse_id === "number") formData.append("warehouse_id", String(payload.warehouse_id));
+    if (payload.supplier_code) formData.append("supplier_code", payload.supplier_code);
+    if (payload.supplier_name) formData.append("supplier_name", payload.supplier_name);
+    if (payload.received_at) formData.append("received_at", payload.received_at);
+    if (payload.comment) formData.append("comment", payload.comment);
+
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/import-supplier-xlsx`, {
+        method: "POST",
+        headers: getAdminAuthHeaders(),
+        body: formData,
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Import supplier XLSX receipt API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message?: string; data: StockReceiptListItem }>;
+}
+
+export async function postAndDistributeStockReceipt(
+    id: number | string
+): Promise<{
+    message?: string;
+    data: StockReceiptListItem;
+    distributed_items?: number;
+    updated_orders?: number;
+    status_changed_orders?: number;
+}> {
+    const res = await fetch(`${API_BASE}/admin/stock/receipts/${id}/post-and-distribute`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Post and distribute stock receipt API error: ${res.status}`);
+    }
+
+    return res.json();
 }
 
 export async function importStockReceiptXls(

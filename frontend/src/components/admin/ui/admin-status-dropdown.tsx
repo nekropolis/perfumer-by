@@ -18,6 +18,8 @@ type Props = {
     options: Option[];
     onChangeAction: (value: string) => void;
     disabled?: boolean;
+    /** Текст на закрытом триггере, если value пустой / нет совпадения. Не показывается в меню. */
+    placeholder?: string;
     /** «text» — solid pill-бейдж фиксированной ширины в таблице. */
     triggerVariant?: "default" | "text";
     /** Классы для `triggerVariant="text"`. */
@@ -43,6 +45,7 @@ export default function AdminStatusDropdown({
     options,
     onChangeAction,
     disabled = false,
+    placeholder,
     triggerVariant = "default",
     triggerTextClassName,
     triggerColor,
@@ -60,7 +63,10 @@ export default function AdminStatusDropdown({
         () => options.find((item) => item.value === value),
         [options, value],
     );
-    const currentLabel = currentOption?.triggerLabel ?? currentOption?.label ?? value;
+    const currentLabel =
+        currentOption?.triggerLabel
+        ?? currentOption?.label
+        ?? (placeholder && !currentOption ? placeholder : value);
     const resolvedTriggerColor = triggerColor?.trim() || currentOption?.color?.trim() || undefined;
     const pillStyle = resolvedTriggerColor ? orderStatusPillStyle(resolvedTriggerColor) : null;
     const pillClassName =

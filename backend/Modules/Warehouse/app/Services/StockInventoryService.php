@@ -195,6 +195,14 @@ class StockInventoryService
         });
     }
 
+    /**
+     * Резерв без отдельного catalog-cache commit (для вызова из уже открытого commit).
+     */
+    public function reserveForOrderInTransaction(Order $order): array
+    {
+        return $this->reserveForOrderInternal($order);
+    }
+
     private function reserveForOrderInternal(Order $order): array
     {
         $created = 0;
@@ -236,6 +244,14 @@ class StockInventoryService
         return $this->withCatalogCacheCommit(function () use ($order, $reason): array {
             return $this->releaseForOrderInternal($order, $reason);
         });
+    }
+
+    /**
+     * Снятие резерва без отдельного catalog-cache commit.
+     */
+    public function releaseForOrderInTransaction(Order $order, string $reason = 'cancelled'): array
+    {
+        return $this->releaseForOrderInternal($order, $reason);
     }
 
     private function releaseForOrderInternal(Order $order, string $reason = 'cancelled'): array

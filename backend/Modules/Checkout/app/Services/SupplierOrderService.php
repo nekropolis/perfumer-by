@@ -15,14 +15,22 @@ class SupplierOrderService
 {
     public const CUSTOMER_STATUS_ORDERED = 'order';
 
+    /** Заказ нельзя частично отдать поставщику — ждём появления всех позиций. */
+    public const CUSTOMER_STATUS_WAITING_APPEARANCE = 'v_ozidanii_poiavleniia';
+
     /**
      * Collect offer-selected lines from «Товары для заказов» and append to draft supplier orders.
+     *
+     * В заявку попадают только заказы, где каждая позиция либо на складе, либо с выбранным офером.
+     * Если часть позиций «висячая» (нет ни склада, ни офера) — заказ целиком пропускаем
+     * и переводим в «Ожидает появления».
      *
      * @return array{
      *     added: int,
      *     skipped: int,
      *     skipped_order_item_ids: list<int>,
      *     updated_order_ids: list<int>,
+     *     ignored_order_ids: list<int>,
      *     draft_order_ids: list<int>
      * }
      */
@@ -35,6 +43,7 @@ class SupplierOrderService
                 'skipped' => 0,
                 'skipped_order_item_ids' => [],
                 'updated_order_ids' => [],
+                'ignored_order_ids' => [],
                 'draft_order_ids' => [],
             ];
         }
@@ -76,39 +85,68 @@ class SupplierOrderService
             ->all();
         $existingDraftSet = array_fill_keys($existingDraftOrderItemIds, true);
 
+        $itemsByOrder = $items->groupBy(fn (OrderItem $item) => (int) $item->order_id);
+
         $candidates = [];
         $skippedOrderItemIds = [];
+        $ignoredOrderIds = [];
 
-        foreach ($items as $item) {
-            $selected = $this->resolveSelectedOffer($item, $offersByVariant);
-            if ($selected === null) {
+        foreach ($itemsByOrder as $orderId => $orderItems) {
+            $orderId = (int) $orderId;
+            $supplierCandidates = [];
+            $hasUnresolved = false;
+
+            foreach ($orderItems as $item) {
+                if ($this->itemIsWarehouseChannel($item)) {
+                    continue;
+                }
+
+                $selected = $this->resolveSelectedOffer($item, $offersByVariant);
+                if ($selected !== null) {
+                    $orderItemId = (int) $item->id;
+                    if (isset($existingDraftSet[$orderItemId])) {
+                        $skippedOrderItemIds[] = $orderItemId;
+
+                        continue;
+                    }
+
+                    $supplierCandidates[] = [
+                        'item' => $item,
+                        'offer' => $selected,
+                    ];
+
+                    continue;
+                }
+
+                // Ни склад, ни выбранный офер — заказ нельзя дробить.
+                $hasUnresolved = true;
+            }
+
+            if ($hasUnresolved) {
+                if ($supplierCandidates !== []) {
+                    $ignoredOrderIds[] = $orderId;
+                }
+
                 continue;
             }
 
-            $orderItemId = (int) $item->id;
-            if (isset($existingDraftSet[$orderItemId])) {
-                $skippedOrderItemIds[] = $orderItemId;
-
-                continue;
+            foreach ($supplierCandidates as $row) {
+                $candidates[] = $row;
             }
-
-            $candidates[] = [
-                'item' => $item,
-                'offer' => $selected,
-            ];
         }
 
-        if ($candidates === []) {
+        if ($candidates === [] && $ignoredOrderIds === []) {
             return [
                 'added' => 0,
                 'skipped' => count($skippedOrderItemIds),
                 'skipped_order_item_ids' => $skippedOrderItemIds,
                 'updated_order_ids' => [],
+                'ignored_order_ids' => [],
                 'draft_order_ids' => [],
             ];
         }
 
-        return DB::transaction(function () use ($candidates, $skippedOrderItemIds) {
+        return DB::transaction(function () use ($candidates, $skippedOrderItemIds, $ignoredOrderIds) {
             $draftOrdersBySupplier = [];
             $updatedOrderIds = [];
             $added = 0;
@@ -180,11 +218,21 @@ class SupplierOrderService
                     ->update(['status' => self::CUSTOMER_STATUS_ORDERED]);
             }
 
+            $ignoredUnique = array_values(array_unique(array_map('intval', $ignoredOrderIds)));
+            // Не трогаем заказы, которые всё же попали в заявку.
+            $ignoredUnique = array_values(array_diff($ignoredUnique, $orderIds));
+            if ($ignoredUnique !== []) {
+                Order::query()
+                    ->whereIn('id', $ignoredUnique)
+                    ->update(['status' => self::CUSTOMER_STATUS_WAITING_APPEARANCE]);
+            }
+
             return [
                 'added' => $added,
                 'skipped' => count($skippedOrderItemIds),
                 'skipped_order_item_ids' => $skippedOrderItemIds,
                 'updated_order_ids' => $orderIds,
+                'ignored_order_ids' => $ignoredUnique,
                 'draft_order_ids' => collect($draftOrdersBySupplier)
                     ->pluck('id')
                     ->map(fn ($id) => (int) $id)
@@ -416,19 +464,11 @@ class SupplierOrderService
         OrderItem $item,
         $offersByVariant,
     ): ?SupplierVariantOffer {
-        $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
-        $waitingDiscount = (bool) ($item->waiting_discount ?? false);
-        $useMain = in_array($availabilitySource, ['main', 'main+supplier'], true) && ! $waitingDiscount;
-        $useOffer = in_array($availabilitySource, ['supplier_only', 'supplier_warehouse'], true)
-            || ($availabilitySource === 'main+supplier' && $waitingDiscount);
-        $selectedOfferId = (int) ($item->supplier_variant_offer_id ?? 0);
-
-        // Склад выбран — в заявку к поставщику не берём.
-        if ($useMain) {
+        if ($this->itemIsWarehouseChannel($item)) {
             return null;
         }
 
-        if (! $useOffer) {
+        if (! $this->itemIsSupplierChannel($item)) {
             return null;
         }
 
@@ -437,15 +477,32 @@ class SupplierOrderService
             return null;
         }
 
+        $selectedOfferId = (int) ($item->supplier_variant_offer_id ?? 0);
         if ($selectedOfferId > 0) {
             $offer = $offers->first(fn (SupplierVariantOffer $o) => (int) $o->id === $selectedOfferId);
 
             return $offer instanceof SupplierVariantOffer ? $offer : null;
         }
 
-        $first = $offers->first();
+        // Без явно выбранного офера позицию не считаем «есть у поставщика».
+        return null;
+    }
 
-        return $first instanceof SupplierVariantOffer ? $first : null;
+    private function itemIsWarehouseChannel(OrderItem $item): bool
+    {
+        $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
+        $waitingDiscount = (bool) ($item->waiting_discount ?? false);
+
+        return in_array($availabilitySource, ['main', 'main+supplier'], true) && ! $waitingDiscount;
+    }
+
+    private function itemIsSupplierChannel(OrderItem $item): bool
+    {
+        $availabilitySource = (string) ($item->availability_source ?? 'unavailable');
+        $waitingDiscount = (bool) ($item->waiting_discount ?? false);
+
+        return in_array($availabilitySource, ['supplier_only', 'supplier_warehouse'], true)
+            || ($availabilitySource === 'main+supplier' && $waitingDiscount);
     }
 
     /**

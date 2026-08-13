@@ -854,9 +854,18 @@ export default function AdminOrdersPage() {
         try {
             const response = await createSupplierOrderDraftFromReservations();
             const added = response.data.added ?? 0;
+            const ignored = Array.isArray(response.data.ignored_order_ids)
+                ? response.data.ignored_order_ids.length
+                : 0;
             setToast({
-                type: added > 0 ? "success" : "error",
-                message: response.message || (added > 0 ? "Заявка сформирована" : "Нет позиций для заявки"),
+                type: added > 0 ? "success" : ignored > 0 ? "error" : "error",
+                message:
+                    response.message
+                    || (added > 0
+                        ? "Заявка сформирована"
+                        : ignored > 0
+                          ? `Нет позиций для заявки. Пропущено заказов: ${ignored}`
+                          : "Нет позиций для заявки"),
             });
             const report = await fetchSupplierOrderReservationsReport({
                 page: 1,
@@ -2302,7 +2311,7 @@ export default function AdminOrdersPage() {
             <AdminConfirmDialog
                 open={supplierDraftConfirmOpen}
                 title="Сформировать заявку?"
-                message="В заявку попадут позиции с выбранным офером поставщика. Складские позиции будут пропущены. У затронутых заказов статус сменится на «Заказан»."
+                message="В заявку попадут только заказы, где все позиции закрыты: либо склад, либо выбранный офер поставщика. Если в заказе есть «дырка» (позиция без склада и без офера) — такие заказы не дробятся, в заявку не попадают и получают статус «Ожидает появления». У полностью закрытых заказов статус сменится на «Заказан»."
                 confirmText="Сформировать"
                 cancelText="Отмена"
                 confirmLoadingText="Формирование…"

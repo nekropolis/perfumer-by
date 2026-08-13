@@ -52,6 +52,7 @@ export type DraftFromReservationsResult = {
   skipped: number;
   skipped_order_item_ids: number[];
   updated_order_ids: number[];
+  ignored_order_ids: number[];
   draft_order_ids: number[];
 };
 

@@ -19,14 +19,24 @@ class SupplierOrderController extends Controller
     public function draftFromReservations(): JsonResponse
     {
         $result = $this->service->draftFromReservations();
+        $added = (int) ($result['added'] ?? 0);
+        $ignored = count($result['ignored_order_ids'] ?? []);
+
+        if ($added > 0 && $ignored > 0) {
+            $message = "Заявка сформирована. Пропущено заказов с неполным набором позиций: {$ignored} (статус «Ожидает появления»).";
+        } elseif ($added > 0) {
+            $message = 'Заявка сформирована.';
+        } elseif ($ignored > 0) {
+            $message = "Нет позиций для заявки. Заказов с неполным набором: {$ignored} — переведены в «Ожидает появления».";
+        } elseif (($result['skipped'] ?? 0) > 0) {
+            $message = 'Новых позиций нет: выбранные оферы уже в заявке.';
+        } else {
+            $message = 'Нет позиций с выбранным офером для заявки.';
+        }
 
         return response()->json([
             'data' => $result,
-            'message' => $result['added'] > 0
-                ? 'Заявка сформирована.'
-                : ($result['skipped'] > 0
-                    ? 'Новых позиций нет: выбранные оферы уже в заявке.'
-                    : 'Нет позиций с выбранным офером для заявки.'),
+            'message' => $message,
         ]);
     }
 

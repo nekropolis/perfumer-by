@@ -15,6 +15,8 @@ use Modules\Warehouse\Models\StockReceiptItem;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\StockReceiptService;
 use Modules\Warehouse\Services\StockReceiptXlsImportService;
+use Modules\Warehouse\Services\StockReceiptSupplierXlsxImportService;
+use Modules\Warehouse\Services\StockReceiptPreorderDistributionService;
 
 class StockReceiptController extends Controller
 {
@@ -265,6 +267,42 @@ class StockReceiptController extends Controller
         ], 201);
     }
 
+    public function importSupplierXlsx(Request $request, StockReceiptSupplierXlsxImportService $service): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx'],
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
+            'supplier_code' => ['nullable', 'string', 'max:100'],
+            'supplier_name' => ['nullable', 'string', 'max:255'],
+            'received_at' => ['nullable', 'date'],
+            'comment' => ['nullable', 'string'],
+        ]);
+
+        $receipt = $service->importDraft($request->file('file'), $validated);
+
+        return response()->json([
+            'message' => 'Черновик прихода из XLSX создан',
+            'data' => $receipt,
+        ], 201);
+    }
+
+    public function postAndDistribute(
+        int $id,
+        StockReceiptPreorderDistributionService $service,
+    ): JsonResponse {
+        $receipt = StockReceipt::query()->findOrFail($id);
+        $result = $service->postAndDistribute($receipt);
+
+        return response()->json([
+            'message' => 'Приход разнесён и оприходован',
+            'data' => $result['receipt'],
+            'distributed_items' => $result['distributed_items'],
+            'updated_orders' => $result['updated_orders'],
+            'status_changed_orders' => $result['status_changed_orders'],
+        ]);
+    }
+
     public function update(Request $request, int $id, StockReceiptService $service): JsonResponse
     {
         $receipt = StockReceipt::query()->findOrFail($id);
@@ -290,6 +328,7 @@ class StockReceiptController extends Controller
     {
         $items = Supplier::query()
             ->where('is_active', true)
+            ->where('code', '!=', Supplier::CODE_VANILLE)
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
 
