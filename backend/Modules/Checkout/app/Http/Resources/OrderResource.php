@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
 use Modules\Catalog\Models\ProductVariantLink;
-use Modules\Catalog\Support\CatalogProductAttributeIds;
+use Modules\Catalog\Services\ProductMadeInCountrySyncService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
@@ -558,24 +558,7 @@ class OrderResource extends JsonResource
             return null;
         }
 
-        foreach ($item->product->attributeValues as $value) {
-            if ((int) $value->product_attribute_id !== CatalogProductAttributeIds::MADE_IN_ATTRIBUTE_ID) {
-                continue;
-            }
-
-            if ($value->relationLoaded('selectedOptions')) {
-                $option = $value->selectedOptions->first(fn ($selected) => $selected->productAttributeOption !== null);
-                $optionName = trim((string) ($option?->productAttributeOption?->name ?? ''));
-                if ($optionName !== '') {
-                    return $optionName;
-                }
-            }
-
-            $customValue = trim((string) ($value->custom_value ?? ''));
-            return $customValue !== '' ? $customValue : null;
-        }
-
-        return null;
+        return ProductMadeInCountrySyncService::countryFromAttributeValues($item->product->attributeValues);
     }
 
     private function paymentMethodLabel(string $method): ?string

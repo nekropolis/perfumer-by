@@ -13,6 +13,69 @@ use RuntimeException;
 class ProductMadeInCountrySyncService
 {
     /**
+     * @param  iterable<int, ProductAttributeValue>  $attributeValues
+     */
+    public static function countryFromAttributeValues(iterable $attributeValues): ?string
+    {
+        foreach ($attributeValues as $value) {
+            if ((int) $value->product_attribute_id !== CatalogProductAttributeIds::MADE_IN_ATTRIBUTE_ID) {
+                continue;
+            }
+
+            if ($value->relationLoaded('selectedOptions')) {
+                $option = $value->selectedOptions->first(fn ($selected) => $selected->productAttributeOption !== null);
+                $optionName = trim((string) ($option?->productAttributeOption?->name ?? ''));
+                if ($optionName !== '') {
+                    return $optionName;
+                }
+            }
+
+            $customValue = trim((string) ($value->custom_value ?? ''));
+
+            return $customValue !== '' ? $customValue : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<int>  $productIds
+     * @return array<int, string>
+     */
+    public function mapForProductIds(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn ($id) => (int) $id, $productIds),
+            static fn (int $id) => $id > 0,
+        )));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $products = Product::query()
+            ->whereIn('id', $ids)
+            ->with([
+                'attributeValues' => static fn ($query) => $query->where(
+                    'product_attribute_id',
+                    CatalogProductAttributeIds::MADE_IN_ATTRIBUTE_ID,
+                ),
+                'attributeValues.selectedOptions.productAttributeOption',
+            ])
+            ->get(['id']);
+
+        $map = [];
+        foreach ($products as $product) {
+            $country = self::countryFromAttributeValues($product->attributeValues);
+            if ($country !== null) {
+                $map[(int) $product->id] = $country;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * @param  list<array{product_id: int, country: string|null}>  $updates
      * @return array{updated: list<int>, skipped: list<int>}
      */

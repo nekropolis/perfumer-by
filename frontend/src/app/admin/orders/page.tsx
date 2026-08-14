@@ -6,6 +6,7 @@ import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck
 import { usePathname, useSearchParams } from "next/navigation";
 import {
     fetchOrders,
+    fetchReceiptMadeInCountries,
     sendVeterTickets,
     syncLegacyCustomersAndOrders,
     syncVeterTicketStatuses,
@@ -420,6 +421,7 @@ export default function AdminOrdersPage() {
     const { options: orderStatusOptions } = useOrderStatusOptions(true);
     const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
     const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+    const [receiptOrders, setReceiptOrders] = useState<OrderData[]>([]);
     const [receiptCountryOptions, setReceiptCountryOptions] = useState<string[]>([]);
     const [receiptOptionsLoading, setReceiptOptionsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -1243,13 +1245,31 @@ export default function AdminOrdersPage() {
         try {
             setReceiptOptionsLoading(true);
             setToast(null);
-            const response = await fetchAttributeBindingOptions();
-            const countryAttribute = response.data.find((attribute) => attribute.id === 13);
+            const [optionsResponse, countriesResponse] = await Promise.all([
+                fetchAttributeBindingOptions(),
+                fetchReceiptMadeInCountries(selectedOrders.map((order) => order.id)),
+            ]);
+            const countryAttribute = optionsResponse.data.find((attribute) => attribute.id === 13);
+            const countryByProductId = new Map(
+                (countriesResponse.data ?? []).map((row) => [row.product_id, row.country]),
+            );
             setReceiptCountryOptions(countryAttribute?.options.map((option) => option.name) ?? []);
+            setReceiptOrders(
+                selectedOrders.map((order) => ({
+                    ...order,
+                    items: order.items.map((item) => ({
+                        ...item,
+                        product_country:
+                            item.product_id != null
+                                ? (countryByProductId.get(item.product_id) ?? item.product_country ?? null)
+                                : (item.product_country ?? null),
+                    })),
+                })),
+            );
             setReceiptModalOpen(true);
         } catch (error) {
             console.error(error);
-            setToast({ type: "error", message: "Не удалось загрузить справочник стран" });
+            setToast({ type: "error", message: "Не удалось загрузить страны для печати чеков" });
         } finally {
             setReceiptOptionsLoading(false);
         }
@@ -2283,11 +2303,14 @@ export default function AdminOrdersPage() {
                 />
             )}
 
-            {receiptModalOpen && selectedOrders.length > 0 ? (
+            {receiptModalOpen && receiptOrders.length > 0 ? (
                 <AdminOrderReceiptsModal
-                    orders={selectedOrders}
+                    orders={receiptOrders}
                     countryOptions={receiptCountryOptions}
-                    onCloseAction={() => setReceiptModalOpen(false)}
+                    onCloseAction={() => {
+                        setReceiptModalOpen(false);
+                        setReceiptOrders([]);
+                    }}
                 />
             ) : null}
 

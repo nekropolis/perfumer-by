@@ -42,6 +42,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders
     Route::post('/quote', [OrderController::class, 'quote']);
     Route::post('/veter-send', VeterTicketSendController::class);
     Route::post('/veter-status-sync', VeterTicketStatusSyncController::class);
+    Route::get('/receipt-made-in', [OrderReceiptMadeInController::class, 'index']);
     Route::post('/receipt-made-in', OrderReceiptMadeInController::class);
     Route::post('/legacy-sync', LegacySyncController::class);
     Route::post('/', [OrderController::class, 'store']);

@@ -563,6 +563,28 @@ export async function syncLegacyCustomersAndOrders(): Promise<{
   return res.json();
 }
 
+export type ReceiptMadeInCountry = {
+  product_id: number;
+  country: string | null;
+};
+
+export async function fetchReceiptMadeInCountries(
+  orderIds: number[],
+): Promise<{ data: ReceiptMadeInCountry[] }> {
+  const params = new URLSearchParams();
+  params.set("order_ids", orderIds.join(","));
+  const res = await fetch(`${API_BASE}/admin/orders/receipt-made-in?${params}`, {
+    headers: getAdminHeaders(),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw await parseOrderError(res, `Receipt made-in API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export type ReceiptMadeInUpdate = {
   product_id: number;
   country: string | null;
