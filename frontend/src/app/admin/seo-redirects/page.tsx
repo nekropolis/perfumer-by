@@ -1,18 +1,20 @@
 "use client";
 
-import { adminBtnPrimary, adminCheckbox } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminBtnSecondary, adminCheckbox } from "@/lib/admin-ui-classes";
 
 import { useCallback, useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import {
     createAdminSeoRedirect,
     deleteAdminSeoRedirect,
@@ -53,6 +55,7 @@ export default function AdminSeoRedirectsPage() {
     const [activeFilter, setActiveFilter] = useState<"" | "1" | "0">("");
     const [codeFilter, setCodeFilter] = useState<"" | "301" | "302" | "410">("");
     const [form, setForm] = useState<RedirectFormState>(EMPTY_FORM);
+    const [formOpen, setFormOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<AdminSeoRedirectItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [page, setPage] = useUrlPage();
@@ -91,7 +94,17 @@ export default function AdminSeoRedirectsPage() {
         void load();
     }, [load]);
 
-    const resetForm = () => setForm(EMPTY_FORM);
+    const closeForm = () => {
+        setFormOpen(false);
+        setForm(EMPTY_FORM);
+    };
+
+    const openCreate = () => {
+        setForm(EMPTY_FORM);
+        setFormOpen(true);
+        setError("");
+        setSuccess("");
+    };
 
     const startEdit = (item: AdminSeoRedirectItem) => {
         setForm({
@@ -103,6 +116,7 @@ export default function AdminSeoRedirectsPage() {
             source: item.source || "manual",
             note: item.note ?? "",
         });
+        setFormOpen(true);
         setError("");
         setSuccess("");
     };
@@ -130,7 +144,7 @@ export default function AdminSeoRedirectsPage() {
                 setSuccess("Редирект создан");
             }
 
-            resetForm();
+            closeForm();
             await load();
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка сохранения редиректа");
@@ -163,132 +177,55 @@ export default function AdminSeoRedirectsPage() {
             <AdminTableToolbar
                 title="SEO редиректы"
                 description="Таблица 301/302/410 редиректов"
+                action={(
+                    <button type="button" onClick={openCreate} className={adminBtnPrimary}>
+                        Добавить редирект
+                    </button>
+                )}
             />
 
             <SeoSectionTabs />
 
-            {error ? (
+            {!formOpen && error ? (
                 <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />
             ) : null}
             {success ? (
                 <AdminFeedbackMessage type="success" message={success} onCloseAction={() => setSuccess("")} />
             ) : null}
 
-            <div className="mb-4 grid gap-3 rounded-2xl border bg-white p-4 lg:grid-cols-6">
-                <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-admin-text-secondary">From path</label>
-                    <input
-                        type="text"
-                        value={form.from_path}
-                        onChange={(e) => setForm((prev) => ({ ...prev, from_path: e.target.value }))}
-                        placeholder="/old-path"
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                </div>
-                <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-admin-text-secondary">To path</label>
-                    <input
-                        type="text"
-                        value={form.to_path}
-                        onChange={(e) => setForm((prev) => ({ ...prev, to_path: e.target.value }))}
-                        placeholder="/new-path (для 410 можно пусто)"
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                </div>
-                <div>
-                    <label className="mb-1 block text-xs text-admin-text-secondary">Код</label>
-                    <select
-                        value={form.http_code}
-                        onChange={(e) => setForm((prev) => ({ ...prev, http_code: e.target.value as "301" | "302" | "410" }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    >
-                        <option value="301">301</option>
-                        <option value="302">302</option>
-                        <option value="410">410</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="mb-1 block text-xs text-admin-text-secondary">Активен</label>
-                    <label className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={form.is_active}
-                            onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.checked }))}
-                            className={adminCheckbox}
-                        />
-                        Да
-                    </label>
-                </div>
-                <div className="lg:col-span-2">
-                    <label className="mb-1 block text-xs text-admin-text-secondary">Source</label>
-                    <input
-                        type="text"
-                        value={form.source}
-                        onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                </div>
-                <div className="lg:col-span-3">
-                    <label className="mb-1 block text-xs text-admin-text-secondary">Комментарий</label>
-                    <input
-                        type="text"
-                        value={form.note}
-                        onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))}
-                        className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                </div>
-                <div className="lg:col-span-1 flex items-end gap-2">
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={submitting}
-                        className={`${adminBtnPrimary} w-full`}
-                    >
-                        {submitting ? "Сохранение..." : form.id ? "Обновить" : "Создать"}
-                    </button>
-                    {form.id ? (
-                        <button
-                            type="button"
-                            onClick={resetForm}
-                            className="rounded-lg border px-4 py-2 text-sm"
-                        >
-                            Сброс
-                        </button>
-                    ) : null}
-                </div>
-            </div>
-
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={(
-                    <div className="flex w-full flex-wrap gap-2">
+                    <>
+                        <AdminStatusDropdown
+                            value={activeFilter}
+                            onChangeAction={(v) => setActiveFilter(v as "" | "1" | "0")}
+                            options={[
+                                { value: "", label: "Все" },
+                                { value: "1", label: "Активные" },
+                                { value: "0", label: "Неактивные" },
+                            ]}
+                            widthClassName="w-max"
+                            menuWidthClassName="w-max"
+                        />
+                        <AdminStatusDropdown
+                            value={codeFilter}
+                            onChangeAction={(v) => setCodeFilter(v as "" | "301" | "302" | "410")}
+                            options={[
+                                { value: "", label: "Все коды" },
+                                { value: "301", label: "301" },
+                                { value: "302", label: "302" },
+                                { value: "410", label: "410" },
+                            ]}
+                            widthClassName="w-max"
+                            menuWidthClassName="w-max"
+                        />
                         <AdminSearchInput
                             value={searchInput}
                             onChangeAction={setSearchInput}
                             placeholder="Поиск по from/to/comment"
                         />
-                        <AdminFilterSelect
-                            value={activeFilter}
-                            onChangeAction={(v) => setActiveFilter(v as "" | "1" | "0")}
-                            options={[
-                                { value: "1", label: "Активные" },
-                                { value: "0", label: "Неактивные" },
-                            ]}
-                            placeholder="Все"
-                            className="min-w-[160px]"
-                        />
-                        <AdminFilterSelect
-                            value={codeFilter}
-                            onChangeAction={(v) => setCodeFilter(v as "" | "301" | "302" | "410")}
-                            options={[
-                                { value: "301", label: "301" },
-                                { value: "302", label: "302" },
-                                { value: "410", label: "410" },
-                            ]}
-                            placeholder="Все коды"
-                            className="min-w-[140px]"
-                        />
-                    </div>
+                    </>
                 )}
                 footer={(
                     <AdminPagination
@@ -302,7 +239,7 @@ export default function AdminSeoRedirectsPage() {
                 {loading && items.length === 0 ? (
                     <AdminLoadingState text="Загрузка редиректов..." />
                 ) : items.length === 0 ? (
-                    <AdminEmptyState title="Редиректы не найдены" description="Создайте первый redirect в форме выше." />
+                    <AdminEmptyState title="Редиректы не найдены" description="Нажмите «Добавить редирект»." />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
@@ -329,20 +266,24 @@ export default function AdminSeoRedirectsPage() {
                                         <td className="px-3 py-2">{item.source}</td>
                                         <td className="px-3 py-2">{item.hit_count}</td>
                                         <td className="px-3 py-2 text-right">
-                                            <div className="inline-flex gap-2">
+                                            <div className="flex justify-end gap-1.5">
                                                 <button
                                                     type="button"
                                                     onClick={() => startEdit(item)}
-                                                    className="rounded-lg border px-3 py-1 text-xs"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                    aria-label={`Редактировать редирект ${item.from_path}`}
+                                                    title="Редактировать"
                                                 >
-                                                    Ред.
+                                                    <Pencil size={16} />
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeleteTarget(item)}
-                                                    className="rounded-lg border border-red-200 px-3 py-1 text-xs text-red-700"
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                    aria-label={`Удалить редирект ${item.from_path}`}
+                                                    title="Удалить"
                                                 >
-                                                    Удалить
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </td>
@@ -353,6 +294,106 @@ export default function AdminSeoRedirectsPage() {
                     </div>
                 )}
             </AdminTableShell>
+
+            <AdminModalShell
+                open={formOpen}
+                onCloseAction={() => {
+                    if (!submitting) closeForm();
+                }}
+                title={form.id ? "Редактировать редирект" : "Добавить редирект"}
+                maxWidthClass="sm:max-w-xl"
+                footer={(
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={submitting}
+                            onClick={closeForm}
+                            className={adminBtnSecondary}
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleSave()}
+                            disabled={submitting}
+                            className={adminBtnPrimary}
+                        >
+                            {submitting ? "Сохранение..." : form.id ? "Сохранить" : "Создать"}
+                        </button>
+                    </div>
+                )}
+            >
+                {error ? (
+                    <div className="mb-3">
+                        <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />
+                    </div>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs text-admin-text-secondary">From path</label>
+                        <input
+                            type="text"
+                            value={form.from_path}
+                            onChange={(e) => setForm((prev) => ({ ...prev, from_path: e.target.value }))}
+                            placeholder="/old-path"
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs text-admin-text-secondary">To path</label>
+                        <input
+                            type="text"
+                            value={form.to_path}
+                            onChange={(e) => setForm((prev) => ({ ...prev, to_path: e.target.value }))}
+                            placeholder="/new-path (для 410 можно пусто)"
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs text-admin-text-secondary">Код</label>
+                        <select
+                            value={form.http_code}
+                            onChange={(e) => setForm((prev) => ({ ...prev, http_code: e.target.value as "301" | "302" | "410" }))}
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        >
+                            <option value="301">301</option>
+                            <option value="302">302</option>
+                            <option value="410">410</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs text-admin-text-secondary">Активен</label>
+                        <label className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={form.is_active}
+                                onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                                className={adminCheckbox}
+                            />
+                            Да
+                        </label>
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs text-admin-text-secondary">Source</label>
+                        <input
+                            type="text"
+                            value={form.source}
+                            onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs text-admin-text-secondary">Комментарий</label>
+                        <input
+                            type="text"
+                            value={form.note}
+                            onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))}
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                    </div>
+                </div>
+            </AdminModalShell>
 
             <AdminConfirmDialog
                 open={!!deleteTarget}
