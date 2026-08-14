@@ -4,6 +4,7 @@ namespace Modules\Catalog\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Catalog\Console\Commands\FixBrokenSeoProductNamesCommand;
+use Modules\Catalog\Console\Commands\FixH1CyrillicLookalikesCommand;
 use Modules\Catalog\Console\Commands\ImportVanilleSampleCommand;
 use Modules\Catalog\Console\Commands\MergeDuplicateBrandsCommand;
 use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
@@ -91,6 +92,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         RegenerateProductImageVariantsCommand::class,
         ReindexProductSearchCommand::class,
         FixBrokenSeoProductNamesCommand::class,
+        FixH1CyrillicLookalikesCommand::class,
         StripBrandFromProductNamesCommand::class,
         VanilleImportQueueCommand::class,
         VanilleBrendyiTotalCommand::class,

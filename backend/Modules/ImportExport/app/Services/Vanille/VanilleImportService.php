@@ -215,7 +215,7 @@ class VanilleImportService
                             $product->update([
                                 'is_active' => true,
                                 'name' => $productShortName,
-                                'h1' => $displayName,
+                                'h1' => ProductDisplayName::replaceCyrillicLookalikes($displayName),
                             ]);
                             $log[] = 'INFO: одиночный импорт — товар опубликован и обновлены name/h1: ' . $displayName;
                         }
@@ -225,7 +225,7 @@ class VanilleImportService
                             'brand_id' => $brand?->id,
                             'main_category_id' => null,
                             'name' => $productShortName,
-                            'h1' => $displayName,
+                            'h1' => ProductDisplayName::replaceCyrillicLookalikes($displayName),
                             'short_description' => mb_substr(trim(strip_tags($item['description'] ?? '')), 0, 1000),
                             'description' => $item['description'] ?? null,
                             'seo_title' => mb_substr(trim($item['page_title'] ?? $displayName), 0, 255),
@@ -1755,7 +1755,7 @@ class VanilleImportService
 
                 $product->update([
                     'name' => $resolved['short_name'],
-                    'h1' => $resolved['display_name'],
+                    'h1' => ProductDisplayName::replaceCyrillicLookalikes($resolved['display_name']),
                 ]);
 
                 $externalName = trim((string) ($resolved['full_title'] ?? ''));

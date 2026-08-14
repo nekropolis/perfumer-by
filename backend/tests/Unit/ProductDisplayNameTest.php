@@ -132,4 +132,45 @@ class ProductDisplayNameTest extends TestCase
 
         $this->assertSame('Encens Et Lavande', $name);
     }
+
+    public function test_replace_cyrillic_lookalikes_in_latin_brand_words(): void
+    {
+        $this->assertSame(
+            'Chanel Pour Monsieur Eau de Parfum',
+            ProductDisplayName::replaceCyrillicLookalikes('Сhanel Pour Monsieur Eau de Parfum'),
+        );
+        $this->assertSame(
+            'Sergio Nero VSOP Classic',
+            ProductDisplayName::replaceCyrillicLookalikes('Sergio Nero VSOP Сlassic'),
+        );
+        $this->assertSame(
+            'Serge Dumonten Ton Sommeil',
+            ProductDisplayName::replaceCyrillicLookalikes('Serge Dumonten Тon Sommeil'),
+        );
+        $this->assertSame(
+            'Teeb Al Ghawali Amber Al Chawali',
+            ProductDisplayName::replaceCyrillicLookalikes('Teeb Al Ghawali Amber Аl Chawali'),
+        );
+    }
+
+    public function test_replace_cyrillic_lookalikes_keeps_real_russian_words(): void
+    {
+        $h1 = 'Antonio Banderas Набор женский The Icon Eau de Parfum For Women 50 мл';
+        $this->assertSame($h1, ProductDisplayName::replaceCyrillicLookalikes($h1));
+
+        $metro = 'Alexandra Gluck VDNKh (ВДНХ)';
+        $this->assertSame($metro, ProductDisplayName::replaceCyrillicLookalikes($metro));
+    }
+
+    public function test_format_sanitizes_lookalike_in_combined_title(): void
+    {
+        $this->assertSame(
+            'Chanel Pour Monsieur',
+            ProductDisplayName::format('Chanel', 'Pour Monsieur'),
+        );
+        $this->assertSame(
+            'Chanel Pour Monsieur',
+            ProductDisplayName::format('Сhanel', 'Pour Monsieur'),
+        );
+    }
 }

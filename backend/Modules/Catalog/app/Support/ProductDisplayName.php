@@ -8,20 +8,75 @@ use Modules\ImportExport\Support\VanilleHelper;
 
 final class ProductDisplayName
 {
+    /**
+     * Визуальные двойники латиницы (кириллица в «Chanel» / «Classic»).
+     * Буквы без пары (б, д, ж, и, л…) не трогаем — это настоящий русский текст.
+     *
+     * @var array<string, string>
+     */
+    private const CYRILLIC_LATIN_LOOKALIKES = [
+        'А' => 'A', 'а' => 'a',
+        'В' => 'B',
+        'Е' => 'E', 'е' => 'e', 'Ё' => 'E', 'ё' => 'e',
+        'К' => 'K',
+        'М' => 'M',
+        'Н' => 'H',
+        'О' => 'O', 'о' => 'o',
+        'Р' => 'P', 'р' => 'p',
+        'С' => 'C', 'с' => 'c',
+        'Т' => 'T',
+        'У' => 'Y', 'у' => 'y',
+        'Х' => 'X', 'х' => 'x',
+        'І' => 'I', 'і' => 'i',
+        'Ї' => 'I', 'ї' => 'i',
+        'Ј' => 'J', 'ј' => 'j',
+        'Ѕ' => 'S', 'ѕ' => 's',
+    ];
+
     public static function format(?string $brandName, string $productName): string
     {
         $brandName = trim((string) $brandName);
         $productName = trim($productName);
 
         if ($brandName === '') {
-            return $productName;
+            return self::replaceCyrillicLookalikes($productName);
         }
 
         if ($productName === '') {
-            return $brandName;
+            return self::replaceCyrillicLookalikes($brandName);
         }
 
-        return $brandName.' '.$productName;
+        return self::replaceCyrillicLookalikes($brandName.' '.$productName);
+    }
+
+    /**
+     * В словах без «настоящей» кириллицы заменить двойники на латиницу.
+     * «Сhanel» → «Chanel»; «Набор женский» и «(ВДНХ)» не меняются.
+     */
+    public static function replaceCyrillicLookalikes(string $value): string
+    {
+        if ($value === '' || preg_match('/\p{Cyrillic}/u', $value) !== 1) {
+            return $value;
+        }
+
+        $replaced = preg_replace_callback('/\p{L}+/u', static function (array $match): string {
+            $word = $match[0];
+            $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($chars as $ch) {
+                if (preg_match('/\p{Cyrillic}/u', $ch) === 1 && ! isset(self::CYRILLIC_LATIN_LOOKALIKES[$ch])) {
+                    return $word;
+                }
+            }
+
+            $out = '';
+            foreach ($chars as $ch) {
+                $out .= self::CYRILLIC_LATIN_LOOKALIKES[$ch] ?? $ch;
+            }
+
+            return $out;
+        }, $value);
+
+        return is_string($replaced) ? $replaced : $value;
     }
 
     public static function forProduct(Product $product): string
