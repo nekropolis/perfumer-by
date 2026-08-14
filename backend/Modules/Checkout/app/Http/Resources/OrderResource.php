@@ -17,39 +17,55 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class OrderResource extends JsonResource
 {
+    public static function shouldIncludeInventoryForPath(string $path): bool
+    {
+        return preg_match('#(?:^|/)admin/orders/\d+#', $path) === 1;
+    }
+
     public function toArray(Request $request): array
     {
-        $variantIds = $this->items
-            ->pluck('variant_id')
-            ->filter(fn ($id) => $id !== null)
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
+        $includeInventory = self::shouldIncludeInventoryForPath($request->path());
 
-        $mainWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id') ?? 0);
-        $supplierWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id') ?? 0);
+        $variantIds = $includeInventory
+            ? $this->items
+                ->pluck('variant_id')
+                ->filter(fn ($id) => $id !== null)
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+            : collect();
 
-        $lotsByVariant = ($variantIds->isEmpty() || $mainWarehouseId <= 0)
-            ? collect()
-            : WarehouseStockLot::query()
-                ->with(['receiptItem.receipt', 'warehouse'])
-                ->where('warehouse_id', $mainWarehouseId)
-                ->whereIn('variant_id', $variantIds->all())
-                ->where('qty', '>', 0)
-                ->orderByRaw('supplier_price IS NULL')
-                ->orderBy('supplier_price')
-                ->orderByRaw("CASE WHEN comment IS NULL OR TRIM(comment) = '' THEN 0 ELSE 1 END")
-                ->orderBy('id')
-                ->get()
-                ->groupBy('variant_id');
-        $warehouseIds = array_values(array_filter([$mainWarehouseId, $supplierWarehouseId]));
-        $stocksByVariant = $variantIds->isEmpty() || $warehouseIds === []
-            ? collect()
-            : WarehouseVariantStock::query()
-                ->whereIn('variant_id', $variantIds->all())
-                ->whereIn('warehouse_id', $warehouseIds)
-                ->get()
-                ->groupBy('variant_id');
+        $mainWarehouseId = 0;
+        $supplierWarehouseId = 0;
+        $lotsByVariant = collect();
+        $stocksByVariant = collect();
+
+        if ($includeInventory) {
+            $mainWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id') ?? 0);
+            $supplierWarehouseId = (int) (Warehouse::query()->where('code', Warehouse::CODE_SUPPLIER)->value('id') ?? 0);
+
+            $lotsByVariant = ($variantIds->isEmpty() || $mainWarehouseId <= 0)
+                ? collect()
+                : WarehouseStockLot::query()
+                    ->with(['receiptItem.receipt', 'warehouse'])
+                    ->where('warehouse_id', $mainWarehouseId)
+                    ->whereIn('variant_id', $variantIds->all())
+                    ->where('qty', '>', 0)
+                    ->orderByRaw('supplier_price IS NULL')
+                    ->orderBy('supplier_price')
+                    ->orderByRaw("CASE WHEN comment IS NULL OR TRIM(comment) = '' THEN 0 ELSE 1 END")
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('variant_id');
+            $warehouseIds = array_values(array_filter([$mainWarehouseId, $supplierWarehouseId]));
+            $stocksByVariant = $variantIds->isEmpty() || $warehouseIds === []
+                ? collect()
+                : WarehouseVariantStock::query()
+                    ->whereIn('variant_id', $variantIds->all())
+                    ->whereIn('warehouse_id', $warehouseIds)
+                    ->get()
+                    ->groupBy('variant_id');
+        }
 
         $giftLines = $this->relationLoaded('orderGiftCertificates')
             ? $this->orderGiftCertificates
@@ -151,7 +167,7 @@ class OrderResource extends JsonResource
             'discount_card_number' => $displayDiscountCardNumber,
             'discount_percent_snapshot' => number_format((float) $displayDiscountPercent, 2, '.', ''),
             'discount_amount' => number_format($discountAmount, 2, '.', ''),
-            'items' => $this->items->map(function ($item) use ($lotsByVariant, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
+            'items' => $this->items->map(function ($item) use ($includeInventory, $lotsByVariant, $stocksByVariant, $mainWarehouseId, $supplierWarehouseId) {
                 $data = [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
@@ -181,81 +197,83 @@ class OrderResource extends JsonResource
                         : null,
                 ];
 
-                $fulfillment = $this->fulfillmentFlagsForItem(
-                    $item,
-                    $stocksByVariant,
-                    $mainWarehouseId,
-                    $supplierWarehouseId,
-                );
-                $data['can_fulfill_main'] = $fulfillment['can_fulfill_main'];
-                $data['can_fulfill_offer'] = $fulfillment['can_fulfill_offer'];
-                $data['can_fulfill_main_live'] = $fulfillment['can_fulfill_main_live'];
-                $data['can_fulfill_offer_live'] = $fulfillment['can_fulfill_offer_live'];
-                $data['fulfillment_options'] = $this->fulfillmentOptionsForItem(
-                    $item,
-                    $stocksByVariant,
-                    $lotsByVariant,
-                    $mainWarehouseId,
-                    $supplierWarehouseId,
-                );
+                if ($includeInventory) {
+                    $fulfillment = $this->fulfillmentFlagsForItem(
+                        $item,
+                        $stocksByVariant,
+                        $mainWarehouseId,
+                        $supplierWarehouseId,
+                    );
+                    $data['can_fulfill_main'] = $fulfillment['can_fulfill_main'];
+                    $data['can_fulfill_offer'] = $fulfillment['can_fulfill_offer'];
+                    $data['can_fulfill_main_live'] = $fulfillment['can_fulfill_main_live'];
+                    $data['can_fulfill_offer_live'] = $fulfillment['can_fulfill_offer_live'];
+                    $data['fulfillment_options'] = $this->fulfillmentOptionsForItem(
+                        $item,
+                        $stocksByVariant,
+                        $lotsByVariant,
+                        $mainWarehouseId,
+                        $supplierWarehouseId,
+                    );
 
-                // Supplier offers отдаём только когда явно подгружены (admin API).
-                if ($item->relationLoaded('variant') && $item->variant
-                    && $item->variant->relationLoaded('supplierOffers')
-                ) {
-                    $data['supplier_offers'] = $item->variant->supplierOffers
-                        ->map(function ($offer) {
-                            return [
-                                'id' => $offer->id,
-                                'supplier_id' => $offer->supplier_id,
-                                'supplier_name' => $offer->supplier?->name,
-                                'supplier_code' => $offer->supplier?->code,
-                                'external_id' => $offer->external_id,
-                                'external_product_name' => $offer->external_product_name,
-                                'external_variant_name' => $offer->external_variant_name,
-                                'external_product_url' => $offer->external_product_url,
-                                'sku' => $offer->sku,
-                                'price' => $offer->price !== null
-                                    ? number_format((float) $offer->price, 2, '.', '')
-                                    : null,
-                                'purchase_price' => $offer->purchase_price !== null
-                                    ? number_format((float) $offer->purchase_price, 2, '.', '')
-                                    : null,
-                                'stock' => (int) $offer->stock,
-                                'is_preorder' => (bool) $offer->is_preorder,
-                                'is_active' => (bool) $offer->is_active,
-                                'last_synced_at' => $offer->last_synced_at?->toIso8601String(),
-                            ];
-                        })
-                        ->values()
-                        ->all();
-                }
+                    // Supplier offers отдаём только когда явно подгружены (admin API).
+                    if ($item->relationLoaded('variant') && $item->variant
+                        && $item->variant->relationLoaded('supplierOffers')
+                    ) {
+                        $data['supplier_offers'] = $item->variant->supplierOffers
+                            ->map(function ($offer) {
+                                return [
+                                    'id' => $offer->id,
+                                    'supplier_id' => $offer->supplier_id,
+                                    'supplier_name' => $offer->supplier?->name,
+                                    'supplier_code' => $offer->supplier?->code,
+                                    'external_id' => $offer->external_id,
+                                    'external_product_name' => $offer->external_product_name,
+                                    'external_variant_name' => $offer->external_variant_name,
+                                    'external_product_url' => $offer->external_product_url,
+                                    'sku' => $offer->sku,
+                                    'price' => $offer->price !== null
+                                        ? number_format((float) $offer->price, 2, '.', '')
+                                        : null,
+                                    'purchase_price' => $offer->purchase_price !== null
+                                        ? number_format((float) $offer->purchase_price, 2, '.', '')
+                                        : null,
+                                    'stock' => (int) $offer->stock,
+                                    'is_preorder' => (bool) $offer->is_preorder,
+                                    'is_active' => (bool) $offer->is_active,
+                                    'last_synced_at' => $offer->last_synced_at?->toIso8601String(),
+                                ];
+                            })
+                            ->values()
+                            ->all();
+                    }
 
-                if ($item->variant_id !== null) {
-                    $lots = $lotsByVariant->get((int) $item->variant_id, collect());
-                    $data['receipt_batches'] = $lots
-                        ->map(function (WarehouseStockLot $lot) {
-                            return [
-                                'receipt_item_id' => $lot->stock_receipt_item_id,
-                                'lot_id' => $lot->id,
-                                'receipt_id' => $lot->receiptItem?->stock_receipt_id,
-                                'receipt_document_no' => $lot->receiptItem?->receipt?->document_no,
-                                'supplier_name' => $lot->supplier_name,
-                                'supplier_code' => $lot->supplier_sku,
-                                'supplier_product_name' => $lot->comment
-                                    ?: $lot->receiptItem?->variant_title
-                                    ?: null,
-                                'supplier_price' => $lot->supplier_price !== null
-                                    ? number_format((float) $lot->supplier_price, 2, '.', '')
-                                    : null,
-                                'warehouse_name' => $lot->warehouse?->name,
-                                'qty' => (int) $lot->qty,
-                                'comment' => $lot->comment,
-                                'received_at' => $lot->receiptItem?->receipt?->received_at?->toDateString(),
-                            ];
-                        })
-                        ->values()
-                        ->all();
+                    if ($item->variant_id !== null) {
+                        $lots = $lotsByVariant->get((int) $item->variant_id, collect());
+                        $data['receipt_batches'] = $lots
+                            ->map(function (WarehouseStockLot $lot) {
+                                return [
+                                    'receipt_item_id' => $lot->stock_receipt_item_id,
+                                    'lot_id' => $lot->id,
+                                    'receipt_id' => $lot->receiptItem?->stock_receipt_id,
+                                    'receipt_document_no' => $lot->receiptItem?->receipt?->document_no,
+                                    'supplier_name' => $lot->supplier_name,
+                                    'supplier_code' => $lot->supplier_sku,
+                                    'supplier_product_name' => $lot->comment
+                                        ?: $lot->receiptItem?->variant_title
+                                        ?: null,
+                                    'supplier_price' => $lot->supplier_price !== null
+                                        ? number_format((float) $lot->supplier_price, 2, '.', '')
+                                        : null,
+                                    'warehouse_name' => $lot->warehouse?->name,
+                                    'qty' => (int) $lot->qty,
+                                    'comment' => $lot->comment,
+                                    'received_at' => $lot->receiptItem?->receipt?->received_at?->toDateString(),
+                                ];
+                            })
+                            ->values()
+                            ->all();
+                    }
                 }
 
                 return $data;

@@ -322,9 +322,7 @@ class OrderController extends Controller
 
         $orders = Order::query()
             ->with([
-                'items.variant.supplierOffers.supplier',
-                'items.product.attributeValues.productAttribute',
-                'items.product.attributeValues.selectedOptions.productAttributeOption',
+                'items',
                 'discountCard:id,card_number',
                 'orderGiftCertificates.giftCertificate',
                 'giftCertificatePurchases',

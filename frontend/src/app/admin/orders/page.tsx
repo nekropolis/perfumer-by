@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ListOrdered, Printer, FilterX, Database, RefreshCw, ShoppingCart, Truck, X, GripVertical, Check, Package, ClipboardList } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
     fetchOrders,
     sendVeterTickets,
@@ -24,6 +24,7 @@ import {
     fetchSupplierOrderDraft,
     fetchSupplierOrders,
     updateSupplierOrderDraftItemQty,
+    type DraftFromReservationsResult,
     type SupplierOrderDetail,
     type SupplierOrderDraftItem,
     type SupplierOrderListItem,
@@ -298,6 +299,18 @@ function buildOrdersFiltersQuery(input: {
     return params.toString();
 }
 
+/** Обновить query без навигации Next.js — иначе searchParams мигают и список перезапрашивается. */
+function replaceOrdersUrl(href: string): void {
+    if (typeof window === "undefined") {
+        return;
+    }
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current === href) {
+        return;
+    }
+    window.history.replaceState(window.history.state, "", href);
+}
+
 function OrdersIconActionButton({
     label,
     disabled,
@@ -354,7 +367,6 @@ function OrdersIconActionButton({
     );
 }
 export default function AdminOrdersPage() {
-    const router = useRouter();
     const pathname = usePathname();
     const searchParamsFromUrl = useSearchParams();
     const [activeTab, setActiveTab] = useState<OrdersTab>(() =>
@@ -679,7 +691,11 @@ export default function AdminOrdersPage() {
             orderId: orderFilter,
         });
 
-        const currentParams = new URLSearchParams(urlQueryKey);
+        const liveQuery =
+            typeof window !== "undefined"
+                ? window.location.search.replace(/^\?/, "")
+                : urlQueryKey;
+        const currentParams = new URLSearchParams(liveQuery);
         currentParams.delete("created");
         currentParams.delete("updated");
         const currentQuery = buildOrdersFiltersQuery({
@@ -698,7 +714,7 @@ export default function AdminOrdersPage() {
             return;
         }
 
-        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+        replaceOrdersUrl(nextQuery ? `${pathname}?${nextQuery}` : pathname);
     }, [
         activeTab,
         dateFrom,
@@ -708,7 +724,6 @@ export default function AdminOrdersPage() {
         ordersPerPage,
         pathname,
         periodFilter,
-        router,
         searchInput,
         statusFilter,
         urlQueryKey,
@@ -721,7 +736,7 @@ export default function AdminOrdersPage() {
             params.delete("created");
             params.delete("updated");
             const qs = params.toString();
-            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+            replaceOrdersUrl(qs ? `${pathname}?${qs}` : pathname);
             return;
         }
         if (searchParamsFromUrl.get("updated") === "1") {
@@ -730,10 +745,10 @@ export default function AdminOrdersPage() {
             params.delete("created");
             params.delete("updated");
             const qs = params.toString();
-            router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+            replaceOrdersUrl(qs ? `${pathname}?${qs}` : pathname);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- urlQueryKey отражает searchParamsFromUrl
-    }, [urlQueryKey, router, pathname]);
+    }, [urlQueryKey, pathname]);
 
     useEffect(() => {
         const visibleOrderIds = new Set(orders.map((order) => order.id));
@@ -853,10 +868,9 @@ export default function AdminOrdersPage() {
         setToast(null);
         try {
             const response = await createSupplierOrderDraftFromReservations();
-            const added = response.data.added ?? 0;
-            const ignored = Array.isArray(response.data.ignored_order_ids)
-                ? response.data.ignored_order_ids.length
-                : 0;
+            const data: DraftFromReservationsResult = response.data;
+            const added = data.added ?? 0;
+            const ignored = data.ignored_order_ids.length;
             setToast({
                 type: added > 0 ? "success" : ignored > 0 ? "error" : "error",
                 message:
@@ -1702,7 +1716,7 @@ export default function AdminOrdersPage() {
                 </div>
             ) : null}
 
-            {loading && (
+            {loading && (activeTab !== "orders" || ordersMeta === null) && (
                 <AdminLoadingState
                     text={
                         activeTab === "orders"
@@ -1716,7 +1730,7 @@ export default function AdminOrdersPage() {
                 />
             )}
 
-            {!loading && activeTab === "orders" && ordersMeta !== null && (
+            {activeTab === "orders" && ordersMeta !== null && (
                 <>
                     <AdminOrdersTable
                         initialOrders={orders}
