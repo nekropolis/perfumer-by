@@ -6,6 +6,7 @@ import AdminPageHeader from "@/components/admin/ui/admin-page-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
 import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
+import { getOrderStatusLabel } from "@/constants/order-statuses";
 
 type DashboardStats = AdminDashboardStatsResponse["data"] | null;
 type StatsPeriod = "month" | "quarter" | "year";
@@ -20,23 +21,40 @@ const PERIOD_OPTIONS: { id: StatsPeriod; label: string }[] = [
     { id: "year", label: "Год" },
 ];
 
-const STATUS_LABEL: Record<string, string> = {
-    new: "Новый",
-    confirmed: "Подтвержден",
-    processing: "В обработке",
-    assembled: "Собран",
-    in_delivery: "В доставке",
-    notified: "Подтвержден",
-    done: "Выполнен",
-    completed: "Выполнен",
-    cancelled: "Отменен",
-};
-
-const SERIES_CONFIG: { key: TimelineKey; label: string; colorClassName: string }[] = [
-    { key: "ordered", label: "Заказано", colorClassName: "bg-indigo-500" },
-    { key: "cancelled", label: "Отменено", colorClassName: "bg-rose-500" },
-    { key: "sold", label: "Продано", colorClassName: "bg-emerald-500" },
+const SERIES_CONFIG: {
+    key: TimelineKey;
+    label: string;
+    colorClassName: string;
+    qtyKey: "ordered_products_qty" | "cancelled_products_qty" | "sold_products_qty";
+}[] = [
+    {
+        key: "ordered",
+        label: "Заказано",
+        colorClassName: "bg-indigo-500",
+        qtyKey: "ordered_products_qty",
+    },
+    {
+        key: "cancelled",
+        label: "Отменено",
+        colorClassName: "bg-rose-500",
+        qtyKey: "cancelled_products_qty",
+    },
+    {
+        key: "sold",
+        label: "Продано",
+        colorClassName: "bg-emerald-500",
+        qtyKey: "sold_products_qty",
+    },
 ];
+
+function niceCeil(value: number): number {
+    if (value <= 0) return 5;
+    if (value <= 5) return 5;
+    const exp = Math.pow(10, Math.floor(Math.log10(value)));
+    const normalized = value / exp;
+    const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return step * exp;
+}
 
 function MetricCard({
     title,
@@ -76,15 +94,14 @@ function MetricCard({
         return <Link href={href}>{content}</Link>;
     }
 
-    return (
-        content
-    );
+    return content;
 }
 
 export default function AdminPage() {
     const [stats, setStats] = useState<DashboardStats>(null);
     const [loadingStats, setLoadingStats] = useState(true);
     const [period, setPeriod] = useState<StatsPeriod>("month");
+    const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
 
     const loadStats = useCallback(async (currentPeriod: StatsPeriod, signal?: AbortSignal) => {
         setLoadingStats(true);
@@ -120,20 +137,22 @@ export default function AdminPage() {
         };
     }, [loadStats, period]);
 
+    useEffect(() => {
+        setHoveredPointIndex(null);
+    }, [period, stats?.month.timeline]);
+
     const activeOrderStatusRows = useMemo(
-        () =>
-            Object.entries(stats?.active.orders_by_status ?? {})
-                .sort((a, b) => b[1] - a[1]),
-        [stats]
+        () => Object.entries(stats?.active.orders_by_status ?? {}).sort((a, b) => b[1] - a[1]),
+        [stats],
     );
     const orderStatusLines = useMemo<StatusLine[]>(
         () =>
             activeOrderStatusRows.map(([status, count]) => ({
                 key: status,
-                label: STATUS_LABEL[status] ?? status,
+                label: getOrderStatusLabel(status),
                 count,
             })),
-        [activeOrderStatusRows]
+        [activeOrderStatusRows],
     );
     const productRequestLines = useMemo<StatusLine[]>(
         () => [
@@ -182,7 +201,7 @@ export default function AdminPage() {
             const first = chunk[0];
             const last = chunk[chunk.length - 1];
             buckets.push({
-                label: first.label === last.label ? first.label : `${first.label}-${last.label}`,
+                label: first.label === last.label ? first.label : `${first.label}–${last.label}`,
                 ordered: chunk.reduce((sum, row) => sum + row.ordered, 0),
                 cancelled: chunk.reduce((sum, row) => sum + row.cancelled, 0),
                 sold: chunk.reduce((sum, row) => sum + row.sold, 0),
@@ -190,12 +209,13 @@ export default function AdminPage() {
         }
         return buckets;
     }, [period, timelineRows]);
+
     const xLabelStep = useMemo(() => {
         if (chartRows.length <= 8) {
             return 1;
         }
         if (period === "month") {
-            return 3;
+            return 2;
         }
         if (period === "quarter") {
             return 1;
@@ -208,26 +228,57 @@ export default function AdminPage() {
         for (const row of chartRows) {
             max = Math.max(max, row.ordered, row.cancelled, row.sold);
         }
-        // Небольшой запас, чтобы верхняя точка не упиралась в рамку.
-        return Math.max(1, max + 1);
+        return niceCeil(max);
     }, [chartRows]);
-    const chartPoints = useMemo(() => {
-        if (chartRows.length === 0) {
-            return {
-                ordered: "",
-                cancelled: "",
-                sold: "",
-                points: [] as Array<{ x: number; yOrdered: number; yCancelled: number; ySold: number; label: string }>,
-            };
+
+    const yTicks = useMemo(() => {
+        const tickCount = 4;
+        const ticks: number[] = [];
+        for (let i = 0; i <= tickCount; i += 1) {
+            ticks.push(Math.round((timelineMax * i) / tickCount));
         }
+        return [...new Set(ticks)];
+    }, [timelineMax]);
+
+    const chartLayout = useMemo(() => {
         const width = 600;
         const height = 400;
         const leftPad = 56;
         const rightPad = 20;
         const topPad = 24;
         const bottomPad = 54;
-        const usableWidth = width - leftPad - rightPad;
-        const usableHeight = height - topPad - bottomPad;
+        return {
+            width,
+            height,
+            leftPad,
+            rightPad,
+            topPad,
+            bottomPad,
+            usableWidth: width - leftPad - rightPad,
+            usableHeight: height - topPad - bottomPad,
+            zeroY: height - bottomPad,
+        };
+    }, []);
+
+    const chartPoints = useMemo(() => {
+        if (chartRows.length === 0) {
+            return {
+                ordered: "",
+                cancelled: "",
+                sold: "",
+                points: [] as Array<{
+                    x: number;
+                    yOrdered: number;
+                    yCancelled: number;
+                    ySold: number;
+                    label: string;
+                    ordered: number;
+                    cancelled: number;
+                    sold: number;
+                }>,
+            };
+        }
+        const { leftPad, topPad, usableWidth, usableHeight } = chartLayout;
 
         const points = chartRows.map((row, index) => {
             const x =
@@ -237,7 +288,16 @@ export default function AdminPage() {
             const yOrdered = topPad + (1 - row.ordered / timelineMax) * usableHeight;
             const yCancelled = topPad + (1 - row.cancelled / timelineMax) * usableHeight;
             const ySold = topPad + (1 - row.sold / timelineMax) * usableHeight;
-            return { x, yOrdered, yCancelled, ySold, label: row.label };
+            return {
+                x,
+                yOrdered,
+                yCancelled,
+                ySold,
+                label: row.label,
+                ordered: row.ordered,
+                cancelled: row.cancelled,
+                sold: row.sold,
+            };
         });
 
         const toPolyline = (key: "yOrdered" | "yCancelled" | "ySold") =>
@@ -249,7 +309,10 @@ export default function AdminPage() {
             sold: toPolyline("ySold"),
             points,
         };
-    }, [chartRows, timelineMax]);
+    }, [chartLayout, chartRows, timelineMax]);
+
+    const hoveredPoint =
+        hoveredPointIndex != null ? (chartPoints.points[hoveredPointIndex] ?? null) : null;
 
     return (
         <div className="m-5 space-y-6">
@@ -274,7 +337,7 @@ export default function AdminPage() {
                             stats == null
                                 ? null
                                 : (stats.active.back_in_stock_requests ?? 0) +
-                                (stats.active.callback_requests ?? 0)
+                                  (stats.active.callback_requests ?? 0)
                         }
                         loading={loadingStats}
                         href="/admin/stock-notifications"
@@ -288,7 +351,7 @@ export default function AdminPage() {
                     <div>
                         <div className="text-base font-semibold text-admin-text">Статистика за период</div>
                         <div className="text-sm text-admin-text-secondary">
-                            Количество единиц товаров в заказах выбранного периода.
+                            Количество единиц товаров в заказах выбранного периода (по сегодня).
                         </div>
                     </div>
                     <div className="inline-flex rounded-lg border border-admin-border bg-admin-muted p-1">
@@ -305,74 +368,193 @@ export default function AdminPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <MetricCard
-                        title="Заказано"
-                        value={stats?.month.ordered_products_qty ?? null}
-                        loading={loadingStats}
-                    />
-                    <MetricCard
-                        title="Отменено"
-                        value={stats?.month.cancelled_products_qty ?? null}
-                        loading={loadingStats}
-                    />
-                    <MetricCard
-                        title="Продано"
-                        value={stats?.month.sold_products_qty ?? null}
-                        loading={loadingStats}
-                    />
-                </div>
-
-                <div className="mt-3 rounded-lg border border-admin-border bg-admin-muted/40 p-3">
-                    <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-admin-text-secondary">
+                <div className="rounded-lg border border-admin-border bg-admin-muted/40 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-admin-text-secondary">
                         {SERIES_CONFIG.map((series) => (
-                            <span key={series.key} className="inline-flex items-center gap-2">
+                            <span key={series.key} className="inline-flex items-center gap-1.5">
                                 <span className={`h-2.5 w-2.5 rounded-full ${series.colorClassName}`} />
-                                {series.label}
+                                <span>{series.label}</span>
+                                <span className="font-semibold tabular-nums text-admin-text">
+                                    {loadingStats
+                                        ? "…"
+                                        : (stats?.month[series.qtyKey] ?? 0).toLocaleString("ru-RU")}
+                                </span>
                             </span>
                         ))}
                     </div>
-                    <div className="mx-auto h-[400px] w-full max-w-[600px]">
-                        <svg viewBox="0 0 600 400" className="h-full w-full">
-                            <line x1="56" y1="346" x2="580" y2="346" stroke="#e5e7eb" strokeWidth="1" />
-                            <line x1="56" y1="24" x2="56" y2="346" stroke="#e5e7eb" strokeWidth="1" />
-                            <text x="318" y="388" textAnchor="middle" fontSize="12" fill="#6b7280">Дата</text>
-                            <text x="18" y="200" textAnchor="middle" fontSize="12" fill="#6b7280" transform="rotate(-90,18,200)">
-                                Кол-во заказов
+                    <div className="relative mx-auto h-[400px] w-full max-w-[600px]">
+                        <svg
+                            viewBox={`0 0 ${chartLayout.width} ${chartLayout.height}`}
+                            className="h-full w-full"
+                            onMouseLeave={() => setHoveredPointIndex(null)}
+                        >
+                            {yTicks.map((tick) => {
+                                const y =
+                                    chartLayout.topPad +
+                                    (1 - tick / timelineMax) * chartLayout.usableHeight;
+                                return (
+                                    <g key={`y-${tick}`}>
+                                        <line
+                                            x1={chartLayout.leftPad}
+                                            y1={y}
+                                            x2={chartLayout.width - chartLayout.rightPad}
+                                            y2={y}
+                                            stroke="#e5e7eb"
+                                            strokeWidth="1"
+                                        />
+                                        <text
+                                            x={chartLayout.leftPad - 8}
+                                            y={y + 3}
+                                            textAnchor="end"
+                                            fontSize="10"
+                                            fill="#6b7280"
+                                        >
+                                            {tick}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                            <line
+                                x1={chartLayout.leftPad}
+                                y1={chartLayout.zeroY}
+                                x2={chartLayout.width - chartLayout.rightPad}
+                                y2={chartLayout.zeroY}
+                                stroke="#d1d5db"
+                                strokeWidth="1.2"
+                            />
+                            <line
+                                x1={chartLayout.leftPad}
+                                y1={chartLayout.topPad}
+                                x2={chartLayout.leftPad}
+                                y2={chartLayout.zeroY}
+                                stroke="#d1d5db"
+                                strokeWidth="1.2"
+                            />
+                            <text
+                                x={chartLayout.leftPad + chartLayout.usableWidth / 2}
+                                y={388}
+                                textAnchor="middle"
+                                fontSize="12"
+                                fill="#6b7280"
+                            >
+                                Дата
+                            </text>
+                            <text
+                                x="18"
+                                y="200"
+                                textAnchor="middle"
+                                fontSize="12"
+                                fill="#6b7280"
+                                transform="rotate(-90,18,200)"
+                            >
+                                Кол-во единиц
                             </text>
 
-                            <polyline fill="none" stroke="#6366f1" strokeWidth="2.2" points={chartPoints.ordered} />
-                            <polyline fill="none" stroke="#f43f5e" strokeWidth="2.2" points={chartPoints.cancelled} />
-                            <polyline fill="none" stroke="#10b981" strokeWidth="2.2" points={chartPoints.sold} />
+                            <polyline
+                                fill="none"
+                                stroke="#6366f1"
+                                strokeWidth="2.2"
+                                points={chartPoints.ordered}
+                            />
+                            <polyline
+                                fill="none"
+                                stroke="#f43f5e"
+                                strokeWidth="2.2"
+                                points={chartPoints.cancelled}
+                            />
+                            <polyline
+                                fill="none"
+                                stroke="#10b981"
+                                strokeWidth="2.2"
+                                points={chartPoints.sold}
+                            />
 
                             {chartPoints.points.map((point, index) => (
                                 <g key={`p-${point.label}-${index}`}>
-                                    <circle cx={point.x} cy={point.yOrdered} r="3" fill="#6366f1" />
-                                    <circle cx={point.x} cy={point.yCancelled} r="3" fill="#f43f5e" />
-                                    <circle cx={point.x} cy={point.ySold} r="3" fill="#10b981" />
-
-                                    {index === chartRows.length - 1 ? (
-                                        <>
-                                            <text x={point.x + 8} y={point.yOrdered - 8} textAnchor="start" fontSize="12" fill="#4f46e5">
-                                                {chartRows[index]?.ordered ?? 0}
-                                            </text>
-                                            <text x={point.x + 8} y={point.yCancelled - 8} textAnchor="start" fontSize="12" fill="#e11d48">
-                                                {chartRows[index]?.cancelled ?? 0}
-                                            </text>
-                                            <text x={point.x + 8} y={point.ySold - 8} textAnchor="start" fontSize="12" fill="#059669">
-                                                {chartRows[index]?.sold ?? 0}
-                                            </text>
-                                        </>
-                                    ) : null}
-
+                                    <circle cx={point.x} cy={point.yOrdered} r="3.5" fill="#6366f1" />
+                                    <circle cx={point.x} cy={point.yCancelled} r="3.5" fill="#f43f5e" />
+                                    <circle cx={point.x} cy={point.ySold} r="3.5" fill="#10b981" />
+                                    <rect
+                                        x={point.x - 12}
+                                        y={chartLayout.topPad}
+                                        width={24}
+                                        height={chartLayout.usableHeight}
+                                        fill="transparent"
+                                        onMouseEnter={() => setHoveredPointIndex(index)}
+                                    />
                                     {index % xLabelStep === 0 || index === chartRows.length - 1 ? (
-                                        <text x={point.x} y="360" textAnchor="middle" fontSize="10" fill="#6b7280">
+                                        <text
+                                            x={point.x}
+                                            y="360"
+                                            textAnchor="middle"
+                                            fontSize="10"
+                                            fill="#6b7280"
+                                        >
                                             {point.label}
                                         </text>
                                     ) : null}
                                 </g>
                             ))}
+
+                            {hoveredPoint ? (
+                                <line
+                                    x1={hoveredPoint.x}
+                                    y1={chartLayout.topPad}
+                                    x2={hoveredPoint.x}
+                                    y2={chartLayout.zeroY}
+                                    stroke="#94a3b8"
+                                    strokeWidth="1"
+                                    strokeDasharray="3 3"
+                                />
+                            ) : null}
                         </svg>
+
+                        {hoveredPoint ? (
+                            <div
+                                className="pointer-events-none absolute z-10 min-w-[9rem] rounded-lg border border-admin-border bg-admin-surface px-2.5 py-2 text-[11px] shadow-lg"
+                                style={{
+                                    left: `${(hoveredPoint.x / chartLayout.width) * 100}%`,
+                                    top: 12,
+                                    transform:
+                                        hoveredPoint.x > chartLayout.width * 0.7
+                                            ? "translateX(-100%)"
+                                            : hoveredPoint.x < chartLayout.width * 0.2
+                                              ? "translateX(0)"
+                                              : "translateX(-50%)",
+                                }}
+                            >
+                                <div className="mb-1.5 font-semibold text-admin-text">{hoveredPoint.label}</div>
+                                <div className="space-y-1 text-admin-text-secondary">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                                            Заказано
+                                        </span>
+                                        <span className="font-semibold tabular-nums text-admin-text">
+                                            {hoveredPoint.ordered}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                            Отменено
+                                        </span>
+                                        <span className="font-semibold tabular-nums text-admin-text">
+                                            {hoveredPoint.cancelled}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                            Продано
+                                        </span>
+                                        <span className="font-semibold tabular-nums text-admin-text">
+                                            {hoveredPoint.sold}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             </AdminPageCard>

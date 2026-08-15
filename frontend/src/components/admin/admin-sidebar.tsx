@@ -36,11 +36,16 @@ import type { LucideIcon } from "lucide-react";
 import { fetchOrdersStats } from "@/lib/admin-orders-api";
 import { fetchAdminReviewsStats } from "@/lib/admin-reviews-api";
 import { fetchProductSeoQueueBadge } from "@/lib/admin-seo-product-descriptions-api";
+import {
+    fetchLastPriceRefreshAt,
+    formatPriceRefreshDayMonth,
+} from "@/lib/admin-pricing-api";
 import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
 type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending" | "seoQueued";
 type AlertBadgeKey = "ordersOverdue";
+type MetaBadgeKey = "priceRefreshLast";
 
 type LinkItem = {
     type: "link";
@@ -50,6 +55,7 @@ type LinkItem = {
     badgeKey?: BadgeKey;
     badgeLabel?: string;
     alertBadgeKey?: AlertBadgeKey;
+    metaBadgeKey?: MetaBadgeKey;
 };
 type SidebarItem = LinkItem;
 
@@ -65,7 +71,13 @@ const sections: SidebarSection[] = [
         label: "Основное",
         items: [
             { type: "link", href: "/admin", label: "Дашборд", icon: LayoutDashboard },
-            { type: "link", href: "/admin/pricing/refresh", label: "Обновление цен", icon: RefreshCw },
+            {
+                type: "link",
+                href: "/admin/pricing/refresh",
+                label: "Обновление цен",
+                icon: RefreshCw,
+                metaBadgeKey: "priceRefreshLast",
+            },
             {
                 type: "link",
                 href: "/admin/orders",
@@ -250,6 +262,40 @@ function SidebarAlertBadge({
     );
 }
 
+function SidebarMetaBadge({
+    value,
+    compact,
+    label,
+}: {
+    value: string | null;
+    compact: boolean;
+    label: string;
+}) {
+    if (!value) return null;
+
+    if (compact) {
+        return (
+            <span
+                className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-slate-600 px-1 py-0.5 text-[9px] font-semibold leading-none tabular-nums text-white shadow-sm ring-2 ring-admin-sidebar"
+                aria-label={`${label}: ${value}`}
+                title={`${label}: ${value}`}
+            >
+                {value}
+            </span>
+        );
+    }
+
+    return (
+        <span
+            className="ml-2 inline-flex h-5 shrink-0 items-center rounded-full bg-slate-200/90 px-1.5 text-[10px] font-semibold leading-none tabular-nums text-slate-700"
+            aria-label={`${label}: ${value}`}
+            title={`${label}: ${value}`}
+        >
+            {value}
+        </span>
+    );
+}
+
 function FloatingTooltip({ tooltip }: { tooltip: TooltipState }) {
     if (!tooltip || typeof document === "undefined") {
         return null;
@@ -312,6 +358,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const [stockProductRequestsNew, setStockProductRequestsNew] = useState(0);
     const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
     const [seoQueuedCount, setSeoQueuedCount] = useState(0);
+    const [priceRefreshLastLabel, setPriceRefreshLastLabel] = useState<string | null>(null);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
     const _hasItems = flatItems.length > 0;
@@ -319,12 +366,14 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
     const loadSidebarBadgeStats = useCallback(
         async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            const [ordersResult, stockResult, reviewsResult, seoResult] = await Promise.allSettled([
-                fetchOrdersStats(signal),
-                fetchAdminStockNotificationStats(signal),
-                fetchAdminReviewsStats(signal),
-                fetchProductSeoQueueBadge(signal),
-            ]);
+            const [ordersResult, stockResult, reviewsResult, seoResult, priceRefreshResult] =
+                await Promise.allSettled([
+                    fetchOrdersStats(signal),
+                    fetchAdminStockNotificationStats(signal),
+                    fetchAdminReviewsStats(signal),
+                    fetchProductSeoQueueBadge(signal),
+                    fetchLastPriceRefreshAt(signal),
+                ]);
 
             let ordersNew = 0;
             let ordersOverdue = 0;
@@ -353,6 +402,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
             if (seoResult.status === "fulfilled") {
                 seoQueued = seoResult.value.data.queued ?? 0;
                 setSeoQueuedCount(seoQueued);
+            }
+
+            if (priceRefreshResult.status === "fulfilled") {
+                setPriceRefreshLastLabel(formatPriceRefreshDayMonth(priceRefreshResult.value));
             }
 
             const active =
@@ -392,6 +445,12 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const alertBadgeCounts: Record<AlertBadgeKey, number> = {
         ordersOverdue: overdueOrdersCount,
     };
+    const metaBadgeValues: Record<MetaBadgeKey, string | null> = {
+        priceRefreshLast: priceRefreshLastLabel,
+    };
+    const metaBadgeLabels: Record<MetaBadgeKey, string> = {
+        priceRefreshLast: "Последнее обновление цен",
+    };
 
     return (
         <aside className="w-full overflow-visible">
@@ -416,6 +475,12 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                     const alertCount = item.alertBadgeKey
                                         ? alertBadgeCounts[item.alertBadgeKey]
                                         : 0;
+                                    const metaBadge = item.metaBadgeKey
+                                        ? metaBadgeValues[item.metaBadgeKey]
+                                        : null;
+                                    const metaBadgeLabel = item.metaBadgeKey
+                                        ? metaBadgeLabels[item.metaBadgeKey]
+                                        : "";
 
                                     return (
                                         <Link
@@ -468,6 +533,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                             label={item.badgeLabel}
                                                         />
                                                         <SidebarAlertBadge count={alertCount} compact />
+                                                        <SidebarMetaBadge
+                                                            value={metaBadge}
+                                                            compact
+                                                            label={metaBadgeLabel}
+                                                        />
                                                     </>
                                                 ) : null}
                                             </span>
@@ -483,6 +553,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                         label={item.badgeLabel}
                                                     />
                                                     <SidebarAlertBadge count={alertCount} compact={false} />
+                                                    <SidebarMetaBadge
+                                                        value={metaBadge}
+                                                        compact={false}
+                                                        label={metaBadgeLabel}
+                                                    />
                                                 </div>
                                             ) : null}
 

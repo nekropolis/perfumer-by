@@ -173,10 +173,11 @@ export async function uploadSupplierPriceFile(supplierId: number, file: File) {
     return data;
 }
 
-export async function fetchPriceRefreshRuns(page = 1) {
+export async function fetchPriceRefreshRuns(page = 1, signal?: AbortSignal) {
     const res = await fetch(`${API_BASE}/admin/pricing/refresh/runs?page=${page}`, {
         headers: getAdminHeaders(),
         cache: "no-store",
+        signal,
     });
     if (!res.ok) throw new Error("Не удалось загрузить историю");
     return res.json() as Promise<{
@@ -185,6 +186,27 @@ export async function fetchPriceRefreshRuns(page = 1) {
         last_page: number;
         total: number;
     }>;
+}
+
+/** Дата последнего успешного обновления цен (ISO / datetime string) или null. */
+export async function fetchLastPriceRefreshAt(signal?: AbortSignal): Promise<string | null> {
+    const response = await fetchPriceRefreshRuns(1, signal);
+    const lastCompleted = response.data.find(
+        (run) => run.status === "completed" && Boolean(run.finished_at),
+    );
+    return lastCompleted?.finished_at ?? null;
+}
+
+/** Формат для сайдбара: день.месяц без года (15.08). */
+export function formatPriceRefreshDayMonth(value: string | null | undefined): string | null {
+    if (!value) {
+        return null;
+    }
+    const match = value.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) {
+        return null;
+    }
+    return `${match[3]}.${match[2]}`;
 }
 
 export type InStockPricingPreviewOffer = {

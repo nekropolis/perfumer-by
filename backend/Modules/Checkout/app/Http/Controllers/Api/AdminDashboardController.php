@@ -160,11 +160,12 @@ class AdminDashboardController extends Controller
     private function resolveRangeAndBucket(string $period): array
     {
         $now = CarbonImmutable::now();
+        $todayEnd = $now->endOfDay();
 
         if ($period === 'year') {
             return [
                 $now->startOfYear(),
-                $now->endOfYear(),
+                $todayEnd,
                 '%Y-%m',
                 '1 month',
             ];
@@ -173,7 +174,7 @@ class AdminDashboardController extends Controller
         if ($period === 'quarter') {
             return [
                 $now->startOfQuarter(),
-                $now->endOfQuarter(),
+                $todayEnd,
                 '%Y-%m',
                 '1 month',
             ];
@@ -181,7 +182,7 @@ class AdminDashboardController extends Controller
 
         return [
             $now->startOfMonth(),
-            $now->endOfMonth(),
+            $todayEnd,
             '%Y-%m-%d',
             '1 day',
         ];
