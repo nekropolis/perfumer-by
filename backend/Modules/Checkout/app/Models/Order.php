@@ -20,6 +20,7 @@ class Order extends Model
         'cart_token',
         'customer_name',
         'phone',
+        'additional_phone',
         'comment',
         'manager_comment',
         'status',

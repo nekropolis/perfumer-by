@@ -104,6 +104,7 @@ export type OrderData = {
     id: number;
     customer_name: string | null;
     phone: string;
+    additional_phone?: string | null;
     comment: string | null;
     status: string;
     status_label?: string | null;

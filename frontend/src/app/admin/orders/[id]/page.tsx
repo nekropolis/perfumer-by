@@ -48,6 +48,13 @@ export default async function AdminOrderPage({ params }: Props) {
                             <div>{order.phone}</div>
                         </div>
 
+                        {order.additional_phone ? (
+                            <div>
+                                <div className="text-sm text-admin-text-secondary">Доп. телефон</div>
+                                <div>{order.additional_phone}</div>
+                            </div>
+                        ) : null}
+
                         <div>
                             <div className="text-sm text-admin-text-secondary">Статус</div>
                             <div>{getOrderStatusLabel(order.status, order.status_label)}</div>

@@ -14,6 +14,12 @@ import {
     type AdminOrderCustomerContext,
     type AdminOrderCustomerContextOrderRow,
 } from "@/lib/admin-orders-api";
+import {
+    getOrderStatusColor,
+    getOrderStatusLabel,
+    solidColorPillStyle,
+    SOLID_PILL_CHIP_CLASS,
+} from "@/constants/order-statuses";
 
 type Props = {
     order: OrderData | null;
@@ -408,6 +414,9 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <InfoItem label="Клиент" value={order.customer_name ? order.customer_name : "Не указан"} />
                                 <InfoItem label="Телефон" value={order.phone || "—"} />
+                                {order.additional_phone ? (
+                                    <InfoItem label="Доп. телефон" value={order.additional_phone} />
+                                ) : null}
                             </div>
 
                             <div className="mt-3 border-t border-admin-border/70 pt-3">
@@ -735,6 +744,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                               <tr className="border-b text-left text-admin-text-secondary">
                                                   <th className="px-3 py-2">№ заказа</th>
                                                   <th className="px-3 py-2">Дата</th>
+                                                  <th className="px-3 py-2">Статус</th>
                                                   <th className="px-3 py-2">Что заказано</th>
                                                   <th className="px-3 py-2 text-right">Кол-во</th>
                                                   <th className="px-3 py-2 text-right">Сумма</th>
@@ -756,6 +766,22 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                                           </td>
                                                           <td className="px-3 py-2">
                                                               {formatContextDateTime(row.created_at)}
+                                                          </td>
+                                                          <td className="px-3 py-2">
+                                                              <span
+                                                                  className={SOLID_PILL_CHIP_CLASS}
+                                                                  style={solidColorPillStyle(
+                                                                      getOrderStatusColor(
+                                                                          row.status ?? "",
+                                                                          row.status_color,
+                                                                      ),
+                                                                  )}
+                                                              >
+                                                                  {getOrderStatusLabel(
+                                                                      row.status ?? "",
+                                                                      row.status_label,
+                                                                  )}
+                                                              </span>
                                                           </td>
                                                           <td className="px-3 py-2">
                                                               <div className="space-y-1">

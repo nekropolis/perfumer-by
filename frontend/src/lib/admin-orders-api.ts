@@ -275,6 +275,7 @@ export type AdminOrderPayloadItem = {
 export type AdminOrderPayload = {
   customer_name?: string | null;
   phone: string;
+  additional_phone?: string | null;
   comment?: string | null;
   manager_comment?: string | null;
   status?: string;
@@ -334,6 +335,7 @@ export type AdminOrderCustomerContext = {
   matched_user: { id: number; name: string | null } | null;
   /** Имя из профиля или последнего заказа по этому телефону. */
   customer_name?: string | null;
+  additional_phone?: string | null;
   orders: {
     completed: number;
     cancelled: number;
@@ -349,6 +351,9 @@ export type AdminOrderCustomerContext = {
 export type AdminOrderCustomerContextOrderRow = {
   id: number;
   created_at: string | null;
+  status?: string;
+  status_label?: string | null;
+  status_color?: string | null;
   items_qty: number;
   total: string;
   items: {

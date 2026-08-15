@@ -348,22 +348,33 @@ function weekdayShortFromIso(value?: string | null): string | null {
 function AdminOrderClientPhoneCell({
     name,
     phone,
+    additionalPhone,
     searchQuery,
     onShowAction,
     onHideAction,
 }: {
     name?: string | null;
     phone?: string | null;
+    additionalPhone?: string | null;
     searchQuery: string;
     onShowAction: (tooltip: AddressTooltipState) => void;
     onHideAction: () => void;
 }) {
     const clientName = name?.trim() || "—";
     const phoneText = phone?.trim() || "—";
+    const additionalText = additionalPhone?.trim() || "";
     const callHref = phoneText !== "—" ? telHref(phoneText) : "";
     const hasContent = clientName !== "—" || phoneText !== "—";
 
     const showTooltip = (element: HTMLElement) => {
+        if (additionalText) {
+            onShowAction({
+                lines: [`Доп. ${additionalText}`],
+                ...getTooltipPosition(element),
+            });
+            return;
+        }
+
         const nameEl = element.querySelector<HTMLElement>("[data-client-name]");
         const nameTruncated = nameEl ? isTextOverflowing(nameEl) : false;
 
@@ -1679,6 +1690,7 @@ export default function AdminOrdersTable({
                                     <AdminOrderClientPhoneCell
                                         name={order.customer_name}
                                         phone={order.phone}
+                                        additionalPhone={order.additional_phone}
                                         searchQuery={searchQuery}
                                         onShowAction={showAddressTooltip}
                                         onHideAction={hideAddressTooltipWithDelay}

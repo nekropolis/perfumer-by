@@ -24,6 +24,7 @@ export type AdminClient = {
     birth_date?: string | null;
     email: string | null;
     phone: string | null;
+    additional_phone?: string | null;
     phone_verified_at?: string | null;
     orders_count?: number;
     discount_cards?: {
@@ -41,6 +42,7 @@ type AdminClientPayload = {
     birth_date?: string | null;
     email: string | null;
     phone: string;
+    additional_phone?: string | null;
     password?: string | null;
     password_confirmation?: string | null;
 };

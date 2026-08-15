@@ -38,6 +38,7 @@ class OrderController extends Controller
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:32'],
+            'additional_phone' => ['nullable', 'string', 'max:32'],
             'comment' => ['nullable', 'string'],
             'manager_comment' => ['nullable', 'string', 'max:5000'],
             'status' => ['sometimes', 'required', 'string', 'max:50'],
@@ -103,6 +104,24 @@ class OrderController extends Controller
         }
 
         return DeliveryCityResolver::apply($validated);
+    }
+
+    private function normalizeOptionalPhone(string $phone): ?string
+    {
+        $normalized = Phone::normalize($phone);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function syncClientAdditionalPhone(?int $clientId, ?string $additionalPhone): void
+    {
+        if ($clientId === null || $clientId <= 0) {
+            return;
+        }
+
+        Client::query()->whereKey($clientId)->update([
+            'additional_phone' => $additionalPhone,
+        ]);
     }
 
     public function stats(): JsonResponse
@@ -248,19 +267,27 @@ class OrderController extends Controller
     {
         return $orders
             ->take(30)
-            ->map(static fn (Order $order): array => [
-                'id' => (int) $order->id,
-                'created_at' => optional($order->created_at)?->toIso8601String(),
-                'items_qty' => (int) ($order->items_qty ?? 0),
-                'total' => (string) $order->total,
-                'items' => $order->items->map(static function (OrderItem $item): array {
-                    return [
-                        'product_name' => (string) ($item->product_name ?? ''),
-                        'variant_title' => (string) ($item->variant_title ?? ''),
-                        'qty' => (int) ($item->qty ?? 0),
-                    ];
-                })->values()->all(),
-            ])
+            ->map(static function (Order $order): array {
+                $statusCode = (string) $order->status;
+                $statusDisplay = OrderStatus::displayForCode($statusCode);
+
+                return [
+                    'id' => (int) $order->id,
+                    'created_at' => optional($order->created_at)?->toIso8601String(),
+                    'status' => $statusCode,
+                    'status_label' => $statusDisplay['label'],
+                    'status_color' => $statusDisplay['color'],
+                    'items_qty' => (int) ($order->items_qty ?? 0),
+                    'total' => (string) $order->total,
+                    'items' => $order->items->map(static function (OrderItem $item): array {
+                        return [
+                            'product_name' => (string) ($item->product_name ?? ''),
+                            'variant_title' => (string) ($item->variant_title ?? ''),
+                            'qty' => (int) ($item->qty ?? 0),
+                        ];
+                    })->values()->all(),
+                ];
+            })
             ->values()
             ->all();
     }
@@ -341,6 +368,7 @@ class OrderController extends Controller
                     $subQuery
                         ->orWhere('customer_name', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('additional_phone', 'like', "%{$search}%")
                         ->orWhere('shipment_id', 'like', "%{$search}%");
                 });
             })
@@ -549,10 +577,13 @@ class OrderController extends Controller
         /** @var Order $order */
         $order = DB::transaction(function () use ($validated, $discountCardNumber, $giftCertificateCode) {
             $phone = Phone::normalize((string) $validated['phone']);
+            $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
+            $clientId = OrderAccountScope::resolveClientIdForPhone($phone);
             $order = Order::query()->create([
-                'client_id' => OrderAccountScope::resolveClientIdForPhone($phone),
+                'client_id' => $clientId,
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
+                'additional_phone' => $additionalPhone,
                 'comment' => $validated['comment'] ?? null,
                 'manager_comment' => $validated['manager_comment'] ?? null,
                 'status' => (string) ($validated['status'] ?? 'new'),
@@ -574,6 +605,7 @@ class OrderController extends Controller
                 'payment_method' => $validated['payment_method'] ?? null,
             ]);
 
+            $this->syncClientAdditionalPhone($clientId, $additionalPhone);
             $this->syncOrderItemsAndTotals($order, $validated['items'], [
                 'payment_method' => (string) ($validated['payment_method'] ?? 'cash'),
                 'discount_card_number' => $discountCardNumber !== '' ? $discountCardNumber : null,
@@ -637,11 +669,14 @@ class OrderController extends Controller
 
         DB::transaction(function () use ($order, $validated, $previousStatus, $isTerminal, $discountCardNumber, $giftCertificateCode) {
             $phone = Phone::normalize((string) $validated['phone']);
+            $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
+            $clientId = OrderAccountScope::resolveClientIdForPhone($phone) ?? $order->client_id;
             $nextStatus = (string) ($validated['status'] ?? $previousStatus);
             $order->update([
-                'client_id' => OrderAccountScope::resolveClientIdForPhone($phone) ?? $order->client_id,
+                'client_id' => $clientId,
                 'customer_name' => $validated['customer_name'] ?? null,
                 'phone' => $phone,
+                'additional_phone' => $additionalPhone,
                 'comment' => $validated['comment'] ?? null,
                 'manager_comment' => $validated['manager_comment'] ?? null,
                 'delivery_method' => $validated['delivery_method'] ?? null,
@@ -665,6 +700,7 @@ class OrderController extends Controller
                 'status' => $nextStatus,
             ]);
 
+            $this->syncClientAdditionalPhone($clientId ? (int) $clientId : null, $additionalPhone);
             if ($isTerminal) {
                 $this->recalculateOrderTotalsFromExistingItems($order);
             } else {

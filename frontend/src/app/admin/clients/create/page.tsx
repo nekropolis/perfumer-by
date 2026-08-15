@@ -6,7 +6,7 @@ import { useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import ClientForm, { isValidClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
+import ClientForm, { isValidClientPhone, isValidOptionalClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
 import { createAdminClient } from "@/lib/admin-clients-api";
 
 const emptyForm: ClientFormState = {
@@ -15,6 +15,7 @@ const emptyForm: ClientFormState = {
     patronymic: "",
     birth_date: "",
     phone: "",
+    additional_phone: "",
     email: "",
     password: "",
     passwordConfirmation: "",
@@ -35,6 +36,11 @@ export default function AdminClientsCreatePage() {
             setSubmitting(false);
             return;
         }
+        if (!isValidOptionalClientPhone(form.additional_phone.trim())) {
+            setError("Доп. телефон: BY +375 или международный 8–15 цифр, либо пусто");
+            setSubmitting(false);
+            return;
+        }
 
         try {
             await createAdminClient({
@@ -43,6 +49,7 @@ export default function AdminClientsCreatePage() {
                 patronymic: form.patronymic.trim() || null,
                 birth_date: form.birth_date || null,
                 phone: form.phone.trim(),
+                additional_phone: form.additional_phone.trim() || null,
                 email: form.email.trim() || null,
                 password: form.password.trim() || null,
             });

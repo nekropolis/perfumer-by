@@ -191,7 +191,16 @@ export default function AdminClientsPage() {
                                     <tr key={client.id} className="border-b last:border-b-0">
                                         <td className="px-3 py-2 tabular-nums">{client.id}</td>
                                         <td className="px-3 py-2">{client.name || "—"}</td>
-                                        <td className="px-3 py-2">{client.phone || "—"}</td>
+                                        <td
+                                            className="px-3 py-2"
+                                            title={
+                                                client.additional_phone
+                                                    ? `Доп. ${client.additional_phone}`
+                                                    : undefined
+                                            }
+                                        >
+                                            {client.phone || "—"}
+                                        </td>
                                         <td className="max-w-[240px] truncate px-3 py-2" title={client.email || "—"}>{client.email || "—"}</td>
                                         <td className="px-3 py-2">
                                             <div className="flex flex-wrap items-center gap-2">

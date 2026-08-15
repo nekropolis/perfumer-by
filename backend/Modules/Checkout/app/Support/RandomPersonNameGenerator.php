@@ -77,9 +77,33 @@ class RandomPersonNameGenerator
         'Игоревна',
     ];
 
-    public function randomLastName(int|string $seed): string
+    public function randomLastName(int|string $seed, string $firstName = ''): string
     {
-        return $this->pick(self::LAST_NAMES, $seed, 'last');
+        $lastName = $this->pick(self::LAST_NAMES, $seed, 'last');
+
+        if ($this->isLikelyFemaleFirstName($firstName)) {
+            return $this->inflectLastNameFemale($lastName);
+        }
+
+        return $lastName;
+    }
+
+    private function inflectLastNameFemale(string $lastName): string
+    {
+        if (str_ends_with($lastName, 'ский')) {
+            return mb_substr($lastName, 0, -4).'ская';
+        }
+
+        if (
+            str_ends_with($lastName, 'ов')
+            || str_ends_with($lastName, 'ев')
+            || str_ends_with($lastName, 'ёв')
+            || str_ends_with($lastName, 'ин')
+        ) {
+            return $lastName.'а';
+        }
+
+        return $lastName;
     }
 
     public function randomPatronymic(int|string $seed, string $firstName = ''): string

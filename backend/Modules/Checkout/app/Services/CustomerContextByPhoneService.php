@@ -12,6 +12,7 @@ final class CustomerContextByPhoneService
      * @return array{
      *     matched_user: array{id: int, name: string|null}|null,
      *     customer_name: string|null,
+     *     additional_phone: string|null,
      *     orders: array{completed: int, cancelled: int, active: int}
      * }
      */
@@ -22,6 +23,7 @@ final class CustomerContextByPhoneService
             return [
                 'matched_user' => null,
                 'customer_name' => null,
+                'additional_phone' => null,
                 'orders' => ['completed' => 0, 'cancelled' => 0, 'active' => 0],
             ];
         }
@@ -32,7 +34,7 @@ final class CustomerContextByPhoneService
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderByDesc('id')
             ->limit(800)
-            ->get(['id', 'status', 'phone', 'customer_name'])
+            ->get(['id', 'status', 'phone', 'customer_name', 'additional_phone'])
             ->filter(fn (Order $order) => Phone::normalize((string) $order->phone) === $digits);
 
         $completed = $orderRows->whereIn('status', ['done', 'completed'])->count();
@@ -43,7 +45,7 @@ final class CustomerContextByPhoneService
             ->where('phone', 'like', '%'.$suffix.'%')
             ->orderBy('id')
             ->limit(50)
-            ->get()
+            ->get(['id', 'name', 'phone', 'additional_phone'])
             ->first(fn (Client $candidate) => Phone::normalize((string) $candidate->phone) === $digits);
 
         $customerName = null;
@@ -58,12 +60,27 @@ final class CustomerContextByPhoneService
             }
         }
 
+        $additionalPhone = null;
+        if ($client) {
+            $fromClient = Phone::normalize((string) ($client->additional_phone ?? ''));
+            $additionalPhone = $fromClient !== '' ? $fromClient : null;
+        }
+        if ($additionalPhone === null) {
+            $latestWithAdditional = $orderRows->first(
+                fn (Order $order) => Phone::normalize((string) ($order->additional_phone ?? '')) !== ''
+            );
+            if ($latestWithAdditional) {
+                $additionalPhone = Phone::normalize((string) $latestWithAdditional->additional_phone);
+            }
+        }
+
         return [
             'matched_user' => $client ? [
                 'id' => (int) $client->id,
                 'name' => $client->name,
             ] : null,
             'customer_name' => $customerName,
+            'additional_phone' => $additionalPhone,
             'orders' => [
                 'completed' => $completed,
                 'cancelled' => $cancelled,

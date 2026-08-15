@@ -34,6 +34,7 @@ class AdminClientController extends Controller
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('patronymic', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('additional_phone', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
 
                     if ($digitsSearch !== '' && strlen($digitsSearch) >= 4) {
@@ -41,10 +42,16 @@ class AdminClientController extends Controller
                             $subQuery->orWhereRaw(
                                 "REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '') LIKE ?",
                                 ['%'.$digitsSearch.'%']
+                            )->orWhereRaw(
+                                "REGEXP_REPLACE(COALESCE(additional_phone, ''), '[^0-9]', '') LIKE ?",
+                                ['%'.$digitsSearch.'%']
                             );
                         } elseif ($driver === 'sqlite') {
                             $subQuery->orWhereRaw(
                                 "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') LIKE ?",
+                                ['%'.$digitsSearch.'%']
+                            )->orWhereRaw(
+                                "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(additional_phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') LIKE ?",
                                 ['%'.$digitsSearch.'%']
                             );
                         }
@@ -116,10 +123,12 @@ class AdminClientController extends Controller
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('clients', 'email')],
             'phone' => ['required', 'string', 'max:32', Rule::unique('clients', 'phone')],
+            'additional_phone' => ['nullable', 'string', 'max:32'],
             'password' => ['nullable', 'string', 'min:8', 'max:255'],
         ]);
 
         $phone = $this->normalizePhone((string) $validated['phone']);
+        $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
         $email = trim((string) ($validated['email'] ?? ''));
         $password = (string) ($validated['password'] ?? '');
 
@@ -127,6 +136,7 @@ class AdminClientController extends Controller
             ...$this->profilePayload($validated),
             'email' => $email !== '' ? mb_strtolower($email, 'UTF-8') : $phone.'@phone.local',
             'phone' => $phone,
+            'additional_phone' => $additionalPhone,
             'password' => $password !== '' ? Hash::make($password) : Hash::make(bin2hex(random_bytes(16))),
             'phone_verified_at' => now(),
         ]);
@@ -161,10 +171,12 @@ class AdminClientController extends Controller
                 'max:32',
                 Rule::unique('clients', 'phone')->ignore($client->id),
             ],
+            'additional_phone' => ['nullable', 'string', 'max:32'],
             'password' => ['nullable', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
         $phone = $this->normalizePhone((string) $validated['phone']);
+        $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
         $email = trim((string) ($validated['email'] ?? ''));
         $password = trim((string) ($validated['password'] ?? ''));
 
@@ -172,6 +184,7 @@ class AdminClientController extends Controller
             ...$this->profilePayload($validated),
             'email' => $email !== '' ? mb_strtolower($email, 'UTF-8') : $phone.'@phone.local',
             'phone' => $phone,
+            'additional_phone' => $additionalPhone,
         ];
 
         if ($password !== '') {
@@ -242,6 +255,13 @@ class AdminClientController extends Controller
         return preg_replace('/\D+/', '', $phone) ?? '';
     }
 
+    private function normalizeOptionalPhone(string $phone): ?string
+    {
+        $normalized = $this->normalizePhone($phone);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
     private function toApiClient(Client $client, int $ordersCount): array
     {
         return [
@@ -252,6 +272,7 @@ class AdminClientController extends Controller
             'patronymic' => $client->patronymic,
             'birth_date' => $client->birth_date?->format('Y-m-d'),
             'phone' => $client->phone,
+            'additional_phone' => $client->additional_phone,
             'email' => $client->profileEmail() ?? $client->email,
             'phone_verified_at' => $client->phone_verified_at?->toIso8601String(),
             'orders_count' => $ordersCount,

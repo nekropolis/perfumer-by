@@ -30,6 +30,7 @@ class Client extends Authenticatable
         'email',
         'password',
         'phone',
+        'additional_phone',
         'phone_verified_at',
     ];
 

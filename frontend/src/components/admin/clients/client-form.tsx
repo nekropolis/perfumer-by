@@ -11,6 +11,7 @@ type ClientFormState = {
     patronymic: string;
     birth_date: string;
     phone: string;
+    additional_phone: string;
     email: string;
     password: string;
     passwordConfirmation: string;
@@ -60,6 +61,12 @@ export function isValidClientPhone(phone: string): boolean {
     return digits.length >= 12 && digits.startsWith(PHONE_PREFIX);
 }
 
+export function isValidOptionalClientPhone(phone: string): boolean {
+    const digits = digitsOnly(phone);
+    if (digits === "") return true;
+    return isValidClientPhone(phone);
+}
+
 export default function ClientForm({
     form,
     submitting,
@@ -70,6 +77,8 @@ export default function ClientForm({
 }: Props) {
     const plainMode = shouldUsePlainPhoneUi(form.phone);
     const nationalPhone = clampNationalDigits(form.phone);
+    const plainAdditionalMode = shouldUsePlainPhoneUi(form.additional_phone);
+    const nationalAdditionalPhone = clampNationalDigits(form.additional_phone);
 
     return (
         <div className="space-y-4">
@@ -184,6 +193,88 @@ export default function ClientForm({
                                 autoCapitalize="off"
                                 spellCheck={false}
                                 required
+                            />
+                        </div>
+                    )}
+                </div>
+                <div>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                        <label className="block text-sm text-admin-text-secondary">Доп. телефон</label>
+                        <button
+                            type="button"
+                            className="text-[11px] font-medium text-admin-primary hover:underline"
+                            onClick={() => {
+                                if (plainAdditionalMode) {
+                                    const d = digitsOnly(form.additional_phone);
+                                    const national = d.startsWith(PHONE_PREFIX)
+                                        ? d.slice(PHONE_PREFIX.length).slice(0, 9)
+                                        : "";
+                                    onChangeAction({
+                                        ...form,
+                                        additional_phone: national ? `${PHONE_PREFIX}${national}` : "",
+                                    });
+                                } else {
+                                    onChangeAction({
+                                        ...form,
+                                        additional_phone: digitsOnly(form.additional_phone).slice(
+                                            0,
+                                            ADMIN_PHONE_MAX_DIGITS,
+                                        ),
+                                    });
+                                }
+                            }}
+                        >
+                            {plainAdditionalMode ? "Белорусский" : "Международный"}
+                        </button>
+                    </div>
+                    {plainAdditionalMode ? (
+                        <input
+                            value={digitsOnly(form.additional_phone)}
+                            onChange={(e) =>
+                                onChangeAction({
+                                    ...form,
+                                    additional_phone: e.target.value
+                                        .replace(/\D/g, "")
+                                        .slice(0, ADMIN_PHONE_MAX_DIGITS),
+                                })
+                            }
+                            className="w-full rounded-lg border px-3 py-2 font-mono text-sm"
+                            placeholder="79001234567"
+                            inputMode="numeric"
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                        />
+                    ) : (
+                        <div className="flex min-h-10 w-full items-stretch overflow-hidden rounded-lg border border-admin-border bg-admin-surface">
+                            <span className="flex shrink-0 items-center border-r bg-admin-muted px-3 text-sm text-admin-text-secondary">
+                                +375
+                            </span>
+                            <input
+                                value={formatNationalDisplay(nationalAdditionalPhone)}
+                                onChange={(e) => {
+                                    const raw = e.target.value.replace(/\D/g, "");
+                                    if (!raw.startsWith(PHONE_PREFIX) && raw.length >= 10) {
+                                        onChangeAction({
+                                            ...form,
+                                            additional_phone: raw.slice(0, ADMIN_PHONE_MAX_DIGITS),
+                                        });
+                                        return;
+                                    }
+                                    const national = clampNationalDigits(e.target.value);
+                                    onChangeAction({
+                                        ...form,
+                                        additional_phone: national ? `${PHONE_PREFIX}${national}` : "",
+                                    });
+                                }}
+                                className="min-w-0 flex-1 border-0 px-3 py-2 text-sm outline-none ring-0 focus:ring-0"
+                                placeholder="29 123-45-67"
+                                inputMode="numeric"
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
                             />
                         </div>
                     )}

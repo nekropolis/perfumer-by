@@ -104,6 +104,7 @@ class OrderResource extends JsonResource
             'id' => $this->id,
             'customer_name' => $this->customer_name,
             'phone' => $this->phone,
+            'additional_phone' => $this->additional_phone,
             'comment' => $this->comment,
             'status' => $statusCode,
             'status_label' => $statusDisplay['label'],
@@ -373,20 +374,16 @@ class OrderResource extends JsonResource
     }
 
     /**
-     * Название позиции как у поставщика (товар + вариант, без дубля).
+     * Название позиции у поставщика (только товар, без варианта каталога).
      */
     private function supplierOfferDisplayTitle(mixed $offer): ?string
     {
         $productName = trim((string) ($offer->external_product_name ?? ''));
-        $variantName = trim((string) ($offer->external_variant_name ?? ''));
-
-        if ($productName !== '' && $variantName !== '' && strcasecmp($productName, $variantName) !== 0) {
-            return $productName.' — '.$variantName;
-        }
-
         if ($productName !== '') {
             return $productName;
         }
+
+        $variantName = trim((string) ($offer->external_variant_name ?? ''));
 
         return $variantName !== '' ? $variantName : null;
     }

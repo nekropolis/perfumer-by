@@ -53,7 +53,9 @@ class VeterTicketPayloadBuilder
             'SecondName' => $fio['first'],
             'ThirdName' => $fio['patronymic'],
             'FirstTelefonNumber' => Phone::formatBelarusDisplay((string) ($order->phone ?? '')),
-            'SecondTelefonNumber' => '',
+            'SecondTelefonNumber' => trim((string) ($order->additional_phone ?? '')) !== ''
+                ? Phone::formatBelarusDisplay((string) $order->additional_phone)
+                : '',
             'RecieverCost' => '',
             'BoxCount' => '1',
             'SendDate' => $this->formatSendDate($order),
@@ -176,7 +178,7 @@ class VeterTicketPayloadBuilder
 
         $seed = (int) $order->id;
         if ($last === '') {
-            $last = $this->names->randomLastName($seed);
+            $last = $this->names->randomLastName($seed, $first);
         }
         if ($patronymic === '') {
             $patronymic = $this->names->randomPatronymic($seed, $first);

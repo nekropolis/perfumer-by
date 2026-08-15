@@ -7,7 +7,7 @@ import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
-import ClientForm, { isValidClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
+import ClientForm, { isValidClientPhone, isValidOptionalClientPhone, type ClientFormState } from "@/components/admin/clients/client-form";
 import { fetchAdminClient, updateAdminClient } from "@/lib/admin-clients-api";
 
 export default function AdminClientsEditPage() {
@@ -31,6 +31,7 @@ export default function AdminClientsEditPage() {
                     patronymic: client.patronymic ?? "",
                     birth_date: client.birth_date ?? "",
                     phone: client.phone ?? "",
+                    additional_phone: client.additional_phone ?? "",
                     email: client.email ?? "",
                     password: "",
                     passwordConfirmation: "",
@@ -51,6 +52,11 @@ export default function AdminClientsEditPage() {
 
         if (!isValidClientPhone(form.phone.trim())) {
             setError("Телефон обязателен (BY +375 или международный 8–15 цифр)");
+            setSubmitting(false);
+            return;
+        }
+        if (!isValidOptionalClientPhone(form.additional_phone.trim())) {
+            setError("Доп. телефон: BY +375 или международный 8–15 цифр, либо пусто");
             setSubmitting(false);
             return;
         }
@@ -78,6 +84,7 @@ export default function AdminClientsEditPage() {
                 patronymic: form.patronymic.trim() || null,
                 birth_date: form.birth_date || null,
                 phone: form.phone.trim(),
+                additional_phone: form.additional_phone.trim() || null,
                 email: form.email.trim() || null,
                 ...(password !== ""
                     ? { password, password_confirmation: passwordConfirmation }
