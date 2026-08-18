@@ -14,8 +14,15 @@ Schedule::command('shop:advance-waiting-discount-delivery-date')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('catalog:refresh-product-similars --chunk=50')
+    ->monthlyOn(1, '00:10')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 Schedule::command('veter:sync-cities')
-    ->dailyAt('03:00')
+    ->dailyAt('04:20')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->onOneServer()
@@ -23,29 +30,22 @@ Schedule::command('veter:sync-cities')
     ->when(fn () => (bool) config('services.veter.enabled'));
 
 Schedule::command('catalog:warm-cache --pages=3')
-    ->dailyAt('03:25')
+    ->dailyAt('04:40')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->runInBackground();
 
 Schedule::command('seo:warm-sitemap')
-    ->dailyAt('03:45')
+    ->dailyAt('04:55')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->runInBackground();
 
 Schedule::command('catalog:refresh-home-recommended')
-    ->weeklyOn(1, '04:10')
+    ->weeklyOn(1, '05:10')
     ->timezone('Europe/Minsk')
     ->withoutOverlapping()
     ->onOneServer();
-
-Schedule::command('catalog:refresh-product-similars --chunk=50')
-    ->monthlyOn(1, '04:30')
-    ->timezone('Europe/Minsk')
-    ->withoutOverlapping()
-    ->onOneServer()
-    ->runInBackground();
 
 Schedule::command('orders:notify-overdue-delivery')
     ->dailyAt('07:00')

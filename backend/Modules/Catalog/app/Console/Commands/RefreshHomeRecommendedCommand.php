@@ -17,6 +17,8 @@ class RefreshHomeRecommendedCommand extends Command
     {
         $this->info('Сбор снимка рекомендуемых товаров...');
 
+        $startedAt = now('Europe/Minsk');
+
         try {
             $count = $productViewService->refreshSnapshot();
             $ids = $productViewService->snapshotProductIds();
@@ -27,6 +29,7 @@ class RefreshHomeRecommendedCommand extends Command
                     '⚠️ Ошибка обновления рекомендуемых на главной',
                     'Команда: catalog:refresh-home-recommended',
                     'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
+                    'Длительность: '.$this->formatDuration($startedAt),
                     'Ошибка: '.$e->getMessage(),
                 ]),
                 ['type' => 'catalog_refresh_home_recommended_error'],
@@ -42,6 +45,7 @@ class RefreshHomeRecommendedCommand extends Command
             'Команда: catalog:refresh-home-recommended',
             'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
             'Товаров в снимке: '.$count,
+            'Длительность: '.$this->formatDuration($startedAt),
         ];
         if ($ids !== []) {
             $lines[] = 'ID: '.implode(', ', $ids);
@@ -53,6 +57,15 @@ class RefreshHomeRecommendedCommand extends Command
         ]);
 
         return self::SUCCESS;
+    }
+
+    private function formatDuration(\DateTimeInterface $startedAt): string
+    {
+        $seconds = max(0, (int) round(now('Europe/Minsk')->diffInSeconds($startedAt, true)));
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        return sprintf('%d ч %d мин %d с', $hours, $minutes, $seconds % 60);
     }
 
     /**

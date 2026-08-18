@@ -65,6 +65,7 @@ class RefreshProductSimilarsCommand extends Command
                     'Команда: catalog:refresh-product-similars',
                     'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
                     'Обработано до сбоя: '.$updated,
+                    'Длительность: '.$this->formatDuration($startedAt),
                     'Ошибка: '.$e->getMessage(),
                 ]),
                 [
@@ -75,14 +76,13 @@ class RefreshProductSimilarsCommand extends Command
             return self::FAILURE;
         }
 
-        $elapsed = $startedAt->diffInSeconds(now('Europe/Minsk'));
-        $summary = sprintf(
-            'Готово. Обработано товаров: %d. Ошибок: %d. Время: %d с.',
+        $duration = $this->formatDuration($startedAt);
+        $this->info(sprintf(
+            'Готово. Обработано товаров: %d. Ошибок: %d. Длительность: %s.',
             $updated,
             count($errors),
-            $elapsed,
-        );
-        $this->info($summary);
+            $duration,
+        ));
 
         $doneLines = [
             (count($errors) > 0 ? '⚠️' : '✅').' Пересчёт похожих товаров завершён',
@@ -90,7 +90,7 @@ class RefreshProductSimilarsCommand extends Command
             'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
             'Обработано: '.$updated,
             'Ошибок: '.count($errors),
-            'Длительность: '.$elapsed.' с',
+            'Длительность: '.$duration,
         ];
         if ($errors !== []) {
             $doneLines[] = '';
@@ -110,6 +110,15 @@ class RefreshProductSimilarsCommand extends Command
         ]);
 
         return $errors === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function formatDuration(\DateTimeInterface $startedAt): string
+    {
+        $seconds = max(0, (int) round(now('Europe/Minsk')->diffInSeconds($startedAt, true)));
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        return sprintf('%d ч %d мин %d с', $hours, $minutes, $seconds % 60);
     }
 
     /**

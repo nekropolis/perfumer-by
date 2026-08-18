@@ -11,6 +11,7 @@ function getAdminHeaders() {
 
     return {
         "Content-Type": "application/json",
+        Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 }
@@ -50,7 +51,12 @@ export async function createProductAttributeValue(
     const res = await fetch(`${API_BASE}/admin/products/${productId}/attribute-values`, {
         method: "POST",
         headers: getAdminHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+            product_attribute_id: payload.attribute_id,
+            option_ids: payload.option_ids,
+            custom_value: payload.custom_value,
+            sort_order: payload.sort_order,
+        }),
         cache: "no-store",
     });
 

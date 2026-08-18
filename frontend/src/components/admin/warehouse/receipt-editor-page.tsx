@@ -302,60 +302,68 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         };
     }, [debouncedSupplierSku, form.supplier_id, isAddModalOpen]);
 
+    const buildReceiptPayload = (): StockReceiptPayload => {
+        if (!form.supplier_id || !form.supplier_name.trim()) {
+            throw new Error("Выберите поставщика");
+        }
+        if (!form.warehouse_id) {
+            throw new Error("Выберите склад");
+        }
+
+        form.items.forEach((item, index) => {
+            if (!item.product_id) {
+                throw new Error(`Строка ${index + 1}: выберите товар`);
+            }
+
+            if (!item.variant_id && !item.variant_definition_id) {
+                throw new Error(`Строка ${index + 1}: выберите вариант`);
+            }
+
+            if (!item.supplier_price || Number(item.supplier_price) < 0) {
+                throw new Error(`Строка ${index + 1}: укажите цену поставщика`);
+            }
+        });
+
+        return {
+            warehouse_id: form.warehouse_id,
+            supplier_id: form.supplier_id,
+            supplier_code: form.supplier_code || null,
+            supplier_name: form.supplier_name.trim(),
+            received_at: form.received_at || null,
+            comment: form.comment.trim(),
+            items: form.items.map((item) => {
+                const payloadBody: NonNullable<StockReceiptPayload["items"][number]["payload"]> = {};
+                const supplierName = item.supplier_product_name.trim();
+                const lineComment = item.line_comment.trim();
+                if (supplierName) {
+                    payloadBody.supplier_product_name = supplierName;
+                }
+                if (lineComment) {
+                    payloadBody.comment = lineComment;
+                }
+                return {
+                    product_id: Number(item.product_id),
+                    variant_id: item.variant_id ? Number(item.variant_id) : null,
+                    variant_definition_id: item.variant_definition_id ? Number(item.variant_definition_id) : null,
+                    qty: Number(item.qty),
+                    supplier_price: Number(item.supplier_price),
+                    supplier_sku: item.supplier_sku.trim(),
+                    payload: Object.keys(payloadBody).length > 0 ? payloadBody : undefined,
+                };
+            }),
+        };
+    };
+
+    const persistDraft = async (receiptIdToSave: number) => {
+        await updateStockReceipt(receiptIdToSave, buildReceiptPayload());
+    };
+
     const submit = async () => {
         setSaving(true);
         setError("");
 
         try {
-            if (!form.supplier_id || !form.supplier_name.trim()) {
-                throw new Error("Выберите поставщика");
-            }
-            if (!form.warehouse_id) {
-                throw new Error("Выберите склад");
-            }
-
-            form.items.forEach((item, index) => {
-                if (!item.product_id) {
-                    throw new Error(`Строка ${index + 1}: выберите товар`);
-                }
-
-                if (!item.variant_id && !item.variant_definition_id) {
-                    throw new Error(`Строка ${index + 1}: выберите вариант`);
-                }
-
-                if (!item.supplier_price || Number(item.supplier_price) < 0) {
-                    throw new Error(`Строка ${index + 1}: укажите цену поставщика`);
-                }
-            });
-
-            const payload: StockReceiptPayload = {
-                warehouse_id: form.warehouse_id,
-                supplier_id: form.supplier_id,
-                supplier_code: form.supplier_code || null,
-                supplier_name: form.supplier_name.trim(),
-                received_at: form.received_at || null,
-                comment: form.comment.trim(),
-                items: form.items.map((item) => {
-                    const payloadBody: NonNullable<StockReceiptPayload["items"][number]["payload"]> = {};
-                    const supplierName = item.supplier_product_name.trim();
-                    const lineComment = item.line_comment.trim();
-                    if (supplierName) {
-                        payloadBody.supplier_product_name = supplierName;
-                    }
-                    if (lineComment) {
-                        payloadBody.comment = lineComment;
-                    }
-                    return {
-                        product_id: Number(item.product_id),
-                        variant_id: item.variant_id ? Number(item.variant_id) : null,
-                        variant_definition_id: item.variant_definition_id ? Number(item.variant_definition_id) : null,
-                        qty: Number(item.qty),
-                        supplier_price: Number(item.supplier_price),
-                        supplier_sku: item.supplier_sku.trim(),
-                        payload: Object.keys(payloadBody).length > 0 ? payloadBody : undefined,
-                    };
-                }),
-            };
+            const payload = buildReceiptPayload();
 
             if (isEdit && receiptId) {
                 await updateStockReceipt(receiptId, payload);
@@ -379,6 +387,7 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         setPosting(true);
         setError("");
         try {
+            await persistDraft(receiptId);
             const res = await postStockReceipt(receiptId);
             setReceiptStatus(res.data.status ?? STOCK_RECEIPT_STATUS.POSTED);
             setSuccessMessage(res.message || "Приход оприходован");
@@ -396,6 +405,9 @@ export default function ReceiptEditorPage({ receiptId }: Props) {
         setDistributing(true);
         setError("");
         try {
+            if (receiptStatus === STOCK_RECEIPT_STATUS.DRAFT) {
+                await persistDraft(receiptId);
+            }
             const res = await postAndDistributeStockReceipt(receiptId);
             setReceiptStatus(res.data.status ?? STOCK_RECEIPT_STATUS.POSTED);
             const distributed = typeof res.distributed_items === "number" ? res.distributed_items : 0;
