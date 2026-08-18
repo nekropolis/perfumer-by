@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Validation\Rule;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
+use Modules\Catalog\Jobs\RebuildProductSimilarsJob;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Services\CatalogProductLinkSearchService;
+use Modules\Catalog\Services\SimilarProductsService;
 use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
@@ -36,6 +38,7 @@ class ProductAdminController extends Controller
         $query = Product::query()
             ->with(['brand'])
             ->withCount('variants')
+            ->withSum('dailyViews as views_count', 'views_count')
             ->withCount([
                 'variants as discounted_variants_count' => function ($variantQuery) {
                     $variantQuery->where('is_promotion', true);
@@ -219,6 +222,7 @@ class ProductAdminController extends Controller
         ]);
 
         $this->syncStockFlags($product);
+        RebuildProductSimilarsJob::dispatch((int) $product->id);
 
         return response()->json([
             'message' => 'Продукт создан',
@@ -590,6 +594,17 @@ class ProductAdminController extends Controller
 
         return response()->json([
             'data' => $data,
+        ]);
+    }
+
+    public function refreshSimilars(int $id, SimilarProductsService $similarProductsService): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+        $count = $similarProductsService->rebuildForProduct((int) $product->id);
+
+        return response()->json([
+            'message' => 'Похожие товары обновлены',
+            'count' => $count,
         ]);
     }
 

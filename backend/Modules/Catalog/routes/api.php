@@ -24,9 +24,13 @@ Route::prefix('catalog')->group(function () {
     Route::get('/brands', [ProductController::class, 'brands']);
     Route::get('/brands/{slug}', [ProductController::class, 'brandBySlug']);
     Route::get('/filters', [ProductController::class, 'filters']);
+    Route::get('/home/recommended', [ProductController::class, 'homeRecommended']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/smart-search', [ProductController::class, 'smartSearch']);
     Route::get('/products/{slug}/similar', [ProductController::class, 'similarProducts']);
+    Route::post('/products/{id}/view', [ProductController::class, 'recordView'])
+        ->middleware('throttle:60,1')
+        ->whereNumber('id');
     Route::get('/products/{slug}', [ProductController::class, 'show']);
 });
 
@@ -127,6 +131,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::get('/search-smart', [ProductAdminController::class, 'smartSearch']);
     Route::post('/', [ProductAdminController::class, 'store']);
     Route::post('/cache/reset', [ProductAdminController::class, 'resetApiCache']);
+    Route::post('/{id}/refresh-similars', [ProductAdminController::class, 'refreshSimilars'])->whereNumber('id');
     Route::get('/variant-definitions', [ProductVariantAdminController::class, 'catalog']);
     Route::get('/variant-definitions/{id}', [ProductVariantAdminController::class, 'showDefinition']);
     Route::post('/variant-definitions', [ProductVariantAdminController::class, 'storeDefinition']);

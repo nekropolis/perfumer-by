@@ -1,9 +1,11 @@
 import Link from "next/link";
 import HomeStoreReviewsSection from "@/components/home/home-store-reviews-section";
 import HomeFaqAccordion from "@/components/home/home-faq-accordion";
+import SimilarProductsCarousel from "@/components/product/similar-products-carousel";
 import { HOME_PAGE_FAQ_ITEMS as faq, type HomePageReviewSnippet } from "@/lib/json-ld";
-import { withBynSign } from "@/lib/byn-sign";
+import { SIMILAR_PRODUCTS_MIN_TO_SHOW } from "@/lib/product-detail-utils";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteFilterChip, siteFilterChipInactive } from "@/lib/site-ui-classes";
+import type { ProductListItem } from "@/types/catalog";
 
 type HomeTemplateProps = {
     heroTitle: string;
@@ -11,6 +13,7 @@ type HomeTemplateProps = {
     contentHtml: string;
     storeReviews: HomePageReviewSnippet[];
     popularBrands: { id: number; name: string; slug: string }[];
+    recommendedProducts: ProductListItem[];
 };
 
 const categories = [
@@ -32,13 +35,6 @@ const trustItems = [
     { title: "Быстрая доставка", description: "По Минску и по всей Беларуси в удобные для клиента интервалы." },
 ];
 
-const featuredProducts = [
-    { id: 1, name: "Tom Ford Lost Cherry", brand: "Tom Ford", price: "420.00", oldPrice: "480.00" },
-    { id: 2, name: "Maison Francis Kurkdjian Baccarat Rouge 540", brand: "MFK", price: "560.00", oldPrice: null },
-    { id: 3, name: "Initio Oud for Greatness", brand: "Initio", price: "510.00", oldPrice: "590.00" },
-    { id: 4, name: "Xerjoff Erba Pura", brand: "Xerjoff", price: "390.00", oldPrice: null },
-];
-
 const popularSearches = [
     { title: "Купить духи в Минске", href: "/catalog" },
     { title: "Нишевая парфюмерия", href: "/catalog?collection=niche" },
@@ -48,38 +44,13 @@ const popularSearches = [
     { title: "Парфюмерия со скидкой", href: "/catalog?sale=1" },
 ];
 
-function FeaturedProductCard({
-    name,
-    brand,
-    price,
-    oldPrice,
-}: {
-    name: string;
-    brand: string;
-    price: string;
-    oldPrice: string | null;
-}) {
-    return (
-        <div className={`${siteCard} group cursor-pointer p-4 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md`}>
-            <div className="mb-4 aspect-square rounded-lg bg-admin-muted" />
-            <div className="mb-1 text-sm text-admin-text-secondary">{brand}</div>
-            <div className="line-clamp-2 min-h-[48px] text-base font-medium leading-6 text-admin-text">{name}</div>
-            <div className="mt-4 flex items-end gap-2">
-                <div className="text-lg font-semibold text-admin-text">{withBynSign(price)}</div>
-                {oldPrice ? (
-                    <div className="text-sm text-admin-text-secondary line-through">{withBynSign(oldPrice)}</div>
-                ) : null}
-            </div>
-        </div>
-    );
-}
-
 export default function HomeTemplate({
     heroTitle,
     heroDescription,
     contentHtml,
     storeReviews,
     popularBrands,
+    recommendedProducts,
 }: HomeTemplateProps) {
     return (
         <>
@@ -205,17 +176,9 @@ export default function HomeTemplate({
                     </div>
                 </section>
 
-                <section className="mt-10">
-                    <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">
-                        Рекомендуемые товары
-                    </h2>
-
-                    <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                        {featuredProducts.map((product) => (
-                            <FeaturedProductCard key={product.id} {...product} />
-                        ))}
-                    </div>
-                </section>
+                {recommendedProducts.length >= SIMILAR_PRODUCTS_MIN_TO_SHOW ? (
+                    <SimilarProductsCarousel products={recommendedProducts} title="Рекомендуемые товары" />
+                ) : null}
 
                 <section className={`${siteCard} mt-10 p-6 sm:p-8`}>
                     <h2 className="text-2xl font-semibold tracking-tight text-admin-text sm:text-3xl">

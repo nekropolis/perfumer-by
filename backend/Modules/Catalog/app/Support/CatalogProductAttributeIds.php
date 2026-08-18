@@ -22,6 +22,58 @@ final class CatalogProductAttributeIds
 
     public const int GENDER_OPTION_UNISEX_ID = 62;
 
+    /** product_attributes: «Типы» */
+    public const int TYPE_ATTRIBUTE_ID = 18;
+
+    /** product_attributes: «Парфюмеры» */
+    public const int PERFUMER_ATTRIBUTE_ID = 17;
+
+    /** product_attributes: «Сезон» */
+    public const int SEASON_ATTRIBUTE_ID = 8;
+
+    /** product_attributes: «Время суток» */
+    public const int TIME_OF_DAY_ATTRIBUTE_ID = 15;
+
+    /** product_attributes: «Семейство ароматов» */
+    public const int FRAGRANCE_FAMILY_ATTRIBUTE_ID = 4;
+
+    /** product_attributes: «Начальные ноты» */
+    public const int TOP_NOTES_ATTRIBUTE_ID = 5;
+
+    /** product_attributes: «Ноты сердца» */
+    public const int HEART_NOTES_ATTRIBUTE_ID = 6;
+
+    /** product_attributes: «Базовые ноты» */
+    public const int BASE_NOTES_ATTRIBUTE_ID = 7;
+
+    /**
+     * @return list<int>
+     */
+    public static function similarNoteAttributeIds(): array
+    {
+        return [
+            self::FRAGRANCE_FAMILY_ATTRIBUTE_ID,
+            self::TOP_NOTES_ATTRIBUTE_ID,
+            self::HEART_NOTES_ATTRIBUTE_ID,
+            self::BASE_NOTES_ATTRIBUTE_ID,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function similarAllAttributeIds(): array
+    {
+        return [
+            self::GENDER_ATTRIBUTE_ID,
+            self::TYPE_ATTRIBUTE_ID,
+            self::PERFUMER_ATTRIBUTE_ID,
+            self::SEASON_ATTRIBUTE_ID,
+            self::TIME_OF_DAY_ATTRIBUTE_ID,
+            ...self::similarNoteAttributeIds(),
+        ];
+    }
+
     /**
      * @return list<int>
      */

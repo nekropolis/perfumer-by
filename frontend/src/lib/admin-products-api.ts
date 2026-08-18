@@ -37,6 +37,8 @@ export type ProductAdminItem = {
     discounted_variants_count?: number;
     is_out_of_stock?: boolean;
     variants_count: number;
+    /** Сумма product_daily_views.views_count; null/0 — бейдж скрыт. */
+    views_count?: number | string | null;
     /** Варианты с остатком на «наших» полках или предзаказом (см. ProductAdminController). */
     variants_with_stock_count?: number;
     brand: {
@@ -841,6 +843,21 @@ function shortFetchError(status: number, body: string): string {
         // plain text
     }
     return trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
+}
+
+export async function refreshProductSimilars(id: number): Promise<{ message: string; count: number }> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/refresh-similars`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(shortFetchError(res.status, text) || `Refresh similars API error: ${res.status}`);
+    }
+
+    return res.json() as Promise<{ message: string; count: number }>;
 }
 
 export async function resetCatalogApiCache(): Promise<ResetCatalogCacheResult> {

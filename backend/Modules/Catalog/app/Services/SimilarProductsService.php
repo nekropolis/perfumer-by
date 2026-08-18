@@ -3,378 +3,272 @@
 namespace Modules\Catalog\Services;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
-use Modules\Catalog\Http\Resources\ProductListResource;
+use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
-use Modules\Catalog\Models\ProductAttribute;
+use Modules\Catalog\Models\ProductSimilarLink;
+use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 
-/**
- * Подбор «похожих» товаров по скорингу (бренд, категория, фильтруемые атрибуты, объём, цена, наличие).
- * Не ручная привязка — единый алгоритм для парфюмерной витрины.
- */
 final class SimilarProductsService
 {
-    private const int CANDIDATE_POOL = 180;
+    private const int CANDIDATE_POOL = 60;
 
     private const int DEFAULT_LIMIT = 8;
 
-    // -------------------------------------------------------------------------
-    // Скоринг «похожих» — меняйте веса здесь (целые очки).
-    // -------------------------------------------------------------------------
-    private const int SCORE_SAME_BRAND = 80;
-
-    private const int SCORE_SAME_MAIN_CATEGORY = 60;
-
-    /** Вклад совпадения по filterable-атрибутам: Jaccard по опциям × этот коэффициент. */
-    private const int SCORE_FILTERABLE_JACCARD_WEIGHT = 28;
-
-    /** Доп. вклад за долю пересечения с исходным набором опций (0..1). */
-    private const int SCORE_FILTERABLE_COVERAGE_WEIGHT = 6;
-
-    /** Если у обоих есть concentration_code и есть пересечение кодов. */
-    private const int SCORE_CONCENTRATION_OVERLAP = 18;
-
-    /** Средний объём: min/max отношение ≥ порога → очки (самый близкий порог выигрывает). */
-    private const float VOLUME_RATIO_TIGHT = 0.92;
-
-    private const int SCORE_VOLUME_TIGHT = 22;
-
-    private const float VOLUME_RATIO_MID = 0.75;
-
-    private const int SCORE_VOLUME_MID = 14;
-
-    private const float VOLUME_RATIO_LOOSE = 0.5;
-
-    private const int SCORE_VOLUME_LOOSE = 7;
-
-    private const float PRICE_RATIO_TIGHT = 0.88;
-
-    private const int SCORE_PRICE_TIGHT = 20;
-
-    private const float PRICE_RATIO_MID = 0.72;
-
-    private const int SCORE_PRICE_MID = 12;
-
-    private const float PRICE_RATIO_LOOSE = 0.55;
-
-    private const int SCORE_PRICE_LOOSE = 6;
-
-    private const int SCORE_IN_STOCK_OR_PREORDER = 14;
-
-    private const int SCORE_PRODUCT_ACTIVE = 6;
-
-    private const int SCORE_NOT_CURRENT_PRODUCT = 2;
-
-    /** @var list<int>|null */
-    private static ?array $filterableAttributeIds = null;
-
     /**
-     * @return Collection<int, Product>
+     * @return list<int>
      */
-    public function forProduct(Product $product, int $limit = self::DEFAULT_LIMIT): Collection
+    public function similarProductIds(int $productId, int $limit = self::DEFAULT_LIMIT): array
     {
         $limit = max(1, min($limit, 24));
 
-        if (! $product->relationLoaded('activeVariants')) {
-            $product->load([
-                'activeVariants' => static function ($q): void {
-                    $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'is_preorder', 'is_active', 'stock', 'reserved_stock', 'sort_order')
-                        ->with(['definition:id,volume_ml,concentration_code']);
-                },
-            ]);
+        return ProductSimilarLink::query()
+            ->where('product_id', $productId)
+            ->orderBy('position')
+            ->limit($limit)
+            ->pluck('similar_product_id')
+            ->map(static fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function rebuildForProduct(int $productId): int
+    {
+        $product = Product::query()->find($productId, ['id', 'slug', 'is_active']);
+        if ($product === null) {
+            return 0;
         }
 
-        if (! $product->relationLoaded('attributeValues')) {
-            $product->load([
-                'attributeValues' => static function ($q): void {
-                    $q->select('id', 'product_id', 'product_attribute_id', 'custom_value', 'sort_order')
-                        ->with([
-                            'selectedOptions' => static function ($q): void {
-                                $q->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
-                            },
-                        ]);
-                },
-            ]);
+        $ids = $this->selectSimilarIds($product, self::DEFAULT_LIMIT);
+        $this->replaceLinks((int) $product->id, $ids);
+
+        app(CatalogApiCacheService::class)->forgetProductSimilarBySlug((string) $product->slug);
+
+        return count($ids);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function selectSimilarIds(Product $product, int $limit): array
+    {
+        $sourceOptions = $this->optionIdsByAttribute((int) $product->id);
+        $genderIds = $sourceOptions[CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID] ?? [];
+        if ($genderIds === []) {
+            return [];
         }
 
-        $profile = $this->buildSourceProfile($product);
-        $candidates = $this->queryCandidates($product, $profile)->get();
-
+        $typeIds = $sourceOptions[CatalogProductAttributeIds::TYPE_ATTRIBUTE_ID] ?? [];
+        $candidates = $this->queryCandidatePool((int) $product->id, $genderIds, $typeIds)->get();
         if ($candidates->isEmpty()) {
-            return collect();
+            return [];
         }
 
-        $scored = $candidates->map(function (Product $candidate) use ($product, $profile): array {
-            $optionSets = $this->filterableOptionSetsByAttribute($candidate);
+        $candidateOptionMap = [];
+        foreach ($candidates as $candidate) {
+            $candidateOptionMap[(int) $candidate->id] = $this->optionIdsFromLoaded($candidate);
+        }
+
+        $scored = $candidates->map(function (Product $candidate) use ($sourceOptions, $candidateOptionMap, $typeIds): array {
+            $candOptions = $candidateOptionMap[(int) $candidate->id] ?? [];
 
             return [
-                'product' => $candidate,
-                'score' => $this->score($product, $profile, $candidate, $optionSets),
+                'id' => (int) $candidate->id,
+                'keys' => $this->scoreKeys($sourceOptions, $candOptions, $typeIds),
             ];
         });
 
         return $scored
-            ->sortByDesc('score')
-            ->pluck('product')
+            ->sort(function (array $a, array $b): int {
+                foreach ($a['keys'] as $index => $key) {
+                    $cmp = $b['keys'][$index] <=> $key;
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+                }
+
+                return $b['id'] <=> $a['id'];
+            })
+            ->pluck('id')
             ->take($limit)
-            ->values();
+            ->values()
+            ->all();
     }
 
     /**
-     * @return array{
-     *   brand_id: int|null,
-     *   main_category_id: int|null,
-     *   option_ids_by_attr: array<int, list<int>>,
-     *   min_price: float|null,
-     *   avg_volume_ml: float|null,
-     *   concentration_codes: list<string>
-     * }
+     * @param  array<int, list<int>>  $sourceOptions
+     * @param  array<int, list<int>>  $candidateOptions
+     * @param  list<int>  $typeIds
+     * @return list<int>
      */
-    private function buildSourceProfile(Product $product): array
+    private function scoreKeys(array $sourceOptions, array $candidateOptions, array $typeIds): array
     {
-        $filterableIds = $this->filterableAttributeIds();
-        $optionIdsByAttr = [];
+        $typeScore = 0;
+        if ($typeIds !== []) {
+            $typeScore = $this->hasAnyOverlap($typeIds, $candidateOptions[CatalogProductAttributeIds::TYPE_ATTRIBUTE_ID] ?? []) ? 1 : 0;
+        }
 
-        foreach ($product->attributeValues as $value) {
-            $attrId = (int) $value->product_attribute_id;
-            if (! in_array($attrId, $filterableIds, true)) {
+        $seasonIds = $sourceOptions[CatalogProductAttributeIds::SEASON_ATTRIBUTE_ID] ?? [];
+        $timeIds = $sourceOptions[CatalogProductAttributeIds::TIME_OF_DAY_ATTRIBUTE_ID] ?? [];
+        $perfumerIds = $sourceOptions[CatalogProductAttributeIds::PERFUMER_ATTRIBUTE_ID] ?? [];
+
+        $noteLevel = 0;
+        foreach (CatalogProductAttributeIds::similarNoteAttributeIds() as $attrId) {
+            $sourceNoteIds = $sourceOptions[$attrId] ?? [];
+            if ($sourceNoteIds === []) {
                 continue;
             }
-            $ids = $value->relationLoaded('selectedOptions')
-                ? $value->selectedOptions->pluck('product_attribute_option_id')->map(static fn ($id): int => (int) $id)->unique()->values()->all()
-                : [];
-            if ($ids !== []) {
-                $optionIdsByAttr[$attrId] = $ids;
-            }
+            $noteLevel = max(
+                $noteLevel,
+                $this->multiMatchLevel($sourceNoteIds, $candidateOptions[$attrId] ?? []),
+            );
         }
-
-        $variants = $product->activeVariants;
-        $prices = $variants->pluck('price')->filter(static fn ($p) => $p !== null && $p !== '')->map(static fn ($p): float => (float) $p);
-        $minPrice = $prices->isNotEmpty() ? (float) $prices->min() : null;
-
-        $volumes = collect();
-        $concCodes = [];
-        foreach ($variants as $link) {
-            $def = $link->relationLoaded('definition') ? $link->definition : null;
-            if ($def && $def->volume_ml !== null) {
-                $volumes->push((float) $def->volume_ml);
-            }
-            if ($def && $def->concentration_code) {
-                $concCodes[] = mb_strtolower(trim((string) $def->concentration_code));
-            }
-        }
-        $avgVolume = $volumes->isNotEmpty() ? (float) $volumes->avg() : null;
-        $concCodes = array_values(array_unique($concCodes));
 
         return [
-            'brand_id' => $product->brand_id ? (int) $product->brand_id : null,
-            'main_category_id' => $product->main_category_id ? (int) $product->main_category_id : null,
-            'option_ids_by_attr' => $optionIdsByAttr,
-            'min_price' => $minPrice,
-            'avg_volume_ml' => $avgVolume,
-            'concentration_codes' => $concCodes,
+            $typeScore,
+            $this->multiMatchLevel($perfumerIds, $candidateOptions[CatalogProductAttributeIds::PERFUMER_ATTRIBUTE_ID] ?? []),
+            ($seasonIds !== [] && $this->hasAnyOverlap($seasonIds, $candidateOptions[CatalogProductAttributeIds::SEASON_ATTRIBUTE_ID] ?? [])) ? 1 : 0,
+            ($timeIds !== [] && $this->hasAnyOverlap($timeIds, $candidateOptions[CatalogProductAttributeIds::TIME_OF_DAY_ATTRIBUTE_ID] ?? [])) ? 1 : 0,
+            $noteLevel,
         ];
     }
 
     /**
-     * @param  array{
-     *   brand_id: int|null,
-     *   main_category_id: int|null,
-     *   option_ids_by_attr: array<int, list<int>>,
-     *   min_price: float|null,
-     *   avg_volume_ml: float|null,
-     *   concentration_codes: list<string>
-     * }  $profile
-     * @param  array<int, list<int>>  $candidateOptionSets
+     * @param  list<int>  $sourceOrderedIds
+     * @param  list<int>  $candidateIds
      */
-    private function score(Product $source, array $profile, Product $candidate, array $candidateOptionSets): int
+    private function multiMatchLevel(array $sourceOrderedIds, array $candidateIds): int
     {
-        $score = 0;
-
-        if ($profile['brand_id'] !== null && (int) $candidate->brand_id === $profile['brand_id']) {
-            $score += self::SCORE_SAME_BRAND;
+        if ($sourceOrderedIds === []) {
+            return 0;
         }
 
-        if ($profile['main_category_id'] !== null && (int) $candidate->main_category_id === $profile['main_category_id']) {
-            $score += self::SCORE_SAME_MAIN_CATEGORY;
+        $candidateSet = array_flip($candidateIds);
+        if ($this->allPresent($sourceOrderedIds, $candidateSet)) {
+            return 3;
         }
 
-        foreach ($profile['option_ids_by_attr'] as $attrId => $srcOptions) {
-            $candOptions = $candidateOptionSets[$attrId] ?? [];
-            $intersect = count(array_intersect($srcOptions, $candOptions));
-            if ($intersect > 0) {
-                $union = count(array_unique(array_merge($srcOptions, $candOptions)));
-                $jaccard = $union > 0 ? $intersect / $union : 0.0;
-                $score += (int) round(
-                    self::SCORE_FILTERABLE_JACCARD_WEIGHT * $jaccard
-                    + self::SCORE_FILTERABLE_COVERAGE_WEIGHT * min(1.0, $intersect / max(1, count($srcOptions)))
-                );
-            }
+        $first3 = array_slice($sourceOrderedIds, 0, 3);
+        if (count($first3) === 3 && $this->allPresent($first3, $candidateSet)) {
+            return 2;
         }
 
-        $candConc = $this->candidateConcentrationCodes($candidate);
-        if ($profile['concentration_codes'] !== [] && $candConc !== []) {
-            $overlap = count(array_intersect($profile['concentration_codes'], $candConc));
-            if ($overlap > 0) {
-                $score += self::SCORE_CONCENTRATION_OVERLAP;
-            }
+        $first2 = array_slice($sourceOrderedIds, 0, 2);
+        if (count($first2) === 2 && $this->allPresent($first2, $candidateSet)) {
+            return 1;
         }
 
-        if ($profile['avg_volume_ml'] !== null && $profile['avg_volume_ml'] > 0) {
-            $candAvg = $this->candidateAvgVolumeMl($candidate);
-            if ($candAvg !== null && $candAvg > 0) {
-                $ratio = min($profile['avg_volume_ml'], $candAvg) / max($profile['avg_volume_ml'], $candAvg);
-                if ($ratio >= self::VOLUME_RATIO_TIGHT) {
-                    $score += self::SCORE_VOLUME_TIGHT;
-                } elseif ($ratio >= self::VOLUME_RATIO_MID) {
-                    $score += self::SCORE_VOLUME_MID;
-                } elseif ($ratio >= self::VOLUME_RATIO_LOOSE) {
-                    $score += self::SCORE_VOLUME_LOOSE;
-                }
-            }
-        }
-
-        if ($profile['min_price'] !== null && $profile['min_price'] > 0) {
-            $candMin = $this->candidateMinPrice($candidate);
-            if ($candMin !== null && $candMin > 0) {
-                $ratio = min($profile['min_price'], $candMin) / max($profile['min_price'], $candMin);
-                if ($ratio >= self::PRICE_RATIO_TIGHT) {
-                    $score += self::SCORE_PRICE_TIGHT;
-                } elseif ($ratio >= self::PRICE_RATIO_MID) {
-                    $score += self::SCORE_PRICE_MID;
-                } elseif ($ratio >= self::PRICE_RATIO_LOOSE) {
-                    $score += self::SCORE_PRICE_LOOSE;
-                }
-            }
-        }
-
-        $stock = (int) $candidate->activeVariants->sum('stock');
-        $preorder = $candidate->activeVariants->where('is_preorder', true)->isNotEmpty();
-        if ($stock > 0 || $preorder) {
-            $score += self::SCORE_IN_STOCK_OR_PREORDER;
-        }
-
-        if ($candidate->is_active) {
-            $score += self::SCORE_PRODUCT_ACTIVE;
-        }
-
-        if ((int) $candidate->id !== (int) $source->id) {
-            $score += self::SCORE_NOT_CURRENT_PRODUCT;
-        }
-
-        return $score;
+        return 0;
     }
 
     /**
-     * @param  array{
-     *   brand_id: int|null,
-     *   main_category_id: int|null,
-     *   option_ids_by_attr: array<int, list<int>>,
-     *   min_price: float|null,
-     *   avg_volume_ml: float|null,
-     *   concentration_codes: list<string>
-     * }  $profile
+     * @param  list<int>  $ids
+     * @param  array<int, int>  $set
      */
-    private function queryCandidates(Product $product, array $profile): Builder
+    private function allPresent(array $ids, array $set): bool
     {
-        $base = $this->similarCandidatesBaseQuery($product);
-
-        $brandId = $profile['brand_id'];
-        $catId = $profile['main_category_id'];
-        $attrs = $profile['option_ids_by_attr'];
-
-        $hasBrand = $brandId !== null;
-        $hasCat = $catId !== null;
-        $hasAttr = false;
-        foreach ($attrs as $optionIds) {
-            if ($optionIds !== []) {
-                $hasAttr = true;
-                break;
+        foreach ($ids as $id) {
+            if (! isset($set[$id])) {
+                return false;
             }
         }
 
-        if (! $hasBrand && ! $hasCat && ! $hasAttr) {
-            return $base->orderByDesc('id');
-        }
-
-        return $base->where(function (Builder $outer) use ($brandId, $catId, $attrs): void {
-            $first = true;
-
-            if ($brandId !== null) {
-                $outer->where('brand_id', $brandId);
-                $first = false;
-            }
-            if ($catId !== null) {
-                if ($first) {
-                    $outer->where('main_category_id', $catId);
-                } else {
-                    $outer->orWhere('main_category_id', $catId);
-                }
-                $first = false;
-            }
-            foreach ($attrs as $attrId => $optionIds) {
-                if ($optionIds === []) {
-                    continue;
-                }
-
-                if ($first) {
-                    $outer->whereHas('attributeValues', function ($vq) use ($attrId, $optionIds): void {
-                        $vq->where('product_attribute_id', $attrId)
-                            ->whereHas('selectedOptions', function ($sq) use ($optionIds): void {
-                                $sq->whereIn('product_attribute_option_id', $optionIds);
-                            });
-                    });
-                    $first = false;
-                } else {
-                    $outer->orWhereHas('attributeValues', function ($vq) use ($attrId, $optionIds): void {
-                        $vq->where('product_attribute_id', $attrId)
-                            ->whereHas('selectedOptions', function ($sq) use ($optionIds): void {
-                                $sq->whereIn('product_attribute_option_id', $optionIds);
-                            });
-                    });
-                }
-            }
-        });
+        return true;
     }
 
-    private function similarCandidatesBaseQuery(Product $exclude): Builder
+    /**
+     * @param  list<int>  $left
+     * @param  list<int>  $right
+     */
+    private function hasAnyOverlap(array $left, array $right): bool
     {
-        return Product::query()
+        if ($left === [] || $right === []) {
+            return false;
+        }
+
+        return count(array_intersect($left, $right)) > 0;
+    }
+
+    /**
+     * @param  list<int>  $genderIds
+     * @param  list<int>  $typeIds
+     * @return Builder<Product>
+     */
+    private function queryCandidatePool(int $excludeId, array $genderIds, array $typeIds): Builder
+    {
+        $query = Product::query()
             ->where('is_active', true)
-            ->whereKeyNot($exclude->getKey())
+            ->whereKeyNot($excludeId)
             ->whereHas('activeVariants', static function ($q): void {
                 $q->whereNotNull('price');
             })
-            ->select([
-                'id',
-                'brand_id',
-                'main_category_id',
-                'name',
-                'slug',
-                'h1',
-                'short_description',
-                'is_new',
-                'is_hit',
-                'is_out_of_stock',
-                'is_active',
-                'listing_min_price',
-            ])
+            ->where(function (Builder $outer) use ($genderIds): void {
+                $this->whereHasAttributeOptions($outer, CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID, $genderIds);
+            })
+            ->select(['id'])
             ->with([
-                'brand:id,name,slug',
-                'mainCategory:id,name,slug',
-                'images' => ProductListResource::imagesForListingEagerLoad(),
-                'activeVariants' => static function ($q): void {
-                    $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'is_preorder', 'is_active', 'stock', 'reserved_stock', 'sort_order')
+                'attributeValues' => static function ($q): void {
+                    $q->select('id', 'product_id', 'product_attribute_id', 'sort_order')
+                        ->whereIn('product_attribute_id', CatalogProductAttributeIds::similarAllAttributeIds())
                         ->with([
-                            'definition' => static function ($dq): void {
-                                $dq->select('id', 'volume_ml', 'concentration_code', 'concentration_label', 'is_tester', 'is_vial', 'title');
+                            'selectedOptions' => static function ($sq): void {
+                                $sq->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
                             },
                         ]);
                 },
-                'attributeValues' => function ($q): void {
-                    $ids = $this->filterableAttributeIds();
-                    $q->select('id', 'product_id', 'product_attribute_id', 'custom_value', 'sort_order')
-                        ->whereIn('product_attribute_id', $ids)
+            ]);
+
+        if ($typeIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($typeIds), '?'));
+            $query->orderByRaw(
+                'EXISTS (
+                    SELECT 1
+                    FROM product_attribute_values AS pav
+                    INNER JOIN product_attribute_value_options AS pavo
+                        ON pavo.product_attribute_value_id = pav.id
+                    WHERE pav.product_id = products.id
+                        AND pav.product_attribute_id = ?
+                        AND pavo.product_attribute_option_id IN ('.$placeholders.')
+                ) DESC',
+                [CatalogProductAttributeIds::TYPE_ATTRIBUTE_ID, ...$typeIds]
+            );
+        }
+
+        return $query->orderByDesc('id')->limit(self::CANDIDATE_POOL);
+    }
+
+    /**
+     * @param  list<int>  $optionIds
+     */
+    private function whereHasAttributeOptions(Builder $query, int $attributeId, array $optionIds): void
+    {
+        $query->whereExists(function ($subQuery) use ($attributeId, $optionIds): void {
+            $subQuery->selectRaw('1')
+                ->from('product_attribute_values as pav')
+                ->join(
+                    'product_attribute_value_options as pavo',
+                    'pavo.product_attribute_value_id',
+                    '=',
+                    'pav.id'
+                )
+                ->whereColumn('pav.product_id', 'products.id')
+                ->where('pav.product_attribute_id', $attributeId)
+                ->whereIn('pavo.product_attribute_option_id', $optionIds);
+        });
+    }
+
+    /**
+     * @return array<int, list<int>>
+     */
+    private function optionIdsByAttribute(int $productId): array
+    {
+        $product = Product::query()
+            ->whereKey($productId)
+            ->with([
+                'attributeValues' => static function ($q): void {
+                    $q->select('id', 'product_id', 'product_attribute_id', 'sort_order')
+                        ->whereIn('product_attribute_id', CatalogProductAttributeIds::similarAllAttributeIds())
+                        ->orderBy('sort_order')
                         ->with([
                             'selectedOptions' => static function ($sq): void {
                                 $sq->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
@@ -382,42 +276,28 @@ final class SimilarProductsService
                         ]);
                 },
             ])
-            ->limit(self::CANDIDATE_POOL);
-    }
+            ->first(['id']);
 
-    /**
-     * @return list<int>
-     */
-    private function filterableAttributeIds(): array
-    {
-        if (self::$filterableAttributeIds !== null) {
-            return self::$filterableAttributeIds;
+        if ($product === null) {
+            return [];
         }
 
-        self::$filterableAttributeIds = ProductAttribute::query()
-            ->where('is_active', true)
-            ->where('is_filterable', true)
-            ->orderBy('filter_sort_order')
-            ->pluck('id')
-            ->map(static fn ($id): int => (int) $id)
-            ->values()
-            ->all();
-
-        return self::$filterableAttributeIds;
+        return $this->optionIdsFromLoaded($product);
     }
 
     /**
      * @return array<int, list<int>>
      */
-    private function filterableOptionSetsByAttribute(Product $product): array
+    private function optionIdsFromLoaded(Product $product): array
     {
         $out = [];
         foreach ($product->attributeValues as $value) {
             $attrId = (int) $value->product_attribute_id;
-            if (! $value->relationLoaded('selectedOptions')) {
-                continue;
+            $ids = [];
+            foreach ($value->selectedOptions as $option) {
+                $ids[] = (int) $option->product_attribute_option_id;
             }
-            $ids = $value->selectedOptions->pluck('product_attribute_option_id')->map(static fn ($id): int => (int) $id)->unique()->values()->all();
+            $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
             if ($ids !== []) {
                 $out[$attrId] = $ids;
             }
@@ -427,42 +307,20 @@ final class SimilarProductsService
     }
 
     /**
-     * @return list<string>
+     * @param  list<int>  $similarIds
      */
-    private function candidateConcentrationCodes(Product $product): array
+    private function replaceLinks(int $productId, array $similarIds): void
     {
-        $codes = [];
-        foreach ($product->activeVariants as $link) {
-            $def = $link->relationLoaded('definition') ? $link->definition : null;
-            if ($def && $def->concentration_code) {
-                $codes[] = mb_strtolower(trim((string) $def->concentration_code));
+        DB::transaction(function () use ($productId, $similarIds): void {
+            ProductSimilarLink::query()->where('product_id', $productId)->delete();
+
+            foreach (array_values($similarIds) as $index => $similarId) {
+                ProductSimilarLink::query()->create([
+                    'product_id' => $productId,
+                    'similar_product_id' => $similarId,
+                    'position' => $index + 1,
+                ]);
             }
-        }
-
-        return array_values(array_unique($codes));
-    }
-
-    private function candidateAvgVolumeMl(Product $product): ?float
-    {
-        $volumes = collect();
-        foreach ($product->activeVariants as $link) {
-            $def = $link->relationLoaded('definition') ? $link->definition : null;
-            if ($def && $def->volume_ml !== null) {
-                $volumes->push((float) $def->volume_ml);
-            }
-        }
-
-        return $volumes->isNotEmpty() ? (float) $volumes->avg() : null;
-    }
-
-    private function candidateMinPrice(Product $product): ?float
-    {
-        if ($product->listing_min_price !== null) {
-            return (float) $product->listing_min_price;
-        }
-
-        $prices = $product->activeVariants->pluck('price')->filter(static fn ($p) => $p !== null && $p !== '')->map(static fn ($p): float => (float) $p);
-
-        return $prices->isNotEmpty() ? (float) $prices->min() : null;
+        });
     }
 }

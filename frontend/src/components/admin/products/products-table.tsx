@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, Pencil, Trash2 } from "lucide-react";
+import { Boxes, Eye, Pencil, Trash2 } from "lucide-react";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import { resolveProductStatuses } from "@/lib/product-statuses";
@@ -90,7 +90,18 @@ export default function ProductsTable({
                             {highlightAdminSearchTerms(item.brand?.name ?? "—", searchQuery)}
                         </td>
                         <td className="px-3 py-3 font-medium text-admin-text">
-                            <div>{highlightAdminSearchTerms(item.name, searchQuery, brandName)}</div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span>{highlightAdminSearchTerms(item.name, searchQuery, brandName)}</span>
+                                {Number(item.views_count ?? 0) > 0 ? (
+                                    <span
+                                        className="inline-flex items-center gap-0.5 rounded-md border border-admin-border bg-admin-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-admin-text-secondary"
+                                        title="Просмотры карточки"
+                                    >
+                                        <Eye size={10} aria-hidden />
+                                        {Number(item.views_count)}
+                                    </span>
+                                ) : null}
+                            </div>
                             {item.matched_variant_ids && item.matched_variant_ids.length > 0 ? (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                     {item.matched_variant_ids.map((variantId) => (

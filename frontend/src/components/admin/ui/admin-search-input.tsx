@@ -11,6 +11,7 @@ type Props = {
     label?: string;
     placeholder?: string;
     className?: string;
+    widthClassName?: string;
     queryParamKey?: string;
     syncWithUrl?: boolean;
 };
@@ -20,6 +21,7 @@ export default function AdminSearchInput({
     onChangeAction,
     placeholder = "Поиск...",
     className = "",
+    widthClassName = "w-full max-w-full md:max-w-72",
     queryParamKey = "search",
     syncWithUrl = true,
 }: Props) {
@@ -49,7 +51,7 @@ export default function AdminSearchInput({
 
     return (
         <div className={className}>
-            <div className="relative w-full max-w-full md:max-w-72">
+            <div className={`relative ${widthClassName}`}>
                 <Search
                     size={16}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-admin-text-muted"

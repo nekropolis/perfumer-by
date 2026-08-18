@@ -13,6 +13,8 @@ import {
 import { fetchStoreReviews } from "@/lib/reviews-api";
 import { buildSeoMetadata } from "@/lib/seo";
 import { DEFAULT_SITE_CONTENT, fetchSiteContent } from "@/lib/site-content-api";
+import { fetchHomeRecommendedProducts } from "@/lib/catalog-api";
+import type { ProductListItem } from "@/types/catalog";
 
 export async function generateMetadata(): Promise<Metadata> {
     const page = await fetchCmsPageBySlug("glavnaya");
@@ -53,6 +55,14 @@ export default async function HomePage() {
         /* API недоступен — блок брендов скрыт */
     }
 
+    let recommendedProducts: ProductListItem[] = [];
+    try {
+        const recommended = await fetchHomeRecommendedProducts();
+        recommendedProducts = recommended.data ?? [];
+    } catch {
+        /* API недоступен — блок рекомендуемых скрыт */
+    }
+
     return (
         <>
             <JsonLd data={[homeStoreJsonLd(storeReviews), faqPageJsonLd(HOME_PAGE_FAQ_ITEMS)]} />
@@ -62,6 +72,7 @@ export default async function HomePage() {
                 contentHtml={contentHtml}
                 storeReviews={storeReviews}
                 popularBrands={popularBrands}
+                recommendedProducts={recommendedProducts}
             />
         </>
     );

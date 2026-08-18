@@ -9,6 +9,7 @@ import {
     updateProductAttributeValue,
     type ProductAttributeBindingItem,
 } from "@/lib/admin-product-attribute-values-api";
+import { refreshProductSimilars } from "@/lib/admin-products-api";
 
 type BindingAttributeOption = {
     id: number;
@@ -318,6 +319,7 @@ export default function ProductAttributeValuesEditor({
 
     const [submitting, setSubmitting] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [refreshingSimilars, setRefreshingSimilars] = useState(false);
 
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -460,6 +462,25 @@ export default function ProductAttributeValuesEditor({
         }
     };
 
+    const handleRefreshSimilars = async () => {
+        setRefreshingSimilars(true);
+        setError("");
+        setSuccess("");
+
+        try {
+            const result = await refreshProductSimilars(productId);
+            setSuccess(
+                result.count > 0
+                    ? `${result.message}: ${result.count}`
+                    : "Похожие товары обновлены: подходящих карточек нет",
+            );
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Ошибка обновления похожих товаров");
+        } finally {
+            setRefreshingSimilars(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {error ? (
@@ -475,16 +496,26 @@ export default function ProductAttributeValuesEditor({
             ) : null}
 
             <div className="rounded-2xl border bg-white p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="text-base font-semibold">Привязанные атрибуты</div>
 
-                    <button
-                        type="button"
-                        onClick={openCreate}
-                        className="rounded-lg border px-3 py-1.5 text-sm"
-                    >
-                        Добавить атрибут
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => void handleRefreshSimilars()}
+                            disabled={refreshingSimilars}
+                            className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50"
+                        >
+                            {refreshingSimilars ? "Обновление…" : "Обновить похожие товары"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openCreate}
+                            className="rounded-lg border px-3 py-1.5 text-sm"
+                        >
+                            Добавить атрибут
+                        </button>
+                    </div>
                 </div>
 
                 {items.length === 0 ? (

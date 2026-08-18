@@ -21,6 +21,7 @@ use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Services\CatalogBootstrapService;
 use Modules\Catalog\Services\CatalogFiltersService;
 use Modules\Catalog\Services\CatalogProductsListingService;
+use Modules\Catalog\Services\ProductViewService;
 use Modules\Catalog\Services\SimilarProductsService;
 use Modules\Catalog\Services\SmartSearch\ProductSearchRetrievalService;
 use Modules\Reviews\Services\PublishedProductReviewsService;
@@ -35,6 +36,7 @@ class ProductController extends Controller
         private CatalogBootstrapService $bootstrapService,
         private CatalogFiltersService $filtersService,
         private SimilarProductsService $similarProductsService,
+        private ProductViewService $productViewService,
         private ProductSearchRetrievalService $searchRetrievalService,
         private PublishedProductReviewsService $reviewsService,
     ) {
@@ -272,22 +274,18 @@ class ProductController extends Controller
             $product = Product::query()
                 ->where('slug', $slug)
                 ->where('is_active', true)
-                ->first(['id', 'brand_id', 'main_category_id', 'is_active', 'is_out_of_stock']);
+                ->first(['id']);
 
             if ($product === null) {
                 return null;
             }
 
-            $similar = $this->similarProductsService->forProduct($product, $limit);
-            CatalogListingStockContext::prime($similar);
+            $ids = $this->similarProductsService->similarProductIds((int) $product->id, $limit);
+            $similar = $this->listingService->hydrateOrderedListingProducts($ids);
 
-            try {
-                return [
-                    'data' => ProductListResource::collection($similar)->resolve(),
-                ];
-            } finally {
-                CatalogListingStockContext::forget();
-            }
+            return [
+                'data' => ProductListResource::resolveCollection($similar),
+            ];
         });
 
         if ($payload === null) {
@@ -297,6 +295,29 @@ class ProductController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    public function recordView(Request $request, int $id): \Illuminate\Http\Response
+    {
+        $this->productViewService->record($id, $request);
+
+        return response()->noContent();
+    }
+
+    public function homeRecommended(): JsonResponse
+    {
+        $ids = $this->productViewService->snapshotProductIds();
+        $products = $this->listingService->hydrateOrderedListingProducts($ids);
+
+        if ($products->count() < ProductViewService::MIN_TO_SHOW) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
+        return response()->json([
+            'data' => ProductListResource::resolveCollection($products),
+        ]);
     }
 
     public function brands(): JsonResponse

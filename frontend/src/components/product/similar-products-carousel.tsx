@@ -8,9 +8,10 @@ import { SIMILAR_GAP_PX, similarVisibleColumns } from "@/lib/product-detail-util
 
 type Props = {
     products: ProductListItem[];
+    title?: string;
 };
 
-export default function SimilarProductsCarousel({ products }: Props) {
+export default function SimilarProductsCarousel({ products, title = "Похожие товары" }: Props) {
     const scrollerId = useId();
     const scrollerRef = useRef<HTMLDivElement>(null);
     const slidesRef = useRef<HTMLDivElement[]>([]);
@@ -112,14 +113,14 @@ export default function SimilarProductsCarousel({ products }: Props) {
         <section className="min-w-0 pt-10" aria-labelledby={scrollerId}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 id={scrollerId} className="text-lg font-semibold text-admin-text">
-                    Похожие товары
+                    {title}
                 </h2>
                 {overflow ? (
                     <div className="flex shrink-0 gap-1">
                         <button
                             type="button"
                             aria-controls={`${scrollerId}-track`}
-                            aria-label="Прокрутить похожие товары назад"
+                            aria-label={`Прокрутить ${title} назад`}
                             disabled={!edge.left}
                             onClick={() => scrollByViewport(-1)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-admin-border bg-admin-surface text-admin-text shadow-sm transition hover:bg-admin-bg disabled:pointer-events-none disabled:opacity-35"
@@ -129,7 +130,7 @@ export default function SimilarProductsCarousel({ products }: Props) {
                         <button
                             type="button"
                             aria-controls={`${scrollerId}-track`}
-                            aria-label="Прокрутить похожие товары вперёд"
+                            aria-label={`Прокрутить ${title} вперёд`}
                             disabled={!edge.right}
                             onClick={() => scrollByViewport(1)}
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-admin-border bg-admin-surface text-admin-text shadow-sm transition hover:bg-admin-bg disabled:pointer-events-none disabled:opacity-35"
@@ -139,7 +140,7 @@ export default function SimilarProductsCarousel({ products }: Props) {
                     </div>
                 ) : null}
             </div>
-            <nav aria-label="Похожие товары" className="min-w-0 w-full overflow-visible">
+            <nav aria-label={title} className="min-w-0 w-full overflow-visible">
                 {/* py: запас под hover:scale карточки; overflow-y-hidden нужен вместе с overflow-x-auto */}
                 <div
                     ref={scrollerRef}

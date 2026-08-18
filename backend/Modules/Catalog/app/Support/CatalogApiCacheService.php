@@ -221,6 +221,20 @@ class CatalogApiCacheService
         return $result;
     }
 
+    public function forgetProductSimilarBySlug(string $slug): void
+    {
+        $hash = md5(mb_strtolower(trim($slug)));
+        foreach ([4, 8, 12, 16, 24] as $limit) {
+            Cache::forget(sprintf(
+                'catalog:api:product-similar:s%s:v%s:%s:%d',
+                self::SCHEMA_VERSION,
+                $this->version(),
+                $hash,
+                $limit,
+            ));
+        }
+    }
+
     public function requestInvalidation(): void
     {
         if ($this->deferDepth > 0) {

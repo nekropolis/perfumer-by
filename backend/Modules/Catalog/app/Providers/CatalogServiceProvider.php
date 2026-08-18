@@ -11,6 +11,8 @@ use Modules\Catalog\Console\Commands\ParseVanilleProductsCommand;
 use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
 use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
 use Modules\Catalog\Console\Commands\PullProductSeoReadyCommand;
+use Modules\Catalog\Console\Commands\RefreshHomeRecommendedCommand;
+use Modules\Catalog\Console\Commands\RefreshProductSimilarsCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
 use Modules\Catalog\Console\Commands\RepairVanilleCatalogImageOrderCommand;
@@ -101,6 +103,8 @@ class CatalogServiceProvider extends ModuleServiceProvider
         SyncListingMinPricesCommand::class,
         WarmCatalogCacheCommand::class,
         PullProductSeoReadyCommand::class,
+        RefreshHomeRecommendedCommand::class,
+        RefreshProductSimilarsCommand::class,
     ];
 
     public function register(): void

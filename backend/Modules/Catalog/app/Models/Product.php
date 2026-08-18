@@ -124,4 +124,9 @@ class Product extends Model
     {
         return $this->hasMany(ProductSeoBatchItem::class);
     }
+
+    public function dailyViews(): HasMany
+    {
+        return $this->hasMany(ProductDailyView::class);
+    }
 }

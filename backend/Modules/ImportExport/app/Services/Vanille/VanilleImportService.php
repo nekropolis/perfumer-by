@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+use Modules\Catalog\Jobs\RebuildProductSimilarsJob;
 use Modules\Catalog\Jobs\RunVanilleImportJob;
 use Modules\Catalog\Models\Brand;
 use Modules\Catalog\Models\Product;
@@ -302,6 +303,10 @@ class VanilleImportService
                     && (bool) config('services.catalog_search.enabled', false)
                 ) {
                     app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch, $publishExisting);
+                }
+
+                if ($newProductIdForLlm !== null && $newProductIdForLlm > 0) {
+                    RebuildProductSimilarsJob::dispatch($newProductIdForLlm);
                 }
 
                 if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {

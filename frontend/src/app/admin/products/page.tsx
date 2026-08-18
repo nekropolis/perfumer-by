@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
@@ -366,27 +366,33 @@ export default function AdminProductsPage() {
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={
-                    <div className="flex w-full flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                            <AdminFilterSelect
-                                value={outOfStockFilter}
-                                onChangeAction={(value) => setOutOfStockFilter(value as "" | "1" | "0")}
-                                options={STOCK_FILTER_OPTIONS}
-                                placeholder="Все товары"
-                                className="min-w-[220px] md:min-w-[180px]"
-                            />
-                            <AdminFilterSelect
-                                value={statusFilter}
-                                onChangeAction={(value) => setStatusFilter(value as "" | "new" | "hit" | "discount")}
-                                options={[...PRODUCT_STATUS_FILTER_OPTIONS]}
-                                placeholder="Все статусы"
-                                className="min-w-[220px] md:min-w-[200px]"
-                            />
-                        </div>
+                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+                        <AdminStatusDropdown
+                            value={outOfStockFilter}
+                            onChangeAction={(value) => setOutOfStockFilter(value as "" | "1" | "0")}
+                            options={[
+                                { value: "", label: "Все товары" },
+                                ...STOCK_FILTER_OPTIONS,
+                            ]}
+                            widthClassName="w-max shrink-0"
+                            menuWidthClassName="w-max"
+                        />
+                        <AdminStatusDropdown
+                            value={statusFilter}
+                            onChangeAction={(value) => setStatusFilter(value as "" | "new" | "hit" | "discount")}
+                            options={[
+                                { value: "", label: "Все статусы" },
+                                ...PRODUCT_STATUS_FILTER_OPTIONS,
+                            ]}
+                            widthClassName="w-max shrink-0"
+                            menuWidthClassName="w-max"
+                        />
                         <AdminSearchInput
                             value={searchInput}
                             onChangeAction={setSearchInput}
                             placeholder="Поиск по названию, slug, ID товара или ID варианта"
+                            className="min-w-0 w-full sm:w-[41%]"
+                            widthClassName="w-full"
                         />
                     </div>
                 }

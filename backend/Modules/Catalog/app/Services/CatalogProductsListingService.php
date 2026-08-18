@@ -133,6 +133,61 @@ class CatalogProductsListingService
     }
 
     /**
+     * @param  list<int>  $ids
+     * @return Collection<int, Product>
+     */
+    public function hydrateOrderedListingProducts(array $ids): Collection
+    {
+        $ids = array_values(array_filter(array_map(static fn ($id): int => (int) $id, $ids), static fn (int $id): bool => $id > 0));
+        if ($ids === []) {
+            return collect();
+        }
+
+        $products = Product::query()
+            ->whereIn('id', $ids)
+            ->where('is_active', true)
+            ->whereHas('activeVariants', static function ($q): void {
+                $q->whereNotNull('price');
+            })
+            ->select([
+                'id',
+                'brand_id',
+                'main_category_id',
+                'name',
+                'slug',
+                'h1',
+                'short_description',
+                'is_new',
+                'is_hit',
+                'is_set',
+                'is_out_of_stock',
+                'is_active',
+                'listing_min_price',
+            ])
+            ->with([
+                'brand:id,name,slug',
+                'mainCategory:id,name,slug',
+                'images' => ProductListResource::imagesForListingEagerLoad(),
+                'activeVariants' => function ($q): void {
+                    $q->select(self::VARIANT_LINK_COLUMNS)
+                        ->with([
+                            'definition' => static function ($dq): void {
+                                $dq->select(self::VARIANT_DEFINITION_COLUMNS);
+                            },
+                        ])
+                        ->orderBy('sort_order');
+                },
+            ])
+            ->get()
+            ->keyBy('id');
+
+        return collect($ids)
+            ->map(static fn (int $id): ?Product => $products->get($id))
+            ->filter()
+            ->values();
+    }
+
+    /**
      * @return array{data: mixed, meta: array{current_page: int, last_page: int, per_page: int, total: int}}
      */
     private function listPromotionVariants(Request $request): array

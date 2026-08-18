@@ -4,6 +4,7 @@ import type {
     CatalogBrandsResponse,
     CatalogFiltersResponse,
     ProductDetailResponse,
+    ProductListItem,
     ProductsResponse,
 } from "@/types/catalog";
 import type { SearchResponse } from "@/types/search";
@@ -52,6 +53,29 @@ export function fetchCatalogFilters(filtersQueryString: string): Promise<Catalog
 
 export function fetchCatalogProductDetail(slug: string): Promise<ProductDetailResponse> {
     return catalogApiFetch<ProductDetailResponse>(`/catalog/products/${slug}`, "productDetail");
+}
+
+export function fetchHomeRecommendedProducts(): Promise<{ data: ProductListItem[] }> {
+    return catalogApiFetch<{ data: ProductListItem[] }>(
+        "/catalog/home/recommended",
+        "products",
+    );
+}
+
+export function recordCatalogProductView(productId: number): void {
+    if (productId <= 0) {
+        return;
+    }
+
+    const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+    if (!base) {
+        return;
+    }
+
+    void fetch(`${base}/catalog/products/${productId}/view`, {
+        method: "POST",
+        keepalive: true,
+    }).catch(() => {});
 }
 
 export type CatalogBootstrapResponse = {
