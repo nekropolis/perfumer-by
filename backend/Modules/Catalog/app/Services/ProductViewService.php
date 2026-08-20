@@ -2,6 +2,7 @@
 
 namespace Modules\Catalog\Services;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\ProductDailyView;
 use Modules\Catalog\Models\ProductViewSnapshot;
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Settings\Services\ShopSettingService;
 
 final class ProductViewService
@@ -22,7 +24,12 @@ final class ProductViewService
 
     public const int MIN_TO_SHOW = 4;
 
-    private const int PRUNE_VIEWS_AFTER_DAYS = 40;
+    public const int PRUNE_VIEWS_AFTER_DAYS = 400;
+
+    public const int TOP_VIEWED_LIMIT = 10;
+
+    /** @var list<string> */
+    public const array VIEW_PERIODS = ['day', 'week', 'month', 'quarter', 'year'];
 
     private const int SNAPSHOT_KEEP_DAYS = 365;
 
@@ -167,6 +174,74 @@ final class ProductViewService
             ->map(static fn ($id): int => (int) $id)
             ->values()
             ->all();
+    }
+
+    /**
+     * @return list<array{id: int, name: string, slug: string|null, views_count: int}>
+     */
+    public function topViewed(string $period, int $limit = self::TOP_VIEWED_LIMIT): array
+    {
+        [$from, $to] = $this->viewsPeriodRange($period);
+        $limit = max(1, $limit);
+
+        $rows = DB::table('product_daily_views as v')
+            ->join('products', 'products.id', '=', 'v.product_id')
+            ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
+            ->whereBetween('v.viewed_on', [$from->toDateString(), $to->toDateString()])
+            ->groupBy('v.product_id')
+            ->orderByDesc(DB::raw('SUM(v.views_count)'))
+            ->orderBy('v.product_id')
+            ->limit($limit)
+            ->get([
+                'v.product_id as id',
+                DB::raw('MAX(products.name) as name'),
+                DB::raw('MAX(products.slug) as slug'),
+                DB::raw('MAX(brands.name) as brand_name'),
+                DB::raw('SUM(v.views_count) as views_count'),
+            ]);
+
+        return $rows
+            ->map(static function (object $row): array {
+                $slug = is_string($row->slug) && $row->slug !== '' ? $row->slug : null;
+
+                return [
+                    'id' => (int) $row->id,
+                    'name' => ProductDisplayName::format(
+                        is_string($row->brand_name) ? $row->brand_name : null,
+                        (string) $row->name,
+                    ),
+                    'slug' => $slug,
+                    'views_count' => (int) $row->views_count,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function resolveViewsPeriod(string $period): string
+    {
+        return in_array($period, self::VIEW_PERIODS, true) ? $period : 'month';
+    }
+
+    /**
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
+     */
+    public function viewsPeriodRange(string $period): array
+    {
+        $period = $this->resolveViewsPeriod($period);
+        $now = CarbonImmutable::now(self::TIMEZONE);
+        $to = $now->endOfDay();
+
+        $from = match ($period) {
+            'day' => $now->startOfDay(),
+            'week' => $now->startOfWeek(CarbonImmutable::MONDAY),
+            'month' => $now->startOfMonth(),
+            'quarter' => $now->startOfQuarter(),
+            'year' => $now->startOfYear(),
+            default => $now->startOfMonth(),
+        };
+
+        return [$from, $to];
     }
 
     /**

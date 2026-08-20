@@ -82,6 +82,7 @@ Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/suppli
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->group(function () {
     Route::get('/stats', [AdminDashboardController::class, 'stats']);
+    Route::get('/viewed-products', [AdminDashboardController::class, 'viewedProducts']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/communications')->group(function () {

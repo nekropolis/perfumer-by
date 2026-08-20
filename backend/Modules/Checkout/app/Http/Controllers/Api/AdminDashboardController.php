@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Services\ProductViewService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
@@ -145,6 +146,19 @@ class AdminDashboardController extends Controller
                         'sold' => $soldSeries,
                     ],
                 ],
+            ],
+        ]);
+    }
+
+    public function viewedProducts(Request $request, ProductViewService $productViewService): JsonResponse
+    {
+        $period = $productViewService->resolveViewsPeriod((string) $request->query('period', 'month'));
+
+        return response()->json([
+            'data' => [
+                'period' => $period,
+                'retention_days' => ProductViewService::PRUNE_VIEWS_AFTER_DAYS,
+                'items' => $productViewService->topViewed($period),
             ],
         ]);
     }

@@ -64,3 +64,44 @@ export async function fetchAdminDashboardStats(
 
     return res.json();
 }
+
+export type AdminDashboardViewedPeriod = "day" | "week" | "month" | "quarter" | "year";
+
+export type AdminDashboardViewedProduct = {
+    id: number;
+    name: string;
+    slug: string | null;
+    views_count: number;
+};
+
+export type AdminDashboardViewedProductsResponse = {
+    data: {
+        period: AdminDashboardViewedPeriod;
+        retention_days: number;
+        items: AdminDashboardViewedProduct[];
+    };
+};
+
+export async function fetchAdminDashboardViewedProducts(
+    params?: { period?: AdminDashboardViewedPeriod; signal?: AbortSignal }
+): Promise<AdminDashboardViewedProductsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.period) {
+        searchParams.set("period", params.period);
+    }
+
+    const res = await fetch(
+        `${API_BASE}/admin/dashboard/viewed-products${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+            signal: params?.signal,
+        },
+    );
+
+    if (!res.ok) {
+        throw new Error(`Dashboard viewed products API error: ${res.status}`);
+    }
+
+    return res.json();
+}

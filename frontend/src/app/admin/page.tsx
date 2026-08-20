@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminPageHeader from "@/components/admin/ui/admin-page-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
+import AdminViewedProductsCard from "@/components/admin/admin-viewed-products-card";
 import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
 import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
 import { getOrderStatusLabel } from "@/constants/order-statuses";
@@ -558,6 +559,8 @@ export default function AdminPage() {
                     </div>
                 </div>
             </AdminPageCard>
+
+            <AdminViewedProductsCard />
 
             <AdminPageCard>
                 <div className="mb-4 text-base font-semibold text-admin-text">Товары в наличии</div>
