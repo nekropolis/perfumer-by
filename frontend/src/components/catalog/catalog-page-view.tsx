@@ -7,6 +7,7 @@ import { CatalogNavigationProvider } from "@/components/catalog/catalog-navigati
 import { CatalogSearchParamsProvider } from "@/components/catalog/catalog-search-params";
 import CatalogResultsOverlay from "@/components/catalog/catalog-results-overlay";
 import ProductCard from "@/components/product/product-card";
+import { collapseDuplicateListingProducts } from "@/lib/product-card-utils";
 import type { CatalogBrandItem, CatalogFilterAttribute, ProductsResponse } from "@/types/catalog";
 
 type BreadcrumbItem = {
@@ -66,7 +67,8 @@ export default function CatalogPageView({
 }: Props) {
     const lastPage = products.meta?.last_page ?? 1;
     const showBrand = !basePath.includes("/brands/");
-    const productsTotal = products.meta?.total ?? products.data.length;
+    const listingProducts = collapseDuplicateListingProducts(products.data);
+    const productsTotal = products.meta?.total ?? listingProducts.length;
     const showCategoryChips = basePath === "/catalog" || basePath.startsWith("/brands/");
     const showResetFilters = showBrand;
 
@@ -128,16 +130,12 @@ export default function CatalogPageView({
                         <div className="relative">
                             <CatalogResultsOverlay />
 
-                            {products.data.length > 0 ? (
+                            {listingProducts.length > 0 ? (
                                 <>
                                     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4 lg:gap-4">
-                                        {products.data.map((product, index) => (
+                                        {listingProducts.map((product, index) => (
                                             <ProductCard
-                                                key={
-                                                    product.listing_variant_id
-                                                        ? `${product.id}-${product.listing_variant_id}`
-                                                        : product.id
-                                                }
+                                                key={product.id}
                                                 product={product}
                                                 eager={index < 2}
                                             />

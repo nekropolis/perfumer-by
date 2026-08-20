@@ -39,6 +39,8 @@ export const SITEMAP_STATIC_PATHS: { path: string; priority: number; title: stri
     { path: "/catalog?gender=female", priority: 0.85, title: "Женская парфюмерия" },
     { path: "/catalog?gender=male", priority: 0.85, title: "Мужская парфюмерия" },
     { path: "/catalog?gender=unisex", priority: 0.8, title: "Унисекс парфюмерия" },
+    { path: "/catalog?attr_18=699", priority: 0.85, title: "Купить духи в Минске" },
+    { path: "/catalog?set=1", priority: 0.85, title: "Наборы" },
     { path: "/brands", priority: 0.85, title: "Бренды" },
     { path: "/articles", priority: 0.85, title: "Статьи" },
     { path: "/news", priority: 0.85, title: "Новости" },

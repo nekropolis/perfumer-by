@@ -205,6 +205,12 @@ export type CatalogMenuQueryParam = (typeof CATALOG_MENU_QUERY_PARAMS)[number];
 /** product_attributes.id — «Для кого» */
 export const CATALOG_GENDER_ATTRIBUTE_ID = 2;
 
+/** product_attributes.id — «Типы» */
+export const CATALOG_TYPE_ATTRIBUTE_ID = 18;
+
+/** product_attribute_options.id — «Духи» (parfum) */
+export const CATALOG_PERFUME_TYPE_OPTION_ID = 699;
+
 export const CATALOG_GENDER_BUCKETS = ["female", "male", "unisex"] as const;
 
 export type CatalogGenderBucket = (typeof CATALOG_GENDER_BUCKETS)[number];
@@ -221,6 +227,17 @@ const CATALOG_GENDER_OPTION_ID_TO_BUCKET = Object.fromEntries(
 
 export function getCatalogGenderBucketByOptionId(optionId: number): CatalogGenderBucket | null {
     return CATALOG_GENDER_OPTION_ID_TO_BUCKET[optionId] ?? null;
+}
+
+export function isCatalogPerfumeTypeOptionValue(value: string | undefined): boolean {
+    if (!value?.trim()) {
+        return false;
+    }
+    const optionIds = value
+        .split(",")
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0);
+    return optionIds.length === 1 && optionIds[0] === CATALOG_PERFUME_TYPE_OPTION_ID;
 }
 
 export function getActiveCatalogGender(

@@ -16,7 +16,7 @@ import {
 } from "@/lib/product-detail-utils";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 
@@ -75,18 +75,18 @@ export default function ProductBuyBox({
 
     const hasLoyaltyDiscount = Boolean(
         loyaltyCardNumber &&
-            loyaltyPercent > 0 &&
-            selectedVariant?.price &&
-            !selectedVariant.is_promotion,
+        loyaltyPercent > 0 &&
+        selectedVariant?.price &&
+        !selectedVariant.is_promotion,
     );
     const hasWaitingDiscount = Boolean(
         waitingDiscountActive && waitingDiscountApplicable && selectedVariant?.price && !selectedVariant.is_promotion,
     );
     const showWaitingCheckbox = Boolean(
         waitingDiscountApplicable &&
-            selectedVariant &&
-            !selectedVariant.is_promotion &&
-            selectedVariant.availability_source === "main+supplier",
+        selectedVariant &&
+        !selectedVariant.is_promotion &&
+        selectedVariant.availability_source === "main+supplier",
     );
 
     const effectivePrice = displayPrice ?? selectedVariant?.price ?? null;
@@ -191,14 +191,13 @@ export default function ProductBuyBox({
 
         return (
             <label
-                className={`flex cursor-pointer text-admin-text ${
-                    compact ? "items-center gap-2 text-[11px] leading-4" : "items-center gap-2.5 text-xs"
+                className={`inline-flex cursor-pointer select-none text-admin-text ${
+                    compact ? "items-center gap-2 text-[11px] leading-4" : "items-center gap-2.5 text-sm"
                 } ${waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""}`}
             >
                 <span
-                    className={`relative flex shrink-0 select-none items-center justify-center ${
-                        compact ? "h-4 w-4" : "h-5 w-5"
-                    }`}
+                    className={`relative flex shrink-0 select-none items-center justify-center ${compact ? "h-4 w-4" : "h-5 w-5"
+                        }`}
                 >
                     <input
                         type="checkbox"
@@ -404,111 +403,107 @@ export default function ProductBuyBox({
     return (
         <>
             {showDesktop ? (
-            <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
-                {hasVariant ? (
-                    <>
-                        <div className="mb-1 text-2xl font-semibold leading-tight">
-                            {selectedVariant.display_name}
-                        </div>
-
-                        {selectedVariant.is_set ? (
-                            <div className="mb-5 space-y-1 text-sm text-admin-text-secondary">
-                                {formatSetComponentLines(selectedVariant).map((line) => (
-                                    <div key={line}>{line}</div>
-                                ))}
-                            </div>
-                        ) : selectedVariant.type ? (
-                            <div className="mb-5 text-sm text-admin-text-secondary">
-                                {selectedVariant.type}
-                            </div>
-                        ) : null}
-
-                        <div className="mb-4 flex flex-wrap items-end gap-2">
-                            <div className="text-4xl font-semibold leading-none">
-                                {effectivePrice
-                                    ? formatPriceAction(effectivePrice)
-                                    : selectedVariant.is_preorder
-                                        ? "Предзаказ"
-                                        : "Цена уточняется"}
+                <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
+                    {hasVariant ? (
+                        <>
+                            <div className="mb-1 text-2xl font-semibold leading-tight">
+                                {selectedVariant.display_name}
                             </div>
 
-                            {(selectedVariant.old_price || hasAnyDiscount) && (
-                                <div className="text-base text-admin-text-secondary line-through">
-                                    {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                            {selectedVariant.is_set ? (
+                                <div className="mb-5 space-y-1 text-sm text-admin-text-secondary">
+                                    {formatSetComponentLines(selectedVariant).map((line) => (
+                                        <div key={line}>{line}</div>
+                                    ))}
                                 </div>
-                            )}
-                        </div>
-
-                        {hasLoyaltyDiscount && (
-                            <div className="mb-2 text-sm text-green-700">
-                                Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                            </div>
-                        )}
-
-                        {hasWaitingDiscount && (
-                            <div className="mb-2 text-sm text-green-700">
-                                Скидка {waitingDiscountPercent}% за ожидание доставки
-                            </div>
-                        )}
-
-                        {selectedVariant.discount_percent && (
-                            <div className="mb-4 inline-flex rounded-full bg-admin-muted px-3 py-1 text-sm font-medium text-admin-text">
-                                - {selectedVariant.discount_percent}%
-                            </div>
-                        )}
-
-                        <div className="mb-4">
-                            {availability ? (
-                                <div className={`text-sm font-medium ${availability.className}`}>
-                                    {[availability.status, availability.shipping].filter(Boolean).join(". ")}
+                            ) : selectedVariant.type ? (
+                                <div className="mb-5 text-sm text-admin-text-secondary">
+                                    {selectedVariant.type}
                                 </div>
                             ) : null}
-                        </div>
 
-                        {showWaitingCheckbox && (
-                            <div className="mb-4 rounded-xl border border-admin-border bg-admin-bg p-3">
-                                {renderWaitingDiscountRow()}
-                            </div>
-                        )}
+                            <div className="mb-4 flex flex-wrap items-end gap-2">
+                                <div className="text-4xl font-semibold leading-none">
+                                    {effectivePrice
+                                        ? formatPriceAction(effectivePrice)
+                                        : selectedVariant.is_preorder
+                                            ? "Предзаказ"
+                                            : "Цена уточняется"}
+                                </div>
 
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                            {canAddToCart ? renderCartAction(false) : null}
-                        </div>
-
-                        <div className="mt-4 flex justify-center">
-                            {callbackTriggerNode}
-                        </div>
-
-                        {!canAddToCart && (
-                            <div className="mt-3 flex justify-center">
-                                {renderNotifyButton(
-                                    "inline-flex items-center gap-2.5 text-sm text-admin-text-secondary transition hover:text-admin-text",
-                                    "h-4 w-4",
+                                {(selectedVariant.old_price || hasAnyDiscount) && (
+                                    <div className="text-base text-admin-text-secondary line-through">
+                                        {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                    </div>
                                 )}
+
+                                {selectedVariant.discount_percent ? (
+                                    <div className="inline-flex self-start rounded-full bg-admin-muted px-3 py-1 text-sm font-medium text-admin-text">
+                                        - {selectedVariant.discount_percent}%
+                                    </div>
+                                ) : null}
                             </div>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <div className="mb-4 text-xl font-semibold leading-tight text-admin-text">
-                            Ожидается поступление
-                        </div>
-                        <p className="mb-5 text-sm leading-6 text-admin-text-secondary">
-                            Оставьте номер телефона — мы Вам сообщим, как только товар появится в продаже,
-                            и сразу сориентируем по цене.
-                        </p>
 
-                        {renderNotifyButton(
-                            `${siteBtnPrimary} w-full px-5 py-3.5 text-base`,
-                            "h-5 w-5",
-                        )}
+                            {hasLoyaltyDiscount && (
+                                <div className="mb-2 text-sm text-green-700">
+                                    Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
+                                </div>
+                            )}
 
-                        <div className="mt-4 flex justify-center">
-                            {callbackTriggerNode}
-                        </div>
-                    </>
-                )}
-            </div>
+                            {hasWaitingDiscount && !showWaitingCheckbox ? (
+                                <div className="mb-2 text-sm text-green-700">
+                                    Скидка {waitingDiscountPercent}% за ожидание доставки
+                                </div>
+                            ) : null}
+
+                            <div className="mb-4">
+                                {availability ? (
+                                    <div className={`text-sm font-medium ${availability.className}`}>
+                                        {[availability.status, availability.shipping].filter(Boolean).join(". ")}
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            {showWaitingCheckbox ? <div className="mb-4">{renderWaitingDiscountRow()}</div> : null}
+
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                                {canAddToCart ? renderCartAction(false) : null}
+                            </div>
+
+                            <div className="mt-4 flex justify-center">
+                                {callbackTriggerNode}
+                            </div>
+
+                            {!canAddToCart && (
+                                <div className="mt-3 flex justify-center">
+                                    {renderNotifyButton(
+                                        "inline-flex items-center gap-2.5 text-sm text-admin-text-secondary transition hover:text-admin-text",
+                                        "h-4 w-4",
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="mb-4 text-xl font-semibold leading-tight text-admin-text">
+                                Ожидается поступление
+                            </div>
+                            <p className="mb-5 text-sm leading-6 text-admin-text-secondary">
+                                Оставьте номер телефона — мы Вам сообщим, как только товар появится в продаже,
+                                и сразу сориентируем по цене.
+                            </p>
+
+                            {renderNotifyButton(
+                                `${siteBtnPrimary} w-full px-5 py-3.5 text-base`,
+                                "h-5 w-5",
+                            )}
+
+                            <div className="mt-4 flex justify-center">
+                                {callbackTriggerNode}
+                            </div>
+                        </>
+                    )}
+                </div>
             ) : null}
 
             {showMobile && mobileBarPortalReady ? createPortal(mobileBar, document.body) : null}

@@ -47,6 +47,12 @@ Schedule::command('catalog:refresh-home-recommended')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('catalog:refresh-home-hero')
+    ->dailyAt('02:15')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 Schedule::command('orders:notify-overdue-delivery')
     ->dailyAt('07:00')
     ->timezone('Europe/Minsk')

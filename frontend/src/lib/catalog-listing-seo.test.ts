@@ -29,6 +29,15 @@ describe("catalog default sort SEO sync", () => {
         expect(catalogListingFilterActive({ sale: "1", new: "1" })).toBe(true);
     });
 
+    it("indexes set and perfume-type landings", () => {
+        expect(catalogListingFilterActive({ set: "1" })).toBe(false);
+        expect(catalogListingFilterActive({ attr_18: "699" })).toBe(false);
+        expect(catalogListingFilterActive({ sort: CATALOG_DEFAULT_SORT, attr_18: "699" })).toBe(false);
+        expect(catalogListingFilterActive({ set: "1", tester: "1" })).toBe(true);
+        expect(catalogListingFilterActive({ attr_18: "699", gender: "female" })).toBe(true);
+        expect(catalogListingFilterActive({ attr_18: "1" })).toBe(true);
+    });
+
     it("builds API query with popular by default", () => {
         const query = buildCatalogProductsQuery({});
         expect(query.get("sort")).toBe(CATALOG_DEFAULT_SORT);
@@ -99,6 +108,10 @@ describe("catalogCanonicalPath", () => {
         expect(catalogCanonicalPath({ sale: "1" })).toBe("/catalog?sale=1");
         expect(catalogCanonicalPath({ gender: "male", page: "2" })).toBe("/catalog?gender=male&page=2");
         expect(catalogCanonicalPath({ sale: "1", brand: "x" })).toBe("/catalog?sale=1");
+        expect(catalogCanonicalPath({ set: "1" })).toBe("/catalog?set=1");
+        expect(catalogCanonicalPath({ attr_18: "699" })).toBe("/catalog?attr_18=699");
+        expect(catalogCanonicalPath({ sort: "popular", attr_18: "699" })).toBe("/catalog?attr_18=699");
+        expect(catalogCanonicalPath({ set: "1", brand: "x" })).toBe("/catalog?set=1");
     });
 });
 
@@ -114,6 +127,16 @@ describe("getCatalogPageCopy", () => {
         const copy = getCatalogPageCopy({ gender: "female" });
         expect(copy.h1).toBe("Женская парфюмерия");
         expect(copy.title).toContain("Женская");
+    });
+
+    it("uses perfume-type and set landing copy", () => {
+        const perfume = getCatalogPageCopy({ attr_18: "699" });
+        expect(perfume.h1).toBe("Купить духи в Минске");
+        expect(perfume.title).toContain("духи");
+
+        const sets = getCatalogPageCopy({ set: "1" });
+        expect(sets.h1).toBe("Наборы парфюмерии");
+        expect(sets.title).toContain("Наборы");
     });
 
     it("appends page number for pagination", () => {

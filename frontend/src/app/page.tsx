@@ -56,11 +56,13 @@ export default async function HomePage() {
     }
 
     let recommendedProducts: ProductListItem[] = [];
+    let heroProduct: ProductListItem | null = null;
     try {
         const recommended = await fetchHomeRecommendedProducts();
         recommendedProducts = recommended.data ?? [];
+        heroProduct = recommended.hero ?? null;
     } catch {
-        /* API недоступен — блок рекомендуемых скрыт */
+        /* API недоступен — блок рекомендуемых / hero скрыт */
     }
 
     return (
@@ -73,6 +75,7 @@ export default async function HomePage() {
                 storeReviews={storeReviews}
                 popularBrands={popularBrands}
                 recommendedProducts={recommendedProducts}
+                heroProduct={heroProduct}
             />
         </>
     );

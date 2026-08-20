@@ -12,6 +12,7 @@ use Modules\Catalog\Console\Commands\PruneBrandsWithoutProductsCommand;
 use Modules\Catalog\Console\Commands\PruneProductsWithoutVanilleCommand;
 use Modules\Catalog\Console\Commands\PullProductSeoReadyCommand;
 use Modules\Catalog\Console\Commands\RefreshHomeRecommendedCommand;
+use Modules\Catalog\Console\Commands\RefreshHomeHeroCommand;
 use Modules\Catalog\Console\Commands\RefreshProductSimilarsCommand;
 use Modules\Catalog\Console\Commands\RegenerateProductImageVariantsCommand;
 use Modules\Catalog\Console\Commands\ReindexProductSearchCommand;
@@ -104,6 +105,7 @@ class CatalogServiceProvider extends ModuleServiceProvider
         WarmCatalogCacheCommand::class,
         PullProductSeoReadyCommand::class,
         RefreshHomeRecommendedCommand::class,
+        RefreshHomeHeroCommand::class,
         RefreshProductSimilarsCommand::class,
     ];
 

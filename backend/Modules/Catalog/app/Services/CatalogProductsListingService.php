@@ -192,74 +192,94 @@ class CatalogProductsListingService
      */
     private function listPromotionVariants(Request $request): array
     {
-        $query = ProductVariantLink::query()
-            ->where('is_promotion', true);
-        CatalogVariantStockPresenter::applyStorefrontInStockScope($query);
-        $query->whereHas('product', function ($productQuery) use ($request): void {
-                $productQuery->where('is_active', true);
-                CatalogProductQueryFilters::applyBaseFilters($productQuery, $request);
-                CatalogProductQueryFilters::applyAttributeFilters($productQuery, $request);
-            })
-            ->with([
-                'definition' => static function ($definitionQuery): void {
-                    $definitionQuery->select(self::VARIANT_DEFINITION_COLUMNS);
-                },
-                'product' => static function ($productQuery): void {
-                    $productQuery->select([
-                        'id',
-                        'brand_id',
-                        'main_category_id',
-                        'name',
-                        'slug',
-                        'h1',
-                        'short_description',
-                        'is_new',
-                        'is_hit',
-                        'is_set',
-                        'is_out_of_stock',
-                        'listing_min_price',
-                    ]);
-                },
-                'product.brand:id,name,slug',
-                'product.mainCategory:id,name,slug',
-                'product.images' => ProductListResource::imagesForListingEagerLoad(),
+        $query = Product::query();
+        CatalogProductQueryFilters::applyCatalogListingProductFilter($query);
+        $query->select([
+                'products.id',
+                'products.brand_id',
+                'products.main_category_id',
+                'products.name',
+                'products.slug',
+                'products.h1',
+                'products.short_description',
+                'products.is_new',
+                'products.is_hit',
+                'products.is_set',
+                'products.is_out_of_stock',
+                'products.listing_min_price',
             ]);
 
-        CatalogProductQueryFilters::applyVariantPriceFilters($query, $request);
-        CatalogProductQueryFilters::applyVariantVolumeFilters($query, $request);
-        CatalogProductQueryFilters::applyVariantTypeFlagFilters($query, $request);
+        CatalogProductQueryFilters::applyBaseFilters($query, $request);
+        CatalogProductQueryFilters::applyAttributeFilters($query, $request);
+
+        $query->whereHas('variants', function (Builder $variantQuery) use ($request): void {
+            $this->constrainPromotionListingVariants($variantQuery, $request);
+        });
+
+        $query->with([
+            'brand:id,name,slug',
+            'mainCategory:id,name,slug',
+            'images' => ProductListResource::imagesForListingEagerLoad(),
+            'variants' => function ($variantQuery) use ($request): void {
+                $builder = $variantQuery->getQuery();
+                $this->constrainPromotionListingVariants($builder, $request);
+                $builder->select(self::VARIANT_LINK_COLUMNS)
+                    ->with([
+                        'definition' => static function ($definitionQuery): void {
+                            $definitionQuery->select(self::VARIANT_DEFINITION_COLUMNS);
+                        },
+                    ])
+                    ->orderBy('sort_order');
+            },
+        ]);
 
         $sort = $request->string('sort')->toString();
 
-        if ($sort === 'price_desc') {
-            $query->orderByRaw('CASE WHEN price IS NULL THEN 1 ELSE 0 END')
-                ->orderByDesc('price')
-                ->orderBy('id');
-        } elseif ($sort === 'name_desc') {
-            $query->join('products as promo_products', 'promo_products.id', '=', 'product_variant_links.product_id')
-                ->orderByDesc('promo_products.slug')
-                ->select('product_variant_links.*');
+        if ($sort === 'name_desc') {
+            $query->orderByDesc('products.slug');
         } elseif ($sort === 'name_asc') {
-            $query->join('products as promo_products', 'promo_products.id', '=', 'product_variant_links.product_id')
-                ->orderBy('promo_products.slug')
-                ->select('product_variant_links.*');
+            $query->orderBy('products.slug');
         } else {
-            $query->orderByRaw('CASE WHEN price IS NULL THEN 1 ELSE 0 END')
-                ->orderBy('price')
-                ->orderBy('id');
+            $promoMinPrice = ProductVariantLink::query()
+                ->selectRaw('MIN(product_variant_links.price)')
+                ->whereColumn('product_variant_links.product_id', 'products.id');
+            $this->constrainPromotionListingVariants($promoMinPrice, $request);
+
+            $query->addSelect(['promo_sort_price' => $promoMinPrice])
+                ->orderByRaw('CASE WHEN promo_sort_price IS NULL THEN 1 ELSE 0 END');
+
+            if ($sort === 'price_desc') {
+                $query->orderByDesc('promo_sort_price');
+            } else {
+                $query->orderBy('promo_sort_price');
+            }
+
+            $query->orderBy('products.slug');
         }
 
-        $variants = $query->paginate(24);
+        $products = $query->paginate(24);
 
         return [
-            'data' => ProductListResource::resolvePromotionCollection($variants->getCollection()),
+            'data' => ProductListResource::resolveCollection($products->getCollection()),
             'meta' => [
-                'current_page' => $variants->currentPage(),
-                'last_page' => $variants->lastPage(),
-                'per_page' => $variants->perPage(),
-                'total' => $variants->total(),
+                'current_page' => $products->currentPage(),
+                'last_page' => $products->lastPage(),
+                'per_page' => $products->perPage(),
+                'total' => $products->total(),
             ],
         ];
+    }
+
+    /**
+     * @param  Builder<ProductVariantLink>  $variantQuery
+     */
+    private function constrainPromotionListingVariants(Builder $variantQuery, Request $request): void
+    {
+        $variantQuery->where('is_promotion', true);
+        CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
+        CatalogProductQueryFilters::applyVariantPriceFilters($variantQuery, $request);
+        CatalogProductQueryFilters::applyVariantVolumeFilters($variantQuery, $request);
+        CatalogProductQueryFilters::applyVariantTypeFlagFilters($variantQuery, $request);
     }
 
     /**

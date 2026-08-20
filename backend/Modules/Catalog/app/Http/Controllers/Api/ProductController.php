@@ -309,14 +309,18 @@ class ProductController extends Controller
         $ids = $this->productViewService->snapshotProductIds();
         $products = $this->listingService->hydrateOrderedListingProducts($ids);
 
-        if ($products->count() < ProductViewService::MIN_TO_SHOW) {
-            return response()->json([
-                'data' => [],
-            ]);
-        }
+        $heroId = $this->productViewService->heroProductId();
+        $heroProduct = $heroId !== null
+            ? $this->listingService->hydrateOrderedListingProducts([$heroId])->first()
+            : null;
 
         return response()->json([
-            'data' => ProductListResource::resolveCollection($products),
+            'data' => $products->count() >= ProductViewService::MIN_TO_SHOW
+                ? ProductListResource::resolveCollection($products)
+                : [],
+            'hero' => $heroProduct !== null
+                ? (new ProductListResource($heroProduct))->resolve()
+                : null,
         ]);
     }
 

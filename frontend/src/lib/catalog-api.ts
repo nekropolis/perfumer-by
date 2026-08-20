@@ -55,11 +55,17 @@ export function fetchCatalogProductDetail(slug: string): Promise<ProductDetailRe
     return catalogApiFetch<ProductDetailResponse>(`/catalog/products/${slug}`, "productDetail");
 }
 
-export function fetchHomeRecommendedProducts(): Promise<{ data: ProductListItem[] }> {
-    return catalogApiFetch<{ data: ProductListItem[] }>(
+export function fetchHomeRecommendedProducts(): Promise<{
+    data: ProductListItem[];
+    hero: ProductListItem | null;
+}> {
+    return catalogApiFetch<{ data: ProductListItem[]; hero: ProductListItem | null }>(
         "/catalog/home/recommended",
         "products",
-    );
+    ).then((res) => ({
+        data: Array.isArray(res.data) ? res.data : [],
+        hero: res.hero ?? null,
+    }));
 }
 
 export function recordCatalogProductView(productId: number): void {

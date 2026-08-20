@@ -83,6 +83,9 @@ export default function ProductDetailInteractive({
     const [waitingDiscountByVariant, setWaitingDiscountByVariant] = useState<Record<number, boolean>>({});
     const [isTitlePinned, setIsTitlePinned] = useState(false);
     const [titleBarEntered, setTitleBarEntered] = useState(false);
+    if (!isTitlePinned && titleBarEntered) {
+        setTitleBarEntered(false);
+    }
     const titleRef = useRef<HTMLHeadingElement | null>(null);
     const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
@@ -200,7 +203,6 @@ export default function ProductDetailInteractive({
 
     useEffect(() => {
         if (!isTitlePinned) {
-            setTitleBarEntered(false);
             return;
         }
 
@@ -402,11 +404,11 @@ export default function ProductDetailInteractive({
                                                 }`}
                                             >
                                                 <span className="flex min-w-0 items-center justify-between gap-1">
-                                                    <span className="line-clamp-1 text-[13px] font-medium leading-4 text-admin-text">
+                                                    <span className="min-w-0 truncate text-[13px] font-medium leading-4 text-admin-text">
                                                         {formatVariantVolumeLine(variant)}
                                                     </span>
                                                     {variant.is_promotion ? (
-                                                        <span className="shrink-0 rounded-full bg-[#8E2C3B] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#F6E7D6]">
+                                                        <span className="shrink-0 rounded-full bg-[#8E2C3B] px-1 py-px text-[8px] font-semibold uppercase leading-3 tracking-wide text-[#F6E7D6]">
                                                             Акция
                                                         </span>
                                                     ) : null}

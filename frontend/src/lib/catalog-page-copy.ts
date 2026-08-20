@@ -1,3 +1,8 @@
+import {
+    CATALOG_TYPE_ATTRIBUTE_ID,
+    isCatalogPerfumeTypeOptionValue,
+} from "@/lib/catalog-listing-query";
+
 export type CatalogCuratedPage =
     | "catalog"
     | "sale"
@@ -5,7 +10,9 @@ export type CatalogCuratedPage =
     | "hit"
     | "female"
     | "male"
-    | "unisex";
+    | "unisex"
+    | "set"
+    | "perfume";
 
 export function resolveCatalogCuratedPage(
     sp: Record<string, string | undefined>,
@@ -17,6 +24,8 @@ export function resolveCatalogCuratedPage(
     if (gender === "female" || gender === "male" || gender === "unisex") {
         return gender;
     }
+    if (sp.set === "1") return "set";
+    if (isCatalogPerfumeTypeOptionValue(sp[`attr_${CATALOG_TYPE_ATTRIBUTE_ID}`])) return "perfume";
     return "catalog";
 }
 
@@ -79,6 +88,22 @@ const CATALOG_PAGE_COPY: Record<
             "Унисекс оригинальная парфюмерия: ароматы без привязки к полу, люкс и ниша. Доставка по Минску и Беларуси.",
         breadcrumb: "Унисекс",
         intro: "Унисекс-ароматы для тех, кто выбирает парфюмерию без жёстких рамок.",
+    },
+    set: {
+        title: "Наборы парфюмерии — купить в Минске и Беларуси | Perfumer",
+        h1: "Наборы парфюмерии",
+        description:
+            "Готовые наборы оригинальной парфюмерии: комплекты ароматов и ухода. Доставка по Минску и Беларуси.",
+        breadcrumb: "Наборы",
+        intro: "Готовые комплекты ароматов и ухода — удобный формат для подарка и знакомства с брендом.",
+    },
+    perfume: {
+        title: "Купить духи в Минске и Беларуси — оригинальный parfum | Perfumer",
+        h1: "Купить духи в Минске",
+        description:
+            "Купить оригинальные духи (parfum) в Минске и с доставкой по Беларуси: женские, мужские и унисекс ароматы.",
+        breadcrumb: "Духи",
+        intro: "Оригинальные духи — стойкие композиции с доставкой по Минску и всей Беларуси.",
     },
 };
 

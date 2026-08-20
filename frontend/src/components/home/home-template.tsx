@@ -1,8 +1,11 @@
+import Image from "next/image";
 import Link from "next/link";
 import HomeStoreReviewsSection from "@/components/home/home-store-reviews-section";
 import HomeFaqAccordion from "@/components/home/home-faq-accordion";
+import ProductCardImage from "@/components/product/product-card-image";
 import SimilarProductsCarousel from "@/components/product/similar-products-carousel";
 import { HOME_PAGE_FAQ_ITEMS as faq, type HomePageReviewSnippet } from "@/lib/json-ld";
+import { productDisplayName } from "@/lib/product-display-name";
 import { SIMILAR_PRODUCTS_MIN_TO_SHOW } from "@/lib/product-detail-utils";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteFilterChip, siteFilterChipInactive } from "@/lib/site-ui-classes";
 import type { ProductListItem } from "@/types/catalog";
@@ -14,18 +17,53 @@ type HomeTemplateProps = {
     storeReviews: HomePageReviewSnippet[];
     popularBrands: { id: number; name: string; slug: string }[];
     recommendedProducts: ProductListItem[];
+    heroProduct: ProductListItem | null;
 };
 
 const categories = [
-    { title: "Женская парфюмерия", description: "Популярные и нишевые ароматы для неё", href: "/catalog?gender=female" },
-    { title: "Мужская парфюмерия", description: "Классические и современные композиции", href: "/catalog?gender=male" },
-    { title: "Тестеры и миниатюры", description: "Удобный формат для знакомства с ароматом", href: "/catalog?tester=1&miniature=1" },
-    { title: "Наборы", description: "Готовые комплекты ароматов и ухода", href: "/catalog?set=1" },
+    {
+        title: "Женская парфюмерия",
+        description: "Популярные и нишевые ароматы для неё",
+        href: "/catalog?gender=female",
+        image: "/home/categories/category-female.webp",
+        imageClassName: "object-right",
+    },
+    {
+        title: "Мужская парфюмерия",
+        description: "Классические и современные композиции",
+        href: "/catalog?gender=male",
+        image: "/home/categories/category-male.webp",
+        imageClassName: "object-right",
+    },
+    {
+        title: "Тестеры и миниатюры",
+        description: "Удобный формат для знакомства с ароматом",
+        href: "/catalog?tester=1&miniature=1",
+        image: "/home/categories/category-testers.webp",
+        imageClassName: "object-right scale-125 translate-x-[22%]",
+    },
+    {
+        title: "Наборы",
+        description: "Готовые комплекты ароматов и ухода",
+        href: "/catalog?set=1",
+        image: "/home/categories/category-sets.webp",
+        imageClassName: "object-right",
+    },
 ];
 
 const promos = [
-    { title: "Сезонная подборка", description: "Тёплые шлейфовые композиции для вечера и прохладных дней.", href: "/catalog?sale=1" },
-    { title: "Новые поступления", description: "Свежие релизы брендов, которые уже доступны в каталоге.", href: "/catalog?new=1" },
+    {
+        title: "Сезонная подборка",
+        description: "Тёплые шлейфовые композиции для вечера и прохладных дней.",
+        href: "/catalog?sale=1",
+        image: "/home/promos/promo-seasonal.webp",
+    },
+    {
+        title: "Новые поступления",
+        description: "Свежие релизы брендов, которые уже доступны в каталоге.",
+        href: "/catalog?new=1",
+        image: "/home/promos/promo-new.webp",
+    },
 ];
 
 const trustItems = [
@@ -36,8 +74,8 @@ const trustItems = [
 ];
 
 const popularSearches = [
-    { title: "Купить духи в Минске", href: "/catalog" },
-    { title: "Нишевая парфюмерия", href: "/catalog?collection=niche" },
+    { title: "Купить духи в Минске", href: "/catalog?attr_18=699" },
+    { title: "Наборы", href: "/catalog?set=1" },
     { title: "Женские духи", href: "/catalog?gender=female" },
     { title: "Мужские духи", href: "/catalog?gender=male" },
     { title: "Тестеры духов", href: "/catalog?tester=1&miniature=1" },
@@ -51,14 +89,36 @@ export default function HomeTemplate({
     storeReviews,
     popularBrands,
     recommendedProducts,
+    heroProduct,
 }: HomeTemplateProps) {
+    const heroProductName = heroProduct ? productDisplayName(heroProduct) : null;
+    const heroProductHref = heroProduct
+        ? heroProduct.listing_variant_id
+            ? `/${heroProduct.slug}?variant=${heroProduct.listing_variant_id}`
+            : `/${heroProduct.slug}`
+        : null;
+
     return (
         <>
             <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
                 <section className={`${siteCard} relative overflow-hidden px-5 py-7 md:px-8 md:py-9`}>
-                    <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
-                        <div className="order-1 md:min-w-0 md:flex-[1.28]">
-                            <div className="mb-4 inline-flex rounded-full border border-admin-border bg-admin-muted px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
+                    <Image
+                        src="/home/hero-perfume-v2.webp"
+                        alt=""
+                        fill
+                        priority
+                        sizes="(max-width: 1280px) 100vw, 1280px"
+                        className="object-cover object-[75%_40%]"
+                        aria-hidden
+                    />
+                    <div
+                        className="absolute inset-0 bg-gradient-to-r from-admin-surface from-5% via-admin-surface/75 to-transparent"
+                        aria-hidden
+                    />
+
+                    <div className="relative z-[1] flex flex-col gap-6 md:flex-row md:items-stretch md:gap-8">
+                        <div className="order-1 md:min-w-0 md:flex-1">
+                            <div className="mb-4 inline-flex rounded-full border border-admin-border bg-admin-muted/90 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                                 Оригинальная парфюмерия
                             </div>
 
@@ -88,9 +148,40 @@ export default function HomeTemplate({
                             </div>
                         </div>
 
-                        <div className="order-2 relative mx-auto w-full max-w-[320px] md:mx-0 md:ml-auto md:flex-[0.72]">
-                            <div className="rounded-xl border border-admin-border bg-admin-muted p-6">
-                                <div className="flex aspect-[4/5] items-center justify-center rounded-lg bg-admin-surface text-center">
+                        <div className="order-2 w-full max-w-[280px] shrink-0 md:ml-auto md:w-[280px] md:max-w-none">
+                            {heroProduct && heroProductHref ? (
+                                <Link
+                                    href={heroProductHref}
+                                    className="group flex h-full min-h-[280px] flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface/95 shadow-sm transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md md:min-h-0"
+                                >
+                                    <div className="relative min-h-[180px] flex-1 p-3 md:min-h-0">
+                                        <div className="absolute inset-3 overflow-hidden rounded-lg">
+                                            <ProductCardImage
+                                                imagePath={heroProduct.image}
+                                                alt={heroProductName ?? ""}
+                                                eager
+                                            />
+                                        </div>
+                                        <div className="absolute left-4 top-4 rounded-full border border-admin-border bg-admin-surface/95 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-admin-text-secondary">
+                                            Выбор покупателей
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 px-4 pb-4 pt-3">
+                                        {heroProduct.brand?.name ? (
+                                            <div className="text-xs font-medium uppercase tracking-[0.08em] text-admin-text-secondary">
+                                                {heroProduct.brand.name}
+                                            </div>
+                                        ) : null}
+                                        <div className="mt-1 line-clamp-2 text-base font-semibold leading-snug text-admin-text">
+                                            {heroProductName}
+                                        </div>
+                                        <span className="mt-2 inline-flex text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
+                                            Смотреть →
+                                        </span>
+                                    </div>
+                                </Link>
+                            ) : (
+                                <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-admin-border bg-admin-surface/95 px-5 py-6 text-center md:min-h-0">
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-admin-text-secondary">
                                             Perfumer
@@ -99,7 +190,7 @@ export default function HomeTemplate({
                                         <div className="mt-1 text-sm text-admin-text-secondary">для вашего стиля</div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -114,17 +205,31 @@ export default function HomeTemplate({
                             <Link
                                 key={category.title}
                                 href={category.href}
-                                className={`${siteCard} group p-5 transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md`}
+                                className={`${siteCard} group relative flex min-h-[168px] overflow-hidden transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md`}
                             >
-                                <div className="text-lg font-semibold text-admin-text sm:text-xl">
-                                    {category.title}
+                                <Image
+                                    src={category.image}
+                                    alt=""
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                                    className={`object-cover ${category.imageClassName}`}
+                                    aria-hidden
+                                />
+                                <div
+                                    className="absolute inset-y-0 left-0 w-[76%] bg-gradient-to-r from-admin-surface from-50% via-admin-surface/94 to-transparent"
+                                    aria-hidden
+                                />
+                                <div className="relative z-[1] flex w-[58%] min-w-0 flex-col p-5 pr-2">
+                                    <div className="text-lg font-semibold text-admin-text sm:text-xl">
+                                        {category.title}
+                                    </div>
+                                    <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
+                                        {category.description}
+                                    </p>
+                                    <span className="mt-auto inline-flex pt-4 text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
+                                        Смотреть →
+                                    </span>
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
-                                    {category.description}
-                                </p>
-                                <span className="mt-4 inline-flex text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
-                                    Смотреть →
-                                </span>
                             </Link>
                         ))}
                     </div>
@@ -160,17 +265,31 @@ export default function HomeTemplate({
                             <Link
                                 key={promo.title}
                                 href={promo.href}
-                                className="group rounded-xl border border-admin-border bg-admin-muted/40 p-5 transition hover:border-admin-border-strong hover:bg-admin-muted"
+                                className="group relative flex min-h-[168px] overflow-hidden rounded-xl border border-admin-border transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md"
                             >
-                                <div className="text-xl font-semibold leading-tight text-admin-text sm:text-2xl">
-                                    {promo.title}
+                                <Image
+                                    src={promo.image}
+                                    alt=""
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, 50vw"
+                                    className={`object-cover object-right`}
+                                    aria-hidden
+                                />
+                                <div
+                                    className="absolute inset-0 bg-gradient-to-r from-admin-surface from-55% via-admin-surface/5 to-transparent"
+                                    aria-hidden
+                                />
+                                <div className="relative z-[1] flex w-[62%] min-w-0 flex-col p-5">
+                                    <div className="text-xl font-semibold leading-tight text-admin-text sm:text-2xl">
+                                        {promo.title}
+                                    </div>
+                                    <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
+                                        {promo.description}
+                                    </p>
+                                    <span className="mt-auto inline-flex pt-4 text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
+                                        Смотреть →
+                                    </span>
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
-                                    {promo.description}
-                                </p>
-                                <span className="mt-4 inline-flex text-sm font-semibold text-admin-primary transition group-hover:translate-x-0.5">
-                                    Смотреть →
-                                </span>
                             </Link>
                         ))}
                     </div>

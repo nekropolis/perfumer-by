@@ -6,7 +6,10 @@ import {
     CATALOG_DEFAULT_SORT,
     BRAND_DEFAULT_SORT,
     CATALOG_GENDER_ATTRIBUTE_ID,
+    CATALOG_TYPE_ATTRIBUTE_ID,
+    CATALOG_PERFUME_TYPE_OPTION_ID,
     getCatalogGenderBucketByOptionId,
+    isCatalogPerfumeTypeOptionValue,
 } from "@/lib/catalog-listing-query";
 import { normalizeProductImageUrl } from "@/lib/product-image-url";
 
@@ -135,7 +138,7 @@ function pathnameOnly(canonicalPath: string): string {
 }
 
 /**
- * Посадочные query из меню (sale/new/hit/gender) — индексируемые.
+ * Посадочные query из меню (sale/new/hit/gender/set/духи) — индексируемые.
  * Комбинации facet-фильтров / недефолтный sort — noindex.
  */
 function catalogCuratedPublicParams(
@@ -168,6 +171,13 @@ function catalogCuratedPublicParams(
                 }
             }
         }
+        if ([...q.keys()].length === 0) {
+            if (sp.set === "1") {
+                q.set("set", "1");
+            } else if (isCatalogPerfumeTypeOptionValue(sp[`attr_${CATALOG_TYPE_ATTRIBUTE_ID}`])) {
+                q.set(`attr_${CATALOG_TYPE_ATTRIBUTE_ID}`, String(CATALOG_PERFUME_TYPE_OPTION_ID));
+            }
+        }
     }
 
     if (options?.includePage) {
@@ -181,6 +191,7 @@ function catalogCuratedPublicParams(
 
 function catalogHasNonGenderAttrFilter(sp: Record<string, string | undefined>): boolean {
     const genderAttrKey = `attr_${CATALOG_GENDER_ATTRIBUTE_ID}`;
+    const typeAttrKey = `attr_${CATALOG_TYPE_ATTRIBUTE_ID}`;
     for (const key of Object.keys(sp)) {
         if (!key.startsWith("attr_")) continue;
         const value = String(sp[key] ?? "").trim();
@@ -196,12 +207,15 @@ function catalogHasNonGenderAttrFilter(sp: Record<string, string | undefined>): 
                 continue;
             }
         }
+        if (key === typeAttrKey && isCatalogPerfumeTypeOptionValue(value)) {
+            continue;
+        }
         return true;
     }
     return false;
 }
 
-/** Каталог: facet-фильтры / недефолтная сортировка (не посадочные sale/new/hit/gender и не page). */
+/** Каталог: facet-фильтры / недефолтная сортировка (не посадочные sale/new/hit/gender/set/духи и не page). */
 export function catalogListingFilterActive(sp: Record<string, string | undefined>): boolean {
     const sort = sp.sort ?? CATALOG_DEFAULT_SORT;
     if (sort !== CATALOG_DEFAULT_SORT) return true;
@@ -210,11 +224,15 @@ export function catalogListingFilterActive(sp: Record<string, string | undefined
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
-    if (sp.set?.trim()) return true;
 
-    const curatedFlags = [sp.sale === "1", sp.new === "1", sp.hit === "1", Boolean(sp.gender?.trim())].filter(
-        Boolean,
-    ).length;
+    const curatedFlags = [
+        sp.sale === "1",
+        sp.new === "1",
+        sp.hit === "1",
+        Boolean(sp.gender?.trim()),
+        sp.set === "1",
+        isCatalogPerfumeTypeOptionValue(sp[`attr_${CATALOG_TYPE_ATTRIBUTE_ID}`]),
+    ].filter(Boolean).length;
     if (curatedFlags > 1) return true;
 
     if (catalogHasNonGenderAttrFilter(sp)) return true;

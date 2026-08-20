@@ -118,6 +118,84 @@ export function formatVariantChipLabel(label: string): string {
     return compact;
 }
 
+export function collapseDuplicateListingProducts(products: ProductListItem[]): ProductListItem[] {
+    const merged = new Map<number, ProductListItem>();
+
+    for (const product of products) {
+        const existing = merged.get(product.id);
+        if (!existing) {
+            merged.set(product.id, product);
+            continue;
+        }
+
+        const labels = sortVariantLabelsByVolume([
+            ...new Set([
+                ...normalizeVariantLabels(existing.variant_labels),
+                ...normalizeVariantLabels(product.variant_labels),
+            ]),
+        ]);
+        const sameListingVariant =
+            existing.listing_variant_id != null
+            && existing.listing_variant_id === product.listing_variant_id;
+
+        merged.set(product.id, {
+            ...existing,
+            listing_variant_id: sameListingVariant ? existing.listing_variant_id : null,
+            variant_labels: labels,
+            variants_count: Math.max(existing.variants_count, product.variants_count, labels.length),
+            price_range: {
+                min: minMoneyString(existing.price_range.min, product.price_range.min),
+                max: maxMoneyString(existing.price_range.max, product.price_range.max),
+            },
+            old_price_range: {
+                min: minMoneyString(existing.old_price_range.min, product.old_price_range.min),
+                max: maxMoneyString(existing.old_price_range.max, product.old_price_range.max),
+            },
+            has_discount: existing.has_discount || product.has_discount,
+            has_promotion: existing.has_promotion || product.has_promotion,
+            discount_percent: maxNullableNumber(existing.discount_percent, product.discount_percent),
+            stock_total: existing.stock_total + product.stock_total,
+            is_preorder_available: existing.is_preorder_available || product.is_preorder_available,
+            is_out_of_stock: existing.is_out_of_stock && product.is_out_of_stock,
+        });
+    }
+
+    return [...merged.values()];
+}
+
+function minMoneyString(a: string | null | undefined, b: string | null | undefined): string | null {
+    if (a == null || a === "") {
+        return b ?? null;
+    }
+    if (b == null || b === "") {
+        return a;
+    }
+
+    return Number(a) <= Number(b) ? a : b;
+}
+
+function maxMoneyString(a: string | null | undefined, b: string | null | undefined): string | null {
+    if (a == null || a === "") {
+        return b ?? null;
+    }
+    if (b == null || b === "") {
+        return a;
+    }
+
+    return Number(a) >= Number(b) ? a : b;
+}
+
+function maxNullableNumber(a: number | null | undefined, b: number | null | undefined): number | null {
+    if (a == null) {
+        return b ?? null;
+    }
+    if (b == null) {
+        return a;
+    }
+
+    return Math.max(a, b);
+}
+
 export function getProductCardTitleParts(product: ProductListItem): {
     cardTitle: string;
     brandName: string;
