@@ -14,6 +14,100 @@ class VariantDefinitionResolver
 
     public const SET_CONCENTRATION_LABEL = 'Набор';
 
+    /**
+     * Подпись набора: «Набор (50/12,5) - парфюмерная вода».
+     * Описание концентрации не дублируется, если оно пустое или равно «Набор».
+     */
+    public static function buildSetTitle(?string $volumeLabel, ?string $concentrationLabel): string
+    {
+        $volumeLabel = $volumeLabel !== null ? trim($volumeLabel) : '';
+        $description = self::formatSetConcentrationDescription($concentrationLabel);
+
+        $title = $volumeLabel !== ''
+            ? self::SET_CONCENTRATION_LABEL.' ('.$volumeLabel.')'
+            : self::SET_CONCENTRATION_LABEL;
+
+        if ($description !== '') {
+            return $title.' - '.$description;
+        }
+
+        return $title;
+    }
+
+    public static function formatSetConcentrationDescription(?string $concentrationLabel): string
+    {
+        $raw = $concentrationLabel !== null ? trim($concentrationLabel) : '';
+        if ($raw === '') {
+            return '';
+        }
+
+        $parts = [];
+        $seen = [];
+        foreach (preg_split('/\s*\/\s*/u', $raw) ?: [] as $part) {
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+
+            $key = mb_strtolower($part);
+            if ($key === mb_strtolower(self::SET_CONCENTRATION_LABEL) || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $parts[] = $part;
+        }
+
+        return implode(' / ', $parts);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function splitJoinedSetParts(?string $value): array
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return [];
+        }
+
+        $protected = str_replace(' / ', "\0", $raw);
+        $parts = [];
+        foreach (explode('/', $protected) as $part) {
+            $part = trim(str_replace("\0", ' / ', $part));
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<array{volume_label: string, concentration_label: string, sort_order: int}>
+     */
+    public static function componentsFromSetLabels(?string $volumeLabel, ?string $concentrationLabel): array
+    {
+        $volumes = self::splitJoinedSetParts($volumeLabel);
+        $concentrations = self::splitJoinedSetParts($concentrationLabel);
+        $components = [];
+
+        foreach ($volumes as $index => $volume) {
+            $concentration = $concentrations[$index] ?? ($concentrations[0] ?? '');
+            if ($volume === '' || $concentration === '') {
+                continue;
+            }
+
+            $components[] = [
+                'volume_label' => $volume,
+                'concentration_label' => $concentration,
+                'sort_order' => $index,
+            ];
+        }
+
+        return $components;
+    }
+
     /** @var array<string, string> */
     private const CONCENTRATION_LABELS = [
         'edt' => 'туалетная вода',
@@ -98,9 +192,7 @@ class VariantDefinitionResolver
             ? trim($concentrationLabel)
             : self::SET_CONCENTRATION_LABEL;
 
-        $title = $volumeLabel
-            ? self::SET_CONCENTRATION_LABEL.' ('.$volumeLabel.')'
-            : self::SET_CONCENTRATION_LABEL;
+        $title = self::buildSetTitle($volumeLabel, $concentrationLabel);
 
         return VariantDefinition::query()->firstOrCreate(
             [

@@ -4,6 +4,7 @@ namespace Modules\Catalog\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Catalog\Support\VariantDefinitionResolver;
 
 class VariantDefinition extends Model
 {
@@ -33,5 +34,14 @@ class VariantDefinition extends Model
     public function productLinks(): HasMany
     {
         return $this->hasMany(ProductVariantLink::class);
+    }
+
+    public function displayTitle(): string
+    {
+        if ($this->is_set) {
+            return VariantDefinitionResolver::buildSetTitle($this->volume_label, $this->concentration_label);
+        }
+
+        return trim((string) $this->title);
     }
 }

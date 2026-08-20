@@ -34,18 +34,35 @@ class ProductSetAdminController extends Controller
         $product = Product::query()->findOrFail($productId);
 
         $validated = $request->validate([
-            'variant_definition_ids' => ['required', 'array', 'min:1'],
-            'variant_definition_ids.*' => ['integer', 'exists:variant_definitions,id'],
+            'variant_definition_id' => ['required', 'integer', 'exists:variant_definitions,id'],
             'title' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $components = $this->componentsFromDefinitionIds($validated['variant_definition_ids']);
-        if ($components === []) {
-            return response()->json(['message' => 'Не удалось собрать состав набора'], 422);
+        $definition = VariantDefinition::query()
+            ->where('is_set', true)
+            ->find($validated['variant_definition_id']);
+        if (! $definition) {
+            return response()->json(['message' => 'Выберите набор из справочника вариантов'], 422);
         }
 
-        $set = DB::transaction(function () use ($product, $components, $validated): ProductSet {
-            $set = $this->createSetWithSku($product, $components, $validated['title'] ?? null);
+        $alreadyLinked = ProductVariantLink::query()
+            ->where('product_id', $product->id)
+            ->where('variant_definition_id', $definition->id)
+            ->exists();
+        if ($alreadyLinked) {
+            return response()->json(['message' => 'Этот набор уже добавлен к товару'], 422);
+        }
+
+        $components = VariantDefinitionResolver::componentsFromSetLabels(
+            $definition->volume_label,
+            $definition->concentration_label,
+        );
+        if ($components === []) {
+            return response()->json(['message' => 'У выбранного набора нет состава'], 422);
+        }
+
+        $set = DB::transaction(function () use ($product, $definition, $components, $validated): ProductSet {
+            $set = $this->attachSetDefinition($product, $definition, $components, $validated['title'] ?? null);
             $this->syncProductIsSetFlag($product);
 
             return $set;
@@ -199,23 +216,12 @@ class ProductSetAdminController extends Controller
     /**
      * @param  list<array{volume_label: string, concentration_label: string, sort_order?: int}>  $components
      */
-    private function createSetWithSku(Product $product, array $components, ?string $title): ProductSet
-    {
-        $volumeLabel = implode('/', array_map(static fn (array $row): string => $row['volume_label'], $components));
-        $concentrationLabel = implode('/', array_map(static fn (array $row): string => $row['concentration_label'], $components));
-        $definition = app(VariantDefinitionResolver::class)->resolveOrCreateSet($volumeLabel, $concentrationLabel);
-
-        $alreadyLinked = ProductVariantLink::query()
-            ->where('product_id', $product->id)
-            ->where('variant_definition_id', $definition->id)
-            ->exists();
-        if ($alreadyLinked) {
-            $definition = app(VariantDefinitionResolver::class)->resolveOrCreateSet(
-                $volumeLabel.' · '.substr(uniqid('', true), -4),
-                $concentrationLabel,
-            );
-        }
-
+    private function attachSetDefinition(
+        Product $product,
+        VariantDefinition $definition,
+        array $components,
+        ?string $title,
+    ): ProductSet {
         $maxSort = (int) ProductVariantLink::query()->where('product_id', $product->id)->max('sort_order');
         $link = ProductVariantLink::query()->create([
             'product_id' => $product->id,
@@ -231,7 +237,7 @@ class ProductSetAdminController extends Controller
         $setSort = (int) ProductSet::query()->where('product_id', $product->id)->max('sort_order');
         $resolvedTitle = trim((string) ($title ?? ''));
         if ($resolvedTitle === '') {
-            $resolvedTitle = 'Набор ('.$volumeLabel.')';
+            $resolvedTitle = $definition->displayTitle();
         }
 
         $set = ProductSet::query()->create([

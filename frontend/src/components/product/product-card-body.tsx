@@ -50,8 +50,12 @@ export default function ProductCardBody({
         : `/${product.slug}`;
 
     const showOutOfStock = Boolean(product.is_out_of_stock) && !product.is_preorder_available;
+    const hasNumericPrice = Boolean(product.price_range?.min || product.price_range?.max);
+    const isAwaitingStock = showOutOfStock && !hasNumericPrice;
+    const showCardArrow = !isCatalog || hasNumericPrice;
     const showVariants =
         isCatalog &&
+        !isAwaitingStock &&
         (visibleVariants.length > 0 || (!product.is_preorder_available && visibleVariants.length === 0));
 
     return (
@@ -75,7 +79,11 @@ export default function ProductCardBody({
                     isHit={Boolean(product.is_hit)}
                     hasPromotion={Boolean(product.has_promotion)}
                     isOutOfStock={showOutOfStock}
-                    className={isCatalog ? "left-1.5 top-1.5 gap-0.5 [&_span]:px-1.5 [&_span]:py-px [&_span]:text-[9px] sm:left-2 sm:top-2 sm:[&_span]:text-[10px]" : ""}
+                    className={
+                        isCatalog
+                            ? "left-1.5 top-1.5 gap-0.5 [&_span]:px-1.5 [&_span]:py-0.5 [&_span]:text-[9px] sm:left-2 sm:top-2 sm:[&_span]:text-[10px] [&_svg]:h-2 [&_svg]:w-2 sm:[&_svg]:h-2.5 sm:[&_svg]:w-2.5"
+                            : ""
+                    }
                 />
 
                 <div
@@ -153,7 +161,9 @@ export default function ProductCardBody({
                             <div
                                 className={
                                     isCatalog
-                                        ? "whitespace-nowrap text-[12px] font-bold leading-tight tracking-tight text-admin-text tabular-nums sm:text-[13px] lg:text-sm"
+                                        ? isAwaitingStock
+                                            ? "max-w-full text-[11px] font-medium leading-snug text-admin-text-secondary sm:text-xs"
+                                            : "whitespace-nowrap text-[12px] font-bold leading-tight tracking-tight text-admin-text tabular-nums sm:text-[13px] lg:text-sm"
                                         : "text-base font-semibold text-admin-text sm:text-lg"
                                 }
                             >
@@ -174,28 +184,30 @@ export default function ProductCardBody({
                         {loyaltySlot}
                     </div>
 
-                    <span
-                        aria-hidden
-                        className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white ${
-                            isCatalog
-                                ? "hidden h-7 w-7 lg:flex"
-                                : "h-8 w-8 sm:h-9 sm:w-9"
-                        }`}
-                        title="Перейти к товару"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                            className="h-3.5 w-3.5"
+                    {showCardArrow ? (
+                        <span
+                            aria-hidden
+                            className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white ${
+                                isCatalog
+                                    ? "hidden h-7 w-7 lg:flex"
+                                    : "h-8 w-8 sm:h-9 sm:w-9"
+                            }`}
+                            title="Перейти к товару"
                         >
-                            <path
-                                fillRule="evenodd"
-                                d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z"
-                                clipRule="evenodd"
-                            />
-                        </svg>
-                    </span>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5"
+                            >
+                                <path
+                                    fillRule="evenodd"
+                                    d="M2 8a.75.75 0 0 1 .75-.75h8.69L8.22 4.03a.75.75 0 0 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z"
+                                    clipRule="evenodd"
+                                />
+                            </svg>
+                        </span>
+                    ) : null}
                 </div>
             </div>
         </Link>

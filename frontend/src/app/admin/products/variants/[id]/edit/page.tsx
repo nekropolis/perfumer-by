@@ -11,6 +11,11 @@ import ProductVariantDefinitionForm, {
     type ProductVariantDefinitionFormState,
 } from "@/components/admin/products/product-variant-definition-form";
 import {
+    draftsFromSetDefinitionLabels,
+    setLabelsFromDraftRows,
+    type ProductSetDraftRow,
+} from "@/components/admin/products/product-sets-editor";
+import {
     fetchVariantDefinition,
     updateVariantDefinition,
 } from "@/lib/admin-product-variants-api";
@@ -23,6 +28,7 @@ export default function AdminProductVariantEditPage() {
     const params = useParams<{ id: string }>();
 
     const [form, setForm] = useState<ProductVariantDefinitionFormState | null>(null);
+    const [setDraftRows, setSetDraftRows] = useState<ProductSetDraftRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
@@ -47,6 +53,11 @@ export default function AdminProductVariantEditPage() {
                     is_set: !!item.is_set,
                     excludes_from_free_delivery_threshold: !!item.excludes_from_free_delivery_threshold,
                 });
+                setSetDraftRows(
+                    item.is_set
+                        ? draftsFromSetDefinitionLabels(item.volume_label, item.concentration_label)
+                        : [],
+                );
             } catch (e: unknown) {
                 setError(e instanceof Error ? e.message : "Ошибка загрузки варианта");
             } finally {
@@ -66,16 +77,19 @@ export default function AdminProductVariantEditPage() {
         setError("");
 
         if (form.is_set) {
-            if (!form.concentration_label.trim()) {
-                setError("Описание концентрации обязательно");
+            if (setDraftRows.length === 0) {
+                setError("Состав набора не может быть пустым");
                 setSubmitting(false);
                 return;
             }
 
+            const labels = setLabelsFromDraftRows(setDraftRows);
+
             try {
                 await updateVariantDefinition(form.id, {
                     is_set: true,
-                    concentration_label: form.concentration_label.trim(),
+                    volume_label: labels.volume_label,
+                    concentration_label: labels.concentration_label,
                     excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
                 });
                 router.push(VARIANTS_BASE);
@@ -160,7 +174,14 @@ export default function AdminProductVariantEditPage() {
                 <ProductVariantDefinitionForm
                     form={form}
                     submitting={submitting}
-                    onChangeAction={(next) => setForm(next)}
+                    setDraftRows={setDraftRows}
+                    onChangeAction={(next) => {
+                        setForm(next);
+                        if (!next.is_set) {
+                            setSetDraftRows([]);
+                        }
+                    }}
+                    onSetDraftRowsChangeAction={setSetDraftRows}
                     onSubmitAction={handleSubmit}
                 />
             ) : null}

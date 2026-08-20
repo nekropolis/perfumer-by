@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\VariantDefinitionResolver;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
 class ProductVariantLink extends Model
@@ -86,13 +87,16 @@ class ProductVariantLink extends Model
 
     public function getTitleAttribute(): string
     {
+        if ($this->definition?->is_set) {
+            return VariantDefinitionResolver::buildSetTitle(
+                $this->definition->volume_label,
+                $this->definition->concentration_label,
+            );
+        }
+
         $fromDefinition = trim((string) ($this->definition?->title ?? ''));
         if ($fromDefinition !== '') {
             return $fromDefinition;
-        }
-
-        if ($this->definition?->is_set) {
-            return 'Набор';
         }
 
         // Как ProductVariantResource::display_name — если title в definition пустой.

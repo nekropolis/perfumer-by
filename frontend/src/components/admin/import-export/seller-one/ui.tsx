@@ -20,15 +20,14 @@ import {
     formatCatalogProductLabel,
     formatParsedSupplierVariantHint,
     formatVariantOptionLabel,
+    formatDefinitionOptionLabel,
     getConfidenceBadgeClass,
-    definitionMatchesVolumeHint,
     getDefinitionMatchFlags,
     getVariantMatchFlags,
     getVariantMatchRowClass,
     hasVariantFlagMismatch,
     compareVariantMatchFlags,
     rankProducts,
-    variantMatchesVolumeHint,
     type ProductNameMatchInfo,
     type VariantMatchFlags,
 } from "./utils";
@@ -669,21 +668,13 @@ export function ManualLinkModal({
 
     const rankedProducts = rankProducts(manualLink.products, manualLink.productSearch);
 
-    const variantsForHint = manualLink.variants.filter((variant) =>
-        variantMatchesVolumeHint(variant, manualLink.sourceHint),
-    );
-
-    const sortedVariants = [...variantsForHint].sort((a, b) => {
+    const sortedVariants = [...manualLink.variants].sort((a, b) => {
         const flagsA = getVariantMatchFlags(a, manualLink.sourceHint);
         const flagsB = getVariantMatchFlags(b, manualLink.sourceHint);
         return compareVariantMatchFlags(flagsA, flagsB) || a.id - b.id;
     });
 
-    const definitionsForHint = manualLink.definitions.filter((definition) =>
-        definitionMatchesVolumeHint(definition, manualLink.sourceHint),
-    );
-
-    const sortedDefinitions = [...definitionsForHint].sort((a, b) => {
+    const sortedDefinitions = [...manualLink.definitions].sort((a, b) => {
         const flagsA = getDefinitionMatchFlags(a, manualLink.sourceHint);
         const flagsB = getDefinitionMatchFlags(b, manualLink.sourceHint);
         return compareVariantMatchFlags(flagsA, flagsB) || a.id - b.id;
@@ -866,13 +857,7 @@ export function ManualLinkModal({
                                 && sortedVariants.length === 0
                                 && manualLink.definitionSearch.trim() === "" ? (
                                 <div className="text-[11px] text-admin-text-muted">
-                                    {manualLink.sourceHint.volumeIsMultipack
-                                        && manualLink.variants.length > 0
-                                        ? "Набор (N×ml) из прайса не совпадает с одиночным объёмом — выбери формулировку в справочнике ниже."
-                                        : manualLink.sourceHint.volume != null
-                                        && manualLink.variants.length > 0
-                                        ? `Нет вариантов с объёмом ${manualLink.sourceHint.volume} ml — найди формулировку в справочнике ниже.`
-                                        : "У товара пока нет вариантов — введи формулировку ниже."}
+                                    У товара пока нет вариантов — введи формулировку ниже.
                                 </div>
                             ) : null}
                             {manualLink.definitionsLoading ? (
@@ -905,7 +890,10 @@ export function ManualLinkModal({
                                                     onClick={() => void onPickDefinitionAction(def.id)}
                                                     className={`block w-full border-b border-admin-border/70 px-3 py-1.5 text-left text-sm last:border-b-0 transition-colors disabled:opacity-50 ${getVariantMatchRowClass(flags, false)}`}
                                                 >
-                                                    <HighlightedVariantMatchLabel label={def.title} flags={flags} />
+                                                    <HighlightedVariantMatchLabel
+                                                        label={formatDefinitionOptionLabel(def)}
+                                                        flags={flags}
+                                                    />
                                                 </button>
                                             );
                                         })}

@@ -9,6 +9,10 @@ import Breadcrumbs from "@/components/ui/breadcrumbs";
 import ProductVariantDefinitionForm, {
     type ProductVariantDefinitionFormState,
 } from "@/components/admin/products/product-variant-definition-form";
+import {
+    setLabelsFromDraftRows,
+    type ProductSetDraftRow,
+} from "@/components/admin/products/product-sets-editor";
 import { createVariantDefinition } from "@/lib/admin-product-variants-api";
 import { parseDecimalInput } from "@/lib/parse-decimal-input";
 
@@ -29,6 +33,7 @@ export default function AdminProductVariantCreatePage() {
     const router = useRouter();
 
     const [form, setForm] = useState<ProductVariantDefinitionFormState>(emptyForm);
+    const [setDraftRows, setSetDraftRows] = useState<ProductSetDraftRow[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
@@ -37,16 +42,19 @@ export default function AdminProductVariantCreatePage() {
         setError("");
 
         if (form.is_set) {
-            if (!form.concentration_label.trim()) {
-                setError("Описание концентрации обязательно");
+            if (setDraftRows.length === 0) {
+                setError("Состав набора не может быть пустым");
                 setSubmitting(false);
                 return;
             }
 
+            const labels = setLabelsFromDraftRows(setDraftRows);
+
             try {
                 await createVariantDefinition({
                     is_set: true,
-                    concentration_label: form.concentration_label.trim(),
+                    volume_label: labels.volume_label,
+                    concentration_label: labels.concentration_label,
                     excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
                 });
                 router.push(VARIANTS_BASE);
@@ -126,7 +134,14 @@ export default function AdminProductVariantCreatePage() {
             <ProductVariantDefinitionForm
                 form={form}
                 submitting={submitting}
-                onChangeAction={setForm}
+                setDraftRows={setDraftRows}
+                onChangeAction={(next) => {
+                    setForm(next);
+                    if (!next.is_set) {
+                        setSetDraftRows([]);
+                    }
+                }}
+                onSetDraftRowsChangeAction={setSetDraftRows}
                 onSubmitAction={handleSubmit}
             />
         </AdminPageCard>

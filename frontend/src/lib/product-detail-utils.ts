@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { withBynSign } from "@/lib/byn-sign";
 import { compareVariantsByVolume } from "@/lib/product-card-utils";
+import { formatSetConcentrationDescription } from "@/lib/variant-definition-display";
 
 /** Значение атрибута по имени (опции или custom_value). */
 export function getProductAttributeDisplayValue(
@@ -59,7 +60,13 @@ export function formatProductDetailPrice(price: string | null): ReactNode {
 /** Строка 1 карточки варианта: «2 мл / Пробник». */
 export function formatVariantVolumeLine(variant: ProductVariantData): string {
   if (variant.is_set) {
-    return "Набор";
+    const volumeLabel = variant.volume_label?.trim();
+    if (volumeLabel) {
+      return `Набор (${volumeLabel})`;
+    }
+
+    const volumes = formatSetVolumesLine(variant);
+    return volumes || "Набор";
   }
 
   if (variant.volume == null) {
@@ -84,6 +91,21 @@ export function formatVariantConcentrationLabel(
   variant: ProductVariantData,
 ): string {
   if (variant.is_set) {
+    const fromType = formatSetConcentrationDescription(variant.type);
+    if (fromType) {
+      return fromType;
+    }
+
+    const fromComponents = formatSetConcentrationDescription(
+      (variant.set_components ?? [])
+        .map((row) => row.concentration_label.trim())
+        .filter(Boolean)
+        .join("/"),
+    );
+    if (fromComponents) {
+      return fromComponents;
+    }
+
     return formatSetVolumesLine(variant) || "Набор";
   }
 

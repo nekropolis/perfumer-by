@@ -91,7 +91,19 @@ export default function ProductsTable({
                         </td>
                         <td className="px-3 py-3 font-medium text-admin-text">
                             <div className="flex flex-wrap items-center gap-1.5">
-                                <span>{highlightAdminSearchTerms(item.name, searchQuery, brandName)}</span>
+                                {item.slug ? (
+                                    <Link
+                                        href={`/${item.slug}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="hover:underline"
+                                        title="Открыть на сайте"
+                                    >
+                                        {highlightAdminSearchTerms(item.name, searchQuery, brandName)}
+                                    </Link>
+                                ) : (
+                                    <span>{highlightAdminSearchTerms(item.name, searchQuery, brandName)}</span>
+                                )}
                                 {Number(item.views_count ?? 0) > 0 ? (
                                     <span
                                         className="inline-flex items-center gap-0.5 rounded-md border border-admin-border bg-admin-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-admin-text-secondary"

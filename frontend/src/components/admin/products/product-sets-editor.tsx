@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import useDebouncedValue from "@/hooks/use-debounced-value";
-import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
-import {
-    createProductSet,
-    type ProductSetAdminItem,
-} from "@/lib/admin-products-api";
+import { type ProductSetAdminItem } from "@/lib/admin-products-api";
 import {
     fetchVariantDefinitions,
     type VariantDefinitionItem,
@@ -81,6 +77,46 @@ export function draftsFromSetComponents(
     });
 }
 
+function splitJoinedSetParts(value: string): string[] {
+    const protectedValue = value.replaceAll(" / ", "\u0000");
+    return protectedValue
+        .split("/")
+        .map((part) => part.replaceAll("\u0000", " / ").trim())
+        .filter(Boolean);
+}
+
+export function draftsFromSetDefinitionLabels(
+    volumeLabel?: string | null,
+    concentrationLabel?: string | null,
+): ProductSetDraftRow[] {
+    const volumes = splitJoinedSetParts(volumeLabel ?? "");
+    if (volumes.length === 0) {
+        return [];
+    }
+
+    const concentrations = splitJoinedSetParts(concentrationLabel ?? "");
+
+    return volumes.map((volume, index) => {
+        const concentration = concentrations[index] ?? concentrations[0] ?? "";
+        return {
+            key: `vol-${index}-${volume.toLowerCase()}|${concentration.toLowerCase()}`,
+            volume_label: volume,
+            concentration_label: concentration,
+            title: concentration ? `${volume} · ${concentration}` : volume,
+        };
+    });
+}
+
+export function setLabelsFromDraftRows(rows: ProductSetDraftRow[]): {
+    volume_label: string;
+    concentration_label: string;
+} {
+    return {
+        volume_label: rows.map((row) => row.volume_label).join("/"),
+        concentration_label: rows.map((row) => row.concentration_label).join("/"),
+    };
+}
+
 function isDefinitionSelected(item: VariantDefinitionItem, draftRows: ProductSetDraftRow[]): boolean {
     const drafted = draftFromDefinition(item);
     if (!drafted) {
@@ -120,10 +156,10 @@ export function ProductSetCompositionPicker({
 
         let cancelled = false;
         setDefinitionsLoading(true);
-        void fetchVariantDefinitions({ search: trimmed })
+        void fetchVariantDefinitions({ search: trimmed, is_set: false })
             .then((data) => {
                 if (cancelled) return;
-                setDefinitions((data.data || []).filter((item) => !item.is_set));
+                setDefinitions(data.data || []);
                 setSearchError("");
             })
             .catch((e: unknown) => {
@@ -232,90 +268,3 @@ export function ProductSetCompositionPicker({
     );
 }
 
-type CreateButtonProps = {
-    productId: number;
-    onChangedAction: () => Promise<void>;
-};
-
-export default function ProductSetCreateButton({ productId, onChangedAction }: CreateButtonProps) {
-    const [modalOpen, setModalOpen] = useState(false);
-    const [draftRows, setDraftRows] = useState<ProductSetDraftRow[]>([]);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState("");
-
-    const openCreate = () => {
-        setDraftRows([]);
-        setError("");
-        setModalOpen(true);
-    };
-
-    const handleSave = async () => {
-        const definitionIds = draftRows
-            .map((row) => row.definition_id)
-            .filter((id): id is number => typeof id === "number");
-        if (definitionIds.length === 0) {
-            setError("Выберите один или несколько вариантов из справочника");
-            return;
-        }
-
-        setSubmitting(true);
-        setError("");
-        try {
-            await createProductSet(productId, { variant_definition_ids: definitionIds });
-            setModalOpen(false);
-            await onChangedAction();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Не удалось сохранить набор");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <>
-            <button
-                type="button"
-                onClick={openCreate}
-                className="rounded-lg border px-3 py-1.5 text-sm"
-            >
-                Добавить набор
-            </button>
-
-            <AdminModalShell
-                open={modalOpen}
-                onCloseAction={() => setModalOpen(false)}
-                title="Добавить набор"
-                maxWidthClass="sm:max-w-3xl"
-                footer={
-                    <div className="flex justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setModalOpen(false)}
-                            className="rounded-lg border px-4 py-2 text-sm"
-                        >
-                            Отмена
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void handleSave()}
-                            disabled={submitting}
-                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
-                        >
-                            {submitting ? "Сохранение..." : `Сохранить (${draftRows.length})`}
-                        </button>
-                    </div>
-                }
-            >
-                {error ? (
-                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {error}
-                    </div>
-                ) : null}
-                <ProductSetCompositionPicker
-                    draftRows={draftRows}
-                    onChangeAction={setDraftRows}
-                />
-            </AdminModalShell>
-        </>
-    );
-}

@@ -13,19 +13,11 @@ import {
     type AdminProductVariantItem,
     type VariantDefinitionItem,
 } from "@/lib/admin-product-variants-api";
-import ProductSetCreateButton, {
-    draftsFromSetComponents,
-    ProductSetCompositionPicker,
-    type ProductSetDraftRow,
-} from "@/components/admin/products/product-sets-editor";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
 import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
-import {
-    fetchProductSets,
-    updateProductSetItem,
-} from "@/lib/admin-products-api";
+import { formatSetDisplayTitle } from "@/lib/variant-definition-display";
 import { Layers } from "lucide-react";
 
 type Props = {
@@ -77,14 +69,26 @@ function toFormState(item: AdminProductVariantItem): VariantFormState {
 }
 
 function buildDisplayName(item: AdminProductVariantItem) {
+    if (item.definition?.is_set || item.is_set) {
+        return formatSetDisplayTitle({
+            title: item.title || item.display_name || item.definition?.title,
+            volumeLabel: item.definition?.volume_label,
+            concentrationLabel: item.definition?.concentration_label || item.type,
+        });
+    }
+
     return item.title || item.display_name || "Без параметров";
 }
 
 /** Строка для заголовка модалки: «100 мл / EDP - парфюмерная вода». */
 function formatVariantEditTitle(item: AdminProductVariantItem): string {
     const def = item.definition;
-    if (def?.is_set) {
-        return "Набор";
+    if (def?.is_set || item.is_set) {
+        return formatSetDisplayTitle({
+            title: item.title || def?.title,
+            volumeLabel: def?.volume_label,
+            concentrationLabel: def?.concentration_label || item.type,
+        });
     }
     if (def) {
         const tester = def.is_tester ? " · Тестер" : "";
@@ -279,9 +283,6 @@ export default function ProductVariantsEditor({
     const debouncedCreateSearch = useDebouncedValue(variantSearch, 250);
 
     const [editForm, setEditForm] = useState<VariantFormState | null>(null);
-    const [editSetId, setEditSetId] = useState<number | null>(null);
-    const [editSetDraftRows, setEditSetDraftRows] = useState<ProductSetDraftRow[]>([]);
-    const [editSetLoading, setEditSetLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<AdminProductVariantItem | null>(null);
 
     const [submitting, setSubmitting] = useState(false);
@@ -527,7 +528,7 @@ export default function ProductVariantsEditor({
                 search: trimmed,
                 product_id: excludeLinkedToProduct ? productId : undefined,
             });
-            setVariantDefinitions((data.data || []).filter((item) => !item.is_set));
+            setVariantDefinitions(data.data || []);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Ошибка загрузки таблицы вариантов");
         } finally {
@@ -540,35 +541,10 @@ export default function ProductVariantsEditor({
         void loadDefinitions(debouncedCreateSearch, true);
     }, [createModalOpen, debouncedCreateSearch, loadDefinitions]);
 
-    const openEdit = async (item: AdminProductVariantItem) => {
+    const openEdit = (item: AdminProductVariantItem) => {
         setEditForm(toFormState(item));
-        setEditSetId(null);
-        setEditSetDraftRows([]);
         setError("");
         setSuccess("");
-
-        const isSet = Boolean(item.definition?.is_set || item.is_set);
-        if (!isSet) {
-            return;
-        }
-
-        setEditSetLoading(true);
-        try {
-            const data = await fetchProductSets(productId);
-            const set =
-                data.data.find((row) => row.product_variant_link_id === item.id) ||
-                (item.product_set_id
-                    ? data.data.find((row) => row.id === item.product_set_id)
-                    : undefined);
-            if (set) {
-                setEditSetId(set.id);
-                setEditSetDraftRows(draftsFromSetComponents(set.components));
-            }
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Не удалось загрузить состав набора");
-        } finally {
-            setEditSetLoading(false);
-        }
     };
 
     const handleCreate = async () => {
@@ -610,35 +586,15 @@ export default function ProductVariantsEditor({
             return;
         }
 
-        const editingSet = Boolean(editSetId);
-        if (editingSet && editSetDraftRows.length === 0) {
-            setError("Состав набора не может быть пустым");
-            return;
-        }
-
         setSubmitting(true);
         setError("");
         setSuccess("");
 
         try {
-            if (editSetId) {
-                await updateProductSetItem(productId, editSetId, {
-                    set_components: editSetDraftRows.map((row, index) => ({
-                        volume_label: row.volume_label,
-                        concentration_label: row.concentration_label,
-                        sort_order: index,
-                    })),
-                });
-            }
-
             const result = await updateProductVariant(productId, editForm.id, {
-                ...(editSetId
-                    ? {}
-                    : {
-                          variant_definition_id: editForm.variant_definition_id
-                              ? Number(editForm.variant_definition_id)
-                              : null,
-                      }),
+                variant_definition_id: editForm.variant_definition_id
+                    ? Number(editForm.variant_definition_id)
+                    : null,
                 price: editForm.price || null,
                 old_price: editForm.old_price || null,
                 stock: Number(editForm.stock || 0),
@@ -650,8 +606,6 @@ export default function ProductVariantsEditor({
 
             setSuccess(result.message || "Вариант обновлен");
             setEditForm(null);
-            setEditSetId(null);
-            setEditSetDraftRows([]);
             await onReloadAction();
             await loadVariants();
         } catch (e: unknown) {
@@ -701,22 +655,13 @@ export default function ProductVariantsEditor({
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div className="text-base font-semibold">Варианты товара</div>
 
-                    <div className="flex items-center gap-2">
-                        <ProductSetCreateButton
-                            productId={productId}
-                            onChangedAction={async () => {
-                                await onReloadAction();
-                                await loadVariants();
-                            }}
-                        />
-                        <button
-                            type="button"
-                            onClick={openCreate}
-                            className="rounded-lg border px-3 py-1.5 text-sm"
-                        >
-                            Добавить вариант
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={openCreate}
+                        className="rounded-lg border px-3 py-1.5 text-sm"
+                    >
+                        Добавить вариант
+                    </button>
                 </div>
 
                 {sortedItems.length === 0 ? (
@@ -972,7 +917,7 @@ export default function ProductVariantsEditor({
                 ) : null}
                 <div className="mb-4 space-y-2 rounded-xl border bg-admin-muted p-3">
                     <label className="block text-sm text-admin-text-secondary">
-                        Поиск варианта в справочнике
+                        Поиск варианта или набора в справочнике
                     </label>
                     {createForm.variant_definition_id && !variantPickerOpen ? (
                         <div className="flex flex-wrap items-center gap-2">
@@ -1025,7 +970,13 @@ export default function ProductVariantsEditor({
                                                         setCreateForm((prev) => ({
                                                             ...prev,
                                                             variant_definition_id: String(item.id),
-                                                            variant_definition_title: item.title,
+                                                            variant_definition_title: item.is_set
+                                                                ? formatSetDisplayTitle({
+                                                                    title: item.title,
+                                                                    volumeLabel: item.volume_label,
+                                                                    concentrationLabel: item.concentration_label,
+                                                                })
+                                                                : item.title,
                                                         }));
                                                         setVariantSearch("");
                                                         setVariantDefinitions([]);
@@ -1037,7 +988,13 @@ export default function ProductVariantsEditor({
                                                             : "hover:bg-admin-muted"
                                                     }`}
                                                 >
-                                                    {item.title}
+                                                    {item.is_set
+                                                        ? formatSetDisplayTitle({
+                                                            title: item.title,
+                                                            volumeLabel: item.volume_label,
+                                                            concentrationLabel: item.concentration_label,
+                                                        })
+                                                        : item.title}
                                                 </button>
                                             ))
                                         )}
@@ -1052,22 +1009,23 @@ export default function ProductVariantsEditor({
 
             <AdminModalShell
                 open={Boolean(editForm)}
-                onCloseAction={() => {
-                    setEditForm(null);
-                    setEditSetId(null);
-                    setEditSetDraftRows([]);
-                }}
-                title={editSetId ? "Редактировать набор" : "Редактировать вариант"}
+                onCloseAction={() => setEditForm(null)}
+                title={
+                    editForm?.id
+                    && runtimeItems.some(
+                        (row) =>
+                            row.id === editForm.id
+                            && Boolean(row.definition?.is_set || row.is_set),
+                    )
+                        ? "Редактировать набор"
+                        : "Редактировать вариант"
+                }
                 maxWidthClass="sm:max-w-3xl"
                 footer={
                     <div className="flex justify-end gap-2">
                         <button
                             type="button"
-                            onClick={() => {
-                                setEditForm(null);
-                                setEditSetId(null);
-                                setEditSetDraftRows([]);
-                            }}
+                            onClick={() => setEditForm(null)}
                             className="rounded-lg border px-4 py-2 text-sm"
                         >
                             Отмена
@@ -1075,7 +1033,7 @@ export default function ProductVariantsEditor({
                         <button
                             type="button"
                             onClick={() => void handleUpdate()}
-                            disabled={submitting || editSetLoading}
+                            disabled={submitting}
                             className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                         >
                             {submitting ? "Сохранение..." : "Сохранить"}
@@ -1089,17 +1047,6 @@ export default function ProductVariantsEditor({
                 {error ? (
                     <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                         {error}
-                    </div>
-                ) : null}
-                {editSetLoading ? (
-                    <div className="mb-3 text-sm text-admin-text-secondary">Загрузка состава набора...</div>
-                ) : null}
-                {editSetId ? (
-                    <div className="mb-4 rounded-xl border bg-admin-muted/40 p-3">
-                        <ProductSetCompositionPicker
-                            draftRows={editSetDraftRows}
-                            onChangeAction={setEditSetDraftRows}
-                        />
                     </div>
                 ) : null}
                 {editForm ? (

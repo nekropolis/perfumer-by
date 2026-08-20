@@ -48,6 +48,7 @@ export type AdminProductVariantItem = {
         id: number;
         title: string;
         volume_ml: number | null;
+        volume_label?: string | null;
         concentration_code: string;
         concentration_label: string;
         is_tester: boolean;
@@ -151,6 +152,7 @@ export async function fetchProductVariants(
 export async function fetchVariantDefinitions(params?: {
     search?: string;
     product_id?: number | string;
+    is_set?: boolean;
     page?: number;
     per_page?: number;
 }): Promise<VariantDefinitionsResponse> {
@@ -160,6 +162,9 @@ export async function fetchVariantDefinitions(params?: {
     }
     if (params?.product_id) {
         searchParams.set("product_id", String(params.product_id));
+    }
+    if (params?.is_set != null) {
+        searchParams.set("is_set", params.is_set ? "1" : "0");
     }
     if (params?.page) {
         searchParams.set("page", String(params.page));

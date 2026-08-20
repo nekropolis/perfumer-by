@@ -9,11 +9,13 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductSet;
+use Modules\Catalog\Models\ProductSetComponent;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\MoneyDecimal;
+use Modules\Catalog\Support\VariantDefinitionResolver;
 use Modules\Catalog\Support\VariantDefinitionVolume;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
@@ -26,19 +28,7 @@ class ProductVariantAdminController extends Controller
         $definition = VariantDefinition::query()->findOrFail($id);
 
         return response()->json([
-            'data' => [
-                'id' => $definition->id,
-                'title' => $definition->title,
-                'volume_ml' => $definition->volume_ml,
-                'volume_label' => $definition->volume_label,
-                'concentration_code' => $definition->concentration_code,
-                'concentration_label' => $definition->concentration_label,
-                'is_tester' => (bool) $definition->is_tester,
-                'is_vial' => (bool) $definition->is_vial,
-                'is_miniature' => (bool) $definition->is_miniature,
-                'is_set' => (bool) $definition->is_set,
-                'excludes_from_free_delivery_threshold' => (bool) $definition->excludes_from_free_delivery_threshold,
-            ],
+            'data' => $this->serializeDefinition($definition),
         ]);
     }
 
@@ -49,34 +39,26 @@ class ProductVariantAdminController extends Controller
         if ($isSet) {
             $validated = $request->validate([
                 'is_set' => ['required', 'boolean'],
-                'concentration_label' => ['nullable', 'string', 'max:120'],
-                'volume_label' => ['nullable', 'string', 'max:120'],
+                'concentration_label' => ['required', 'string', 'max:120'],
+                'volume_label' => ['required', 'string', 'max:120'],
                 'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
                 'sort_order' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $definition = app(\Modules\Catalog\Support\VariantDefinitionResolver::class)->resolveOrCreateSet();
+            $volumeLabel = trim((string) $validated['volume_label']);
+            $concentrationLabel = trim((string) $validated['concentration_label']);
+            $this->assertSetVolumeLabelUnique($volumeLabel);
 
-            $volumeLabel = $definition->volume_label;
-            if (array_key_exists('volume_label', $validated)) {
-                $trimmedVolumeLabel = trim((string) $validated['volume_label']);
-                $volumeLabel = $trimmedVolumeLabel !== '' ? $trimmedVolumeLabel : null;
-            }
-
-            $concentrationLabel = $definition->concentration_label;
-            if (array_key_exists('concentration_label', $validated)) {
-                $trimmedConcentrationLabel = trim((string) $validated['concentration_label']);
-                $concentrationLabel = $trimmedConcentrationLabel !== ''
-                    ? $trimmedConcentrationLabel
-                    : \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL;
-            }
+            $definition = app(VariantDefinitionResolver::class)->resolveOrCreateSet(
+                $volumeLabel,
+                $concentrationLabel,
+            );
 
             $definition->update([
-                'volume_label' => $volumeLabel,
                 'concentration_label' => $concentrationLabel,
                 'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
                 'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
-                'title' => \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL,
+                'title' => VariantDefinitionResolver::buildSetTitle($volumeLabel, $concentrationLabel),
             ]);
 
             return response()->json([
@@ -139,32 +121,22 @@ class ProductVariantAdminController extends Controller
 
         if ($definition->is_set) {
             $validated = $request->validate([
-                'concentration_label' => ['nullable', 'string', 'max:120'],
-                'volume_label' => ['nullable', 'string', 'max:120'],
+                'concentration_label' => ['required', 'string', 'max:120'],
+                'volume_label' => ['required', 'string', 'max:120'],
                 'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
                 'sort_order' => ['nullable', 'integer', 'min:0'],
             ]);
 
-            $volumeLabel = $definition->volume_label;
-            if (array_key_exists('volume_label', $validated)) {
-                $trimmedVolumeLabel = trim((string) $validated['volume_label']);
-                $volumeLabel = $trimmedVolumeLabel !== '' ? $trimmedVolumeLabel : null;
-            }
-
-            $concentrationLabel = $definition->concentration_label;
-            if (array_key_exists('concentration_label', $validated)) {
-                $trimmedConcentrationLabel = trim((string) $validated['concentration_label']);
-                $concentrationLabel = $trimmedConcentrationLabel !== ''
-                    ? $trimmedConcentrationLabel
-                    : \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL;
-            }
+            $volumeLabel = trim((string) $validated['volume_label']);
+            $concentrationLabel = trim((string) $validated['concentration_label']);
+            $this->assertSetVolumeLabelUnique($volumeLabel, $definition->id);
 
             $definition->update([
                 'volume_label' => $volumeLabel,
                 'concentration_label' => $concentrationLabel,
                 'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
                 'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
-                'title' => \Modules\Catalog\Support\VariantDefinitionResolver::SET_CONCENTRATION_LABEL,
+                'title' => VariantDefinitionResolver::buildSetTitle($volumeLabel, $concentrationLabel),
             ]);
 
             return response()->json([
@@ -252,35 +224,45 @@ class ProductVariantAdminController extends Controller
             ->orderBy('is_vial')
             ->orderBy('is_miniature');
 
-        if ($search !== '') {
-            if (preg_match('/^\d+(?:[.,]\d+)?$/', $search)) {
-                $query->where('volume_ml', VariantDefinitionVolume::normalize($search));
-            } else {
-                $normalizedSearch = mb_strtolower($search);
+        if ($request->exists('is_set')) {
+            $query->where('is_set', $request->boolean('is_set'));
+        }
 
+        if ($search !== '') {
+            $normalizedSearch = mb_strtolower($search);
+            if (preg_match('/^\d+(?:[.,]\d+)?$/', $search)) {
+                $volumeMl = VariantDefinitionVolume::normalize($search);
+                $digitNeedle = str_replace(',', '.', $normalizedSearch);
+                $digitNeedleComma = str_replace('.', ',', $normalizedSearch);
+                $query->where(function ($subQuery) use ($volumeMl, $digitNeedle, $digitNeedleComma) {
+                    $subQuery->where('volume_ml', $volumeMl)
+                        ->orWhere(function ($setQuery) use ($digitNeedle, $digitNeedleComma) {
+                            $setQuery->where('is_set', true)
+                                ->where(function ($labelQuery) use ($digitNeedle, $digitNeedleComma) {
+                                    $labelQuery->whereRaw('LOWER(volume_label) like ?', ['%'.$digitNeedle.'%'])
+                                        ->orWhereRaw('LOWER(volume_label) like ?', ['%'.$digitNeedleComma.'%'])
+                                        ->orWhereRaw('LOWER(title) like ?', ['%'.$digitNeedle.'%'])
+                                        ->orWhereRaw('LOWER(title) like ?', ['%'.$digitNeedleComma.'%']);
+                                });
+                        });
+                });
+            } elseif ($request->boolean('is_set')) {
                 $query->where(function ($subQuery) use ($normalizedSearch) {
                     $subQuery->whereRaw('LOWER(title) like ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(volume_label) like ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(concentration_label) like ?', ["%{$normalizedSearch}%"]);
+                });
+            } else {
+                $query->where(function ($subQuery) use ($normalizedSearch) {
+                    $subQuery->whereRaw('LOWER(title) like ?', ["%{$normalizedSearch}%"])
+                        ->orWhereRaw('LOWER(volume_label) like ?', ["%{$normalizedSearch}%"])
                         ->orWhereRaw('LOWER(concentration_code) like ?', ["%{$normalizedSearch}%"])
                         ->orWhereRaw('LOWER(concentration_label) like ?', ["%{$normalizedSearch}%"]);
                 });
             }
         }
 
-        $transform = function (VariantDefinition $item): array {
-            return [
-                'id' => $item->id,
-                'title' => $item->title,
-                'volume_ml' => $item->volume_ml,
-                'volume_label' => $item->volume_label,
-                'concentration_code' => $item->concentration_code,
-                'concentration_label' => $item->concentration_label,
-                'is_tester' => (bool) $item->is_tester,
-                'is_vial' => (bool) $item->is_vial,
-                'is_miniature' => (bool) $item->is_miniature,
-                'is_set' => (bool) $item->is_set,
-                'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
-            ];
-        };
+        $transform = fn (VariantDefinition $item): array => $this->serializeDefinition($item);
 
         // Пагинация включается ТОЛЬКО если клиент явно её запросил (?page=… или ?per_page=…).
         // Это сохраняет совместимость с потребителями, которым нужен полный список
@@ -379,10 +361,13 @@ class ProductVariantAdminController extends Controller
             'sort_order' => ['nullable', 'integer'],
         ]);
 
+        $definitionId = (int) $validated['variant_definition_id'];
+        $definition = VariantDefinition::query()->findOrFail($definitionId);
+
         $variant = ProductVariantLink::query()->firstOrCreate(
             [
                 'product_id' => $product->id,
-                'variant_definition_id' => (int) $validated['variant_definition_id'],
+                'variant_definition_id' => $definitionId,
             ],
             [
                 'price' => $validated['price'] ?? null,
@@ -403,6 +388,10 @@ class ProductVariantAdminController extends Controller
                 'is_promotion' => $validated['is_promotion'] ?? $variant->is_promotion,
                 'sort_order' => $validated['sort_order'] ?? $variant->sort_order,
             ]);
+        }
+
+        if ($definition->is_set) {
+            $this->ensureProductSetForLink($product, $variant, $definition);
         }
 
         $this->syncProductStockFlags($product->fresh());
@@ -517,6 +506,56 @@ class ProductVariantAdminController extends Controller
         ]);
     }
 
+    private function ensureProductSetForLink(
+        Product $product,
+        ProductVariantLink $link,
+        VariantDefinition $definition,
+    ): void {
+        $already = ProductSet::query()
+            ->where('product_variant_link_id', $link->id)
+            ->exists();
+        if ($already) {
+            return;
+        }
+
+        $components = VariantDefinitionResolver::componentsFromSetLabels(
+            $definition->volume_label,
+            $definition->concentration_label,
+        );
+        if ($components === []) {
+            throw ValidationException::withMessages([
+                'variant_definition_id' => ['У выбранного набора нет состава'],
+            ]);
+        }
+
+        $setSort = (int) ProductSet::query()->where('product_id', $product->id)->max('sort_order');
+        $set = ProductSet::query()->create([
+            'product_id' => $product->id,
+            'product_variant_link_id' => $link->id,
+            'title' => $definition->displayTitle(),
+            'sort_order' => $setSort + 1,
+        ]);
+
+        $rows = [];
+        foreach (array_values($components) as $index => $component) {
+            $rows[] = [
+                'product_set_id' => $set->id,
+                'volume_label' => $component['volume_label'],
+                'concentration_label' => $component['concentration_label'],
+                'sort_order' => (int) ($component['sort_order'] ?? $index),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        if ($rows !== []) {
+            ProductSetComponent::query()->insert($rows);
+        }
+
+        if (! $product->is_set) {
+            $product->update(['is_set' => true]);
+        }
+    }
+
     private function syncProductStockFlags(Product $product): void
     {
         app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
@@ -611,6 +650,41 @@ class ProductVariantAdminController extends Controller
     private function formatMoneyLabel(mixed $value): string
     {
         return $this->formatNullableMoney($value) ?? 'пусто';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeDefinition(VariantDefinition $item): array
+    {
+        return [
+            'id' => $item->id,
+            'title' => $item->displayTitle(),
+            'volume_ml' => $item->volume_ml,
+            'volume_label' => $item->volume_label,
+            'concentration_code' => $item->concentration_code,
+            'concentration_label' => $item->concentration_label,
+            'is_tester' => (bool) $item->is_tester,
+            'is_vial' => (bool) $item->is_vial,
+            'is_miniature' => (bool) $item->is_miniature,
+            'is_set' => (bool) $item->is_set,
+            'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
+        ];
+    }
+
+    private function assertSetVolumeLabelUnique(string $volumeLabel, ?int $ignoreId = null): void
+    {
+        $exists = VariantDefinition::query()
+            ->where('is_set', true)
+            ->where('volume_label', $volumeLabel)
+            ->when($ignoreId !== null, static fn ($query) => $query->where('id', '!=', $ignoreId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'volume_label' => ['Такой набор уже есть в справочнике.'],
+            ]);
+        }
     }
 
     private function assertVariantFlagsCompatible(bool $isTester, bool $isVial, bool $isMiniature = false): void

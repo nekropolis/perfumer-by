@@ -1,5 +1,6 @@
 import type { ProductAdminItem } from "@/lib/admin-products-api";
 import type { AdminProductVariantItem, VariantDefinitionItem } from "@/lib/admin-product-variants-api";
+import { formatSetDisplayTitle } from "@/lib/variant-definition-display";
 import type { SellerOneSupplierProductItem } from "@/types/Vanille";
 
 export function formatParsedSupplierVariantHint(parsed: {
@@ -99,6 +100,14 @@ export function getSuggestedProductOnlyMessage(
 }
 
 export function formatVariantOptionLabel(variant: AdminProductVariantItem): string {
+    if (variant.definition?.is_set || variant.is_set) {
+        return formatSetDisplayTitle({
+            title: variant.title || variant.definition?.title,
+            volumeLabel: variant.definition?.volume_label,
+            concentrationLabel: variant.definition?.concentration_label || variant.type,
+        });
+    }
+
     const title = (variant.title || "").trim();
     if (title) {
         return title;
@@ -119,6 +128,18 @@ export function formatVariantOptionLabel(variant: AdminProductVariantItem): stri
     }
 
     return parts.length > 0 ? parts.join(" / ") : `Вариант ${variant.id}`;
+}
+
+export function formatDefinitionOptionLabel(definition: VariantDefinitionItem): string {
+    if (definition.is_set) {
+        return formatSetDisplayTitle({
+            title: definition.title,
+            volumeLabel: definition.volume_label,
+            concentrationLabel: definition.concentration_label,
+        });
+    }
+
+    return (definition.title || "").trim() || `Формулировка ${definition.id}`;
 }
 
 export function buildInitialSearchFromRow(row: SellerOneSupplierProductItem): string {

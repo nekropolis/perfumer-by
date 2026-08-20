@@ -42,7 +42,8 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
         shortLabel: "Нет в наличии",
         label: "Ожидается поступление",
         adminClassName: "bg-stone-100 text-stone-700 border-stone-200",
-        storefrontClassName: "bg-[#4A433D] text-[#E7DECF]",
+        storefrontClassName:
+            "border border-white/30 bg-[#14110F]/50 tracking-[0.08em] text-[#F4EEE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md",
     },
 };
 

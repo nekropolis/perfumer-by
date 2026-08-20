@@ -24,6 +24,8 @@ type ReceiptDraft = {
     deliveryFee: string;
     /** Скидка по дисконтной карте, руб. (не %). */
     discountAmount: string;
+    /** Списание подарочного сертификата, руб. */
+    giftCertificateAmount: string;
     total: string;
     items: ReceiptItemDraft[];
 };
@@ -136,6 +138,7 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
         deliveryLabel: deliveryLabel(order),
         deliveryFee: order.delivery_fee ?? "0.00",
         discountAmount: order.discount_amount ?? "0.00",
+        giftCertificateAmount: order.gift_certificate_amount ?? "0.00",
         total: order.total,
         items: order.items.map((item) => {
             const country = item.product_country?.trim() ?? "";
@@ -441,6 +444,18 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                         </td>
                                         <td className="admin-order-receipt-total-value">
                                             −{normalizeMoneyForDisplay(draft.discountAmount)}
+                                        </td>
+                                    </tr>
+                                ) : null}
+
+                                {moneyToCents(draft.giftCertificateAmount) > 0 ? (
+                                    <tr className="admin-order-receipt-summary-row">
+                                        <td colSpan={2} className="admin-order-receipt-total-empty" />
+                                        <td colSpan={3} className="admin-order-receipt-total-label">
+                                            Подарочный сертификат:
+                                        </td>
+                                        <td className="admin-order-receipt-total-value">
+                                            −{normalizeMoneyForDisplay(draft.giftCertificateAmount)}
                                         </td>
                                     </tr>
                                 ) : null}

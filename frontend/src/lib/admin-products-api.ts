@@ -744,7 +744,7 @@ export async function fetchProductSets(productId: number | string): Promise<{ da
 
 export async function createProductSet(
     productId: number | string,
-    payload: { variant_definition_ids: number[]; title?: string },
+    payload: { variant_definition_id: number; title?: string },
 ): Promise<{ message?: string; data: ProductSetAdminItem }> {
     const res = await fetch(`${API_BASE}/admin/products/${productId}/sets`, {
         method: "POST",

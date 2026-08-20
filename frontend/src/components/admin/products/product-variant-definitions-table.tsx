@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import type { VariantDefinitionItem } from "@/lib/admin-product-variants-api";
+import { formatSetDisplayTitle } from "@/lib/variant-definition-display";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 type Props = {
@@ -46,7 +47,15 @@ export default function ProductVariantDefinitionsTable({
                     {items.map((item) => (
                         <tr key={item.id} className="border-t border-admin-border align-top transition hover:bg-admin-muted/70">
                             <td className="px-3 py-3 text-admin-text-secondary">{item.id}</td>
-                            <td className="px-3 py-3 text-admin-text">{item.title}</td>
+                            <td className="px-3 py-3 text-admin-text">
+                                {item.is_set
+                                    ? formatSetDisplayTitle({
+                                        title: item.title,
+                                        volumeLabel: item.volume_label,
+                                        concentrationLabel: item.concentration_label,
+                                    })
+                                    : item.title}
+                            </td>
                             <FlagCell checked={!!item.is_tester} label="Тестер" />
                             <FlagCell checked={!!item.is_vial} label="Пробник" />
                             <FlagCell checked={!!item.is_miniature} label="Миниатюра" />
