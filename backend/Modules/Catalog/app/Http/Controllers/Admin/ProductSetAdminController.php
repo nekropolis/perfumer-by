@@ -171,7 +171,7 @@ class ProductSetAdminController extends Controller
      */
     private function componentsFromDefinitionIds(array $definitionIds): array
     {
-        $ids = array_values(array_unique(array_map(static fn ($id): int => (int) $id, $definitionIds)));
+        $ids = array_values(array_map(static fn ($id): int => (int) $id, $definitionIds));
         $definitions = VariantDefinition::query()
             ->whereIn('id', $ids)
             ->where('is_set', false)

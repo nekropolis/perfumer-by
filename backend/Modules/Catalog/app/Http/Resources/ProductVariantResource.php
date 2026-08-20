@@ -7,7 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
-use Modules\Catalog\Support\VariantDefinitionResolver;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockLotService;
@@ -43,11 +42,8 @@ class ProductVariantResource extends JsonResource
 
         $displayParts = [];
 
-        if ($this->definition?->is_set || (bool) $this->is_set) {
-            $displayName = VariantDefinitionResolver::buildSetTitle(
-                $this->definition?->volume_label,
-                $this->definition?->concentration_label,
-            );
+        if ($variant->definition?->is_set || (bool) $variant->is_set) {
+            $displayName = $variant->definition?->displayTitle() ?? 'Набор';
         } else {
             if ($this->volume) {
                 $displayParts[] = trim($this->volume . ' ' . $this->volume_unit);

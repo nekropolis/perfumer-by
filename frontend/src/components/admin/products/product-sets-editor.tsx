@@ -7,7 +7,6 @@ import {
     fetchVariantDefinitions,
     type VariantDefinitionItem,
 } from "@/lib/admin-product-variants-api";
-import { adminCheckbox } from "@/lib/admin-ui-classes";
 
 export type ProductSetDraftRow = {
     key: string;
@@ -42,7 +41,7 @@ function buildConcentrationLabel(item: VariantDefinitionItem): string {
     return label;
 }
 
-export function draftFromDefinition(item: VariantDefinitionItem): ProductSetDraftRow | null {
+function definitionDraftParts(item: VariantDefinitionItem): Omit<ProductSetDraftRow, "key"> | null {
     const volumeLabel =
         item.volume_ml != null
             ? formatVolumeLabel(item.volume_ml)
@@ -53,11 +52,26 @@ export function draftFromDefinition(item: VariantDefinitionItem): ProductSetDraf
     }
 
     return {
-        key: `def-${item.id}`,
         volume_label: volumeLabel,
         concentration_label: concentrationLabel,
-        title: item.title || `${volumeLabel} · ${concentrationLabel}`,
+        title: `${volumeLabel} · ${concentrationLabel}`,
         definition_id: item.id,
+    };
+}
+
+let draftRowSeq = 0;
+
+export function draftFromDefinition(item: VariantDefinitionItem): ProductSetDraftRow | null {
+    const parts = definitionDraftParts(item);
+    if (!parts) {
+        return null;
+    }
+
+    draftRowSeq += 1;
+
+    return {
+        key: `def-${item.id}-${draftRowSeq}`,
+        ...parts,
     };
 }
 
@@ -65,9 +79,7 @@ export function draftsFromSetComponents(
     components: ProductSetAdminItem["components"],
 ): ProductSetDraftRow[] {
     return components.map((row, index) => {
-        const key =
-            `${row.volume_label.trim().toLowerCase()}|${row.concentration_label.trim().toLowerCase()}` ||
-            `row-${index}`;
+        const key = `row-${index}-${row.volume_label.trim().toLowerCase()}|${row.concentration_label.trim().toLowerCase()}`;
         return {
             key,
             volume_label: row.volume_label,
@@ -117,18 +129,18 @@ export function setLabelsFromDraftRows(rows: ProductSetDraftRow[]): {
     };
 }
 
-function isDefinitionSelected(item: VariantDefinitionItem, draftRows: ProductSetDraftRow[]): boolean {
-    const drafted = draftFromDefinition(item);
-    if (!drafted) {
-        return false;
+function countDefinitionInDraft(item: VariantDefinitionItem, draftRows: ProductSetDraftRow[]): number {
+    const parts = definitionDraftParts(item);
+    if (!parts) {
+        return 0;
     }
 
-    return draftRows.some(
+    return draftRows.filter(
         (row) =>
             row.definition_id === item.id ||
-            (row.volume_label === drafted.volume_label &&
-                row.concentration_label === drafted.concentration_label),
-    );
+            (row.volume_label === parts.volume_label &&
+                row.concentration_label === parts.concentration_label),
+    ).length;
 }
 
 type CompositionPickerProps = {
@@ -180,31 +192,16 @@ export function ProductSetCompositionPicker({
         onChangeAction(draftRows.filter((row) => row.key !== key));
     };
 
-    const toggleDefinition = (item: VariantDefinitionItem) => {
+    const addDefinition = (item: VariantDefinitionItem) => {
         const next = draftFromDefinition(item);
         if (!next) return;
-
-        if (isDefinitionSelected(item, draftRows)) {
-            onChangeAction(
-                draftRows.filter(
-                    (row) =>
-                        row.definition_id !== item.id &&
-                        !(
-                            row.volume_label === next.volume_label &&
-                            row.concentration_label === next.concentration_label
-                        ),
-                ),
-            );
-            return;
-        }
-
         onChangeAction([...draftRows, next]);
     };
 
     return (
         <div className="space-y-2">
             <label className="block text-sm text-admin-text-secondary">
-                Состав набора — поиск по объёму, мультивыбор
+                Состав набора — поиск по объёму, одинаковые можно добавлять несколько раз
             </label>
             {draftRows.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
@@ -239,29 +236,28 @@ export function ProductSetCompositionPicker({
                         <div className="px-2 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
                     ) : (
                         definitions.map((item) => {
-                            const checked = isDefinitionSelected(item, draftRows);
+                            const count = countDefinitionInDraft(item, draftRows);
                             return (
-                                <label
+                                <button
                                     key={item.id}
-                                    className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm ${
-                                        checked ? "bg-admin-primary/10" : "hover:bg-admin-muted"
+                                    type="button"
+                                    onClick={() => addDefinition(item)}
+                                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm ${
+                                        count > 0 ? "bg-admin-primary/10" : "hover:bg-admin-muted"
                                     }`}
                                 >
-                                    <input
-                                        type="checkbox"
-                                        className={adminCheckbox}
-                                        checked={checked}
-                                        onChange={() => toggleDefinition(item)}
-                                    />
                                     <span>{item.title}</span>
-                                </label>
+                                    <span className="shrink-0 text-xs text-admin-text-secondary">
+                                        {count > 0 ? `×${count}` : "Добавить"}
+                                    </span>
+                                </button>
                             );
                         })
                     )}
                 </div>
             ) : (
                 <div className="text-xs text-admin-text-secondary">
-                    Наберите объём, отметьте варианты галочками.
+                    Наберите объём и нажимайте варианты. Один и тот же можно добавить несколько раз.
                 </div>
             )}
         </div>

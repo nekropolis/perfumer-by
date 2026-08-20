@@ -414,9 +414,11 @@ export default function ProductDetailInteractive({
                                                     ) : null}
                                                 </span>
 
-                                                <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
-                                                    {formatVariantConcentrationLabel(variant)}
-                                                </span>
+                                                {variant.is_set ? null : (
+                                                    <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
+                                                        {formatVariantConcentrationLabel(variant)}
+                                                    </span>
+                                                )}
 
                                                 <div className="flex items-baseline gap-1.5 pt-0.5">
                                                     {gridPrice ? (

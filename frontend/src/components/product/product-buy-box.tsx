@@ -329,7 +329,7 @@ export default function ProductBuyBox({
                                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
                                     <span className="truncate text-sm font-medium leading-5 text-admin-text">
                                         {selectedVariant.is_set
-                                            ? selectedVariant.display_name
+                                            ? "Набор"
                                             : formatVariantVolumeLine(selectedVariant)}
                                     </span>
                                     {availability ? (
@@ -407,7 +407,7 @@ export default function ProductBuyBox({
                     {hasVariant ? (
                         <>
                             <div className="mb-1 text-2xl font-semibold leading-tight">
-                                {selectedVariant.display_name}
+                                {selectedVariant.is_set ? "Набор" : selectedVariant.display_name}
                             </div>
 
                             {selectedVariant.is_set ? (
