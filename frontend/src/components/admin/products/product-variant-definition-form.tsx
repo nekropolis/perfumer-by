@@ -15,6 +15,8 @@ export type ProductVariantDefinitionFormState = {
     is_tester: boolean;
     is_vial: boolean;
     is_miniature: boolean;
+    is_old_design: boolean;
+    is_new_design: boolean;
     is_set?: boolean;
     excludes_from_free_delivery_threshold: boolean;
 };
@@ -54,6 +56,8 @@ export default function ProductVariantDefinitionForm({
                                 is_tester: e.target.checked ? false : form.is_tester,
                                 is_vial: e.target.checked ? false : form.is_vial,
                                 is_miniature: e.target.checked ? false : form.is_miniature,
+                                is_old_design: e.target.checked ? false : form.is_old_design,
+                                is_new_design: e.target.checked ? false : form.is_new_design,
                             })
                         }
                         className={adminCheckbox}
@@ -153,6 +157,38 @@ export default function ProductVariantDefinitionForm({
                                 className={adminCheckbox}
                             />
                             <span>Миниатюра</span>
+                        </label>
+
+                        <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                            <input
+                                type="checkbox"
+                                checked={form.is_old_design}
+                                onChange={(e) =>
+                                    onChangeAction({
+                                        ...form,
+                                        is_old_design: e.target.checked,
+                                        is_new_design: e.target.checked ? false : form.is_new_design,
+                                    })
+                                }
+                                className={adminCheckbox}
+                            />
+                            <span>Старый дизайн</span>
+                        </label>
+
+                        <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                            <input
+                                type="checkbox"
+                                checked={form.is_new_design}
+                                onChange={(e) =>
+                                    onChangeAction({
+                                        ...form,
+                                        is_new_design: e.target.checked,
+                                        is_old_design: e.target.checked ? false : form.is_old_design,
+                                    })
+                                }
+                                className={adminCheckbox}
+                            />
+                            <span>Новый дизайн</span>
                         </label>
                     </>
                 )}

@@ -11,6 +11,7 @@ import type { ProductVariantData } from "@/types/catalog";
 import {
     formatSetComponentLines,
     formatVariantConcentrationLabel,
+    formatVariantDesignLabel,
     formatVariantVolumeLine,
     getVariantAvailabilityState,
 } from "@/lib/product-detail-utils";
@@ -90,6 +91,7 @@ export default function ProductBuyBox({
     );
 
     const effectivePrice = displayPrice ?? selectedVariant?.price ?? null;
+    const designLabel = selectedVariant ? formatVariantDesignLabel(selectedVariant) : null;
 
     const deliveryDateText = deliveryDate?.trim() || "xx.xx.xxxx";
 
@@ -332,6 +334,11 @@ export default function ProductBuyBox({
                                             ? "Набор"
                                             : formatVariantVolumeLine(selectedVariant)}
                                     </span>
+                                    {designLabel ? (
+                                        <span className="inline-flex shrink-0 items-center rounded-full bg-admin-muted px-1.5 py-px text-[10px] font-medium leading-4 text-admin-text">
+                                            {designLabel}
+                                        </span>
+                                    ) : null}
                                     {availability ? (
                                         <span className={`truncate text-xs font-medium leading-5 ${availability.className}`}>
                                             · {availability.status}
@@ -406,8 +413,15 @@ export default function ProductBuyBox({
                 <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
                     {hasVariant ? (
                         <>
-                            <div className="mb-1 text-2xl font-semibold leading-tight">
-                                {selectedVariant.is_set ? "Набор" : selectedVariant.display_name}
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                                <div className="text-2xl font-semibold leading-tight">
+                                    {selectedVariant.is_set ? "Набор" : selectedVariant.display_name}
+                                </div>
+                                {designLabel ? (
+                                    <span className="inline-flex items-center rounded-full bg-admin-muted px-2.5 py-0.5 text-xs font-medium text-admin-text">
+                                        {designLabel}
+                                    </span>
+                                ) : null}
                             </div>
 
                             {selectedVariant.is_set ? (

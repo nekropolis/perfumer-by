@@ -103,6 +103,8 @@ class ProductController extends Controller
         'is_vial',
         'is_miniature',
         'is_set',
+        'is_old_design',
+        'is_new_design',
         'title',
     ];
 

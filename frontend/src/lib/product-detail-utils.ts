@@ -112,6 +112,23 @@ export function formatVariantConcentrationLabel(
   return "—";
 }
 
+/** Подпись дизайна флакона: «старый дизайн» / «новый дизайн». */
+export function formatVariantDesignLabel(
+  variant: ProductVariantData,
+): string | null {
+  const fromApi = variant.design_label?.trim();
+  if (fromApi) {
+    return fromApi;
+  }
+  if (variant.is_old_design) {
+    return "старый дизайн";
+  }
+  if (variant.is_new_design) {
+    return "новый дизайн";
+  }
+  return null;
+}
+
 /** Для карточки набора: «12 мл / 3 мл». */
 function formatSetVolumesLine(variant: ProductVariantData): string {
   const fromComponents = (variant.set_components ?? [])

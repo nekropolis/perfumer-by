@@ -17,6 +17,9 @@ export type ProductVariantData = {
     concentration: string | null;
     edition: string | null;
     is_set?: boolean;
+    is_old_design?: boolean;
+    is_new_design?: boolean;
+    design_label?: string | null;
     volume_label?: string | null;
     set_components?: ProductSetComponentData[];
     display_name: string;

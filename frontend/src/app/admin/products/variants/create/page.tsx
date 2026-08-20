@@ -23,6 +23,8 @@ const emptyForm: ProductVariantDefinitionFormState = {
     is_tester: false,
     is_vial: false,
     is_miniature: false,
+    is_old_design: false,
+    is_new_design: false,
     is_set: false,
     excludes_from_free_delivery_threshold: false,
 };
@@ -87,6 +89,8 @@ export default function AdminProductVariantCreatePage() {
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
                 is_miniature: form.is_miniature,
+                is_old_design: form.is_old_design,
+                is_new_design: form.is_new_design,
                 is_set: false,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });

@@ -17,6 +17,8 @@ class VariantDefinition extends Model
         'is_vial',
         'is_miniature',
         'is_set',
+        'is_old_design',
+        'is_new_design',
         'excludes_from_free_delivery_threshold',
         'title',
         'sort_order',
@@ -28,6 +30,8 @@ class VariantDefinition extends Model
         'is_vial' => 'boolean',
         'is_miniature' => 'boolean',
         'is_set' => 'boolean',
+        'is_old_design' => 'boolean',
+        'is_new_design' => 'boolean',
         'excludes_from_free_delivery_threshold' => 'boolean',
     ];
 
@@ -43,5 +47,18 @@ class VariantDefinition extends Model
         }
 
         return trim((string) $this->title);
+    }
+
+    public function designLabel(): ?string
+    {
+        if ($this->is_old_design) {
+            return 'старый дизайн';
+        }
+
+        if ($this->is_new_design) {
+            return 'новый дизайн';
+        }
+
+        return null;
     }
 }

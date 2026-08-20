@@ -59,6 +59,8 @@ class VariantDefinitionVolume
         bool $isTester,
         bool $isVial = false,
         bool $isMiniature = false,
+        bool $isOldDesign = false,
+        bool $isNewDesign = false,
     ): string {
         $title = sprintf(
             '%s мл / %s - %s',
@@ -77,6 +79,14 @@ class VariantDefinitionVolume
 
         if ($isMiniature) {
             $title .= ' / Миниатюра';
+        }
+
+        if ($isOldDesign) {
+            $title .= ' / Старый дизайн';
+        }
+
+        if ($isNewDesign) {
+            $title .= ' / Новый дизайн';
         }
 
         return $title;
@@ -100,7 +110,7 @@ class VariantDefinitionVolume
     }
 
     /**
-     * Уникальность: volume_ml + concentration_code + is_tester + is_vial + is_miniature (см. variant_definition_unique).
+     * Уникальность: volume_ml + concentration_code + флаги (см. variant_definition_unique).
      * concentration_label в ключ не входит.
      */
     public static function assertUnique(
@@ -111,6 +121,8 @@ class VariantDefinitionVolume
         bool $isMiniature = false,
         ?int $ignoreId = null,
         bool $isSet = false,
+        bool $isOldDesign = false,
+        bool $isNewDesign = false,
     ): void {
         $exists = VariantDefinition::query()
             ->where('volume_ml', $volumeMl)
@@ -119,12 +131,14 @@ class VariantDefinitionVolume
             ->where('is_vial', $isVial)
             ->where('is_miniature', $isMiniature)
             ->where('is_set', $isSet)
+            ->where('is_old_design', $isOldDesign)
+            ->where('is_new_design', $isNewDesign)
             ->when($ignoreId !== null, static fn ($query) => $query->where('id', '!=', $ignoreId))
             ->exists();
 
         if ($exists) {
             throw ValidationException::withMessages([
-                'volume_ml' => ['Такой вариант уже есть в справочнике (объем, код концентрации, тестер, пробник, миниатюра).'],
+                'volume_ml' => ['Такой вариант уже есть в справочнике (объем, код концентрации, тестер, пробник, миниатюра, дизайн).'],
             ]);
         }
     }

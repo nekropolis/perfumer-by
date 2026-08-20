@@ -84,6 +84,9 @@ class ProductVariantResource extends JsonResource
             'concentration' => $this->concentration,
             'edition' => $this->edition,
             'is_set' => (bool) ($this->definition?->is_set || $this->is_set),
+            'is_old_design' => (bool) ($this->definition?->is_old_design),
+            'is_new_design' => (bool) ($this->definition?->is_new_design),
+            'design_label' => $this->definition?->designLabel(),
             'volume_label' => $this->definition?->volume_label,
             'set_components' => $this->when(
                 (bool) ($this->definition?->is_set || $this->is_set),

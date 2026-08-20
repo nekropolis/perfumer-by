@@ -55,6 +55,8 @@ export type AdminProductVariantItem = {
         is_vial?: boolean;
         is_miniature?: boolean;
         is_set?: boolean;
+        is_old_design?: boolean;
+        is_new_design?: boolean;
         excludes_from_free_delivery_threshold?: boolean;
     };
 };
@@ -90,6 +92,8 @@ export type VariantDefinitionItem = {
     is_vial?: boolean;
     is_miniature?: boolean;
     is_set?: boolean;
+    is_old_design?: boolean;
+    is_new_design?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
 };
 
@@ -112,6 +116,8 @@ export type VariantDefinitionPayload = {
     is_vial?: boolean;
     is_miniature?: boolean;
     is_set?: boolean;
+    is_old_design?: boolean;
+    is_new_design?: boolean;
     excludes_from_free_delivery_threshold?: boolean;
     sort_order?: number;
 };

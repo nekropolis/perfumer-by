@@ -75,6 +75,8 @@ class ProductVariantAdminController extends Controller
             'is_vial' => ['nullable', 'boolean'],
             'is_miniature' => ['nullable', 'boolean'],
             'is_set' => ['nullable', 'boolean'],
+            'is_old_design' => ['nullable', 'boolean'],
+            'is_new_design' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ], VariantDefinitionVolume::validationMessages());
@@ -82,12 +84,24 @@ class ProductVariantAdminController extends Controller
         $isTester = (bool) ($validated['is_tester'] ?? false);
         $isVial = (bool) ($validated['is_vial'] ?? false);
         $isMiniature = (bool) ($validated['is_miniature'] ?? false);
-        $this->assertVariantFlagsCompatible($isTester, $isVial, $isMiniature);
+        $isOldDesign = (bool) ($validated['is_old_design'] ?? false);
+        $isNewDesign = (bool) ($validated['is_new_design'] ?? false);
+        $this->assertVariantFlagsCompatible($isTester, $isVial, $isMiniature, $isOldDesign, $isNewDesign);
 
         $volumeMl = VariantDefinitionVolume::normalize($validated['volume_ml']);
         $concentrationCode = mb_strtolower(trim((string) $validated['concentration_code']));
 
-        VariantDefinitionVolume::assertUnique($volumeMl, $concentrationCode, $isTester, $isVial, $isMiniature);
+        VariantDefinitionVolume::assertUnique(
+            $volumeMl,
+            $concentrationCode,
+            $isTester,
+            $isVial,
+            $isMiniature,
+            null,
+            false,
+            $isOldDesign,
+            $isNewDesign,
+        );
 
         $definition = VariantDefinition::query()->create([
             'volume_ml' => $volumeMl,
@@ -97,6 +111,8 @@ class ProductVariantAdminController extends Controller
             'is_vial' => $isVial,
             'is_miniature' => $isMiniature,
             'is_set' => false,
+            'is_old_design' => $isOldDesign,
+            'is_new_design' => $isNewDesign,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? false),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
             'title' => VariantDefinitionVolume::buildTitle(
@@ -106,6 +122,8 @@ class ProductVariantAdminController extends Controller
                 $isTester,
                 $isVial,
                 $isMiniature,
+                $isOldDesign,
+                $isNewDesign,
             ),
         ]);
 
@@ -152,6 +170,8 @@ class ProductVariantAdminController extends Controller
             'is_tester' => ['nullable', 'boolean'],
             'is_vial' => ['nullable', 'boolean'],
             'is_miniature' => ['nullable', 'boolean'],
+            'is_old_design' => ['nullable', 'boolean'],
+            'is_new_design' => ['nullable', 'boolean'],
             'excludes_from_free_delivery_threshold' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ], VariantDefinitionVolume::validationMessages());
@@ -159,12 +179,24 @@ class ProductVariantAdminController extends Controller
         $isTester = (bool) ($validated['is_tester'] ?? false);
         $isVial = (bool) ($validated['is_vial'] ?? false);
         $isMiniature = (bool) ($validated['is_miniature'] ?? false);
-        $this->assertVariantFlagsCompatible($isTester, $isVial, $isMiniature);
+        $isOldDesign = (bool) ($validated['is_old_design'] ?? false);
+        $isNewDesign = (bool) ($validated['is_new_design'] ?? false);
+        $this->assertVariantFlagsCompatible($isTester, $isVial, $isMiniature, $isOldDesign, $isNewDesign);
 
         $volumeMl = VariantDefinitionVolume::normalize($validated['volume_ml']);
         $concentrationCode = mb_strtolower(trim((string) $validated['concentration_code']));
 
-        VariantDefinitionVolume::assertUnique($volumeMl, $concentrationCode, $isTester, $isVial, $isMiniature, $definition->id);
+        VariantDefinitionVolume::assertUnique(
+            $volumeMl,
+            $concentrationCode,
+            $isTester,
+            $isVial,
+            $isMiniature,
+            $definition->id,
+            false,
+            $isOldDesign,
+            $isNewDesign,
+        );
 
         $definition->update([
             'volume_ml' => $volumeMl,
@@ -174,6 +206,8 @@ class ProductVariantAdminController extends Controller
             'is_vial' => $isVial,
             'is_miniature' => $isMiniature,
             'is_set' => false,
+            'is_old_design' => $isOldDesign,
+            'is_new_design' => $isNewDesign,
             'excludes_from_free_delivery_threshold' => (bool) ($validated['excludes_from_free_delivery_threshold'] ?? $definition->excludes_from_free_delivery_threshold),
             'sort_order' => (int) ($validated['sort_order'] ?? $definition->sort_order),
             'title' => VariantDefinitionVolume::buildTitle(
@@ -183,6 +217,8 @@ class ProductVariantAdminController extends Controller
                 $isTester,
                 $isVial,
                 $isMiniature,
+                $isOldDesign,
+                $isNewDesign,
             ),
         ]);
 
@@ -668,6 +704,8 @@ class ProductVariantAdminController extends Controller
             'is_vial' => (bool) $item->is_vial,
             'is_miniature' => (bool) $item->is_miniature,
             'is_set' => (bool) $item->is_set,
+            'is_old_design' => (bool) $item->is_old_design,
+            'is_new_design' => (bool) $item->is_new_design,
             'excludes_from_free_delivery_threshold' => (bool) $item->excludes_from_free_delivery_threshold,
         ];
     }
@@ -687,8 +725,13 @@ class ProductVariantAdminController extends Controller
         }
     }
 
-    private function assertVariantFlagsCompatible(bool $isTester, bool $isVial, bool $isMiniature = false): void
-    {
+    private function assertVariantFlagsCompatible(
+        bool $isTester,
+        bool $isVial,
+        bool $isMiniature = false,
+        bool $isOldDesign = false,
+        bool $isNewDesign = false,
+    ): void {
         if ($isTester && $isVial) {
             throw ValidationException::withMessages([
                 'is_vial' => ['Вариант не может быть одновременно тестером и пробником'],
@@ -698,6 +741,12 @@ class ProductVariantAdminController extends Controller
         if ($isVial && $isMiniature) {
             throw ValidationException::withMessages([
                 'is_miniature' => ['Вариант не может быть одновременно пробником и миниатюрой'],
+            ]);
+        }
+
+        if ($isOldDesign && $isNewDesign) {
+            throw ValidationException::withMessages([
+                'is_new_design' => ['Вариант не может быть одновременно старым и новым дизайном'],
             ]);
         }
     }

@@ -40,6 +40,8 @@ export default function ProductVariantDefinitionsTable({
                         <th className="px-3 py-2.5 text-center">Тестер</th>
                         <th className="px-3 py-2.5 text-center">Пробник</th>
                         <th className="px-3 py-2.5 text-center">Миниатюра</th>
+                        <th className="px-3 py-2.5 text-center">Старый дизайн</th>
+                        <th className="px-3 py-2.5 text-center">Новый дизайн</th>
                         <th className="px-3 py-2.5 text-right">Действия</th>
                     </tr>
                 </thead>
@@ -59,6 +61,8 @@ export default function ProductVariantDefinitionsTable({
                             <FlagCell checked={!!item.is_tester} label="Тестер" />
                             <FlagCell checked={!!item.is_vial} label="Пробник" />
                             <FlagCell checked={!!item.is_miniature} label="Миниатюра" />
+                            <FlagCell checked={!!item.is_old_design} label="Старый дизайн" />
+                            <FlagCell checked={!!item.is_new_design} label="Новый дизайн" />
                             <td className="px-3 py-3">
                                 <div className="flex justify-end gap-1.5">
                                     <Link

@@ -154,6 +154,8 @@ class VariantDefinitionResolver
                 'is_vial' => $isVial,
                 'is_miniature' => $isMiniature,
                 'is_set' => false,
+                'is_old_design' => false,
+                'is_new_design' => false,
             ],
             [
                 'concentration_label' => $concentrationLabel,
@@ -194,6 +196,8 @@ class VariantDefinitionResolver
                 'is_tester' => false,
                 'is_vial' => false,
                 'is_miniature' => false,
+                'is_old_design' => false,
+                'is_new_design' => false,
                 'volume_ml' => null,
                 'volume_label' => $volumeLabel,
             ],

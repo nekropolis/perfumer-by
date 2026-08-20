@@ -31,6 +31,7 @@ import {
     formatProductDetailPrice,
     formatReviewsCountLabel,
     formatVariantConcentrationLabel,
+    formatVariantDesignLabel,
     formatVariantVolumeLine,
     getProductAttributeDisplayValue,
     getVariantAvailabilityState,
@@ -67,6 +68,10 @@ export default function ProductDetailInteractive({
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
     const variants = useMemo(() => normalizeProductVariants(product.variants), [product.variants]);
+    const hasAnyDesignLabel = useMemo(
+        () => variants.some((variant) => formatVariantDesignLabel(variant) !== null),
+        [variants],
+    );
 
     const initialVariantId = useMemo(() => {
         if (variantFromQuery > 0 && variants.some((variant) => variant.id === variantFromQuery)) {
@@ -397,7 +402,7 @@ export default function ProductDetailInteractive({
                                                 key={`variant-${variant.id}`}
                                                 type="button"
                                                 onClick={() => setSelectedVariantId(variant.id)}
-                                                className={`group flex w-full cursor-pointer flex-col gap-0.5 rounded-2xl border px-2.5 py-2 text-left transition-all duration-150 ${
+                                                className={`group flex h-full w-full cursor-pointer flex-col rounded-2xl border px-2.5 py-2 text-left transition-all duration-150 ${
                                                     isSelected
                                                         ? "border-admin-primary bg-admin-surface shadow-[0_0_0_1px_rgba(36,28,21,0.12)]"
                                                         : "border-admin-border bg-admin-surface hover:border-admin-primary/40 hover:bg-admin-bg active:scale-[0.98]"
@@ -415,16 +420,22 @@ export default function ProductDetailInteractive({
                                                 </span>
 
                                                 {variant.is_set ? (
-                                                    <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
+                                                    <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
                                                         набор
                                                     </span>
                                                 ) : (
-                                                    <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
+                                                    <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
                                                         {formatVariantConcentrationLabel(variant)}
                                                     </span>
                                                 )}
 
-                                                <div className="flex items-baseline gap-1.5 pt-0.5">
+                                                {hasAnyDesignLabel ? (
+                                                    <span className="mt-0.5 line-clamp-1 min-h-4 text-[11px] leading-4 text-admin-text-secondary">
+                                                        {formatVariantDesignLabel(variant) ?? "\u00a0"}
+                                                    </span>
+                                                ) : null}
+
+                                                <div className="mt-auto flex items-baseline gap-1.5 pt-0.5">
                                                     {gridPrice ? (
                                                         <span className="text-[15px] font-semibold leading-5 text-admin-text">
                                                             {formatProductDetailPrice(gridPrice)}

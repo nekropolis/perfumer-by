@@ -50,6 +50,8 @@ export default function AdminProductVariantEditPage() {
                     is_tester: !!item.is_tester,
                     is_vial: !!item.is_vial,
                     is_miniature: !!item.is_miniature,
+                    is_old_design: !!item.is_old_design,
+                    is_new_design: !!item.is_new_design,
                     is_set: !!item.is_set,
                     excludes_from_free_delivery_threshold: !!item.excludes_from_free_delivery_threshold,
                 });
@@ -122,6 +124,8 @@ export default function AdminProductVariantEditPage() {
                 is_tester: form.is_tester,
                 is_vial: form.is_vial,
                 is_miniature: form.is_miniature,
+                is_old_design: form.is_old_design,
+                is_new_design: form.is_new_design,
                 is_set: false,
                 excludes_from_free_delivery_threshold: form.excludes_from_free_delivery_threshold,
             });

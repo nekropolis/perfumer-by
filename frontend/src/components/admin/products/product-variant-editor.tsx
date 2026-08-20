@@ -94,15 +94,17 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
         const tester = def.is_tester ? " · Тестер" : "";
         const vial = def.is_vial ? " · Пробник" : "";
         const miniature = def.is_miniature ? " · Миниатюра" : "";
+        const oldDesign = def.is_old_design ? " · Старый дизайн" : "";
+        const newDesign = def.is_new_design ? " · Новый дизайн" : "";
         const code = def.concentration_code?.trim();
         const label = def.concentration_label?.trim();
         if (code && label) {
-            return `${def.volume_ml} мл / ${code} - ${label}${tester}${vial}${miniature}`;
+            return `${def.volume_ml} мл / ${code} - ${label}${tester}${vial}${miniature}${oldDesign}${newDesign}`;
         }
         if (label) {
-            return `${def.volume_ml} мл / ${label}${tester}${vial}${miniature}`;
+            return `${def.volume_ml} мл / ${label}${tester}${vial}${miniature}${oldDesign}${newDesign}`;
         }
-        return `${def.volume_ml} мл${tester}${vial}${miniature}`;
+        return `${def.volume_ml} мл${tester}${vial}${miniature}${oldDesign}${newDesign}`;
     }
 
     const parts: string[] = [];
