@@ -15,8 +15,8 @@ class VariantDefinitionResolver
     public const SET_CONCENTRATION_LABEL = 'Набор';
 
     /**
-     * Подпись набора: «Набор (50/12,5) - парфюмерная вода».
-     * Описание концентрации не дублируется, если оно пустое или равно «Набор».
+     * Подпись набора: «Набор (50/12,5) - парфюмерная вода / парфюмерная вода».
+     * Описание не добавляется, если оно пустое или равно «Набор».
      */
     public static function buildSetTitle(?string $volumeLabel, ?string $concentrationLabel): string
     {
@@ -42,19 +42,12 @@ class VariantDefinitionResolver
         }
 
         $parts = [];
-        $seen = [];
         foreach (preg_split('/\s*\/\s*/u', $raw) ?: [] as $part) {
             $part = trim((string) $part);
-            if ($part === '') {
+            if ($part === '' || mb_strtolower($part) === mb_strtolower(self::SET_CONCENTRATION_LABEL)) {
                 continue;
             }
 
-            $key = mb_strtolower($part);
-            if ($key === mb_strtolower(self::SET_CONCENTRATION_LABEL) || isset($seen[$key])) {
-                continue;
-            }
-
-            $seen[$key] = true;
             $parts[] = $part;
         }
 

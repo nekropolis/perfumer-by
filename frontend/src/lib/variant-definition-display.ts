@@ -7,21 +7,18 @@ export function formatSetConcentrationDescription(raw?: string | null): string {
     }
 
     const parts: string[] = [];
-    const seen = new Set<string>();
 
     for (const part of text.split("/").map((item) => item.trim()).filter(Boolean)) {
-        const key = part.toLocaleLowerCase("ru-RU");
-        if (key === SET_LABEL.toLocaleLowerCase("ru-RU") || seen.has(key)) {
+        if (part.toLocaleLowerCase("ru-RU") === SET_LABEL.toLocaleLowerCase("ru-RU")) {
             continue;
         }
-        seen.add(key);
         parts.push(part);
     }
 
     return parts.join(" / ");
 }
 
-/** «Набор (50/12,5) - парфюмерная вода». */
+/** «Набор (50/12,5) - парфюмерная вода / парфюмерная вода». */
 export function formatSetDisplayTitle(input: {
     title?: string | null;
     volumeLabel?: string | null;
