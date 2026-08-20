@@ -414,7 +414,11 @@ export default function ProductDetailInteractive({
                                                     ) : null}
                                                 </span>
 
-                                                {variant.is_set ? null : (
+                                                {variant.is_set ? (
+                                                    <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
+                                                        набор
+                                                    </span>
+                                                ) : (
                                                     <span className="line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
                                                         {formatVariantConcentrationLabel(variant)}
                                                     </span>

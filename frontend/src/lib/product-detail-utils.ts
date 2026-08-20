@@ -60,13 +60,7 @@ export function formatProductDetailPrice(price: string | null): ReactNode {
 /** Строка 1 карточки варианта: «2 мл / Пробник». */
 export function formatVariantVolumeLine(variant: ProductVariantData): string {
   if (variant.is_set) {
-    const volumeLabel = variant.volume_label?.trim();
-    if (volumeLabel) {
-      return `Набор (${volumeLabel})`;
-    }
-
-    const volumes = formatSetVolumesLine(variant);
-    return volumes || "Набор";
+    return formatSetVolumesLine(variant) || "Набор";
   }
 
   if (variant.volume == null) {
@@ -118,7 +112,7 @@ export function formatVariantConcentrationLabel(
   return "—";
 }
 
-/** Для карточки набора: «12мл / 3мл». */
+/** Для карточки набора: «12 мл / 3 мл». */
 function formatSetVolumesLine(variant: ProductVariantData): string {
   const fromComponents = (variant.set_components ?? [])
     .map((row) => formatSetComponentVolume(row.volume_label))
@@ -139,7 +133,7 @@ function formatSetVolumesLine(variant: ProductVariantData): string {
     .join(" / ");
 }
 
-/** Строки состава набора для блока «Выбранный вариант»: «12мл / парфюмерная вода». */
+/** Строки состава набора для блока «Выбранный вариант»: «12 мл / парфюмерная вода». */
 export function formatSetComponentLines(variant: ProductVariantData): string[] {
   const components = variant.set_components ?? [];
   if (components.length === 0) {
@@ -161,10 +155,13 @@ function formatSetComponentVolume(volumeLabel: string): string {
   if (!raw) {
     return "";
   }
-  if (/мл/i.test(raw) || /ml/i.test(raw)) {
-    return raw.replace(/\s+/g, "");
+
+  const withoutUnit = raw.replace(/\s*(мл|ml)\s*/gi, "").trim();
+  if (!withoutUnit) {
+    return "";
   }
-  return `${raw.replace(/\s+/g, "")}мл`;
+
+  return `${withoutUnit} мл`;
 }
 
 export type VariantAvailabilityState = {
