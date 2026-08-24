@@ -26,6 +26,8 @@ class StockReceiptController extends Controller
         $warehouseId = (int) $request->input('warehouse_id', 0);
         $supplierId = (int) $request->input('supplier_id', 0);
         $status = trim((string) $request->input('status', ''));
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
 
         $receipts = StockReceipt::query()
             ->with(['supplier', 'warehouse', 'items'])
@@ -38,6 +40,8 @@ class StockReceiptController extends Controller
             })
             ->when($warehouseId > 0, fn ($query) => $query->where('warehouse_id', $warehouseId))
             ->when($supplierId > 0, fn ($query) => $query->where('supplier_id', $supplierId))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('received_at', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('received_at', '<=', $dateTo))
             ->when(
                 $status !== '' && in_array($status, [StockReceipt::STATUS_DRAFT, StockReceipt::STATUS_POSTED], true),
                 fn ($query) => $query->where('status', $status)

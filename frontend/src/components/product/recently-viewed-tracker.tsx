@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
+import { isStaffUser } from "@/constants/admin-roles";
 import { recordCatalogProductView } from "@/lib/catalog-api";
 import {
     addRecentlyViewedProduct,
@@ -13,10 +15,18 @@ type Props = {
 };
 
 export default function RecentlyViewedTracker({ product }: Props) {
+    const { user, loading: authLoading } = useAuth();
+
     useEffect(() => {
         addRecentlyViewedProduct(productDetailToRecentlyViewed(product));
-        recordCatalogProductView(product.id);
     }, [product]);
+
+    useEffect(() => {
+        if (authLoading || isStaffUser(user)) {
+            return;
+        }
+        recordCatalogProductView(product.id);
+    }, [authLoading, product.id, user]);
 
     return null;
 }

@@ -17,6 +17,8 @@ class StockWriteoffController extends Controller
         $search = trim((string) $request->input('search', ''));
         $type = trim((string) $request->input('type', ''));
         $warehouseId = (int) $request->input('warehouse_id', 0);
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
 
         $writeoffs = StockWriteoff::query()
             ->with(['warehouse', 'items'])
@@ -32,6 +34,8 @@ class StockWriteoffController extends Controller
             })
             ->when($type !== '', fn ($query) => $query->where('type', $type))
             ->when($warehouseId > 0, fn ($query) => $query->where('warehouse_id', $warehouseId))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('written_off_at', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('written_off_at', '<=', $dateTo))
             ->orderByDesc('id')
             ->paginate(20);
 

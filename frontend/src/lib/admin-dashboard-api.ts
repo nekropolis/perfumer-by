@@ -105,3 +105,41 @@ export async function fetchAdminDashboardViewedProducts(
 
     return res.json();
 }
+
+export type AdminDashboardWishlistProduct = {
+    id: number;
+    name: string;
+    slug: string | null;
+    wishlists_count: number;
+};
+
+export type AdminDashboardWishlistProductsResponse = {
+    data: {
+        period: AdminDashboardViewedPeriod;
+        items: AdminDashboardWishlistProduct[];
+    };
+};
+
+export async function fetchAdminDashboardWishlistProducts(
+    params?: { period?: AdminDashboardViewedPeriod; signal?: AbortSignal }
+): Promise<AdminDashboardWishlistProductsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.period) {
+        searchParams.set("period", params.period);
+    }
+
+    const res = await fetch(
+        `${API_BASE}/admin/dashboard/wishlisted-products${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+            signal: params?.signal,
+        },
+    );
+
+    if (!res.ok) {
+        throw new Error(`Dashboard wishlisted products API error: ${res.status}`);
+    }
+
+    return res.json();
+}

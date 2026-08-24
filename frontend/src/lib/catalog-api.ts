@@ -1,4 +1,5 @@
 import { apiFetch, type ApiFetchOptions } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth-token";
 import type {
     CatalogBrandDetailResponse,
     CatalogBrandsResponse,
@@ -78,9 +79,12 @@ export function recordCatalogProductView(productId: number): void {
         return;
     }
 
+    const token = typeof window !== "undefined" ? getAuthToken() : "";
+
     void fetch(`${base}/catalog/products/${productId}/view`, {
         method: "POST",
         keepalive: true,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
     }).catch(() => {});
 }
 

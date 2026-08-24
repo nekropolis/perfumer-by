@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminPageHeader from "@/components/admin/ui/admin-page-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminViewedProductsCard from "@/components/admin/admin-viewed-products-card";
+import AdminWishlistProductsCard from "@/components/admin/admin-wishlist-products-card";
 import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
 import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
 import { getOrderStatusLabel } from "@/constants/order-statuses";
@@ -560,7 +561,10 @@ export default function AdminPage() {
                 </div>
             </AdminPageCard>
 
-            <AdminViewedProductsCard />
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <AdminViewedProductsCard />
+                <AdminWishlistProductsCard />
+            </div>
 
             <AdminPageCard>
                 <div className="mb-4 text-base font-semibold text-admin-text">Товары в наличии</div>

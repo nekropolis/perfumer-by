@@ -26,10 +26,6 @@ final class WholesalePriceService
 
     private const OFFER_ADDEND = 3.5;
 
-    private const ENTRY_MULTIPLIER = 1.14;
-
-    private const ENTRY_ADDEND = 7.0;
-
     public function __construct(
         private readonly WarehousePurchasePriceResolver $purchasePriceResolver,
         private readonly StockLotService $stockLotService,
@@ -43,6 +39,59 @@ final class WholesalePriceService
             ->value('value') ?? ''));
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Источник, из которого считается опт: мин. закупка активного офера, иначе вход основного склада.
+     *
+     * @param  list<int>  $variantIds
+     * @return array<int, array{source: string, purchase_price: string, supplier_name: string|null, name: string|null}>
+     */
+    public function sourcesForVariants(array $variantIds): array
+    {
+        $variantIds = array_values(array_unique(array_filter(
+            array_map(static fn ($id): int => (int) $id, $variantIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+        if ($variantIds === []) {
+            return [];
+        }
+
+        $offerDetails = $this->minOfferDetailsByVariant($variantIds);
+        $needEntry = array_values(array_diff($variantIds, array_keys($offerDetails)));
+        $entryByVariant = [];
+        if ($needEntry !== []) {
+            $mainWarehouseId = $this->purchasePriceResolver->resolveMainWarehouseId();
+            $entryByVariant = $mainWarehouseId > 0
+                ? $this->entryPurchaseByVariant($needEntry, $mainWarehouseId)
+                : [];
+        }
+
+        $map = [];
+        foreach ($variantIds as $variantId) {
+            if (isset($offerDetails[$variantId])) {
+                $details = $offerDetails[$variantId];
+                $map[$variantId] = [
+                    'source' => 'offer',
+                    'purchase_price' => MoneyDecimal::normalize($details['purchase']),
+                    'supplier_name' => $details['supplier_name'],
+                    'name' => $details['name'],
+                ];
+                continue;
+            }
+
+            $entry = $entryByVariant[$variantId] ?? null;
+            if ($entry !== null && $entry > 0) {
+                $map[$variantId] = [
+                    'source' => 'entry',
+                    'purchase_price' => MoneyDecimal::normalize($entry),
+                    'supplier_name' => null,
+                    'name' => null,
+                ];
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -250,15 +299,30 @@ final class WholesalePriceService
      */
     private function minOfferPurchaseByVariant(array $variantIds): array
     {
+        $map = [];
+        foreach ($this->minOfferDetailsByVariant($variantIds) as $variantId => $details) {
+            $map[$variantId] = $details['purchase'];
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<int>  $variantIds
+     * @return array<int, array{purchase: float, supplier_name: string|null, name: string|null}>
+     */
+    private function minOfferDetailsByVariant(array $variantIds): array
+    {
         if ($variantIds === []) {
             return [];
         }
 
         /** @var Collection<int, SupplierVariantOffer> $offers */
         $offers = SupplierVariantOffer::query()
+            ->with(['supplier:id,name'])
             ->whereIn('product_variant_id', $variantIds)
             ->where('is_active', true)
-            ->get(['product_variant_id', 'purchase_price', 'payload']);
+            ->get(['id', 'product_variant_id', 'supplier_id', 'external_product_name', 'purchase_price', 'payload']);
 
         $map = [];
         foreach ($offers as $offer) {
@@ -269,9 +333,18 @@ final class WholesalePriceService
                 continue;
             }
 
-            $map[$variantId] = isset($map[$variantId])
-                ? min($map[$variantId], $purchase)
-                : $purchase;
+            if (isset($map[$variantId]) && $map[$variantId]['purchase'] <= $purchase) {
+                continue;
+            }
+
+            $name = trim((string) ($offer->external_product_name ?? ''));
+            $supplierName = trim((string) ($offer->supplier?->name ?? ''));
+
+            $map[$variantId] = [
+                'purchase' => $purchase,
+                'supplier_name' => $supplierName !== '' ? $supplierName : null,
+                'name' => $name !== '' ? $name : null,
+            ];
         }
 
         return $map;
@@ -292,14 +365,17 @@ final class WholesalePriceService
 
     private function calculateWholesale(?float $offerPurchase, ?float $entryPurchase): ?float
     {
+        $purchase = null;
         if ($offerPurchase !== null && $offerPurchase > 0) {
-            return round($offerPurchase * self::OFFER_MULTIPLIER + self::OFFER_ADDEND, 2);
+            $purchase = $offerPurchase;
+        } elseif ($entryPurchase !== null && $entryPurchase > 0) {
+            $purchase = $entryPurchase;
         }
 
-        if ($entryPurchase !== null && $entryPurchase > 0) {
-            return round($entryPurchase * self::ENTRY_MULTIPLIER + self::ENTRY_ADDEND, 2);
+        if ($purchase === null) {
+            return null;
         }
 
-        return null;
+        return round($purchase * self::OFFER_MULTIPLIER + self::OFFER_ADDEND, 2);
     }
 }

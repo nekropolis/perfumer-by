@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Eye, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Eye, List, Pencil, Trash2 } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -14,17 +14,23 @@ import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
-import AdminInfoButton from "@/components/admin/ui/admin-info-button";
+import AdminHeaderSelectFilter from "@/components/admin/ui/admin-header-select-filter";
+import AdminOrdersDateRangeButton, {
+    getAdminOrdersDateFilterLabel,
+    type AdminOrdersDateRangeButtonHandle,
+} from "@/components/admin/orders/admin-orders-date-range-button";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
     deleteStockReceipt,
     fetchStockReceipts,
+    fetchWarehouseSuppliers,
     fetchWarehouses,
     getStockReceiptStatusLabel,
     postStockReceipt,
     type StockReceiptListItem,
     type WarehouseOption,
+    type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
 import { STOCK_RECEIPT_STATUS } from "@/lib/warehouse-document-status";
 
@@ -162,12 +168,29 @@ export default function AdminWarehouseReceiptsPage() {
     const [deleteTarget, setDeleteTarget] = useState<StockReceiptListItem | null>(null);
     const [detailRow, setDetailRow] = useState<StockReceiptListItem | null>(null);
     const [warehouseId, setWarehouseId] = useState<number | "">("");
+    const [supplierId, setSupplierId] = useState<number | "">("");
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+    const [suppliers, setSuppliers] = useState<WarehouseSupplierOption[]>([]);
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [postingId, setPostingId] = useState<number | null>(null);
+    const dateFilterRef = useRef<AdminOrdersDateRangeButtonHandle>(null);
+    const hasDateFilter = Boolean(dateFrom.trim() || dateTo.trim());
+    const dateFilterSummary = useMemo(
+        () => getAdminOrdersDateFilterLabel([], { period: "", dateFrom, dateTo }),
+        [dateFrom, dateTo],
+    );
 
     const debouncedSearch = useDebouncedValue(search, 350);
 
-    const loadReceipts = useCallback(async (targetPage: number, targetSearch: string, targetWarehouseId: number | "") => {
+    const loadReceipts = useCallback(async (
+        targetPage: number,
+        targetSearch: string,
+        targetWarehouseId: number | "",
+        targetSupplierId: number | "",
+        targetDateFrom: string,
+        targetDateTo: string,
+    ) => {
         setLoading(true);
         setError("");
 
@@ -176,6 +199,9 @@ export default function AdminWarehouseReceiptsPage() {
                 page: targetPage,
                 search: targetSearch.trim() || undefined,
                 warehouse_id: typeof targetWarehouseId === "number" ? targetWarehouseId : undefined,
+                supplier_id: typeof targetSupplierId === "number" ? targetSupplierId : undefined,
+                date_from: targetDateFrom.trim() || undefined,
+                date_to: targetDateTo.trim() || undefined,
             });
             setItems(response.data ?? []);
             setMeta({
@@ -193,26 +219,26 @@ export default function AdminWarehouseReceiptsPage() {
     }, []);
 
     useEffect(() => {
-        const loadWarehouses = async () => {
+        const loadFilterOptions = async () => {
             try {
-                const response = await fetchWarehouses();
-                setWarehouses(response.data ?? []);
-                const defaultWarehouse = (response.data ?? []).find((item) => item.code === "main");
-                if (defaultWarehouse) {
-                    setWarehouseId(defaultWarehouse.id);
-                }
+                const [warehouseResponse, supplierResponse] = await Promise.all([
+                    fetchWarehouses(),
+                    fetchWarehouseSuppliers(),
+                ]);
+                setWarehouses(warehouseResponse.data ?? []);
+                setSuppliers(supplierResponse.data ?? []);
             } catch (e) {
-                setError(e instanceof Error ? e.message : "Не удалось загрузить склады");
+                setError(e instanceof Error ? e.message : "Не удалось загрузить фильтры");
             }
         };
-        void loadWarehouses();
+        void loadFilterOptions();
     }, []);
 
-    useResetPageOnChange(setPage, [debouncedSearch, warehouseId]);
+    useResetPageOnChange(setPage, [debouncedSearch, warehouseId, supplierId, dateFrom, dateTo]);
 
     useEffect(() => {
-        void loadReceipts(page, debouncedSearch, warehouseId);
-    }, [loadReceipts, page, debouncedSearch, warehouseId]);
+        void loadReceipts(page, debouncedSearch, warehouseId, supplierId, dateFrom, dateTo);
+    }, [loadReceipts, page, debouncedSearch, warehouseId, supplierId, dateFrom, dateTo]);
 
     const confirmDelete = async () => {
         if (!deleteTarget) {
@@ -223,7 +249,7 @@ export default function AdminWarehouseReceiptsPage() {
         try {
             await deleteStockReceipt(deleteTarget.id);
             setDeleteTarget(null);
-            await loadReceipts(page, debouncedSearch, warehouseId);
+            await loadReceipts(page, debouncedSearch, warehouseId, supplierId, dateFrom, dateTo);
         } catch (e) {
             setDeleteTarget(null);
             setError(
@@ -239,7 +265,7 @@ export default function AdminWarehouseReceiptsPage() {
         setError("");
         try {
             await postStockReceipt(row.id);
-            await loadReceipts(page, debouncedSearch, warehouseId);
+            await loadReceipts(page, debouncedSearch, warehouseId, supplierId, dateFrom, dateTo);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Не удалось провести приход");
         } finally {
@@ -269,26 +295,12 @@ export default function AdminWarehouseReceiptsPage() {
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={
-                    <>
-                        <select
-                            value={warehouseId}
-                            onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
-                        >
-                            <option value="">Все склады</option>
-                            {warehouses.map((warehouse) => (
-                                <option key={warehouse.id} value={warehouse.id}>
-                                    {warehouse.name}
-                                </option>
-                            ))}
-                        </select>
-                        <AdminSearchInput
-                            value={search}
-                            onChangeAction={setSearch}
-                            placeholder="Поиск по номеру документа, поставщику или коду"
-                            className="w-full sm:w-auto"
-                        />
-                    </>
+                    <AdminSearchInput
+                        value={search}
+                        onChangeAction={setSearch}
+                        placeholder="Поиск по номеру документа, поставщику или коду"
+                        className="w-full sm:w-auto"
+                    />
                 }
                 footer={
                     <AdminPagination
@@ -299,91 +311,162 @@ export default function AdminWarehouseReceiptsPage() {
                     />
                 }
             >
-                {loading ? (
+                {loading && items.length === 0 ? (
                     <AdminLoadingState text="Загрузка приходов..." />
-                ) : items.length === 0 ? (
-                    <AdminEmptyState
-                        title="Приходов пока нет"
-                        description="Создайте первый документ прихода, чтобы начать работу со складом."
-                    />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-admin-text-secondary">
-                                    <th className="px-4 py-3">Документ</th>
-                                    <th className="px-4 py-3">Поставщик</th>
-                                    <th className="px-4 py-3">Склад</th>
-                                    <th className="px-4 py-3">Дата</th>
-                                    <th className="px-4 py-3">Строки</th>
-                                    <th className="px-4 py-3">Комментарий</th>
-                                    <th className="px-4 py-3 text-right">Действия</th>
+                                <tr className="border-b text-left text-sm font-medium text-admin-text-secondary [&_th]:font-medium">
+                                    <th className="whitespace-nowrap px-3 py-2">Номер</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Статус</th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <AdminHeaderSelectFilter
+                                            label="Склад"
+                                            value={warehouseId === "" ? "" : String(warehouseId)}
+                                            allLabel="Все склады"
+                                            onChangeAction={(value) => setWarehouseId(value ? Number(value) : "")}
+                                            options={warehouses.map((warehouse) => ({
+                                                value: String(warehouse.id),
+                                                label: warehouse.name,
+                                            }))}
+                                        />
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <AdminHeaderSelectFilter
+                                            label="Поставщик"
+                                            value={supplierId === "" ? "" : String(supplierId)}
+                                            allLabel="Все поставщики"
+                                            onChangeAction={(value) => setSupplierId(value ? Number(value) : "")}
+                                            options={suppliers.map((supplier) => ({
+                                                value: String(supplier.id),
+                                                label: supplier.name,
+                                            }))}
+                                        />
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2">Комментарий</th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => dateFilterRef.current?.open()}
+                                            className="inline-flex cursor-pointer items-center gap-0.5 bg-transparent p-0 text-left text-sm font-medium text-admin-text-secondary transition hover:text-admin-text focus:outline-none"
+                                            aria-label="Фильтр по дате"
+                                            title={hasDateFilter ? dateFilterSummary : "Фильтр по дате"}
+                                        >
+                                            <span>{hasDateFilter ? dateFilterSummary : "Дата"}</span>
+                                            <ChevronDown
+                                                aria-hidden
+                                                strokeWidth={2.25}
+                                                className="h-3.5 w-3.5 shrink-0 opacity-70"
+                                            />
+                                        </button>
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2 text-right">Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {items.map((item) => (
-                                    <tr key={item.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium">#{item.document_no ?? item.id}</div>
-                                            <div className="text-xs text-admin-text-secondary">{getStockReceiptStatusLabel(item.status)}</div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div>{item.supplier_name}</div>
-                                            {item.supplier_code ? <div className="text-xs text-admin-text-secondary">{item.supplier_code}</div> : null}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.warehouse?.name ?? "—"}</td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.received_at)}</td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">
-                                        <AdminInfoButton
-                                            count={item.items?.length ?? 0}
-                                            onClickAction={() => setDetailRow(item)}
-                                        />
-                                            </td>
-                                        <td className="max-w-[320px] px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex justify-end gap-1.5">
-                                                <Link
-                                                    href={
-                                                        item.status === STOCK_RECEIPT_STATUS.POSTED
-                                                            ? `/admin/warehouse/receipts/${item.id}/show`
-                                                            : `/admin/warehouse/receipts/${item.id}/edit`
-                                                    }
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
-                                                    aria-label={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр документа" : "Редактировать документ"}
-                                                    title={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр" : "Изменить"}
-                                                >
-                                                    {item.status === STOCK_RECEIPT_STATUS.POSTED ? <Eye size={16} /> : <Pencil size={16} />}
-                                                </Link>
-                                                {item.status === STOCK_RECEIPT_STATUS.DRAFT ? (
-                                                    <button
-                                                        type="button"
-                                                        disabled={postingId === item.id}
-                                                        onClick={() => void handlePostReceipt(item)}
-                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
-                                                        aria-label="Провести документ"
-                                                        title={postingId === item.id ? "Проводим…" : "Провести"}
-                                                    >
-                                                        <Check size={16} />
-                                                    </button>
-                                                ) : null}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDeleteTarget(item)}
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
-                                                    aria-label="Удалить документ"
-                                                    title="Удалить"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={7} className="px-3 py-6">
+                                            <AdminLoadingState text="Загрузка приходов..." />
                                         </td>
                                     </tr>
-                                ))}
+                                ) : items.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="px-3 py-6">
+                                            <AdminEmptyState
+                                                title={hasDateFilter || warehouseId !== "" || supplierId !== "" ? "Ничего не найдено" : "Приходов пока нет"}
+                                                description={
+                                                    hasDateFilter || warehouseId !== "" || supplierId !== ""
+                                                        ? "По выбранным фильтрам документов нет."
+                                                        : "Создайте первый документ прихода, чтобы начать работу со складом."
+                                                }
+                                            />
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    items.map((item) => {
+                                        const supplierTitle = [item.supplier_name, item.supplier_code]
+                                            .filter(Boolean)
+                                            .join(" · ");
+
+                                        return (
+                                            <tr key={item.id} className="border-b last:border-b-0">
+                                                <td className="whitespace-nowrap px-3 py-2 font-medium">#{item.document_no ?? item.id}</td>
+                                                <td className="whitespace-nowrap px-3 py-2">{getStockReceiptStatusLabel(item.status)}</td>
+                                                <td className="whitespace-nowrap px-3 py-2">{item.warehouse?.name ?? "—"}</td>
+                                                <td className="max-w-[180px] truncate px-3 py-2" title={supplierTitle}>
+                                                    {item.supplier_name}
+                                                </td>
+                                                <td className="max-w-[240px] truncate px-3 py-2 text-admin-text-secondary" title={item.comment || undefined}>
+                                                    {item.comment || "—"}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-2 text-admin-text-secondary">{formatDate(item.received_at)}</td>
+                                                <td className="whitespace-nowrap px-3 py-2">
+                                                    <div className="flex justify-end gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDetailRow(item)}
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                            aria-label="Просмотр строк"
+                                                            title="Строки"
+                                                        >
+                                                            <List size={16} />
+                                                        </button>
+                                                        <Link
+                                                            href={
+                                                                item.status === STOCK_RECEIPT_STATUS.POSTED
+                                                                    ? `/admin/warehouse/receipts/${item.id}/show`
+                                                                    : `/admin/warehouse/receipts/${item.id}/edit`
+                                                            }
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                            aria-label={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр документа" : "Редактировать документ"}
+                                                            title={item.status === STOCK_RECEIPT_STATUS.POSTED ? "Просмотр" : "Изменить"}
+                                                        >
+                                                            {item.status === STOCK_RECEIPT_STATUS.POSTED ? <Eye size={16} /> : <Pencil size={16} />}
+                                                        </Link>
+                                                        {item.status === STOCK_RECEIPT_STATUS.DRAFT ? (
+                                                            <button
+                                                                type="button"
+                                                                disabled={postingId === item.id}
+                                                                onClick={() => void handlePostReceipt(item)}
+                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
+                                                                aria-label="Провести документ"
+                                                                title={postingId === item.id ? "Проводим…" : "Провести"}
+                                                            >
+                                                                <Check size={16} />
+                                                            </button>
+                                                        ) : null}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeleteTarget(item)}
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
+                                                            aria-label="Удалить документ"
+                                                            title="Удалить"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
                 )}
             </AdminTableShell>
+
+            <AdminOrdersDateRangeButton
+                ref={dateFilterRef}
+                hideTrigger
+                value={{ period: "", dateFrom, dateTo }}
+                onApplyAction={(next) => {
+                    setDateFrom(next.dateFrom);
+                    setDateTo(next.dateTo);
+                }}
+            />
 
             <AdminConfirmDialog
                 open={!!deleteTarget}

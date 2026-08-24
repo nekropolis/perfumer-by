@@ -11,7 +11,8 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
-import { isClientUser } from "@/constants/admin-roles";
+import { useCookieConsent } from "@/components/legal/cookie-consent-provider";
+import { isClientUser, isStaffUser } from "@/constants/admin-roles";
 import { scheduleIdleTask, shouldEagerLoadUserData } from "@/lib/schedule-idle-task";
 import {
     addWishlistItem,
@@ -19,6 +20,7 @@ import {
     previewWishlist,
     removeWishlistItem,
     syncWishlistItems,
+    trackGuestWishlist,
 } from "@/lib/wishlist-api";
 import type { ProductListItem } from "@/types/catalog";
 
@@ -80,7 +82,11 @@ type Props = {
 export function WishlistProvider({ children }: Props) {
     const pathname = usePathname();
     const { isAuthenticated, user, loading: authLoading } = useAuth();
+    const { ready: cookieReady, analyticsAllowed } = useCookieConsent();
     const canSyncWishlist = isAuthenticated && isClientUser(user);
+    const skipStaffStats = isStaffUser(user);
+    const collectGuestWishlist =
+        cookieReady && analyticsAllowed && !authLoading && !canSyncWishlist && !skipStaffStats;
     const [productIds, setProductIds] = useState<number[]>([]);
     const [products, setProducts] = useState<ProductListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -200,6 +206,17 @@ export function WishlistProvider({ children }: Props) {
         };
     }, [applyResponse, authLoading, canSyncWishlist, pathname]);
 
+    useEffect(() => {
+        if (!collectGuestWishlist) {
+            return;
+        }
+        const localIds = readLocalWishlistIds();
+        if (localIds.length === 0) {
+            return;
+        }
+        trackGuestWishlist(localIds);
+    }, [collectGuestWishlist]);
+
     const addToWishlist = useCallback(
         async (productId: number) => {
             if (productId <= 0) {
@@ -218,6 +235,9 @@ export function WishlistProvider({ children }: Props) {
                     const response = await addWishlistItem(productId);
                     applyResponse(response);
                 } else {
+                    if (collectGuestWishlist) {
+                        trackGuestWishlist([productId]);
+                    }
                     const response = await previewWishlist(optimisticIds);
                     applyResponse(response);
                 }
@@ -226,7 +246,7 @@ export function WishlistProvider({ children }: Props) {
                 await refreshWishlist();
             }
         },
-        [applyResponse, canSyncWishlist, productIds, refreshWishlist]
+        [applyResponse, canSyncWishlist, collectGuestWishlist, productIds, refreshWishlist]
     );
 
     const removeFromWishlist = useCallback(

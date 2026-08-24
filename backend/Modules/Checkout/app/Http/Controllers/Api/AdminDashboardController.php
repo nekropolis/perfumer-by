@@ -13,6 +13,7 @@ use Modules\Catalog\Services\ProductViewService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
+use Modules\Wishlist\Services\WishlistCollectService;
 
 class AdminDashboardController extends Controller
 {
@@ -159,6 +160,18 @@ class AdminDashboardController extends Controller
                 'period' => $period,
                 'retention_days' => ProductViewService::PRUNE_VIEWS_AFTER_DAYS,
                 'items' => $productViewService->topViewed($period),
+            ],
+        ]);
+    }
+
+    public function wishlistedProducts(Request $request, WishlistCollectService $wishlistCollect): JsonResponse
+    {
+        $period = app(ProductViewService::class)->resolveViewsPeriod((string) $request->query('period', 'month'));
+
+        return response()->json([
+            'data' => [
+                'period' => $period,
+                'items' => $wishlistCollect->top($period),
             ],
         ]);
     }

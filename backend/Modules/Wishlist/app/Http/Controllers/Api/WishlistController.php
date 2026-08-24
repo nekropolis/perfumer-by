@@ -8,9 +8,30 @@ use Illuminate\Routing\Controller;
 use Modules\Catalog\Http\Resources\ProductListResource;
 use Modules\Catalog\Models\Product;
 use Modules\Wishlist\Models\WishlistItem;
+use Modules\Wishlist\Services\WishlistCollectService;
+use Symfony\Component\HttpFoundation\Response;
 
 class WishlistController extends Controller
 {
+    public function track(Request $request, WishlistCollectService $collect): Response
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'max:200'],
+            'product_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $productIds = collect($validated['product_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $collect->record($productIds, $request);
+
+        return response()->noContent();
+    }
+
     public function preview(Request $request): JsonResponse
     {
         $validated = $request->validate([

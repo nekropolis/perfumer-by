@@ -104,8 +104,14 @@ class StockBalanceController extends Controller
         $collection = $balances->getCollection();
         $minPriceMap = $this->stockLotService->minPurchasePriceMapForRows($collection);
         $lineTotalMap = $this->stockLotService->lineTotalMapForRows($collection);
+        $wholesaleSourceMap = $this->wholesalePriceService->sourcesForVariants(
+            $collection
+                ->pluck('variant_id')
+                ->map(static fn ($id): int => (int) $id)
+                ->all(),
+        );
 
-        $balances->through(function (WarehouseVariantStock $row) use ($minPriceMap, $lineTotalMap) {
+        $balances->through(function (WarehouseVariantStock $row) use ($minPriceMap, $lineTotalMap, $wholesaleSourceMap) {
             $warehouseId = (int) ($row->warehouse_id ?? 0);
             $variantId = (int) ($row->variant_id ?? 0);
             $entryKey = $warehouseId.':'.$variantId;
@@ -126,6 +132,7 @@ class StockBalanceController extends Controller
                 'price' => $minPriceMap[$entryKey] ?? null,
                 'line_total' => $lineTotalMap[$entryKey] ?? null,
                 'wholesale_price' => $row->variant?->wholesale_price,
+                'wholesale_source' => $wholesaleSourceMap[$variantId] ?? null,
                 'is_active' => (bool) ($row->variant?->is_active ?? false),
             ];
         });

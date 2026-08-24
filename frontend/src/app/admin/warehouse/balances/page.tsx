@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, Info, PackageMinus } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
@@ -81,6 +82,146 @@ function formatWholesaleCalculatedAt(value?: string | null): string {
     return dt.toLocaleString("ru-RU");
 }
 
+type WholesaleTooltipState = {
+    lines: string[];
+    x: number;
+    anchorTop: number;
+    anchorBottom: number;
+} | null;
+
+function wholesaleSourceLines(item: StockBalanceItem): string[] | null {
+    const src = item.wholesale_source;
+    if (!src) {
+        return null;
+    }
+    if (src.source === "offer") {
+        const lines: string[] = [];
+        const supplierName = src.supplier_name?.trim() ?? "";
+        const offerName = src.name?.trim() ?? "";
+        if (supplierName) {
+            lines.push(supplierName);
+        }
+        if (offerName) {
+            lines.push(offerName);
+        }
+        if (lines.length === 0) {
+            lines.push("Офер");
+        }
+        lines.push(`Цена офера: ${src.purchase_price}`);
+        return lines;
+    }
+    return ["Вход склада", String(src.purchase_price)];
+}
+
+function getTooltipPosition(element: HTMLElement): {
+    x: number;
+    anchorTop: number;
+    anchorBottom: number;
+} {
+    const rect = element.getBoundingClientRect();
+    const viewportPadding = 16;
+    const tooltipHalfWidth = Math.min(192, Math.max(0, window.innerWidth / 2 - viewportPadding));
+
+    return {
+        x: Math.min(
+            Math.max(rect.left + rect.width / 2, tooltipHalfWidth + viewportPadding),
+            window.innerWidth - tooltipHalfWidth - viewportPadding,
+        ),
+        anchorTop: rect.top,
+        anchorBottom: rect.bottom,
+    };
+}
+
+function positionFixedTooltipEl(
+    el: HTMLElement,
+    anchor: { x: number; anchorTop: number; anchorBottom: number },
+): void {
+    const pad = 8;
+    const rect = el.getBoundingClientRect();
+    const halfW = rect.width / 2;
+    const left = Math.min(
+        Math.max(anchor.x, halfW + pad),
+        window.innerWidth - halfW - pad,
+    );
+
+    const spaceBelow = window.innerHeight - anchor.anchorBottom - pad;
+    const spaceAbove = anchor.anchorTop - pad;
+    const placeAbove = rect.height + 8 > spaceBelow && spaceAbove > spaceBelow;
+
+    let top = placeAbove
+        ? anchor.anchorTop - 8 - rect.height
+        : anchor.anchorBottom + 8;
+
+    if (top + rect.height > window.innerHeight - pad) {
+        top = Math.max(pad, window.innerHeight - pad - rect.height);
+    }
+    if (top < pad) {
+        top = pad;
+    }
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.visibility = "visible";
+}
+
+function WholesaleSourceTooltip({
+    tooltip,
+    onMouseEnterAction,
+    onMouseLeaveAction,
+}: {
+    tooltip: WholesaleTooltipState;
+    onMouseEnterAction: () => void;
+    onMouseLeaveAction: () => void;
+}) {
+    const ref = useRef<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!tooltip || !el) {
+            return;
+        }
+        positionFixedTooltipEl(el, tooltip);
+    }, [tooltip]);
+
+    if (!tooltip || typeof document === "undefined") {
+        return null;
+    }
+
+    return createPortal(
+        <div
+            ref={ref}
+            role="tooltip"
+            className="fixed z-[9999] max-w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-admin-border bg-admin-surface px-3.5 py-3 text-sm leading-snug text-admin-text shadow-2xl ring-1 ring-black/5"
+            style={{
+                left: tooltip.x,
+                top: tooltip.anchorBottom + 8,
+                visibility: "hidden",
+            }}
+            onMouseEnter={onMouseEnterAction}
+            onMouseLeave={onMouseLeaveAction}
+        >
+            {tooltip.lines.map((line, index) => {
+                const isLast = index === tooltip.lines.length - 1;
+                return (
+                    <div
+                        key={`${line}-${index}`}
+                        className={
+                            index === 0
+                                ? "select-text whitespace-pre-wrap font-semibold"
+                                : isLast
+                                  ? "mt-1.5 select-text whitespace-pre-wrap font-medium tabular-nums"
+                                  : "mt-1.5 select-text whitespace-pre-wrap text-admin-text-secondary"
+                        }
+                    >
+                        {line}
+                    </div>
+                );
+            })}
+        </div>,
+        document.body,
+    );
+}
+
 function sortTitle(column: SortColumn, active: TableSort): string {
     const label = column === "stock" ? "количеству" : "резерву";
     if (active?.column !== column) {
@@ -152,8 +293,47 @@ export default function AdminWarehouseBalancesPage() {
     const [suppliersError, setSuppliersError] = useState("");
     const [lotCommentDrafts, setLotCommentDrafts] = useState<Record<number, string>>({});
     const [lotCommentSavingId, setLotCommentSavingId] = useState<number | null>(null);
+    const [wholesaleTooltip, setWholesaleTooltip] = useState<WholesaleTooltipState>(null);
+    const wholesaleTooltipHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const debouncedSearch = useDebouncedValue(search, 350);
+
+    const clearWholesaleTooltipHideTimer = useCallback(() => {
+        if (wholesaleTooltipHideTimerRef.current) {
+            clearTimeout(wholesaleTooltipHideTimerRef.current);
+            wholesaleTooltipHideTimerRef.current = null;
+        }
+    }, []);
+
+    const showWholesaleTooltip = useCallback(
+        (item: StockBalanceItem, element: HTMLElement) => {
+            const lines = wholesaleSourceLines(item);
+            if (!lines) {
+                clearWholesaleTooltipHideTimer();
+                setWholesaleTooltip(null);
+                return;
+            }
+            clearWholesaleTooltipHideTimer();
+            setWholesaleTooltip({
+                lines,
+                ...getTooltipPosition(element),
+            });
+        },
+        [clearWholesaleTooltipHideTimer],
+    );
+
+    const hideWholesaleTooltip = useCallback(() => {
+        clearWholesaleTooltipHideTimer();
+        setWholesaleTooltip(null);
+    }, [clearWholesaleTooltipHideTimer]);
+
+    const hideWholesaleTooltipWithDelay = useCallback(() => {
+        clearWholesaleTooltipHideTimer();
+        wholesaleTooltipHideTimerRef.current = setTimeout(() => {
+            setWholesaleTooltip(null);
+            wholesaleTooltipHideTimerRef.current = null;
+        }, 220);
+    }, [clearWholesaleTooltipHideTimer]);
 
     const loadItems = useCallback(async (
         targetPage: number,
@@ -214,6 +394,19 @@ export default function AdminWarehouseBalancesPage() {
     useEffect(() => {
         void loadItems(page, debouncedSearch, stockState, warehouseId, perPage, tableSort);
     }, [loadItems, page, debouncedSearch, stockState, warehouseId, perPage, tableSort]);
+
+    useEffect(() => {
+        if (!wholesaleTooltip) {
+            return;
+        }
+        const hide = () => hideWholesaleTooltip();
+        window.addEventListener("scroll", hide, true);
+        return () => window.removeEventListener("scroll", hide, true);
+    }, [wholesaleTooltip, hideWholesaleTooltip]);
+
+    useEffect(() => {
+        return () => clearWholesaleTooltipHideTimer();
+    }, [clearWholesaleTooltipHideTimer]);
 
     const toggleSort = (column: SortColumn) => {
         setTableSort((prev) => {
@@ -476,6 +669,7 @@ export default function AdminWarehouseBalancesPage() {
                                             ? String(item.line_total)
                                             : lineTotalLabel(item.price, item.stock);
                                     const wholesaleLabel = item.wholesale_price != null ? String(item.wholesale_price) : "—";
+                                    const hasWholesaleSource = wholesaleSourceLines(item) != null;
                                     const productHref = item.product_slug ? `/${item.product_slug}` : null;
                                     const canWriteOff = item.available_stock > 0 || item.reserved_stock > 0;
 
@@ -530,7 +724,20 @@ export default function AdminWarehouseBalancesPage() {
                                                 {totalPriceLabel ?? "—"}
                                             </td>
                                             <td className="whitespace-nowrap px-2 py-1.5 text-admin-text">
-                                                {wholesaleLabel}
+                                                {hasWholesaleSource ? (
+                                                    <span
+                                                        tabIndex={0}
+                                                        className="cursor-help underline decoration-dotted underline-offset-2"
+                                                        onMouseEnter={(event) => showWholesaleTooltip(item, event.currentTarget)}
+                                                        onMouseLeave={hideWholesaleTooltipWithDelay}
+                                                        onFocus={(event) => showWholesaleTooltip(item, event.currentTarget)}
+                                                        onBlur={hideWholesaleTooltipWithDelay}
+                                                    >
+                                                        {wholesaleLabel}
+                                                    </span>
+                                                ) : (
+                                                    wholesaleLabel
+                                                )}
                                             </td>
                                             <td className="px-2 py-1.5 text-admin-text">{item.warehouse_name || "—"}</td>
                                             <td className="px-2 py-1.5 text-right">
@@ -687,6 +894,11 @@ export default function AdminWarehouseBalancesPage() {
                     </div>
                 ) : null}
             </AdminModalShell>
+            <WholesaleSourceTooltip
+                tooltip={wholesaleTooltip}
+                onMouseEnterAction={clearWholesaleTooltipHideTimer}
+                onMouseLeaveAction={hideWholesaleTooltipWithDelay}
+            />
         </AdminPageCard>
     );
 }

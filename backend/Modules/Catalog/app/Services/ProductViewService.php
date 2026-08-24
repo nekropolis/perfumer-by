@@ -13,6 +13,7 @@ use Modules\Catalog\Models\ProductDailyView;
 use Modules\Catalog\Models\ProductViewSnapshot;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Settings\Services\ShopSettingService;
+use Modules\Users\Support\SanctumActor;
 
 final class ProductViewService
 {
@@ -41,7 +42,7 @@ final class ProductViewService
 
     public function record(int $productId, Request $request): void
     {
-        if ($productId <= 0) {
+        if ($productId <= 0 || SanctumActor::isStaff($request)) {
             return;
         }
 

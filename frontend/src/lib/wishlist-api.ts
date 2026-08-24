@@ -73,3 +73,22 @@ export async function previewWishlist(productIds: number[]): Promise<WishlistRes
         body: JSON.stringify({ product_ids: productIds }),
     });
 }
+
+export function trackGuestWishlist(productIds: number[]): void {
+    const ids = productIds.filter((id) => Number.isInteger(id) && id > 0);
+    if (ids.length === 0) {
+        return;
+    }
+
+    const token = typeof window !== "undefined" ? getAuthToken() : "";
+
+    void fetch(`${API_BASE}/wishlist/track`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ product_ids: ids }),
+    }).catch(() => {});
+}

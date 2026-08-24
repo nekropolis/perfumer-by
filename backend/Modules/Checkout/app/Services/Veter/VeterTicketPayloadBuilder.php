@@ -277,27 +277,22 @@ class VeterTicketPayloadBuilder
     }
 
     /**
-     * Бренд + имя без дубля бренда (product_name часто уже snapshot display_name) + вариант.
+     * Бренд + имя без дубля бренда (product_name часто уже snapshot display_name).
+     * В ветерОК в Марка/Модель уходит только название, без концентрации/объёма/тестера.
      */
     private function buildLineItemTitle(OrderItem $item): string
     {
         $brand = trim((string) ($item->brand_name ?? ''));
         $product = trim((string) ($item->product_name ?? ''));
-        $variant = trim((string) ($item->variant_title ?? ''));
 
         if ($brand !== '' && $product !== '') {
             $stripped = ProductDisplayName::stripBrandFromName($brand, $product);
             $shortName = $stripped['found'] ? (string) $stripped['name'] : $product;
-            $title = ProductDisplayName::format($brand, $shortName);
-        } else {
-            $title = $product !== '' ? $product : $brand;
+
+            return trim(ProductDisplayName::format($brand, $shortName));
         }
 
-        if ($variant !== '') {
-            $title = $title !== '' ? $title.' '.$variant : $variant;
-        }
-
-        return trim($title);
+        return trim($product !== '' ? $product : $brand);
     }
 
     private function buildComments(Order $order): string

@@ -322,6 +322,12 @@ export type StockBalanceItem = {
     price?: string | number | null;
     line_total?: string | null;
     wholesale_price?: string | number | null;
+    wholesale_source?: {
+        source: "offer" | "entry";
+        purchase_price: string;
+        supplier_name?: string | null;
+        name?: string | null;
+    } | null;
     is_active: boolean;
 };
 
@@ -481,6 +487,8 @@ export async function fetchStockReceipts(params?: {
     warehouse_id?: number;
     supplier_id?: number;
     status?: string;
+    date_from?: string;
+    date_to?: string;
     per_page?: number;
 }): Promise<StockReceiptsResponse> {
     const searchParams = new URLSearchParams();
@@ -498,6 +506,12 @@ export async function fetchStockReceipts(params?: {
     }
     if (params?.status) {
         searchParams.set("status", params.status);
+    }
+    if (params?.date_from) {
+        searchParams.set("date_from", params.date_from);
+    }
+    if (params?.date_to) {
+        searchParams.set("date_to", params.date_to);
     }
     if (params?.per_page) {
         searchParams.set("per_page", String(params.per_page));
@@ -858,6 +872,8 @@ export async function fetchStockWriteoffs(params?: {
     search?: string;
     type?: string;
     warehouse_id?: number;
+    date_from?: string;
+    date_to?: string;
 }): Promise<StockWriteoffsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) {
@@ -871,6 +887,12 @@ export async function fetchStockWriteoffs(params?: {
     }
     if (params?.warehouse_id) {
         searchParams.set("warehouse_id", String(params.warehouse_id));
+    }
+    if (params?.date_from) {
+        searchParams.set("date_from", params.date_from);
+    }
+    if (params?.date_to) {
+        searchParams.set("date_to", params.date_to);
     }
 
     const query = searchParams.toString();

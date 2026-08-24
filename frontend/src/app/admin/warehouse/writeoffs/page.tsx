@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Eye } from "lucide-react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminTableToolbar from "@/components/admin/ui/admin-table-toolbar";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
@@ -12,6 +12,11 @@ import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
+import AdminHeaderSelectFilter from "@/components/admin/ui/admin-header-select-filter";
+import AdminOrdersDateRangeButton, {
+    getAdminOrdersDateFilterLabel,
+    type AdminOrdersDateRangeButtonHandle,
+} from "@/components/admin/orders/admin-orders-date-range-button";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import {
@@ -263,6 +268,12 @@ function typeLabel(type: string): string {
     return type;
 }
 
+const WRITEOFF_TYPE_OPTIONS = [
+    { value: "order", label: "Заказ" },
+    { value: "manual", label: "Ручное" },
+    { value: "reserve", label: "Резерв" },
+];
+
 export default function AdminWarehouseWriteoffsPage() {
     const searchParamsFromUrl = useSearchParams();
 
@@ -278,11 +289,27 @@ export default function AdminWarehouseWriteoffsPage() {
     const [typeFilter, setTypeFilter] = useState("");
     const [warehouseId, setWarehouseId] = useState<number | "">("");
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [detailRow, setDetailRow] = useState<StockWriteoffListItem | null>(null);
+    const dateFilterRef = useRef<AdminOrdersDateRangeButtonHandle>(null);
+    const hasDateFilter = Boolean(dateFrom.trim() || dateTo.trim());
+    const dateFilterSummary = useMemo(
+        () => getAdminOrdersDateFilterLabel([], { period: "", dateFrom, dateTo }),
+        [dateFrom, dateTo],
+    );
+    const hasColumnFilters = warehouseId !== "" || typeFilter !== "" || hasDateFilter;
 
     const debouncedSearch = useDebouncedValue(search, 350);
 
-    const loadItems = useCallback(async (targetPage: number, targetSearch: string, targetType: string, targetWarehouseId: number | "") => {
+    const loadItems = useCallback(async (
+        targetPage: number,
+        targetSearch: string,
+        targetType: string,
+        targetWarehouseId: number | "",
+        targetDateFrom: string,
+        targetDateTo: string,
+    ) => {
         setLoading(true);
         setError("");
 
@@ -292,6 +319,8 @@ export default function AdminWarehouseWriteoffsPage() {
                 search: targetSearch.trim() || undefined,
                 type: targetType || undefined,
                 warehouse_id: typeof targetWarehouseId === "number" ? targetWarehouseId : undefined,
+                date_from: targetDateFrom.trim() || undefined,
+                date_to: targetDateTo.trim() || undefined,
             });
 
             setItems(response.data ?? []);
@@ -314,10 +343,6 @@ export default function AdminWarehouseWriteoffsPage() {
             try {
                 const response = await fetchWarehouses();
                 setWarehouses(response.data ?? []);
-                const defaultWarehouse = (response.data ?? []).find((item) => item.code === "main");
-                if (defaultWarehouse) {
-                    setWarehouseId(defaultWarehouse.id);
-                }
             } catch (e) {
                 setError(e instanceof Error ? e.message : "Не удалось загрузить склады");
             }
@@ -325,11 +350,11 @@ export default function AdminWarehouseWriteoffsPage() {
         void loadWarehouses();
     }, []);
 
-    useResetPageOnChange(setPage, [debouncedSearch, typeFilter, warehouseId]);
+    useResetPageOnChange(setPage, [debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo]);
 
     useEffect(() => {
-        void loadItems(page, debouncedSearch, typeFilter, warehouseId);
-    }, [loadItems, page, debouncedSearch, typeFilter, warehouseId]);
+        void loadItems(page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo);
+    }, [loadItems, page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo]);
 
     return (
         <AdminPageCard>
@@ -352,36 +377,12 @@ export default function AdminWarehouseWriteoffsPage() {
             <AdminTableShell
                 total={meta?.total ?? items.length}
                 search={
-                    <>
-                        <select
-                            value={warehouseId}
-                            onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : "")}
-                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
-                        >
-                            <option value="">Все склады</option>
-                            {warehouses.map((warehouse) => (
-                                <option key={warehouse.id} value={warehouse.id}>
-                                    {warehouse.name}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            value={typeFilter}
-                            onChange={(e) => setTypeFilter(e.target.value)}
-                            className="min-h-10 w-full rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 sm:w-auto"
-                        >
-                            <option value="">Все типы</option>
-                            <option value="order">Заказ</option>
-                            <option value="manual">Ручное</option>
-                            <option value="reserve">Резерв</option>
-                        </select>
-                        <AdminSearchInput
-                            value={search}
-                            onChangeAction={setSearch}
-                            placeholder="Поиск по документу, комментарию или ID заказа"
-                            className="w-full sm:w-auto"
-                        />
-                    </>
+                    <AdminSearchInput
+                        value={search}
+                        onChangeAction={setSearch}
+                        placeholder="Поиск по документу, комментарию или ID заказа"
+                        className="w-full sm:w-auto"
+                    />
                 }
                 footer={
                     <AdminPagination
@@ -392,67 +393,129 @@ export default function AdminWarehouseWriteoffsPage() {
                     />
                 }
             >
-                {loading ? (
+                {loading && items.length === 0 ? (
                     <AdminLoadingState text="Загрузка списаний..." />
-                ) : items.length === 0 ? (
-                    <AdminEmptyState
-                        title="Списаний пока нет"
-                        description="Документы появятся после ручного списания или перевода заказов в статус выполнен."
-                    />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="border-b text-left text-admin-text-secondary">
-                                    <th className="px-4 py-3">Документ</th>
-                                    <th className="px-4 py-3">Склад</th>
-                                    <th className="px-4 py-3">Тип</th>
-                                    <th className="px-4 py-3">Дата</th>
-                                    <th className="px-4 py-3">Строки</th>
-                                    <th className="px-4 py-3">Комментарий</th>
-                                    <th className="px-4 py-3 text-right">Действия</th>
+                                <tr className="border-b text-left text-sm font-medium text-admin-text-secondary [&_th]:font-medium">
+                                    <th className="whitespace-nowrap px-3 py-2">Номер</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Документ</th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <AdminHeaderSelectFilter
+                                            label="Склад"
+                                            value={warehouseId === "" ? "" : String(warehouseId)}
+                                            allLabel="Все склады"
+                                            onChangeAction={(value) => setWarehouseId(value ? Number(value) : "")}
+                                            options={warehouses.map((warehouse) => ({
+                                                value: String(warehouse.id),
+                                                label: warehouse.name,
+                                            }))}
+                                        />
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <AdminHeaderSelectFilter
+                                            label="Тип"
+                                            value={typeFilter}
+                                            allLabel="Все типы"
+                                            onChangeAction={setTypeFilter}
+                                            options={WRITEOFF_TYPE_OPTIONS}
+                                        />
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2">Статус</th>
+                                    <th className="whitespace-nowrap px-3 py-2">Комментарий</th>
+                                    <th className="whitespace-nowrap px-3 py-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => dateFilterRef.current?.open()}
+                                            className="inline-flex cursor-pointer items-center gap-0.5 bg-transparent p-0 text-left text-sm font-medium text-admin-text-secondary transition hover:text-admin-text focus:outline-none"
+                                            aria-label="Фильтр по дате"
+                                            title={hasDateFilter ? dateFilterSummary : "Фильтр по дате"}
+                                        >
+                                            <span>{hasDateFilter ? dateFilterSummary : "Дата"}</span>
+                                            <ChevronDown
+                                                aria-hidden
+                                                strokeWidth={2.25}
+                                                className="h-3.5 w-3.5 shrink-0 opacity-70"
+                                            />
+                                        </button>
+                                    </th>
+                                    <th className="whitespace-nowrap px-3 py-2 text-right">Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {items.map((item) => (
-                                    <tr key={item.id} className="border-b last:border-b-0">
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium">#{item.document_no ?? item.id}</div>
-                                            {item.order_id ? <div className="text-xs text-admin-text-secondary">Заказ #{item.order_id}</div> : null}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.warehouse?.name ?? "—"}</td>
-                                        <td className="px-4 py-3">
-                                            <div>{typeLabel(item.type)}</div>
-                                            <div className="text-xs text-admin-text-secondary">{getStockWriteoffStatusLabel(item.status)}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.written_off_at)}</td>
-                                        <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.items?.length ?? 0}</td>
-                                        <td className="max-w-[420px] px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
-                                        <td className="px-4 py-3 text-right">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDetailRow(item)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
-                                                aria-label="Просмотр списания"
-                                                title="Просмотр"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-3 py-6">
+                                            <AdminLoadingState text="Загрузка списаний..." />
                                         </td>
                                     </tr>
-                                ))}
+                                ) : items.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-3 py-6">
+                                            <AdminEmptyState
+                                                title={hasColumnFilters ? "Ничего не найдено" : "Списаний пока нет"}
+                                                description={
+                                                    hasColumnFilters
+                                                        ? "По выбранным фильтрам документов нет."
+                                                        : "Документы появятся после ручного списания или перевода заказов в статус выполнен."
+                                                }
+                                            />
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    items.map((item) => (
+                                        <tr key={item.id} className="border-b last:border-b-0">
+                                            <td className="whitespace-nowrap px-3 py-2 font-medium">#{item.document_no ?? item.id}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">
+                                                {item.order_id ? `Заказ #${item.order_id}` : "—"}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-2">{item.warehouse?.name ?? "—"}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">{typeLabel(item.type)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">{getStockWriteoffStatusLabel(item.status)}</td>
+                                            <td className="max-w-[240px] truncate px-3 py-2 text-admin-text-secondary" title={item.comment || undefined}>
+                                                {item.comment || "—"}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-2 text-admin-text-secondary">{formatDate(item.written_off_at)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">
+                                                <div className="flex justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDetailRow(item)}
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
+                                                        aria-label="Просмотр списания"
+                                                        title="Просмотр"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
                 )}
             </AdminTableShell>
 
+            <AdminOrdersDateRangeButton
+                ref={dateFilterRef}
+                hideTrigger
+                value={{ period: "", dateFrom, dateTo }}
+                onApplyAction={(next) => {
+                    setDateFrom(next.dateFrom);
+                    setDateTo(next.dateTo);
+                }}
+            />
+
             <WriteoffDetailsModal
                 row={detailRow}
                 onCloseAction={() => setDetailRow(null)}
                 onReversedAction={() => {
                     setSuccess("Списание отменено, остатки на физических складах восстановлены");
-                    void loadItems(page, debouncedSearch, typeFilter, warehouseId);
+                    void loadItems(page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo);
                 }}
             />
         </AdminPageCard>
