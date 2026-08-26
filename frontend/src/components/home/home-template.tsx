@@ -73,6 +73,9 @@ const trustItems = [
     { title: "Быстрая доставка", description: "По Минску и по всей Беларуси в удобные для клиента интервалы." },
 ];
 
+const heroPickFrame =
+    "rounded-xl border border-white/70 bg-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-[#c9a45c]/40 backdrop-blur-md";
+
 const popularSearches = [
     { title: "Купить духи в Минске", href: "/catalog?attr_18=699" },
     { title: "Наборы", href: "/catalog?set=1" },
@@ -107,6 +110,7 @@ export default function HomeTemplate({
                         alt=""
                         fill
                         priority
+                        unoptimized
                         sizes="(max-width: 1280px) 100vw, 1280px"
                         className="object-cover object-[75%_40%]"
                         aria-hidden
@@ -152,21 +156,24 @@ export default function HomeTemplate({
                             {heroProduct && heroProductHref ? (
                                 <Link
                                     href={heroProductHref}
-                                    className="group flex h-full min-h-[280px] flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface/95 shadow-sm transition hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md md:min-h-0"
+                                    className={`group flex h-full min-h-[280px] flex-col overflow-hidden ${heroPickFrame} transition hover:bg-white/65 hover:ring-[#c9a45c]/70 md:min-h-0`}
                                 >
-                                    <div className="relative min-h-[180px] flex-1 p-3 md:min-h-0">
-                                        <div className="absolute inset-3 overflow-hidden rounded-lg">
+                                    <div className="flex items-center gap-2 px-4 pt-3.5">
+                                        <span className="h-px w-3.5 bg-[#c9a45c]" aria-hidden />
+                                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-admin-text-secondary">
+                                            Выбор покупателей
+                                        </span>
+                                    </div>
+                                    <div className="relative min-h-[180px] flex-1 md:min-h-0">
+                                        <div className="absolute inset-x-4 inset-y-1">
                                             <ProductCardImage
                                                 imagePath={heroProduct.image}
                                                 alt={heroProductName ?? ""}
                                                 eager
                                             />
                                         </div>
-                                        <div className="absolute left-4 top-4 rounded-full border border-admin-border bg-admin-surface/95 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-admin-text-secondary">
-                                            Выбор покупателей
-                                        </div>
                                     </div>
-                                    <div className="shrink-0 px-4 pb-4 pt-3">
+                                    <div className="shrink-0 px-4 pb-4 pt-1">
                                         {heroProduct.brand?.name ? (
                                             <div className="text-xs font-medium uppercase tracking-[0.08em] text-admin-text-secondary">
                                                 {heroProduct.brand.name}
@@ -181,7 +188,7 @@ export default function HomeTemplate({
                                     </div>
                                 </Link>
                             ) : (
-                                <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-admin-border bg-admin-surface/95 px-5 py-6 text-center md:min-h-0">
+                                <div className={`flex h-full min-h-[220px] items-center justify-center ${heroPickFrame} px-5 py-6 text-center md:min-h-0`}>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-admin-text-secondary">
                                             Perfumer
