@@ -375,7 +375,7 @@ class VanilleQueuedJobExecutor
         $totalItems = (int) ($state['total_items'] ?? 0);
         $createdProductsSample = is_array($state['created_products_sample'] ?? null) ? $state['created_products_sample'] : [];
         $updatedProductsSample = is_array($state['updated_products_sample'] ?? null) ? $state['updated_products_sample'] : [];
-        $batchLimit = 1;
+        $batchLimit = 2;
 
         $batch = $service->importParsedProductsBatch($offset, $batchLimit);
         $done = (bool) ($batch['done'] ?? true);

@@ -1139,6 +1139,10 @@ class VanilleImportService
             $links = array_slice($links, 0, $maxLinks);
         }
 
+        if ($offset === 0) {
+            $this->resetParsedProductBatchFiles();
+        }
+
         $chunk = array_slice($links, $offset, $limit);
         $processed = count($chunk);
 
@@ -1200,8 +1204,7 @@ class VanilleImportService
         $nextOffset = $offset + $processed;
         $done = $nextOffset >= count($links);
 
-        $files = glob($dir . '/products_*.json') ?: [];
-        sort($files);
+        $files = $this->parsedProductBatchFiles();
 
         return [
             'success' => $errors === 0,
@@ -1230,9 +1233,7 @@ class VanilleImportService
 
     public function importParsedProducts(): array
     {
-        $dir = storage_path('app/public/imports/vanille/products');
-        $files = glob($dir . '/products_*.json') ?: [];
-        sort($files);
+        $files = $this->parsedProductBatchFiles();
 
         if (empty($files)) {
             return [
@@ -1297,9 +1298,7 @@ class VanilleImportService
 
     public function importParsedProductsBatch(int $offset = 0, int $limitFiles = 1): array
     {
-        $dir = storage_path('app/public/imports/vanille/products');
-        $files = glob($dir . '/products_*.json') ?: [];
-        sort($files);
+        $files = $this->parsedProductBatchFiles();
 
         if ($files === []) {
             return [
@@ -1948,6 +1947,40 @@ class VanilleImportService
         return $dir;
     }
 
+    /**
+     * @return list<string>
+     */
+    private function parsedProductBatchFiles(): array
+    {
+        $files = glob($this->ensureVanilleProductsDir() . '/products_*.json') ?: [];
+
+        return $this->sortParsedProductFiles($files);
+    }
+
+    /**
+     * @param  list<string>  $files
+     * @return list<string>
+     */
+    private function sortParsedProductFiles(array $files): array
+    {
+        natsort($files);
+
+        return array_values($files);
+    }
+
+    private function resetParsedProductBatchFiles(): void
+    {
+        foreach ($this->parsedProductBatchFiles() as $file) {
+            if (!preg_match('/^products_\d+\.json$/', basename($file))) {
+                continue;
+            }
+
+            if (!@unlink($file)) {
+                throw new \RuntimeException('Не удалось удалить старый batch-файл: ' . basename($file));
+            }
+        }
+    }
+
     private function deduplicateLinks(array $links): array
     {
         $unique = [];
@@ -2464,24 +2497,14 @@ class VanilleImportService
             return null;
         }
 
-        $rows = SupplierProduct::query()
-            ->where('supplier_id', $supplierId)
-            ->whereNotNull('product_id')
-            ->where('is_linked', true)
-            ->whereNotNull('external_url')
-            ->get(['product_id', 'external_url']);
+        $row = $this->findSupplierProductByCanonicalUrl(
+            $supplierId,
+            $canonicalUrl,
+            $pathSlug,
+            linkedOnly: true,
+        );
 
-        foreach ($rows as $row) {
-            $externalUrl = (string) $row->external_url;
-            if ($this->normalizeLinkUrl($externalUrl) === $key) {
-                return (int) $row->product_id;
-            }
-            if ($pathSlug !== '' && $this->vanilleUrlPathSlug($externalUrl) === $pathSlug) {
-                return (int) $row->product_id;
-            }
-        }
-
-        return null;
+        return $row?->product_id !== null ? (int) $row->product_id : null;
     }
 
     /**
@@ -2494,10 +2517,8 @@ class VanilleImportService
             @unlink($filteredPath);
         }
 
+        // Спарсенная, но ещё не импортированная карточка должна снова попасть в new_only.
         $skip = $this->loadImportedVanilleSupplierProductUrlKeys();
-        foreach (array_keys($this->loadParsedUrlsSet()) as $parsedUrlKey) {
-            $skip[$parsedUrlKey] = true;
-        }
 
         $mainPath = $this->ensureVanilleImportDir() . '/product_links.json';
         if (!file_exists($mainPath)) {
@@ -2518,24 +2539,7 @@ class VanilleImportService
 
         $links = $this->deduplicateLinks($links);
         $sourceTotal = count($links);
-        $filtered = [];
-        foreach ($links as $link) {
-            if (!is_array($link)) {
-                continue;
-            }
-
-            $url = trim((string) ($link['url'] ?? ''));
-            if ($url === '') {
-                continue;
-            }
-
-            $key = $this->normalizeLinkUrl($url);
-            if ($key === '' || isset($skip[$key])) {
-                continue;
-            }
-
-            $filtered[] = $link;
-        }
+        $filtered = $this->filterUnimportedProductLinks($links, $skip);
 
         file_put_contents(
             $filteredPath,
@@ -2549,6 +2553,31 @@ class VanilleImportService
             'filtered_total' => $filteredTotal,
             'skipped_count' => max(0, $sourceTotal - $filteredTotal),
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $links
+     * @param  array<string, bool>  $importedUrlKeys
+     * @return list<array<string, mixed>>
+     */
+    private function filterUnimportedProductLinks(array $links, array $importedUrlKeys): array
+    {
+        $filtered = [];
+        foreach ($links as $link) {
+            $url = trim((string) ($link['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+
+            $key = $this->normalizeLinkUrl($url);
+            if ($key === '' || isset($importedUrlKeys[$key])) {
+                continue;
+            }
+
+            $filtered[] = $link;
+        }
+
+        return $filtered;
     }
 
     private function normalizeLinkUrl(string $url): string
@@ -2707,18 +2736,13 @@ class VanilleImportService
             return null;
         }
 
-        $rows = SupplierProduct::query()
-            ->where('supplier_id', $supplier->id)
-            ->whereNotNull('product_id')
-            ->whereNotNull('external_url')
-            ->get(['product_id', 'external_url']);
-
-        foreach ($rows as $row) {
-            if ($this->vanilleUrlPathSlug((string) $row->external_url) !== $pathSlug) {
-                continue;
-            }
-
-            $product = Product::query()->find((int) $row->product_id);
+        $supplierProduct = $this->findSupplierProductByCanonicalUrl(
+            (int) $supplier->id,
+            $canonicalUrl,
+            $pathSlug,
+        );
+        if ($supplierProduct?->product_id !== null) {
+            $product = Product::query()->find((int) $supplierProduct->product_id);
             if ($product !== null && $this->vanilleProductMatchesUrlPath($product, $vanilleUrl)) {
                 return $product;
             }
@@ -2732,6 +2756,47 @@ class VanilleImportService
             ->where('brand_id', (int) $brand->id)
             ->whereRaw('LOWER(slug) = ?', [$pathSlug])
             ->first();
+    }
+
+    private function findSupplierProductByCanonicalUrl(
+        int $supplierId,
+        string $canonicalUrl,
+        string $pathSlug,
+        bool $linkedOnly = false,
+    ): ?SupplierProduct {
+        $exactQuery = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->whereNotNull('product_id');
+        if ($linkedOnly) {
+            $exactQuery->where('is_linked', true);
+        }
+
+        $exact = $exactQuery
+            ->whereIn('external_url', [$canonicalUrl, $canonicalUrl . '/'])
+            ->first(['product_id', 'external_url']);
+        if ($exact !== null || $pathSlug === '') {
+            return $exact;
+        }
+
+        $fallbackQuery = SupplierProduct::query()
+            ->where('supplier_id', $supplierId)
+            ->whereNotNull('product_id');
+        if ($linkedOnly) {
+            $fallbackQuery->where('is_linked', true);
+        }
+
+        $candidates = $fallbackQuery
+            ->where('external_url', 'like', '%/' . $pathSlug . '%')
+            ->limit(20)
+            ->get(['product_id', 'external_url']);
+
+        foreach ($candidates as $candidate) {
+            if ($this->vanilleUrlPathSlug((string) $candidate->external_url) === $pathSlug) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function resolveUniqueSlugInMemory(string $baseSlug, array $primarySet, array $foreignSet): string
