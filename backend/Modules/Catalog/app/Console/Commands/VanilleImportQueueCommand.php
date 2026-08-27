@@ -4,6 +4,7 @@ namespace Modules\Catalog\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Modules\Catalog\Jobs\RunVanilleImportJob;
 use Modules\Catalog\Models\VanilleImportJob;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
 
@@ -180,21 +181,14 @@ class VanilleImportQueueCommand extends Command
             ),
         ]);
 
-        try {
-            $result = $service->runJobToCompletionSync($job->id);
-        } catch (\Throwable $e) {
-            $this->error('Ошибка возобновления: ' . $e->getMessage());
-            return self::FAILURE;
-        }
-
-        $this->line(sprintf(
-            'Финал: status=%s, progress=%d%%, message=%s',
-            $result->status,
-            (int) $result->progress,
-            (string) $result->message,
+        RunVanilleImportJob::dispatch((int) $job->id);
+        $this->info(sprintf(
+            'Джоб id=%d отправлен в очередь с offset=%d.',
+            $job->id,
+            $offset,
         ));
 
-        return $result->status === 'completed' ? self::SUCCESS : self::FAILURE;
+        return self::SUCCESS;
     }
 
     protected function cleanupActive(): int

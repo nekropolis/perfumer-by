@@ -129,9 +129,6 @@ class VanilleImportService
             $brandSlugSet = &$batchState['brand_slug_set'];
             $productSlugSet = &$batchState['product_slug_set'];
             $brandByEquivalentKey = &$batchState['brand_by_equivalent_key'];
-            if (!isset($batchState['pending_parsed_urls']) || !is_array($batchState['pending_parsed_urls'])) {
-                $batchState['pending_parsed_urls'] = [];
-            }
         }
 
         $items = $this->deduplicateParsedItems($items);
@@ -325,7 +322,7 @@ class VanilleImportService
                     app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch, $publishExisting);
                 }
 
-                if ($newProductIdForLlm !== null && $newProductIdForLlm > 0) {
+                if ($newProductIdForLlm !== null && $newProductIdForLlm > 0 && $publishExisting) {
                     RebuildProductSimilarsJob::dispatch($newProductIdForLlm);
                 }
 
@@ -333,14 +330,6 @@ class VanilleImportService
                     $this->rewriteDescriptionForNewProductIfPossible($newProductIdForLlm);
                 }
 
-                $importedUrl = trim((string) ($item['url'] ?? ''));
-                if ($importedUrl !== '') {
-                    if ($batchState !== null) {
-                        $batchState['pending_parsed_urls'][] = $importedUrl;
-                    } else {
-                        $this->appendUrlsToParsedManifest([$importedUrl]);
-                    }
-                }
             } catch (\Throwable $e) {
                 $errors++;
                 $log[] = 'ERROR: ' . ($item['name'] ?? 'unknown') . ' -> ' . $e->getMessage();
@@ -621,8 +610,10 @@ class VanilleImportService
             return;
         }
 
-        $pendingStaleBefore = Carbon::now()->subMinutes(3);
-        $runningStaleBefore = Carbon::now()->subMinutes(7);
+        // The same queue also receives search/similar-product jobs, so a valid payload can wait.
+        $pendingStaleBefore = Carbon::now()->subMinutes(65);
+        // A queue invocation may legitimately run for up to 60 minutes.
+        $runningStaleBefore = Carbon::now()->subMinutes(65);
 
         foreach (VanilleImportJob::staleActiveJobIds($pendingStaleBefore, $runningStaleBefore, 25) as $jobId) {
             $fresh = VanilleImportJob::query()->find($jobId);
@@ -791,6 +782,11 @@ class VanilleImportService
             $progress = (int) ($execution['progress'] ?? ($done ? 100 : $job->progress));
             $message = (string) ($execution['message'] ?? $this->queuedJobExecutor->label($job->type));
             $result = is_array($execution['result'] ?? null) ? $execution['result'] : [];
+
+            $currentStatus = VanilleImportJob::query()->whereKey($job->id)->value('status');
+            if (in_array($currentStatus, [VanilleImportJob::STATUS_FAILED, VanilleImportJob::STATUS_COMPLETED], true)) {
+                return;
+            }
 
             $logTick = (int) data_get($priorResult, 'log_tick', 0) + 1;
             $result['log_tick'] = $logTick;
@@ -1380,8 +1376,6 @@ class VanilleImportService
                 $log[] = $line;
             }
         }
-
-        $this->flushImportBatchParsedUrls($batchState);
 
         return [
             'success' => $totalErrors === 0,
@@ -2370,10 +2364,19 @@ class VanilleImportService
             $merged[$n] = true;
         }
 
-        file_put_contents(
-            $this->parsedUrlsManifestPath(),
-            json_encode(['urls' => array_keys($merged)], JSON_UNESCAPED_UNICODE)
-        );
+        $path = $this->parsedUrlsManifestPath();
+        $tempPath = $path . '.tmp.' . bin2hex(random_bytes(6));
+        $json = json_encode(['urls' => array_keys($merged)], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        try {
+            if (file_put_contents($tempPath, $json, LOCK_EX) === false || !rename($tempPath, $path)) {
+                throw new \RuntimeException('Не удалось атомарно записать parsed_urls.json');
+            }
+        } finally {
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
     }
 
     /**
@@ -2634,13 +2637,12 @@ class VanilleImportService
     }
 
     /**
-     * Состояние батча импорта: slug-кэши и отложенная запись parsed_urls.json (один flush на батч).
+     * Состояние батча импорта со slug-кэшами.
      *
      * @return array{
      *     brand_slug_set: array<string, bool>,
      *     product_slug_set: array<string, bool>,
      *     brand_by_equivalent_key: array<string, Brand>,
-     *     pending_parsed_urls: list<string>,
      * }
      */
     public function createImportBatchState(): array
@@ -2657,61 +2659,6 @@ class VanilleImportService
                 ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
                 ->all(),
             'brand_by_equivalent_key' => $this->buildBrandEquivalentLookup(),
-            'pending_parsed_urls' => [],
-        ];
-    }
-
-    /**
-     * @param  array{pending_parsed_urls?: list<string>}  $batchState
-     */
-    public function flushImportBatchParsedUrls(array &$batchState): void
-    {
-        $pending = $batchState['pending_parsed_urls'] ?? [];
-        if (!is_array($pending) || $pending === []) {
-            return;
-        }
-
-        $this->appendUrlsToParsedManifest($pending);
-        $batchState['pending_parsed_urls'] = [];
-    }
-
-    /**
-     * @param  array{brand_slug_set?: array<string, bool>, product_slug_set?: array<string, bool>}|null  $stored
-     * @return array{
-     *     brand_slug_set: array<string, bool>,
-     *     product_slug_set: array<string, bool>,
-     *     brand_by_equivalent_key: array<string, Brand>,
-     *     pending_parsed_urls: list<string>,
-     * }
-     */
-    public function restoreImportBatchState(?array $stored): array
-    {
-        if (
-            ! is_array($stored)
-            || ! isset($stored['brand_slug_set'], $stored['product_slug_set'])
-            || ! is_array($stored['brand_slug_set'])
-            || ! is_array($stored['product_slug_set'])
-        ) {
-            return $this->createImportBatchState();
-        }
-
-        return [
-            'brand_slug_set' => $stored['brand_slug_set'],
-            'product_slug_set' => $stored['product_slug_set'],
-            'brand_by_equivalent_key' => $this->buildBrandEquivalentLookup(),
-            'pending_parsed_urls' => [],
-        ];
-    }
-
-    /**
-     * @param  array{brand_slug_set: array<string, bool>, product_slug_set: array<string, bool>, brand_by_equivalent_key: array<string, Brand>, pending_parsed_urls: list<string>}  $batchState
-     * @return array{brand_slug_set: array<string, bool>, product_slug_set: array<string, bool>}
-     */
-    public function serializeImportBatchState(array $batchState): array
-    {
-        return [
-            'brand_slug_set' => $batchState['brand_slug_set'],
-            'product_slug_set' => $batchState['product_slug_set'],
         ];
     }
 

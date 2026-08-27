@@ -56,49 +56,12 @@ class RunVanilleImportJob implements ShouldQueue
 
         $errorMessage = $exception?->getMessage() ?: 'Queue worker stopped or timed out while processing the job.';
 
-        if (
-            $job->type === VanilleImportService::JOB_TYPE_IMPORT_PARSED_PRODUCTS
-            && str_contains(mb_strtolower($errorMessage), 'timed out')
-        ) {
-            $result = is_array($job->result) ? $job->result : [];
-            $state = is_array($result['state'] ?? null) ? $result['state'] : [];
-            $offset = (int) ($state['offset'] ?? 0);
-            $totalFiles = (int) ($result['total_files'] ?? 0);
-            if ($offset > 0 && ($totalFiles === 0 || $offset < $totalFiles)) {
-                $job->update([
-                    'status' => 'pending',
-                    'progress' => max(5, min(95, $totalFiles > 0 ? (int) round(($offset / $totalFiles) * 100) : 5)),
-                    'message' => sprintf('Импорт спарсенных товаров: таймаут, продолжаем с %d / %d файлов', $offset, max($totalFiles, $offset)),
-                    'error' => null,
-                    'finished_at' => null,
-                ]);
-
-                VanilleImportJobLog::query()->create([
-                    'vanille_import_job_id' => $job->id,
-                    'level' => 'warning',
-                    'message' => $errorMessage,
-                    'context' => [
-                        'exception' => $exception ? $exception::class : null,
-                        'job_type' => $job->type,
-                        'failed_via' => 'queue_timeout_auto_resume',
-                        'offset' => $offset,
-                        'total_files' => $totalFiles,
-                    ],
-                ]);
-
-                try {
-                    self::dispatch($this->jobId);
-                } catch (Throwable) {
-                }
-
-                return;
-            }
-        }
-
         $job->update([
             'status' => 'failed',
             'progress' => 100,
-            'message' => 'Парсинг: ошибка выполнения',
+            'message' => $job->type === VanilleImportService::JOB_TYPE_IMPORT_PARSED_PRODUCTS
+                ? 'Импорт спарсенных товаров: ошибка выполнения'
+                : 'Парсинг: ошибка выполнения',
             'error' => $errorMessage,
             'finished_at' => now(),
         ]);

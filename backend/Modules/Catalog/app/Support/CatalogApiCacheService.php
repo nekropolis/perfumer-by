@@ -18,6 +18,7 @@ class CatalogApiCacheService
 
     private int $deferDepth = 0;
     private bool $invalidationPending = false;
+    private int $suppressDepth = 0;
 
     public function rememberProducts(array $queryParams, Closure $resolver): array
     {
@@ -237,6 +238,10 @@ class CatalogApiCacheService
 
     public function requestInvalidation(): void
     {
+        if ($this->suppressDepth > 0) {
+            return;
+        }
+
         if ($this->deferDepth > 0) {
             $this->invalidationPending = true;
 
@@ -244,6 +249,26 @@ class CatalogApiCacheService
         }
 
         $this->bumpVersion();
+    }
+
+    /**
+     * @template T
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function withoutInvalidation(Closure $callback): mixed
+    {
+        $this->suppressDepth++;
+        try {
+            return $callback();
+        } finally {
+            $this->suppressDepth--;
+        }
+    }
+
+    public function invalidateWithoutFacetWarmup(): void
+    {
+        $this->bumpVersionDetailed(warmFacetAggregates: false);
     }
 
     public function beginDeferredInvalidation(): void
@@ -291,13 +316,15 @@ class CatalogApiCacheService
      *     storefront: array{status: 'ok'|'skipped'|'failed', message: string|null}
      * }
      */
-    public function bumpVersionDetailed(): array
+    public function bumpVersionDetailed(bool $warmFacetAggregates = true): array
     {
         $next = $this->version() + 1;
         Cache::forever(self::VERSION_KEY, $next);
         Cache::forever(self::SEARCH_VERSION_KEY, $this->searchVersion() + 1);
         $storefront = $this->triggerStorefrontRevalidation();
-        $this->scheduleFacetAggregatesWarmup();
+        if ($warmFacetAggregates) {
+            $this->scheduleFacetAggregatesWarmup();
+        }
 
         return [
             'version' => $next,

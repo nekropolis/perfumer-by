@@ -2,7 +2,9 @@
 
 namespace Modules\ImportExport\Services\Vanille\Support;
 
+use Modules\Catalog\Jobs\RebuildProductSimilarsJob;
 use Modules\Catalog\Models\VanilleImportJob;
+use Modules\Catalog\Support\CatalogApiCacheService;
 use Modules\ImportExport\Services\Vanille\VanilleImportService;
 
 class VanilleQueuedJobExecutor
@@ -376,12 +378,12 @@ class VanilleQueuedJobExecutor
         $totalItems = (int) ($state['total_items'] ?? 0);
         $createdProductsSample = is_array($state['created_products_sample'] ?? null) ? $state['created_products_sample'] : [];
         $updatedProductsSample = is_array($state['updated_products_sample'] ?? null) ? $state['updated_products_sample'] : [];
+        $createdProductIds = is_array($state['created_product_ids'] ?? null) ? $state['created_product_ids'] : [];
         $batchLimit = self::IMPORT_PARSED_PRODUCTS_BATCH_SIZE;
-        $batchState = $service->restoreImportBatchState(
-            is_array($state['import_batch_state'] ?? null) ? $state['import_batch_state'] : null,
-        );
 
-        $batch = $service->importParsedProductsBatch($offset, $batchLimit, $batchState);
+        $batch = app(CatalogApiCacheService::class)->withoutInvalidation(
+            static fn (): array => $service->importParsedProductsBatch($offset, $batchLimit),
+        );
         $done = (bool) ($batch['done'] ?? true);
         $nextOffset = (int) ($batch['next_offset'] ?? ($offset + $batchLimit));
         $totalFiles = max((int) ($batch['total_files'] ?? 0), 1);
@@ -395,6 +397,10 @@ class VanilleQueuedJobExecutor
         foreach ((array) ($batch['created_products'] ?? []) as $row) {
             if (!is_array($row)) {
                 continue;
+            }
+            $productId = (int) ($row['product_id'] ?? 0);
+            if ($productId > 0) {
+                $createdProductIds[$productId] = $productId;
             }
             $name = trim((string) ($row['name'] ?? ''));
             $slug = trim((string) ($row['slug'] ?? ''));
@@ -426,6 +432,11 @@ class VanilleQueuedJobExecutor
         }
 
         if ($done) {
+            app(CatalogApiCacheService::class)->invalidateWithoutFacetWarmup();
+            foreach ($createdProductIds as $productId) {
+                RebuildProductSimilarsJob::dispatch((int) $productId);
+            }
+
             $finalLog = [
                 'SUMMARY: import created -> ' . $totalImported,
                 'SUMMARY: import updated -> ' . $totalUpdated,
@@ -470,7 +481,7 @@ class VanilleQueuedJobExecutor
                     'total_items' => $totalItems,
                     'created_products_sample' => $createdProductsSample,
                     'updated_products_sample' => $updatedProductsSample,
-                    'import_batch_state' => $service->serializeImportBatchState($batchState),
+                    'created_product_ids' => $createdProductIds,
                 ],
                 'total_files' => $totalFiles,
                 'processed_files' => $processedFiles,

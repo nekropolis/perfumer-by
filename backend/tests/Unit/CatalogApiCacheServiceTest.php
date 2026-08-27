@@ -36,4 +36,24 @@ class CatalogApiCacheServiceTest extends TestCase
         $this->assertSame(2, $service->version());
         $this->assertSame(2, $service->searchVersion());
     }
+
+    public function test_suppressed_invalidation_does_not_bump_until_explicit_import_flush(): void
+    {
+        Cache::forget(CatalogApiCacheService::VERSION_KEY);
+        Cache::forget(CatalogApiCacheService::SEARCH_VERSION_KEY);
+
+        $service = app(CatalogApiCacheService::class);
+        $service->withoutInvalidation(function () use ($service): void {
+            $service->requestInvalidation();
+            $service->requestInvalidation();
+        });
+
+        $this->assertSame(1, $service->version());
+        $this->assertSame(1, $service->searchVersion());
+
+        $service->invalidateWithoutFacetWarmup();
+
+        $this->assertSame(2, $service->version());
+        $this->assertSame(2, $service->searchVersion());
+    }
 }
