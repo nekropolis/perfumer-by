@@ -15,6 +15,7 @@ class VanilleLinkCollector
 
     public function __construct(
         protected VanilleHttpClient $httpClient,
+        protected VanilleCatalogImageParser $catalogImageParser,
     ) {
     }
 
@@ -103,7 +104,7 @@ class VanilleLinkCollector
 
     /**
      * @param  array<string, mixed>  $brand
-     * @param  array<string, array{slug: string, url: string, brand: string}>  $indexed
+     * @param  array<string, array{slug: string, url: string, brand: string, catalog_image_urls?: list<string>}>  $indexed
      * @param  list<string>  $log
      */
     private function collectBrandLinksViaListingApi(
@@ -311,7 +312,7 @@ class VanilleLinkCollector
 
     /**
      * @param  array<string, mixed>  $brand
-     * @param  array<string, array{slug: string, url: string, brand: string}>  $indexed
+     * @param  array<string, array{slug: string, url: string, brand: string, catalog_image_urls?: list<string>}>  $indexed
      */
     private function collectBrandLinksLegacyHtml(
         array $brand,
@@ -481,7 +482,7 @@ class VanilleLinkCollector
     }
 
     /**
-     * @param  array<string, array{slug: string, url: string, brand: string}>  $indexed
+     * @param  array<string, array{slug: string, url: string, brand: string, catalog_image_urls?: list<string>}>  $indexed
      */
     private function extractProductLinksFromHtml(
         string $html,
@@ -492,6 +493,15 @@ class VanilleLinkCollector
         bool &$reachedMaxLinks,
         bool $requireBrandSlugPrefix,
     ): int {
+        $catalogImagesBySlug = [];
+        foreach ($this->catalogImageParser->parseListing($html, $brandSlug, $requireBrandSlugPrefix) as $row) {
+            $slug = trim((string) ($row['slug'] ?? ''));
+            $imageUrls = is_array($row['image_urls'] ?? null) ? $row['image_urls'] : [];
+            if ($slug !== '' && $imageUrls !== []) {
+                $catalogImagesBySlug[$slug] = array_values($imageUrls);
+            }
+        }
+
         $hrefs = $requireBrandSlugPrefix
             ? $this->extractAllHrefs($html)
             : $this->extractProductCutHrefs($html);
@@ -505,7 +515,8 @@ class VanilleLinkCollector
                 $indexed,
                 $maxLinks,
                 $reachedMaxLinks,
-                $requireBrandSlugPrefix
+                $requireBrandSlugPrefix,
+                $catalogImagesBySlug,
             )) {
                 continue;
             }
@@ -579,7 +590,8 @@ class VanilleLinkCollector
     }
 
     /**
-     * @param  array<string, array{slug: string, url: string, brand: string}>  $indexed
+     * @param  array<string, array{slug: string, url: string, brand: string, catalog_image_urls?: list<string>}>  $indexed
+     * @param  array<string, list<string>>  $catalogImagesBySlug
      */
     private function registerProductHref(
         string $href,
@@ -589,6 +601,7 @@ class VanilleLinkCollector
         ?int $maxLinks,
         bool &$reachedMaxLinks,
         bool $requireBrandSlugPrefix,
+        array $catalogImagesBySlug,
     ): bool {
         $href = trim($href);
         if ($href === '' || str_starts_with($href, '#')) {
@@ -631,6 +644,13 @@ class VanilleLinkCollector
 
         $canonicalUrl = 'https://vanille.by/' . $slug;
         if (isset($indexed[$canonicalUrl])) {
+            if (
+                ($indexed[$canonicalUrl]['catalog_image_urls'] ?? []) === []
+                && ($catalogImagesBySlug[$slug] ?? []) !== []
+            ) {
+                $indexed[$canonicalUrl]['catalog_image_urls'] = $catalogImagesBySlug[$slug];
+            }
+
             return false;
         }
 
@@ -639,6 +659,7 @@ class VanilleLinkCollector
             'url' => $canonicalUrl,
             'brand' => $brandName,
             'brand_slug' => $brandSlug,
+            'catalog_image_urls' => $catalogImagesBySlug[$slug] ?? [],
         ];
 
         if ($maxLinks !== null && count($indexed) >= $maxLinks) {

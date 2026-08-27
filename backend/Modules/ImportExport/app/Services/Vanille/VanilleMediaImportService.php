@@ -97,6 +97,10 @@ class VanilleMediaImportService
         $chunk = array_slice($brands, $brandOffset, $brandLimit);
         $log = [];
         $failed = 0;
+        $imported = 0;
+        $skippedExisting = 0;
+        $skippedLegacy = 0;
+        $skippedNoImage = 0;
 
         foreach ($chunk as $brand) {
             $url = (string) ($brand['source_url'] ?? $brand['url'] ?? '');
@@ -104,51 +108,51 @@ class VanilleMediaImportService
                 continue;
             }
 
-            $brandSlug = (string) ($brand['slug'] ?? '');
-            try {
-                $rows = $this->collectBrandListingRows($url, $brandSlug !== '' ? $brandSlug : null);
-            } catch (Throwable $e) {
-                $log[] = 'ERROR brand page: '.$url.' -> '.$e->getMessage();
+            $supplierProducts = $this->linkedVanilleSupplierProductsForCatalogBrand($brand);
+            if ($supplierProducts->isEmpty()) {
                 continue;
             }
 
-            $processedProductIds = [];
+            $productIds = $supplierProducts->pluck('product_id')->map(fn ($id) => (int) $id)->all();
+            $this->legacyDetector->preload($productIds);
+            $supplierProducts = $supplierProducts
+                ->filter(function (SupplierProduct $supplierProduct) use (&$skippedLegacy): bool {
+                    if ($this->legacyDetector->isLegacy((int) $supplierProduct->product_id)) {
+                        $skippedLegacy++;
 
-            foreach ($rows as $row) {
-                $slug = (string) ($row['slug'] ?? '');
-                $imageUrls = $this->normalizeListingImageUrls($row['image_urls'] ?? [$row['image_url'] ?? null]);
-                if ($slug === '' || $imageUrls === []) {
-                    continue;
-                }
-
-                $supplierProduct = $this->resolveVanilleSupplierProductBySlug($slug);
-                if (! $supplierProduct || ! $supplierProduct->product_id) {
-                    continue;
-                }
-                $productId = (int) $supplierProduct->product_id;
-                $processedProductIds[$productId] = true;
-
-                if ($this->catalogImagesCountForProduct($productId) >= 2) {
-                    continue;
-                }
-
-                try {
-                    foreach ($imageUrls as $imgUrl) {
-                        $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
+                        return false;
                     }
+
+                    return true;
+                })
+                ->unique('product_id')
+                ->values();
+            if ($supplierProducts->isEmpty()) {
+                continue;
+            }
+
+            $brandSlug = (string) ($brand['slug'] ?? '');
+            $needsListing = $supplierProducts->contains(function (SupplierProduct $supplierProduct): bool {
+                $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+
+                return $this->normalizeListingImageUrls($payload['catalog_image_urls'] ?? []) === [];
+            });
+            $rows = [];
+            if ($needsListing) {
+                try {
+                    $rows = $this->collectBrandListingRows($url, $brandSlug !== '' ? $brandSlug : null);
                 } catch (Throwable $e) {
-                    $this->abortIfStorageWriteError($e);
-                    $failed++;
-                    $log[] = 'ERROR product '.$productId.' slug='.$slug.' -> '.$e->getMessage();
+                    $log[] = 'ERROR brand page: '.$url.' -> '.$e->getMessage();
                 }
             }
 
-            foreach ($this->linkedVanilleSupplierProductsForCatalogBrand($brand) as $supplierProduct) {
+            foreach ($supplierProducts as $supplierProduct) {
                 $productId = (int) $supplierProduct->product_id;
-                if ($productId <= 0 || isset($processedProductIds[$productId])) {
+                if ($productId <= 0) {
                     continue;
                 }
-                if ($this->catalogImagesCountForProduct($productId) >= 2) {
+                if ($this->catalogImagesCountForProduct($productId) > 0) {
+                    $skippedExisting++;
                     continue;
                 }
 
@@ -165,8 +169,13 @@ class VanilleMediaImportService
                     $productUrl = 'https://vanille.by/'.$slug;
                 }
 
-                $imageUrls = $this->resolveCatalogListingImageUrls($slug, $rows, $productUrl);
+                $payload = is_array($supplierProduct->payload) ? $supplierProduct->payload : [];
+                $imageUrls = $this->normalizeListingImageUrls($payload['catalog_image_urls'] ?? []);
                 if ($imageUrls === []) {
+                    $imageUrls = $this->resolveCatalogListingImageUrls($slug, $rows, $productUrl);
+                }
+                if ($imageUrls === []) {
+                    $skippedNoImage++;
                     continue;
                 }
 
@@ -174,6 +183,7 @@ class VanilleMediaImportService
                     foreach ($imageUrls as $imgUrl) {
                         $this->storeCatalogImageForProduct($productId, $imgUrl, $slug);
                     }
+                    $imported++;
                 } catch (Throwable $e) {
                     $this->abortIfStorageWriteError($e);
                     $failed++;
@@ -194,6 +204,10 @@ class VanilleMediaImportService
                 'state' => ['brand_offset' => $nextOffset, 'brand_limit' => $brandLimit],
                 'log' => $log,
                 'failed_count' => $failed,
+                'imported_count' => $imported,
+                'skipped_existing_count' => $skippedExisting,
+                'skipped_legacy_count' => $skippedLegacy,
+                'skipped_no_image_count' => $skippedNoImage,
                 'processed_brands' => min($nextOffset, $totalBrands),
                 'total_brands' => $totalBrands,
             ],
@@ -328,7 +342,7 @@ class VanilleMediaImportService
             throw new \RuntimeException('Каталожное фото не найдено ни в листинге бренда, ни на карточке Vanille для slug='.$slug);
         }
 
-        if ($this->catalogImagesCountForProduct($productId) >= 2) {
+        if ($this->catalogImagesCountForProduct($productId) > 0) {
             return;
         }
 
@@ -461,24 +475,51 @@ class VanilleMediaImportService
             return collect();
         }
 
-        $brandIds = Brand::query()
-            ->get(['id', 'name'])
-            ->filter(fn (Brand $brand) => ProductDisplayName::brandNamesEquivalent($brandName, (string) $brand->name))
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
-            ->values()
-            ->all();
+        $catalogSlug = trim((string) ($catalogBrand['slug'] ?? ''));
+        $brandIds = $catalogSlug !== ''
+            ? Brand::query()->where('slug', $catalogSlug)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        if ($brandIds === []) {
+            $brandIds = Brand::query()
+                ->get(['id', 'name'])
+                ->filter(fn (Brand $brand) => ProductDisplayName::brandNamesEquivalent($brandName, (string) $brand->name))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->values()
+                ->all();
+        }
 
         if ($brandIds === []) {
             return collect();
         }
 
-        return SupplierProduct::query()
+        $query = SupplierProduct::query()
             ->where('supplier_id', $supplierId)
             ->where('is_linked', true)
             ->whereNotNull('product_id')
             ->whereHas('product', fn ($q) => $q->whereIn('brand_id', $brandIds))
+            ->whereDoesntHave('product.images', function ($query): void {
+                if (self::hasProductImagesExtendedSchema()) {
+                    $query->where('usage_type', ProductImage::USAGE_CATALOG);
+                } else {
+                    $query->where('path', 'like', '%/catalog/%');
+                }
+            })
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('legacy_map_products')
+                    ->whereColumn('legacy_map_products.product_id', 'supplier_products.product_id')
+                    ->where('legacy_map_products.status', 'matched');
+            })
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('legacy_unmatched_products')
+                    ->whereColumn('legacy_unmatched_products.linked_product_id', 'supplier_products.product_id')
+                    ->where('legacy_unmatched_products.status', 'linked');
+            });
+
+        return $query
             ->get();
     }
 

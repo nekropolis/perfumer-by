@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use Modules\ImportExport\Services\Vanille\Parsers\VanilleLinkCollector;
+use Modules\ImportExport\Services\Vanille\Parsers\VanilleCatalogImageParser;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -14,6 +15,7 @@ class VanilleLinkCollectorTest extends TestCase
         $html = <<<'HTML'
 <a href="/favicon.ico">Icon</a>
 <div class="product-cut">
+  <a href="/dolce-i-gabbana-light-blue"><img src="/assets/images/products/1/medium/light-blue.webp"></a>
   <div class="product-cut__title"><a href="/dolce-i-gabbana-light-blue">A</a></div>
 </div>
 <div class="product-cut">
@@ -27,7 +29,7 @@ class VanilleLinkCollectorTest extends TestCase
 </div>
 HTML;
 
-        $collector = new VanilleLinkCollector(new VanilleHttpClient());
+        $collector = new VanilleLinkCollector(new VanilleHttpClient(), new VanilleCatalogImageParser());
         $indexed = [];
         $reached = false;
 
@@ -48,17 +50,21 @@ HTML;
         $this->assertCount(3, $indexed);
         $this->assertArrayHasKey('https://vanille.by/dolceandgabbana-devotion-intense', $indexed);
         $this->assertSame('dolce-i-gabbana', $indexed['https://vanille.by/dolceandgabbana-devotion-intense']['brand_slug']);
+        $this->assertSame(
+            ['https://vanille.by/assets/images/products/1/medium/light-blue.webp'],
+            $indexed['https://vanille.by/dolce-i-gabbana-light-blue']['catalog_image_urls'],
+        );
         $this->assertArrayNotHasKey('https://vanille.by/favicon.ico', $indexed);
     }
 
-    public function test_listing_html_without_product_cut_collects_nothing(): void
+    public function test_listing_html_without_product_cut_uses_href_fallback(): void
     {
         $html = <<<'HTML'
 <a href="/favicon.ico">Icon</a>
 <a href="/dolce-i-gabbana-light-blue">A</a>
 HTML;
 
-        $collector = new VanilleLinkCollector(new VanilleHttpClient());
+        $collector = new VanilleLinkCollector(new VanilleHttpClient(), new VanilleCatalogImageParser());
         $indexed = [];
         $reached = false;
 
@@ -75,8 +81,8 @@ HTML;
             false,
         ]);
 
-        $this->assertSame(0, $found);
-        $this->assertSame([], $indexed);
+        $this->assertSame(1, $found);
+        $this->assertArrayHasKey('https://vanille.by/dolce-i-gabbana-light-blue', $indexed);
     }
 
     public function test_legacy_html_requires_brand_slug_prefix(): void
@@ -86,7 +92,7 @@ HTML;
 <a href="/dolceandgabbana-devotion-intense">B</a>
 HTML;
 
-        $collector = new VanilleLinkCollector(new VanilleHttpClient());
+        $collector = new VanilleLinkCollector(new VanilleHttpClient(), new VanilleCatalogImageParser());
         $indexed = [];
         $reached = false;
 
@@ -110,7 +116,7 @@ HTML;
     {
         $html = 'mse2Config = {"actionUrl":"\\/assets\\/components\\/msearch2\\/action.php","pageId":60183,"key":"abc123","start_limit":24};';
 
-        $collector = new VanilleLinkCollector(new VanilleHttpClient());
+        $collector = new VanilleLinkCollector(new VanilleHttpClient(), new VanilleCatalogImageParser());
         $method = new ReflectionMethod(VanilleLinkCollector::class, 'parseMse2Config');
         $method->setAccessible(true);
 

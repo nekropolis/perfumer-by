@@ -1187,6 +1187,15 @@ class VanilleImportService
 
             try {
                 $item = $this->productParser->parseProductPage($url);
+                $catalogImageUrls = is_array($link['catalog_image_urls'] ?? null)
+                    ? array_values(array_filter(
+                        $link['catalog_image_urls'],
+                        static fn ($imageUrl): bool => is_string($imageUrl) && trim($imageUrl) !== '',
+                    ))
+                    : [];
+                if ($catalogImageUrls !== []) {
+                    $item['catalog_image_urls'] = $catalogImageUrls;
+                }
                 $items[] = $item;
                 $log[] = 'OK: ' . $url;
                 $parsedUrls[] = $url;
@@ -3023,12 +3032,26 @@ class VanilleImportService
         $state = is_array($result['state'] ?? null) ? $result['state'] : [];
         $brandOffset = (int) ($state['brand_offset'] ?? 0);
         $batch = $this->mediaImportService()->runCatalogImagesBatch($brandOffset, 1);
+        $batchResult = is_array($batch['result'] ?? null) ? $batch['result'] : [];
+        foreach ([
+            'failed_count',
+            'imported_count',
+            'skipped_existing_count',
+            'skipped_legacy_count',
+            'skipped_no_image_count',
+        ] as $counter) {
+            $batchResult[$counter] = (int) ($result[$counter] ?? 0) + (int) ($batchResult[$counter] ?? 0);
+        }
 
         return [
             'done' => (bool) ($batch['done'] ?? true),
             'progress' => (int) ($batch['progress'] ?? 100),
-            'message' => (string) ($batch['message'] ?? ''),
-            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
+            'message' => sprintf(
+                '%s, добавлено товаров: %d',
+                (string) ($batch['message'] ?? ''),
+                (int) ($batchResult['imported_count'] ?? 0),
+            ),
+            'result' => $batchResult,
         ];
     }
 
