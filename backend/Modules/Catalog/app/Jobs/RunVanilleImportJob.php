@@ -25,7 +25,7 @@ class RunVanilleImportJob implements ShouldQueue
     public int $tries = 1;
 
     /** Seconds per queue invocation; queue connection `retry_after` must be greater than this. */
-    public int $timeout = 300;
+    public int $timeout = 600;
     public bool $failOnTimeout = true;
 
     public function __construct(public int $jobId)

@@ -11,6 +11,10 @@ class ImportTelegramMessageFormatter
      */
     public function formatVanilleJobFinished(VanilleImportJob $job): ?string
     {
+        if ($job->type === 'import_parsed_products') {
+            return $this->formatVanilleImportParsedProductsFinished($job);
+        }
+
         if (!in_array((string) $job->type, ['pipeline_new_products', 'pipeline_refresh_all'], true)) {
             return null;
         }
@@ -28,6 +32,48 @@ class ImportTelegramMessageFormatter
             ($job->status === 'completed' ? '✅ ' : '❌ ') . $title,
             'Job #' . $job->id,
             'Статус: ' . $statusLabel,
+            'Время: ' . now()->format('d.m.Y H:i:s'),
+        ];
+
+        if ($job->message) {
+            $lines[] = 'Сообщение: ' . $job->message;
+        }
+        if ($job->error) {
+            $lines[] = 'Ошибка: ' . $job->error;
+        }
+
+        return $this->trimForTelegram(implode("\n", $lines));
+    }
+
+    public function formatVanilleImportParsedProductsFinished(VanilleImportJob $job): ?string
+    {
+        if ((string) $job->type !== 'import_parsed_products') {
+            return null;
+        }
+
+        if (!in_array((string) $job->status, ['completed', 'failed'], true)) {
+            return null;
+        }
+
+        $result = is_array($job->result) ? $job->result : [];
+        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
+        $imported = (int) ($result['imported'] ?? $state['total_imported'] ?? 0);
+        $updated = (int) ($result['updated'] ?? $state['total_updated'] ?? 0);
+        $errors = (int) ($result['errors'] ?? $state['total_errors'] ?? 0);
+        $items = (int) ($result['items'] ?? $state['total_items'] ?? 0);
+        $processedFiles = (int) ($result['processed_files'] ?? 0);
+        $totalFiles = (int) ($result['total_files'] ?? 0);
+        $isCompleted = $job->status === 'completed';
+
+        $lines = [
+            ($isCompleted ? '✅ ' : '❌ ') . 'Vanille: Импорт спарсенных товаров',
+            'Job #' . $job->id,
+            'Статус: ' . ($isCompleted ? 'выполнено' : 'ошибка'),
+            'Файлы: ' . $processedFiles . ' / ' . $totalFiles,
+            'Карточек в батче: ' . $items,
+            'Создано товаров: ' . $imported,
+            'Обновлено товаров: ' . $updated,
+            'Ошибок: ' . $errors,
             'Время: ' . now()->format('d.m.Y H:i:s'),
         ];
 

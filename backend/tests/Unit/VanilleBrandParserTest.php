@@ -131,4 +131,23 @@ HTML;
         $this->assertNotContains("A'PIEU6", $names);
         $this->assertNotContains('Бренды', $names);
     }
+
+    public function test_christian_dior_resolves_to_dior_catalog_row(): void
+    {
+        VanilleBrandParser::seedCatalogBrandRowsCacheForTests([
+            ['name' => 'Dior', 'slug' => 'dior', 'url' => 'https://vanille.by/dior'],
+        ]);
+
+        $row = VanilleBrandParser::findCatalogBrandRow(
+            'Christian Dior',
+            'https://vanille.by/dior-homme-intense',
+        );
+
+        $this->assertNotNull($row);
+        $this->assertSame('dior', $row['slug']);
+        $this->assertTrue(VanilleBrandParser::isAllowedImportBrand(
+            'Christian Dior',
+            'https://vanille.by/christian-dior-sauvage-elixir',
+        ));
+    }
 }

@@ -66,7 +66,7 @@ class VanilleImportService
     ) {
     }
 
-    public function importFromJsonFile(string $path, bool $publishExisting = false): array
+    public function importFromJsonFile(string $path, bool $publishExisting = false, ?array &$batchState = null): array
     {
         if (!file_exists($path)) {
             return [
@@ -110,17 +110,29 @@ class VanilleImportService
         $log = [];
         $createdProducts = [];
         $updatedProducts = [];
-        $brandSlugSet = Brand::query()
-            ->pluck('slug')
-            ->filter()
-            ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
-            ->all();
-        $brandByEquivalentKey = $this->buildBrandEquivalentLookup();
-        $productSlugSet = Product::query()
-            ->pluck('slug')
-            ->filter()
-            ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
-            ->all();
+        if ($batchState === null) {
+            $brandSlugSet = Brand::query()
+                ->pluck('slug')
+                ->filter()
+                ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
+                ->all();
+            $brandByEquivalentKey = $this->buildBrandEquivalentLookup();
+            $productSlugSet = Product::query()
+                ->pluck('slug')
+                ->filter()
+                ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
+                ->all();
+        } else {
+            if (!isset($batchState['brand_slug_set'], $batchState['product_slug_set'], $batchState['brand_by_equivalent_key'])) {
+                $batchState = $this->createImportBatchState();
+            }
+            $brandSlugSet = &$batchState['brand_slug_set'];
+            $productSlugSet = &$batchState['product_slug_set'];
+            $brandByEquivalentKey = &$batchState['brand_by_equivalent_key'];
+            if (!isset($batchState['pending_parsed_urls']) || !is_array($batchState['pending_parsed_urls'])) {
+                $batchState['pending_parsed_urls'] = [];
+            }
+        }
 
         $items = $this->deduplicateParsedItems($items);
 
@@ -315,7 +327,11 @@ class VanilleImportService
 
                 $importedUrl = trim((string) ($item['url'] ?? ''));
                 if ($importedUrl !== '') {
-                    $this->appendUrlsToParsedManifest([$importedUrl]);
+                    if ($batchState !== null) {
+                        $batchState['pending_parsed_urls'][] = $importedUrl;
+                    } else {
+                        $this->appendUrlsToParsedManifest([$importedUrl]);
+                    }
                 }
             } catch (\Throwable $e) {
                 $errors++;
@@ -1330,9 +1346,10 @@ class VanilleImportService
         $log = [];
         $createdProducts = [];
         $updatedProducts = [];
+        $batchState = $this->createImportBatchState();
 
         foreach ($chunk as $file) {
-            $result = $this->importFromJsonFile($file);
+            $result = $this->importFromJsonFile($file, false, $batchState);
             $totalImported += (int) ($result['imported'] ?? 0);
             $totalUpdated += (int) ($result['updated'] ?? 0);
             $totalErrors += (int) ($result['errors'] ?? 0);
@@ -1353,6 +1370,8 @@ class VanilleImportService
                 $log[] = $line;
             }
         }
+
+        $this->flushImportBatchParsedUrls($batchState);
 
         return [
             'success' => $totalErrors === 0,
@@ -2602,6 +2621,48 @@ class VanilleImportService
         $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
 
         return $path !== '' ? mb_strtolower($path, 'UTF-8') : '';
+    }
+
+    /**
+     * Состояние батча импорта: slug-кэши и отложенная запись parsed_urls.json (один flush на батч).
+     *
+     * @return array{
+     *     brand_slug_set: array<string, bool>,
+     *     product_slug_set: array<string, bool>,
+     *     brand_by_equivalent_key: array<string, Brand>,
+     *     pending_parsed_urls: list<string>,
+     * }
+     */
+    public function createImportBatchState(): array
+    {
+        return [
+            'brand_slug_set' => Brand::query()
+                ->pluck('slug')
+                ->filter()
+                ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
+                ->all(),
+            'product_slug_set' => Product::query()
+                ->pluck('slug')
+                ->filter()
+                ->mapWithKeys(static fn ($slug) => [mb_strtolower((string) $slug) => true])
+                ->all(),
+            'brand_by_equivalent_key' => $this->buildBrandEquivalentLookup(),
+            'pending_parsed_urls' => [],
+        ];
+    }
+
+    /**
+     * @param  array{pending_parsed_urls?: list<string>}  $batchState
+     */
+    public function flushImportBatchParsedUrls(array &$batchState): void
+    {
+        $pending = $batchState['pending_parsed_urls'] ?? [];
+        if (!is_array($pending) || $pending === []) {
+            return;
+        }
+
+        $this->appendUrlsToParsedManifest($pending);
+        $batchState['pending_parsed_urls'] = [];
     }
 
     /**

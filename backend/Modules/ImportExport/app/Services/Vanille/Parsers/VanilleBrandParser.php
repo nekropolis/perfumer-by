@@ -12,6 +12,9 @@ class VanilleBrandParser
     private static ?array $catalogBrandRowsCache = null;
 
     private static ?int $catalogBrandRowsCacheMtime = null;
+
+    /** @var list<array<string, mixed>>|null */
+    private static ?array $catalogBrandRowsByPathLengthCache = null;
     /** Slug-пути страницы /brendyi, которые не являются брендами (личный кабинет, страны и т. п.). */
     private static function excludedVanilleListingSlugList(): array
     {
@@ -298,24 +301,34 @@ class VanilleBrandParser
             return null;
         }
 
-        $needle = mb_strtolower($brandName, 'UTF-8');
+        foreach (self::catalogBrandLookupNames($brandName) as $lookupName) {
+            $needle = mb_strtolower($lookupName, 'UTF-8');
 
-        foreach (self::loadCatalogBrandRows() as $row) {
-            $rowName = self::normalizeBrandLookupName((string) ($row['name'] ?? ''));
-            if ($rowName === '') {
-                continue;
-            }
+            foreach (self::loadCatalogBrandRows() as $row) {
+                $rowName = self::normalizeBrandLookupName((string) ($row['name'] ?? ''));
+                if ($rowName === '') {
+                    continue;
+                }
 
-            if (
-                mb_strtolower($rowName, 'UTF-8') === $needle
-                || ProductDisplayName::brandNamesEquivalent($brandName, $rowName)
-            ) {
-                return $row;
+                if (
+                    mb_strtolower($rowName, 'UTF-8') === $needle
+                    || ProductDisplayName::brandNamesEquivalent($lookupName, $rowName)
+                ) {
+                    return $row;
+                }
             }
         }
 
         $productUrl = trim($productUrl);
         if ($productUrl !== '') {
+            $path = mb_strtolower(trim((string) parse_url($productUrl, PHP_URL_PATH), '/'), 'UTF-8');
+            if ($path !== '') {
+                $byPath = self::findCatalogBrandRowByProductPath($path);
+                if ($byPath !== null) {
+                    return $byPath;
+                }
+            }
+
             $slug = self::inferBrandSlugFromProductUrl($brandName, $productUrl);
             if ($slug !== '') {
                 $bySlug = self::findCatalogBrandRowBySlug($slug);
@@ -333,6 +346,65 @@ class VanilleBrandParser
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function catalogBrandLookupNames(string $brandName): array
+    {
+        $names = [$brandName];
+        $lower = mb_strtolower($brandName, 'UTF-8');
+        if ($lower === 'christian dior' || str_starts_with($lower, 'christian dior ')) {
+            $names[] = 'Dior';
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function findCatalogBrandRowByProductPath(string $path): ?array
+    {
+        foreach (self::catalogBrandRowsSortedBySlugLength() as $row) {
+            $slug = mb_strtolower(trim((string) ($row['slug'] ?? '')), 'UTF-8');
+            if ($slug === '' || self::isExcludedListingSlug($slug)) {
+                continue;
+            }
+
+            if ($path === $slug || str_starts_with($path, $slug . '-')) {
+                return $row;
+            }
+        }
+
+        if ($path === 'christian-dior' || str_starts_with($path, 'christian-dior-')) {
+            return self::findCatalogBrandRowBySlug('dior');
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function catalogBrandRowsSortedBySlugLength(): array
+    {
+        if (self::$catalogBrandRowsByPathLengthCache !== null) {
+            return self::$catalogBrandRowsByPathLengthCache;
+        }
+
+        $rows = self::loadCatalogBrandRows();
+        usort($rows, static function (array $a, array $b): int {
+            $lenA = strlen((string) ($a['slug'] ?? ''));
+            $lenB = strlen((string) ($b['slug'] ?? ''));
+
+            return $lenB <=> $lenA;
+        });
+
+        self::$catalogBrandRowsByPathLengthCache = $rows;
+
+        return self::$catalogBrandRowsByPathLengthCache;
     }
 
     /**
@@ -532,6 +604,7 @@ class VanilleBrandParser
     {
         self::$catalogBrandRowsCache = null;
         self::$catalogBrandRowsCacheMtime = null;
+        self::$catalogBrandRowsByPathLengthCache = null;
     }
 
     /**
