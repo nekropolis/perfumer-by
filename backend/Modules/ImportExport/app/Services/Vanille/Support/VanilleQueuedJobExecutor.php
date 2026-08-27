@@ -10,7 +10,7 @@ class VanilleQueuedJobExecutor
     private const COLLECT_LINKS_BATCH_SIZE = 1;
 
     private const PARSE_PRODUCTS_BATCH_SIZE = 2;
-    private const IMPORT_PARSED_PRODUCTS_BATCH_SIZE = 8;
+    private const IMPORT_PARSED_PRODUCTS_BATCH_SIZE = 4;
     private const SUMMARY_SAMPLE_LIMIT = 40;
     private const IMPORT_SUMMARY_SAMPLE_LIMIT = 60;
 
@@ -377,8 +377,11 @@ class VanilleQueuedJobExecutor
         $createdProductsSample = is_array($state['created_products_sample'] ?? null) ? $state['created_products_sample'] : [];
         $updatedProductsSample = is_array($state['updated_products_sample'] ?? null) ? $state['updated_products_sample'] : [];
         $batchLimit = self::IMPORT_PARSED_PRODUCTS_BATCH_SIZE;
+        $batchState = $service->restoreImportBatchState(
+            is_array($state['import_batch_state'] ?? null) ? $state['import_batch_state'] : null,
+        );
 
-        $batch = $service->importParsedProductsBatch($offset, $batchLimit);
+        $batch = $service->importParsedProductsBatch($offset, $batchLimit, $batchState);
         $done = (bool) ($batch['done'] ?? true);
         $nextOffset = (int) ($batch['next_offset'] ?? ($offset + $batchLimit));
         $totalFiles = max((int) ($batch['total_files'] ?? 0), 1);
@@ -467,6 +470,7 @@ class VanilleQueuedJobExecutor
                     'total_items' => $totalItems,
                     'created_products_sample' => $createdProductsSample,
                     'updated_products_sample' => $updatedProductsSample,
+                    'import_batch_state' => $service->serializeImportBatchState($batchState),
                 ],
                 'total_files' => $totalFiles,
                 'processed_files' => $processedFiles,

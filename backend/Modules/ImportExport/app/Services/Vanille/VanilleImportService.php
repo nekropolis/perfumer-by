@@ -293,19 +293,26 @@ class VanilleImportService
                         ];
                     }
 
-                    $this->attributeParser->syncProductAttributes(
-                        $product->id,
-                        $item['characteristics'] ?? []
-                    );
+                    $skipHeavySync = $existingProduct !== null && ! $publishExisting;
+                    if (! $skipHeavySync) {
+                        $this->attributeParser->syncProductAttributes(
+                            $product->id,
+                            $item['characteristics'] ?? []
+                        );
 
-                    $offers = is_array($item['offers'] ?? null) ? $item['offers'] : [];
-                    $this->syncProductVariantsFromOffers($product, $offers);
+                        $offers = is_array($item['offers'] ?? null) ? $item['offers'] : [];
+                        $this->syncProductVariantsFromOffers($product, $offers);
 
-                    if ($offers === []) {
-                        $log[] = 'INFO: товар без вариантов создан: ' . $displayName;
+                        if ($offers === []) {
+                            $log[] = 'INFO: товар без вариантов создан: ' . $displayName;
+                        }
+                    } else {
+                        $log[] = 'OK: ' . $displayName . ' (existing, skip sync)';
                     }
 
-                    $log[] = 'OK: ' . $displayName;
+                    if (! $skipHeavySync) {
+                        $log[] = 'OK: ' . $displayName;
+                    }
                     $productIdForSearch = (int) $product->id;
                 });
 
@@ -313,6 +320,7 @@ class VanilleImportService
                     $productIdForSearch !== null
                     && $productIdForSearch > 0
                     && (bool) config('services.catalog_search.enabled', false)
+                    && ($newProductIdForLlm !== null || $publishExisting)
                 ) {
                     app(ProductSearchIndexer::class)->queueProductSync($productIdForSearch, $publishExisting);
                 }
@@ -1312,7 +1320,7 @@ class VanilleImportService
         ];
     }
 
-    public function importParsedProductsBatch(int $offset = 0, int $limitFiles = 1): array
+    public function importParsedProductsBatch(int $offset = 0, int $limitFiles = 1, ?array &$batchState = null): array
     {
         $files = $this->parsedProductBatchFiles();
 
@@ -1346,7 +1354,9 @@ class VanilleImportService
         $log = [];
         $createdProducts = [];
         $updatedProducts = [];
-        $batchState = $this->createImportBatchState();
+        if ($batchState === null) {
+            $batchState = $this->createImportBatchState();
+        }
 
         foreach ($chunk as $file) {
             $result = $this->importFromJsonFile($file, false, $batchState);
@@ -2663,6 +2673,46 @@ class VanilleImportService
 
         $this->appendUrlsToParsedManifest($pending);
         $batchState['pending_parsed_urls'] = [];
+    }
+
+    /**
+     * @param  array{brand_slug_set?: array<string, bool>, product_slug_set?: array<string, bool>}|null  $stored
+     * @return array{
+     *     brand_slug_set: array<string, bool>,
+     *     product_slug_set: array<string, bool>,
+     *     brand_by_equivalent_key: array<string, Brand>,
+     *     pending_parsed_urls: list<string>,
+     * }
+     */
+    public function restoreImportBatchState(?array $stored): array
+    {
+        if (
+            ! is_array($stored)
+            || ! isset($stored['brand_slug_set'], $stored['product_slug_set'])
+            || ! is_array($stored['brand_slug_set'])
+            || ! is_array($stored['product_slug_set'])
+        ) {
+            return $this->createImportBatchState();
+        }
+
+        return [
+            'brand_slug_set' => $stored['brand_slug_set'],
+            'product_slug_set' => $stored['product_slug_set'],
+            'brand_by_equivalent_key' => $this->buildBrandEquivalentLookup(),
+            'pending_parsed_urls' => [],
+        ];
+    }
+
+    /**
+     * @param  array{brand_slug_set: array<string, bool>, product_slug_set: array<string, bool>, brand_by_equivalent_key: array<string, Brand>, pending_parsed_urls: list<string>}  $batchState
+     * @return array{brand_slug_set: array<string, bool>, product_slug_set: array<string, bool>}
+     */
+    public function serializeImportBatchState(array $batchState): array
+    {
+        return [
+            'brand_slug_set' => $batchState['brand_slug_set'],
+            'product_slug_set' => $batchState['product_slug_set'],
+        ];
     }
 
     /**
