@@ -165,12 +165,14 @@ export default function HomeTemplate({
                                         </span>
                                     </div>
                                     <div className="relative min-h-[180px] flex-1 md:min-h-0">
-                                        <div className="absolute inset-x-4 inset-y-1">
-                                            <ProductCardImage
-                                                imagePath={heroProduct.image}
-                                                alt={heroProductName ?? ""}
-                                                eager
-                                            />
+                                        <div className="absolute inset-x-4 inset-y-2 overflow-hidden rounded-xl bg-white p-[10px]">
+                                            <div className="relative h-full w-full">
+                                                <ProductCardImage
+                                                    imagePath={heroProduct.image}
+                                                    alt={heroProductName ?? ""}
+                                                    eager
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="shrink-0 px-4 pb-4 pt-1">
