@@ -69,8 +69,8 @@ function inferTypeFromPath(path: string): BuiltSitemapEntryType {
 }
 
 /**
- * Единый источник URL для XML sitemap и HTML «Карта сайта».
- * Кеш payload: Laravel Redis (`SeoSitemapService`). Route-level ISR — на `/sitemap` и `/sitemap.xml`.
+ * Источник URL для `/sitemap.xml`.
+ * Кеш payload: Laravel Redis (`SeoSitemapService`). Route-level ISR — в `app/sitemap.ts`.
  */
 export async function buildSitemapEntries(): Promise<BuiltSitemapEntry[]> {
     const base = getSiteUrl().replace(/\/$/, "");

@@ -15,7 +15,6 @@ const EXTRA_LINKS = [
     { label: "Бренды", href: "/brands" },
     { label: "Новости", href: "/news" },
     { label: "Статьи", href: "/articles" },
-    { label: "Карта сайта", href: "/sitemap" },
 ] as const;
 
 type Props = {
@@ -138,9 +137,6 @@ export default function Footer({ siteContent: site }: Props) {
                         © <span suppressHydrationWarning>{new Date().getFullYear()}</span> Perfumer. Все права защищены.
                     </div>
                     <div className="flex flex-wrap items-center justify-center gap-4">
-                        <Link href="/sitemap" className={`${siteNavLink} underline-offset-4 hover:underline`}>
-                            Карта сайта
-                        </Link>
                         <Link href="/contacts" className={`${siteNavLink} underline-offset-4 hover:underline`}>
                             Контакты
                         </Link>

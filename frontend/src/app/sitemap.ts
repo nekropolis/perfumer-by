@@ -4,11 +4,7 @@ import { getCachedSitemapEntries } from "@/lib/sitemap-cache";
 /**
  * ISR для `/sitemap.xml`.
  *
- * Без `generateSitemaps`: чанки живут на `/sitemap/[id].xml` и конфликтуют
- * с HTML-страницей `(site)/sitemap/page.tsx` → `/sitemap`, из‑за чего
- * `/sitemap.xml` проваливался в `[slug]` и отдавал 404 витрины.
- *
- * Один файл безопасен, пока URL < 50 000 (лимит Google).
+ * Один файл (без `generateSitemaps` / `/sitemap/[id].xml`) — лимит Google 50 000 URL.
  */
 export const revalidate = 3600;
 
