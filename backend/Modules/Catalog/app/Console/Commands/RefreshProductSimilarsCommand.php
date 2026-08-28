@@ -3,21 +3,20 @@
 namespace Modules\Catalog\Console\Commands;
 
 use Illuminate\Console\Command;
-use Modules\Catalog\Models\Product;
 use Modules\Catalog\Services\SimilarProductsService;
 use Modules\Communications\Jobs\SendTelegramMessageJob;
 use Throwable;
 
 class RefreshProductSimilarsCommand extends Command
 {
-    protected $signature = 'catalog:refresh-product-similars {--chunk=50 : Размер пачки}';
+    protected $signature = 'catalog:refresh-product-similars {--chunk=200 : Размер пачки записи связей}';
 
     protected $description = 'Пересчитать похожие товары для всех активных карточек';
 
     public function handle(SimilarProductsService $similarProductsService): int
     {
-        $chunk = max(1, (int) $this->option('chunk'));
-        $this->info("Пересчёт похожих товаров (chunk={$chunk})...");
+        $writeBatch = max(1, (int) $this->option('chunk'));
+        $this->info("Пересчёт похожих товаров (write-batch={$writeBatch})...");
 
         $startedAt = now('Europe/Minsk');
         $updated = 0;
@@ -25,38 +24,28 @@ class RefreshProductSimilarsCommand extends Command
         $errorNotices = 0;
 
         try {
-            Product::query()
-                ->where('is_active', true)
-                ->orderBy('id')
-                ->chunkById($chunk, function ($products) use ($similarProductsService, &$updated, &$errors, &$errorNotices): void {
-                    foreach ($products as $product) {
-                        try {
-                            $similarProductsService->rebuildForProduct((int) $product->id);
-                            $updated++;
-                        } catch (Throwable $e) {
-                            $line = '#'.$product->id.' '.$product->slug.': '.$e->getMessage();
-                            $errors[] = $line;
-                            $this->error($line);
-                            if ($errorNotices >= 10) {
-                                continue;
-                            }
-                            $errorNotices++;
-                            $this->notifyTelegram(
-                                implode("\n", [
-                                    '⚠️ Ошибка пересчёта похожих товаров',
-                                    'Команда: catalog:refresh-product-similars',
-                                    'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
-                                    'Товар: #'.$product->id.' '.$product->slug,
-                                    'Ошибка: '.$e->getMessage(),
-                                ]),
-                                [
-                                    'type' => 'catalog_refresh_product_similars_error',
-                                    'product_id' => (int) $product->id,
-                                ],
-                            );
-                        }
-                    }
-                });
+            $result = $similarProductsService->rebuildAll($writeBatch);
+            $updated = $result['updated'];
+            $errors = $result['errors'];
+
+            foreach (array_slice($errors, 0, 10) as $error) {
+                $this->error($error);
+                if ($errorNotices >= 10) {
+                    continue;
+                }
+                $errorNotices++;
+                $this->notifyTelegram(
+                    implode("\n", [
+                        '⚠️ Ошибка пересчёта похожих товаров',
+                        'Команда: catalog:refresh-product-similars',
+                        'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
+                        'Ошибка: '.$error,
+                    ]),
+                    [
+                        'type' => 'catalog_refresh_product_similars_error',
+                    ],
+                );
+            }
         } catch (Throwable $e) {
             $this->error($e->getMessage());
             $this->notifyTelegram(

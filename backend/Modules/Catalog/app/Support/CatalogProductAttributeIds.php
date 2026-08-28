@@ -22,8 +22,20 @@ final class CatalogProductAttributeIds
 
     public const int GENDER_OPTION_UNISEX_ID = 62;
 
+    /** product_attributes: «Год создания» */
+    public const int CREATION_YEAR_ATTRIBUTE_ID = 3;
+
+    /** product_attributes: «Стойкость» */
+    public const int STABILITY_ATTRIBUTE_ID = 9;
+
+    /** product_attributes: «Шлейфовость» */
+    public const int SILLAGE_ATTRIBUTE_ID = 10;
+
     /** product_attributes: «Типы» */
     public const int TYPE_ATTRIBUTE_ID = 18;
+
+    /** product_attributes: «Парфюмер» */
+    public const int PERFUMER_MAIN_ATTRIBUTE_ID = 16;
 
     /** product_attributes: «Парфюмеры» */
     public const int PERFUMER_ATTRIBUTE_ID = 17;
@@ -47,6 +59,23 @@ final class CatalogProductAttributeIds
     public const int BASE_NOTES_ATTRIBUTE_ID = 7;
 
     /**
+     * Атрибуты для генерации пула кандидатов (инвертированный индекс).
+     *
+     * @return list<int>
+     */
+    public static function similarGeneratorAttributeIds(): array
+    {
+        return [
+            self::TOP_NOTES_ATTRIBUTE_ID,
+            self::HEART_NOTES_ATTRIBUTE_ID,
+            self::BASE_NOTES_ATTRIBUTE_ID,
+            self::PERFUMER_MAIN_ATTRIBUTE_ID,
+            self::PERFUMER_ATTRIBUTE_ID,
+            self::TYPE_ATTRIBUTE_ID,
+        ];
+    }
+
+    /**
      * @return list<int>
      */
     public static function similarNoteAttributeIds(): array
@@ -66,7 +95,11 @@ final class CatalogProductAttributeIds
     {
         return [
             self::GENDER_ATTRIBUTE_ID,
+            self::CREATION_YEAR_ATTRIBUTE_ID,
+            self::STABILITY_ATTRIBUTE_ID,
+            self::SILLAGE_ATTRIBUTE_ID,
             self::TYPE_ATTRIBUTE_ID,
+            self::PERFUMER_MAIN_ATTRIBUTE_ID,
             self::PERFUMER_ATTRIBUTE_ID,
             self::SEASON_ATTRIBUTE_ID,
             self::TIME_OF_DAY_ATTRIBUTE_ID,
