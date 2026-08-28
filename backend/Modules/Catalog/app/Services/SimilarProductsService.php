@@ -48,6 +48,9 @@ final class SimilarProductsService
     /** @var array<int, int|null>|null */
     private ?array $optionPercentages = null;
 
+    /** @var array<int, array<string, mixed>>|null */
+    private ?array $eligibleScalarsCache = null;
+
     /**
      * @return list<int>
      */
@@ -158,7 +161,12 @@ final class SimilarProductsService
         $sourceOptionIds = $this->flattenExpandedGeneratorOptions($expandedSourceOptions);
 
         if ($sourceOptionIds === []) {
-            return [];
+            return $this->selectSimilarIdsByScalarFallback(
+                $productId,
+                $sourceScalar,
+                $sourceOptions,
+                $limit,
+            );
         }
 
         $aromaScores = $this->queryAromaScoresFromSql($productId, $sourceOptionIds);
@@ -190,7 +198,12 @@ final class SimilarProductsService
         $sourceOptionIds = $this->flattenExpandedGeneratorOptions($expandedSourceOptions);
 
         if ($sourceOptionIds === []) {
-            return [];
+            return $this->selectSimilarIdsByScalarFallback(
+                $productId,
+                $sourceScalar,
+                $sourceOptions,
+                $limit,
+            );
         }
 
         $aromaScores = $this->accumulateAromaScores($productId, $sourceOptionIds);
@@ -300,6 +313,100 @@ final class SimilarProductsService
         });
 
         return $this->applyDiversityLimits($scored, $limit);
+    }
+
+    /**
+     * Fallback, когда нет нот / типа / парфюмера: пол + бренд + цена.
+     *
+     * @param  array<int, list<int>>  $sourceOptions
+     * @return list<int>
+     */
+    private function selectSimilarIdsByScalarFallback(
+        int $productId,
+        array $sourceScalar,
+        array $sourceOptions,
+        int $limit,
+    ): array {
+        $candidateScalars = $this->eligibleScalarsForFallback();
+        $candidateOptionsMap = $this->sourceOptionsByProduct;
+
+        $scored = [];
+        foreach ($candidateScalars as $candidateId => $candidateScalar) {
+            if ($candidateId === $productId) {
+                continue;
+            }
+
+            if (! $this->passesGenderFilter($sourceScalar, $candidateScalar)) {
+                continue;
+            }
+
+            $candidateOptions = $candidateOptionsMap[$candidateId] ?? [];
+
+            $scored[] = [
+                'id' => $candidateId,
+                'score' => $this->finalScore(
+                    0,
+                    $sourceScalar,
+                    $candidateScalar,
+                    $sourceOptions,
+                    $candidateOptions,
+                ),
+                'price' => $candidateScalar['listing_min_price'],
+                'brand_id' => $candidateScalar['brand_id'],
+                'is_unisex' => $this->isUnisex($candidateScalar),
+            ];
+        }
+
+        if ($scored === []) {
+            return [];
+        }
+
+        usort($scored, function (array $a, array $b): int {
+            $cmp = $b['score'] <=> $a['score'];
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            $priceA = $a['price'] ?? '999999999';
+            $priceB = $b['price'] ?? '999999999';
+            $priceCmp = strcmp((string) $priceA, (string) $priceB);
+            if ($priceCmp !== 0) {
+                return $priceCmp;
+            }
+
+            return $a['id'] <=> $b['id'];
+        });
+
+        return $this->applyDiversityLimits($scored, $limit);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function eligibleScalarsForFallback(): array
+    {
+        if ($this->eligibleScalarsCache !== null) {
+            return $this->eligibleScalarsCache;
+        }
+
+        $eligible = $this->eligibleProductIds ?? $this->loadEligibleProductIdSet();
+
+        if ($this->productScalars !== null) {
+            $result = [];
+            foreach ($eligible as $productId => $_) {
+                if (isset($this->productScalars[$productId])) {
+                    $result[$productId] = $this->productScalars[$productId];
+                }
+            }
+
+            if ($this->postings !== null) {
+                $this->eligibleScalarsCache = $result;
+            }
+
+            return $result;
+        }
+
+        return $this->loadScalarsForProducts(array_keys($eligible));
     }
 
     /**
@@ -625,6 +732,7 @@ final class SimilarProductsService
         $this->sourceOptionsByProduct = null;
         $this->expandedOptionIds = null;
         $this->optionPercentages = null;
+        $this->eligibleScalarsCache = null;
     }
 
     private function loadPerfumerBridge(): void
