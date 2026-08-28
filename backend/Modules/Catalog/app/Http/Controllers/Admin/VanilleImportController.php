@@ -148,7 +148,7 @@ class VanilleImportController extends Controller
     }
 
     /**
-     * Каталожное фото / описание только для товара по введённому URL (без массовой очереди).
+     * Каталожное фото только для товара по введённому URL (без массовой очереди).
      */
     public function singleUrlMediaFollowUp(
         Request $request,
@@ -159,13 +159,11 @@ class VanilleImportController extends Controller
             'url' => ['required_without:product_id', 'nullable', 'string', 'max:2048'],
             'product_id' => ['required_without:url', 'nullable', 'integer', 'min:1'],
             'catalog' => ['sometimes', 'boolean'],
-            'descriptions' => ['sometimes', 'boolean'],
         ]);
 
         $catalog = (bool) ($validated['catalog'] ?? false);
-        $descriptions = (bool) ($validated['descriptions'] ?? false);
 
-        if ($catalog === false && $descriptions === false) {
+        if ($catalog === false) {
             return response()->json(['message' => 'Отметьте хотя бы один шаг.'], 422);
         }
 
@@ -187,7 +185,7 @@ class VanilleImportController extends Controller
             ], 422);
         }
 
-        $result = $mediaService->runSingleProductMediaFollowUp($productId, $catalog, $descriptions);
+        $result = $mediaService->runSingleProductMediaFollowUp($productId, $catalog);
 
         return response()->json([
             'message' => $result['message'],
@@ -350,20 +348,6 @@ class VanilleImportController extends Controller
 
         return response()->json([
             'message' => 'Импорт каталожных изображений поставлен в очередь',
-            'job' => $job,
-        ], 202);
-    }
-
-    public function rewriteDescriptions(VanilleImportService $service)
-    {
-        try {
-            $job = $service->enqueueRewriteDescriptions();
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 409);
-        }
-
-        return response()->json([
-            'message' => 'Уникализация описаний поставлена в очередь',
             'job' => $job,
         ], 202);
     }

@@ -29,7 +29,6 @@ use Modules\ImportExport\Services\Vanille\Support\VanilleParsedImportGuard;
 use Modules\ImportExport\Services\Vanille\Support\VanilleQueuedJobExecutor;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 use Modules\Communications\Services\Notifications\ImportTelegramNotificationService;
-use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\Catalog\Services\SmartSearch\ProductSearchIndexer;
 use App\Services\AuditLogService;
 use Throwable;
@@ -46,8 +45,6 @@ class VanilleImportService
     public const JOB_TYPE_PIPELINE_REFRESH_ALL = 'pipeline_refresh_all';
 
     public const JOB_TYPE_PARSE_CATALOG_IMAGES = 'parse_catalog_images';
-
-    public const JOB_TYPE_REWRITE_DESCRIPTIONS = 'rewrite_descriptions';
 
     public const PARSE_PRODUCTS_MODE_FULL = 'full';
 
@@ -324,10 +321,6 @@ class VanilleImportService
 
                 if ($newProductIdForLlm !== null && $newProductIdForLlm > 0 && $publishExisting) {
                     RebuildProductSimilarsJob::dispatch($newProductIdForLlm);
-                }
-
-                if ($newProductIdForLlm !== null && config('llm.rewrite_on_import')) {
-                    $this->rewriteDescriptionForNewProductIfPossible($newProductIdForLlm);
                 }
 
             } catch (\Throwable $e) {
@@ -3004,25 +2997,6 @@ class VanilleImportService
         ], static fn (string $value): bool => $value !== '')));
     }
 
-    private function rewriteDescriptionForNewProductIfPossible(int $productId): void
-    {
-        try {
-            $product = Product::query()->find($productId);
-            if (! $product) {
-                return;
-            }
-            $rewriter = app(ProductDescriptionRewriter::class);
-            $res = $rewriter->rewriteProduct($product);
-            if (($res['ok'] ?? false) && isset($res['description'])) {
-                $product->update([
-                    'description' => $res['description'],
-                    'description_rewritten_at' => now(),
-                ]);
-            }
-        } catch (Throwable) {
-        }
-    }
-
     /**
      * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
      */
@@ -3055,37 +3029,12 @@ class VanilleImportService
         ];
     }
 
-    /**
-     * @return array{done: bool, progress: int, message: string, result: array<string, mixed>}
-     */
-    public function runVanilleRewriteDescriptionsJob(VanilleImportJob $job): array
-    {
-        $result = is_array($job->result) ? $job->result : [];
-        $state = is_array($result['state'] ?? null) ? $result['state'] : [];
-        $offset = (int) ($state['offset'] ?? 0);
-        $batch = $this->mediaImportService()->runDescriptionRewriteBatch($offset, 2);
-
-        return [
-            'done' => (bool) ($batch['done'] ?? true),
-            'progress' => (int) ($batch['progress'] ?? 100),
-            'message' => (string) ($batch['message'] ?? ''),
-            'result' => is_array($batch['result'] ?? null) ? $batch['result'] : [],
-        ];
-    }
-
     public function enqueueParseCatalogImages(): VanilleImportJob
     {
         PublicStorageWriteGuard::assertProductImagesWritable();
 
         return $this->enqueueJobWithInitialResult(self::JOB_TYPE_PARSE_CATALOG_IMAGES, [
             'state' => ['brand_offset' => 0],
-        ]);
-    }
-
-    public function enqueueRewriteDescriptions(): VanilleImportJob
-    {
-        return $this->enqueueJobWithInitialResult(self::JOB_TYPE_REWRITE_DESCRIPTIONS, [
-            'state' => ['offset' => 0],
         ]);
     }
 

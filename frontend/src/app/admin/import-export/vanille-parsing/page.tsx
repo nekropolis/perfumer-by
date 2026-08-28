@@ -25,7 +25,6 @@ import {
     importParsedVanilleProducts,
     parseSingleVanilleProductUrl,
     parseVanilleCatalogImages,
-    rewriteVanilleDescriptions,
     startVanillePipelineNewProducts,
     startVanillePipelineRefreshAll,
     vanilleSingleUrlMediaFollowUp,
@@ -65,11 +64,6 @@ const VANILLE_CONFIRM = {
         "Запустить «Каталожные фото (листинг)»?",
         "",
         "Фоновая задача для всех связанных товаров Vanille.",
-    ].join("\n"),
-    descriptions: [
-        "Запустить «Уникализация описаний» (LLM)?",
-        "",
-        "Фоновая задача, может занять много времени.",
     ].join("\n"),
 } as const;
 
@@ -141,7 +135,6 @@ export default function VanilleProductsPage() {
     const [lastImportedProductId, setLastImportedProductId] = useState<number | null>(null);
     /** После успешного импорта по URL — те же фоновые задачи, что и кнопки выше (весь каталог). */
     const [singleUrlChainCatalog, setSingleUrlChainCatalog] = useState(false);
-    const [singleUrlChainDescriptions, setSingleUrlChainDescriptions] = useState(false);
 
     const [parsingError, setParsingError] = useState("");
     const [parseJob, setParseJob] = useState<VanilleImportQueueJob | null>(null);
@@ -351,14 +344,10 @@ export default function VanilleProductsPage() {
         }
 
         const chainCatalog = singleUrlChainCatalog;
-        const chainDescriptions = singleUrlChainDescriptions;
 
         const followUp: string[] = [];
         if (chainCatalog) {
             followUp.push("каталожные фото (листинг)");
-        }
-        if (chainDescriptions) {
-            followUp.push("уникализация описаний");
         }
 
         const singleConfirm = [
@@ -424,14 +413,11 @@ export default function VanilleProductsPage() {
 
             if (
                 importOk &&
-                (chainCatalog || chainDescriptions)
+                chainCatalog
             ) {
                 const stepLabels: string[] = [];
                 if (chainCatalog) {
                     stepLabels.push("каталожные фото");
-                }
-                if (chainDescriptions) {
-                    stepLabels.push("описание");
                 }
                 setSingleUrlBusyLabel(
                     `Дополнительно: ${stepLabels.join(", ")}…`,
@@ -442,7 +428,6 @@ export default function VanilleProductsPage() {
                         url,
                         product_id: importedRow?.product_id,
                         catalog: chainCatalog,
-                        descriptions: chainDescriptions,
                     });
                     if (followUp.message) {
                         notice += ` ${followUp.message}`;
@@ -559,23 +544,6 @@ export default function VanilleProductsPage() {
                                         ? "Каталог…"
                                         : "Каталожные фото (листинг)"}
                                 </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void enqueueMediaJob(
-                                            rewriteVanilleDescriptions,
-                                            "Описания",
-                                            VANILLE_CONFIRM.descriptions,
-                                        )
-                                    }
-                                    disabled={hasActiveParse}
-                                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
-                                >
-                                    {hasActiveParse && parseJob?.type === "rewrite_descriptions"
-                                        ? "Описания…"
-                                        : "Уникализация описаний"}
-                                </button>
                             </div>
 
                             <p className="text-xs text-admin-text-secondary">
@@ -632,16 +600,6 @@ export default function VanilleProductsPage() {
                                             className={adminCheckbox}
                                         />
                                         Затем: каталожные фото (листинг)
-                                    </label>
-                                    <label className="inline-flex cursor-pointer items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={singleUrlChainDescriptions}
-                                            onChange={(e) => setSingleUrlChainDescriptions(e.target.checked)}
-                                            disabled={singleUrlBusy || hasActiveParse}
-                                            className={adminCheckbox}
-                                        />
-                                        Затем: уникализация описаний
                                     </label>
                                 </div>
                             </div>

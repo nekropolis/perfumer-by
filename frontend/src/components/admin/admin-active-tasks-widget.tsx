@@ -44,7 +44,6 @@ const VANILLE_TYPE_LABELS: Record<VanilleImportQueueJob["type"], string> = {
     collect_links: "Сбор ссылок Vanille",
     parse_products: "Парсинг товаров Vanille",
     parse_catalog_images: "Каталожные изображения Vanille",
-    rewrite_descriptions: "Уникализация описаний Vanille",
     import_parsed_products: "Импорт Vanille",
     pipeline_new_products: "Пайплайн Vanille (новые)",
     pipeline_refresh_all: "Пайплайн Vanille (обновление)",

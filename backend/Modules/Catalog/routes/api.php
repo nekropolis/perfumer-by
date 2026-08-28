@@ -48,7 +48,6 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/van
     Route::get('/supplier-products', [VanilleImportController::class, 'supplierProducts']);
     Route::post('/import-parsed-products', [VanilleImportController::class, 'importParsedProducts']);
     Route::post('/parse-catalog-images', [VanilleImportController::class, 'parseCatalogImages']);
-    Route::post('/rewrite-descriptions', [VanilleImportController::class, 'rewriteDescriptions']);
     // Seller One / прайс (те же обработчики, что seller-one — fallback URL во фронте)
     Route::post('/supplier-price/preview', [VanilleImportController::class, 'previewSupplierPrice']);
     Route::post('/supplier-price/start', [VanilleImportController::class, 'startSellerOneParse']);

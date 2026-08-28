@@ -11,7 +11,6 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\Supplier;
 use Modules\Catalog\Models\SupplierProduct;
-use Modules\Catalog\Services\ProductDescriptionRewriter;
 use Modules\Catalog\Services\ProductImageVariantService;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
@@ -26,8 +25,6 @@ use Throwable;
 class VanilleMediaImportService
 {
     private const int CATALOG_BRANDS_PER_BATCH = 1;
-
-    private const int DESCRIPTION_PRODUCTS_PER_BATCH = 2;
 
     public function __construct(
         protected VanilleHttpClient $httpClient,
@@ -214,80 +211,6 @@ class VanilleMediaImportService
         ];
     }
 
-    public function runDescriptionRewriteBatch(int $offset, int $limit = self::DESCRIPTION_PRODUCTS_PER_BATCH): array
-    {
-        $query = Product::query()
-            ->whereNotNull('description')
-            ->where('description', '!=', '')
-            ->whereNull('description_rewritten_at')
-            ->orderBy('id');
-
-        $total = (clone $query)->count();
-        if ($total === 0) {
-            return [
-                'done' => true,
-                'progress' => 100,
-                'message' => 'Описания: нечего уникализировать',
-                'result' => ['log' => [], 'failed_count' => 0],
-            ];
-        }
-
-        $products = $query->offset($offset)->limit($limit)->get();
-        $this->legacyDetector->preload($products->pluck('id')->all());
-
-        $log = [];
-        $failed = 0;
-        $ok = 0;
-
-        foreach ($products as $product) {
-            $pid = (int) $product->id;
-            if ($this->legacyDetector->isLegacy($pid)) {
-                continue;
-            }
-
-            $res = $this->descriptionRewriter()->rewriteProduct($product);
-            if (! ($res['ok'] ?? false)) {
-                $err = (string) ($res['error'] ?? 'unknown');
-                if ($err !== 'legacy_skip' && $err !== 'source_too_short') {
-                    $failed++;
-                }
-                $log[] = 'SKIP/ERR product '.$pid.': '.$err;
-                continue;
-            }
-
-            try {
-                DB::transaction(function () use ($product, $res): void {
-                    $product->update([
-                        'description' => $res['description'],
-                        'description_rewritten_at' => now(),
-                    ]);
-                });
-                $ok++;
-            } catch (Throwable $e) {
-                $failed++;
-                $log[] = 'ERROR product '.$pid.': '.$e->getMessage();
-            }
-        }
-
-        $nextOffset = $offset + $products->count();
-        $done = $nextOffset >= $total;
-        $progress = $done ? 100 : max(5, min(95, (int) round(($nextOffset / max(1, $total)) * 100)));
-
-        return [
-            'done' => $done,
-            'progress' => $progress,
-            'message' => sprintf('Описания: %d / %d (ok=%d)', min($nextOffset, $total), $total, $ok),
-            'result' => [
-                'state' => ['offset' => $nextOffset, 'limit' => $limit],
-                'log' => $log,
-                'failed_count' => $failed,
-                'rewritten_ok' => $ok,
-                'processed' => min($nextOffset, $total),
-                'total' => $total,
-            ],
-        ];
-    }
-
     private function retryOneCatalogImage(int $productId): void
     {
         $sp = SupplierProduct::query()
@@ -349,19 +272,6 @@ class VanilleMediaImportService
         foreach ($listingImageUrls as $listingImageUrl) {
             $this->storeCatalogImageForProduct($productId, $listingImageUrl, $slug);
         }
-    }
-
-    private function retryOneDescription(int $productId): void
-    {
-        $product = Product::query()->findOrFail($productId);
-        $res = $this->descriptionRewriter()->rewriteProduct($product);
-        if (! ($res['ok'] ?? false)) {
-            throw new \RuntimeException((string) ($res['error'] ?? 'rewrite failed'));
-        }
-        $product->update([
-            'description' => $res['description'],
-            'description_rewritten_at' => now(),
-        ]);
     }
 
     private function vanilleSupplierId(): int
@@ -643,14 +553,11 @@ class VanilleMediaImportService
     }
 
     /**
-     * @return array{0: string, 1: string, 2: array<string, mixed>}
-     */
-    /**
-     * Каталожное фото и уникализация описания — только для одного product_id (без очереди по каталогу).
+     * Каталожное фото — только для одного product_id (без очереди по каталогу).
      *
      * @return array{success: bool, message: string, steps: array<string, array{ok: bool, error?: string}>}
      */
-    public function runSingleProductMediaFollowUp(int $productId, bool $catalog, bool $descriptions): array
+    public function runSingleProductMediaFollowUp(int $productId, bool $catalog): array
     {
         $steps = [];
         $parts = [];
@@ -667,18 +574,6 @@ class VanilleMediaImportService
             }
         }
 
-        if ($descriptions) {
-            try {
-                $this->retryOneDescription($productId);
-                $steps['description'] = ['ok' => true];
-                $parts[] = 'Описание: готово.';
-            } catch (Throwable $e) {
-                $err = $e->getMessage();
-                $steps['description'] = ['ok' => false, 'error' => $err];
-                $parts[] = 'Описание: '.$err;
-            }
-        }
-
         $allOk = $steps !== [];
         foreach ($steps as $step) {
             if (($step['ok'] ?? false) !== true) {
@@ -692,11 +587,6 @@ class VanilleMediaImportService
             'message' => implode(' ', $parts),
             'steps' => $steps,
         ];
-    }
-
-    private function descriptionRewriter(): ProductDescriptionRewriter
-    {
-        return app(ProductDescriptionRewriter::class);
     }
 
     private function abortIfStorageWriteError(Throwable $e): void

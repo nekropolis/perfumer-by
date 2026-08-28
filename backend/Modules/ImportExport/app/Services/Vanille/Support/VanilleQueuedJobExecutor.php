@@ -26,7 +26,6 @@ class VanilleQueuedJobExecutor
             VanilleImportService::JOB_TYPE_PIPELINE_NEW_PRODUCTS => $this->runPipeline($job, $service, true),
             VanilleImportService::JOB_TYPE_PIPELINE_REFRESH_ALL => $this->runPipeline($job, $service, false),
             VanilleImportService::JOB_TYPE_PARSE_CATALOG_IMAGES => $service->runVanilleCatalogImagesJob($job),
-            VanilleImportService::JOB_TYPE_REWRITE_DESCRIPTIONS => $service->runVanilleRewriteDescriptionsJob($job),
             default => throw new \RuntimeException('Неизвестный тип задачи: ' . $job->type),
         };
     }
@@ -41,7 +40,6 @@ class VanilleQueuedJobExecutor
             VanilleImportService::JOB_TYPE_PIPELINE_NEW_PRODUCTS => 'Парсинг нового товара',
             VanilleImportService::JOB_TYPE_PIPELINE_REFRESH_ALL => 'Спарсить все товары заново (без изменения цены/наличия/описаний/SEO)',
             VanilleImportService::JOB_TYPE_PARSE_CATALOG_IMAGES => 'Каталожные изображения Vanille (листинг бренда)',
-            VanilleImportService::JOB_TYPE_REWRITE_DESCRIPTIONS => 'Уникализация описаний (LLM)',
             default => 'Парсинг',
         };
     }
