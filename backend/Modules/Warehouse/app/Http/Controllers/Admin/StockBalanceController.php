@@ -5,6 +5,8 @@ namespace Modules\Warehouse\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Modules\Warehouse\Models\StockReceiptImportMapping;
+use Modules\Warehouse\Models\StockReceiptImportRow;
 use Modules\Warehouse\Models\WarehouseStockLot;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockLotService;
@@ -178,16 +180,45 @@ class StockBalanceController extends Controller
                 ->get();
         }
 
+        $itemIds = $lots->pluck('stock_receipt_item_id')->filter()->unique()->values();
+        $importTitles = collect();
+        if ($itemIds->isNotEmpty()) {
+            $importTitles = StockReceiptImportRow::query()
+                ->whereIn('stock_receipt_item_id', $itemIds->all())
+                ->whereNotNull('source_title')
+                ->orderByDesc('id')
+                ->get(['stock_receipt_item_id', 'source_title'])
+                ->unique('stock_receipt_item_id')
+                ->keyBy('stock_receipt_item_id');
+        }
+
+        $skus = $lots->pluck('supplier_sku')->filter()->unique()->values();
+        $mappingTitles = collect();
+        if ($skus->isNotEmpty()) {
+            $mappingTitles = StockReceiptImportMapping::query()
+                ->whereIn('supplier_sku', $skus->all())
+                ->whereNotNull('source_title')
+                ->orderByDesc('id')
+                ->get(['supplier_sku', 'source_title'])
+                ->unique('supplier_sku')
+                ->keyBy('supplier_sku');
+        }
+
         $rows = $lots
-            ->map(function (WarehouseStockLot $lot) {
+            ->map(function (WarehouseStockLot $lot) use ($importTitles, $mappingTitles) {
                 $receivedAt = $lot->receiptItem?->receipt?->received_at;
                 $payload = is_array($lot->receiptItem?->payload) ? $lot->receiptItem->payload : [];
-                $supplierProductName = trim((string) (
+                $payloadName = trim((string) (
                     $payload['supplier_product_name']
                     ?? $payload['title']
                     ?? $payload['name']
                     ?? ''
                 ));
+                $importName = trim((string) ($importTitles->get($lot->stock_receipt_item_id)?->source_title ?? ''));
+                $mappingName = trim((string) ($mappingTitles->get((string) $lot->supplier_sku)?->source_title ?? ''));
+                $supplierProductName = $payloadName !== ''
+                    ? $payloadName
+                    : ($importName !== '' ? $importName : $mappingName);
 
                 return [
                     'source' => 'lot',

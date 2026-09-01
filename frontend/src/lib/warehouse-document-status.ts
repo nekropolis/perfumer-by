@@ -5,6 +5,7 @@
 export const STOCK_WRITEOFF_STATUS = {
     POSTED: "posted",
     REVERSED: "reversed",
+    WRITTEN_OFF: "written_off",
 } as const;
 
 export type StockWriteoffStatus = (typeof STOCK_WRITEOFF_STATUS)[keyof typeof STOCK_WRITEOFF_STATUS];
@@ -13,6 +14,7 @@ export type StockWriteoffStatus = (typeof STOCK_WRITEOFF_STATUS)[keyof typeof ST
 export const STOCK_WRITEOFF_STATUS_LABELS: Record<StockWriteoffStatus, string> = {
     [STOCK_WRITEOFF_STATUS.POSTED]: "Проведено",
     [STOCK_WRITEOFF_STATUS.REVERSED]: "Отменена",
+    [STOCK_WRITEOFF_STATUS.WRITTEN_OFF]: "Списан",
 };
 
 export function getStockWriteoffStatusLabel(status: string | null | undefined): string {

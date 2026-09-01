@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import Breadcrumbs from "@/components/ui/breadcrumbs";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
+import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
     createStockWriteoff,
     fetchStockBalances,
@@ -16,6 +19,7 @@ import {
     type StockWriteoffPayload,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 type WriteoffFormItem = {
     product_id: number;
@@ -44,15 +48,13 @@ type DraftWriteoffItem = {
     variant_id: number | null;
     stock_lot_id: number | null;
     product_query: string;
-    variant_query: string;
+    product_name: string;
+    variant_title: string;
     qty: number;
     price: string;
     stock_source: "available" | "reserved";
-};
-
-type ProductOption = {
-    product_id: number;
-    product_name: string;
+    available_qty: number;
+    reserved_qty: number;
 };
 
 const emptyDraftItem = (): DraftWriteoffItem => ({
@@ -60,10 +62,13 @@ const emptyDraftItem = (): DraftWriteoffItem => ({
     variant_id: null,
     stock_lot_id: null,
     product_query: "",
-    variant_query: "",
+    product_name: "",
+    variant_title: "",
     qty: 1,
     price: "",
     stock_source: "available",
+    available_qty: 0,
+    reserved_qty: 0,
 });
 
 const emptyForm = (): WriteoffFormState => ({
@@ -95,14 +100,15 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
     const [form, setForm] = useState<WriteoffFormState>(emptyForm());
     const [draftItem, setDraftItem] = useState<DraftWriteoffItem>(emptyDraftItem());
-    const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
-    const [variantOptions, setVariantOptions] = useState<StockBalanceItem[]>([]);
+    const [stockHits, setStockHits] = useState<StockBalanceItem[]>([]);
+    const [stockHitsLoading, setStockHitsLoading] = useState(false);
     const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [lotOptions, setLotOptions] = useState<StockBalanceVariantSupplierRow[]>([]);
     const [lotsLoading, setLotsLoading] = useState(false);
+    const debouncedProductQuery = useDebouncedValue(draftItem.product_query, 350);
 
     const totalWriteoffAmount = useMemo(
         () => form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.price || 0), 0),
@@ -126,63 +132,6 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         void loadWarehouses();
     }, [prefillItem?.warehouse_id]);
 
-    const searchProducts = useCallback(async (query: string) => {
-        try {
-            const response = await fetchStockBalances({
-                page: 1,
-                search: query.trim() || undefined,
-                stock_state: "in_stock",
-                warehouse_id: form.warehouse_id ?? undefined,
-            });
-
-            const map = new Map<number, ProductOption>();
-            (response.data ?? []).forEach((item) => {
-                if (!item.product_id || !item.product_name) {
-                    return;
-                }
-
-                if (!map.has(item.product_id)) {
-                    map.set(item.product_id, {
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                    });
-                }
-            });
-
-            setProductOptions(Array.from(map.values()));
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Не удалось загрузить товары со склада");
-        }
-    }, [form.warehouse_id]);
-
-    const searchVariants = useCallback(
-        async (productId: number, query: string, stockSource: "available" | "reserved") => {
-            try {
-                const response = await fetchStockBalances({
-                    page: 1,
-                    search: query.trim() || undefined,
-                    stock_state: stockSource === "reserved" ? "reserved" : "in_stock",
-                    warehouse_id: form.warehouse_id ?? undefined,
-                });
-
-                setVariantOptions(
-                    (response.data ?? []).filter((item) => {
-                        if (item.product_id !== productId) {
-                            return false;
-                        }
-                        if (stockSource === "reserved") {
-                            return Number(item.reserved_stock ?? 0) > 0;
-                        }
-                        return Number(item.available_stock ?? 0) > 0;
-                    })
-                );
-            } catch (e) {
-                setError(e instanceof Error ? e.message : "Не удалось загрузить варианты со склада");
-            }
-        },
-        [form.warehouse_id]
-    );
-
     const loadLotsForDraft = useCallback(
         async (variantId: number, stockSource: "available" | "reserved", preselectLotId?: number | null) => {
             setLotsLoading(true);
@@ -192,7 +141,10 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     warehouse_id: form.warehouse_id,
                 });
                 const lots = (response.data ?? []).filter(
-                    (row) => row.source === "lot" && typeof row.lot_id === "number",
+                    (row) =>
+                        row.source === "lot"
+                        && typeof row.lot_id === "number"
+                        && Number(row.available ?? 0) > 0,
                 );
                 setLotOptions(lots);
 
@@ -228,7 +180,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
     );
 
     useEffect(() => {
-        if (!isAddModalOpen || !draftItem.variant_id || form.document_kind === "reserve") {
+        if (!isAddModalOpen || !draftItem.variant_id) {
             if (!isAddModalOpen) {
                 setLotOptions([]);
             }
@@ -239,9 +191,68 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         isAddModalOpen,
         draftItem.variant_id,
         draftItem.stock_source,
-        form.document_kind,
         form.warehouse_id,
         loadLotsForDraft,
+    ]);
+
+    useEffect(() => {
+        if (!isAddModalOpen) {
+            setStockHits([]);
+            setStockHitsLoading(false);
+            return;
+        }
+
+        const query = debouncedProductQuery.trim();
+        if (query.length < 2 || draftItem.product_id != null) {
+            setStockHits([]);
+            setStockHitsLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setStockHitsLoading(true);
+
+        void fetchStockBalances({
+            page: 1,
+            per_page: 25,
+            search: query,
+            stock_state: form.document_kind === "reserve" ? "available" : undefined,
+            warehouse_id: form.warehouse_id ?? undefined,
+        })
+            .then((response) => {
+                if (cancelled) {
+                    return;
+                }
+                setStockHits(
+                    (response.data ?? []).filter((item) => {
+                        if (form.document_kind === "reserve") {
+                            return Number(item.available_stock ?? 0) > 0;
+                        }
+                        return Number(item.available_stock ?? 0) > 0 || Number(item.reserved_stock ?? 0) > 0;
+                    }),
+                );
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    setStockHits([]);
+                    setError(e instanceof Error ? e.message : "Не удалось загрузить товары со склада");
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setStockHitsLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        debouncedProductQuery,
+        draftItem.product_id,
+        isAddModalOpen,
+        form.document_kind,
+        form.warehouse_id,
     ]);
 
     useEffect(() => {
@@ -260,11 +271,14 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 typeof prefillItem.stock_lot_id === "number" && prefillItem.stock_lot_id > 0
                     ? prefillItem.stock_lot_id
                     : null,
-            product_query: prefillItem.product_name,
-            variant_query: prefillItem.variant_title,
+            product_query: "",
+            product_name: prefillItem.product_name,
+            variant_title: prefillItem.variant_title,
             qty: 1,
             price: prefillItem.price != null ? String(prefillItem.price) : "",
             stock_source: stockSource,
+            available_qty: availableQty,
+            reserved_qty: reservedQty,
         });
         setIsAddModalOpen(true);
         void loadLotsForDraft(prefillItem.variant_id, stockSource, prefillItem.stock_lot_id);
@@ -277,27 +291,59 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
     const draftLotMaxQty = useMemo(() => {
         if (!selectedDraftLot) {
-            return 0;
-        }
-        if (draftItem.stock_source === "reserved") {
-            return Math.max(0, Number(selectedDraftLot.reserved_qty ?? 0));
+            return Math.max(0, draftItem.available_qty);
         }
         return Math.max(0, Number(selectedDraftLot.available ?? 0));
-    }, [selectedDraftLot, draftItem.stock_source]);
+    }, [selectedDraftLot, draftItem.available_qty]);
+
+    const pickStockItem = (item: StockBalanceItem) => {
+        const productName =
+            [item.brand_name, item.product_name].filter(Boolean).join(" ").trim() || item.product_name || "";
+        const variantTitle = item.variant_title;
+        const availableQty = Math.max(0, Number(item.available_stock ?? 0));
+        const reservedQty = Math.max(0, Number(item.reserved_stock ?? 0));
+
+        setDraftItem((prev) => ({
+            ...prev,
+            product_id: item.product_id,
+            variant_id: item.variant_id ?? item.id,
+            product_name: productName,
+            variant_title: variantTitle,
+            product_query: `${item.product_id} — ${productName} ${variantTitle}`.trim(),
+            stock_lot_id: null,
+            price: "",
+            stock_source: "available",
+            available_qty: availableQty,
+            reserved_qty: reservedQty,
+        }));
+        setStockHits([]);
+        setError("");
+    };
+
+    const clearPickedProduct = () => {
+        setDraftItem((prev) => ({
+            ...prev,
+            product_query: "",
+            product_id: null,
+            variant_id: null,
+            product_name: "",
+            variant_title: "",
+            stock_lot_id: null,
+            available_qty: 0,
+            reserved_qty: 0,
+        }));
+        setStockHits([]);
+        setLotOptions([]);
+    };
 
     const addDraftItem = () => {
-        if (!draftItem.product_id) {
-            setError("Выберите товар");
+        if (!draftItem.product_id || !draftItem.variant_id) {
+            setError("Выберите товар и вариант");
             return;
         }
 
-        if (!draftItem.variant_id) {
-            setError("Выберите вариант");
-            return;
-        }
-
-        if (form.document_kind === "writeoff" && !draftItem.stock_lot_id) {
-            setError("Выберите партию (лот) для списания");
+        if (!draftItem.stock_lot_id) {
+            setError("Выберите партию (лот)");
             return;
         }
 
@@ -306,29 +352,19 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             return;
         }
 
-        const selectedVariant = variantOptions.find(
-            (item) => (item.variant_id ?? item.id) === draftItem.variant_id
-        );
-        const availableQty = Math.max(0, Number(selectedDraftLot?.available ?? selectedVariant?.available_stock ?? 0));
-        const reservedQty = Math.max(0, Number(selectedDraftLot?.reserved_qty ?? selectedVariant?.reserved_stock ?? 0));
-        const effectiveSource: "available" | "reserved" =
-            form.document_kind === "reserve" ? "available" : draftItem.stock_source;
-        const maxForSource =
-            form.document_kind === "writeoff" && selectedDraftLot
-                ? draftLotMaxQty
-                : effectiveSource === "reserved"
-                  ? reservedQty
-                  : availableQty;
+        const availableQty = Math.max(0, Number(selectedDraftLot?.available ?? draftItem.available_qty ?? 0));
+        const reservedQty = Math.max(0, Number(selectedDraftLot?.reserved_qty ?? draftItem.reserved_qty ?? 0));
+        const maxForSource = selectedDraftLot ? draftLotMaxQty : availableQty;
         if (maxForSource <= 0) {
-            setError(
-                draftItem.stock_source === "reserved"
-                    ? "Нет зарезервированного количества для списания"
-                    : "Недостаточно доступного остатка для списания"
-            );
+            setError("Недостаточно свободного остатка");
             return;
         }
         if (draftItem.qty > maxForSource) {
-            setError(`Можно списать не больше ${maxForSource} шт.`);
+            setError(
+                form.document_kind === "reserve"
+                    ? `Можно зарезервировать не больше ${maxForSource} шт.`
+                    : `Можно списать не больше ${maxForSource} шт.`
+            );
             return;
         }
 
@@ -342,21 +378,23 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     product_id: draftItem.product_id!,
                     variant_id: draftItem.variant_id!,
                     stock_lot_id: draftItem.stock_lot_id ?? 0,
-                    product_name: draftItem.product_query,
-                    variant_title: selectedVariant?.variant_title || draftItem.variant_query,
+                    product_name: draftItem.product_name,
+                    variant_title: draftItem.variant_title,
                     lot_comment: selectedDraftLot?.comment ?? null,
                     qty: draftItem.qty,
-                    price: draftItem.price,
+                    price:
+                        selectedDraftLot?.supplier_price != null
+                            ? String(selectedDraftLot.supplier_price)
+                            : "",
                     available_qty: availableQty,
                     reserved_qty: reservedQty,
-                    stock_source: effectiveSource,
+                    stock_source: "available",
                 },
             ],
         }));
 
         setDraftItem(emptyDraftItem());
-        setProductOptions([]);
-        setVariantOptions([]);
+        setStockHits([]);
         setIsAddModalOpen(false);
     };
 
@@ -376,13 +414,14 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                 if (item.qty <= 0) {
                     throw new Error(`Строка ${index + 1}: укажите количество`);
                 }
-                if (form.document_kind === "writeoff" && !item.stock_lot_id) {
+                if (!item.stock_lot_id) {
                     throw new Error(`Строка ${index + 1}: укажите партию`);
                 }
-                const cap = item.stock_source === "reserved" ? item.reserved_qty : item.available_qty;
-                if (cap > 0 && item.qty > cap) {
+                if (item.qty > item.available_qty) {
                     throw new Error(
-                        `Строка ${index + 1}: можно списать максимум ${cap} шт. (${item.stock_source === "reserved" ? "резерв" : "свободно"})`
+                        form.document_kind === "reserve"
+                            ? `Строка ${index + 1}: можно зарезервировать максимум ${item.available_qty} шт.`
+                            : `Строка ${index + 1}: можно списать максимум ${item.available_qty} шт.`
                     );
                 }
             });
@@ -397,10 +436,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     variant_id: item.variant_id,
                     qty: item.qty,
                     price: item.price === "" ? null : Number(item.price),
-                    stock_source: item.stock_source,
-                    ...(form.document_kind === "writeoff" && item.stock_lot_id
-                        ? { stock_lot_id: item.stock_lot_id }
-                        : {}),
+                    stock_source: "available",
+                    stock_lot_id: item.stock_lot_id,
                 })),
             };
 
@@ -463,44 +500,41 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             <div className="space-y-4">
                 <div className="rounded-xl border border-admin-border bg-admin-surface shadow-admin-card p-3 shadow-sm sm:p-4">
-                    <div className="mb-3 flex flex-wrap gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
-                        <label className="flex cursor-pointer items-center gap-2">
-                            <input
-                                type="radio"
-                                name="document-kind"
-                                checked={form.document_kind === "writeoff"}
-                                onChange={() => setForm((prev) => ({ ...prev, document_kind: "writeoff" }))}
-                                className="h-4 w-4"
-                            />
-                            <span>Списание</span>
-                        </label>
-                        <label className="flex cursor-pointer items-center gap-2">
-                            <input
-                                type="radio"
-                                name="document-kind"
-                                checked={form.document_kind === "reserve"}
-                                onChange={() => setForm((prev) => ({ ...prev, document_kind: "reserve" }))}
-                                className="h-4 w-4"
-                            />
-                            <span>Резерв</span>
-                        </label>
-                    </div>
-
                     <div className="flex flex-nowrap items-end gap-3">
+                        <label className="flex w-[168px] shrink-0 flex-col gap-1 text-sm">
+                            <span className="text-slate-600">Тип</span>
+                            <AdminStatusDropdown
+                                value={form.document_kind}
+                                onChangeAction={(value) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        document_kind: value === "reserve" ? "reserve" : "writeoff",
+                                    }))
+                                }
+                                options={[
+                                    { value: "writeoff", label: "Списание" },
+                                    { value: "reserve", label: "Резерв" },
+                                ]}
+                                widthClassName="w-full"
+                            />
+                        </label>
                         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                             <span className="text-slate-600">Склад</span>
-                            <select
-                                value={form.warehouse_id ?? ""}
-                                onChange={(e) => setForm((prev) => ({ ...prev, warehouse_id: e.target.value ? Number(e.target.value) : null }))}
-                                className="h-10 rounded-lg border border-admin-border bg-slate-50 px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-admin-primary focus:bg-white"
-                            >
-                                <option value="">Выберите склад</option>
-                                {warehouses.map((warehouse) => (
-                                    <option key={warehouse.id} value={warehouse.id}>
-                                        {warehouse.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <AdminStatusDropdown
+                                value={form.warehouse_id != null ? String(form.warehouse_id) : ""}
+                                onChangeAction={(value) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        warehouse_id: value ? Number(value) : null,
+                                    }))
+                                }
+                                options={warehouses.map((warehouse) => ({
+                                    value: String(warehouse.id),
+                                    label: warehouse.name,
+                                }))}
+                                placeholder="Выберите склад"
+                                widthClassName="w-full"
+                            />
                         </label>
                         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                             <span className="text-slate-600">Дата списания</span>
@@ -534,7 +568,12 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         </div>
                         <button
                             type="button"
-                            onClick={() => setIsAddModalOpen(true)}
+                            onClick={() => {
+                                setDraftItem(emptyDraftItem());
+                                setStockHits([]);
+                                setLotOptions([]);
+                                setIsAddModalOpen(true);
+                            }}
                             className="inline-flex h-10 items-center justify-center rounded-lg bg-admin-primary px-4 text-sm font-medium text-white hover:bg-admin-primary-hover"
                         >
                             Добавить товар
@@ -546,14 +585,12 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
                                 {form.document_kind === "reserve"
                                     ? "Пока нет строк. Добавьте варианты со свободным остатком для ручного резерва."
-                                    : "Пока нет строк. Добавьте варианты со свободным остатком или с активным резервом на выбранном складе."}
+                                    : "Пока нет строк. Добавьте варианты со свободным остатком на выбранном складе."}
                             </div>
                         ) : (
                             <div className="space-y-2">
                                 {form.items.map((item, index) => {
-                                    const lineMax =
-                                        item.stock_source === "reserved" ? item.reserved_qty : item.available_qty;
-                                    const maxInput = Math.max(1, lineMax || 1);
+                                    const maxInput = Math.max(1, item.available_qty || 1);
 
                                     return (
                                         <div
@@ -574,37 +611,6 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                 ) : null}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 text-sm md:gap-3">
-                                                <label className="flex items-center gap-1 text-xs text-slate-600">
-                                                    <span>Источник</span>
-                                                    <select
-                                                        value={item.stock_source}
-                                                        onChange={(e) => {
-                                                            const next = e.target.value as "available" | "reserved";
-                                                            setForm((prev) => ({
-                                                                ...prev,
-                                                                items: prev.items.map((row, rowIndex) => {
-                                                                    if (rowIndex !== index) {
-                                                                        return row;
-                                                                    }
-                                                                    const cap =
-                                                                        next === "reserved" ? row.reserved_qty : row.available_qty;
-                                                                    return {
-                                                                        ...row,
-                                                                        stock_source: next,
-                                                                        qty: Math.min(row.qty, Math.max(1, cap || 1)),
-                                                                    };
-                                                                }),
-                                                            }));
-                                                        }}
-                                                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
-                                                        disabled={form.document_kind === "reserve"}
-                                                    >
-                                                        <option value="available">Свободно</option>
-                                                        <option value="reserved" disabled={item.reserved_qty <= 0}>
-                                                            Резерв
-                                                        </option>
-                                                    </select>
-                                                </label>
                                                 <div className="flex items-center gap-2">
                                                     <input
                                                         type="number"
@@ -624,7 +630,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                                         className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-sm"
                                                     />
                                                     <span className="text-xs text-slate-500">
-                                                        св. {item.available_qty} / рез. {item.reserved_qty}
+                                                        {item.available_qty}
                                                     </span>
                                                 </div>
                                                 <span>{item.price || "—"}</span>
@@ -663,9 +669,6 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                             <div>
                                 <h2 className="text-base font-semibold text-slate-900">Добавить товар</h2>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Выберите источник: свободный остаток или резерв, затем вариант со склада.
-                                </p>
                             </div>
                             <button
                                 type="button"
@@ -677,154 +680,118 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                         </div>
 
                         <div className="space-y-3 p-4">
-                            <div className="flex flex-wrap gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
-                                <label className="flex cursor-pointer items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        name="writeoff-stock-source"
-                                        checked={draftItem.stock_source === "available" || form.document_kind === "reserve"}
-                                        onChange={() => {
-                                            const productId = draftItem.product_id;
-                                            setDraftItem((prev) => ({
-                                                ...prev,
-                                                stock_source: "available",
-                                                variant_id: null,
-                                                variant_query: "",
-                                            }));
-                                            setVariantOptions([]);
-                                            if (productId) {
-                                                void searchVariants(productId, "", "available");
-                                            }
-                                        }}
-                                        className="h-4 w-4"
-                                        disabled={form.document_kind === "reserve"}
-                                    />
-                                    <span>Свободный остаток</span>
+                            <div className="w-full min-w-0">
+                                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    Товар и вариант
                                 </label>
-                                <label className="flex cursor-pointer items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        name="writeoff-stock-source"
-                                        checked={draftItem.stock_source === "reserved"}
-                                        onChange={() => {
-                                            const productId = draftItem.product_id;
-                                            setDraftItem((prev) => ({
-                                                ...prev,
-                                                stock_source: "reserved",
-                                                variant_id: null,
-                                                variant_query: "",
-                                            }));
-                                            setVariantOptions([]);
-                                            if (productId) {
-                                                void searchVariants(productId, "", "reserved");
-                                            }
-                                        }}
-                                        className="h-4 w-4"
-                                        disabled={form.document_kind === "reserve"}
-                                    />
-                                    <span>Резерв</span>
-                                </label>
-                            </div>
-                            <div className="grid gap-3 md:grid-cols-2">
-                                <div className="min-w-0">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Товар
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            value={draftItem.product_query}
-                                            onChange={(e) => {
-                                                const nextQuery = e.target.value;
-                                                setDraftItem((prev) => ({
-                                                    ...prev,
-                                                    product_query: nextQuery,
-                                                    product_id: null,
-                                                    variant_id: null,
-                                                    variant_query: "",
-                                                }));
-                                                void searchProducts(nextQuery);
-                                            }}
-                                            className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                            placeholder="Начните вводить название товара"
-                                        />
+                                {draftItem.product_id != null ? (
+                                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
+                                        <div className="min-w-0 flex-1 break-words text-sm leading-snug text-slate-900">
+                                            <span className="tabular-nums text-slate-500">
+                                                {draftItem.product_id}
+                                            </span>
+                                            <span className="text-slate-400"> — </span>
+                                            <span className="font-medium">{draftItem.product_name}</span>
+                                            {draftItem.variant_title ? (
+                                                <>
+                                                    <span className="text-slate-400"> / </span>
+                                                    <span>{draftItem.variant_title}</span>
+                                                </>
+                                            ) : null}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={clearPickedProduct}
+                                            className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-emerald-200 bg-white px-2 text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            Сменить
+                                        </button>
                                     </div>
-
-                                    {draftItem.product_id == null && draftItem.product_query.trim() !== "" ? (
-                                        <div className="mt-2 max-h-44 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                            {productOptions.slice(0, 8).map((product) => (
+                                ) : (
+                                    <>
+                                        <div className="relative">
+                                            <input
+                                                value={draftItem.product_query}
+                                                onChange={(e) => {
+                                                    const nextQuery = e.target.value;
+                                                    setDraftItem((prev) => ({
+                                                        ...prev,
+                                                        product_query: nextQuery,
+                                                        product_id: null,
+                                                        variant_id: null,
+                                                        product_name: "",
+                                                        variant_title: "",
+                                                        stock_lot_id: null,
+                                                    }));
+                                                }}
+                                                className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 pr-10 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                                placeholder="Название, бренд или артикул"
+                                            />
+                                            {draftItem.product_query ? (
                                                 <button
-                                                    key={product.product_id}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setDraftItem((prev) => ({
-                                                            ...prev,
-                                                            product_id: product.product_id,
-                                                            product_query: product.product_name,
-                                                            variant_id: null,
-                                                            variant_query: "",
-                                                        }));
-                                                    }}
-                                                    className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 last:border-b-0"
+                                                    onClick={clearPickedProduct}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                                                 >
-                                                    {product.product_name}
+                                                    ×
                                                 </button>
-                                            ))}
+                                            ) : null}
                                         </div>
-                                    ) : null}
-                                </div>
 
-                                <div className="min-w-0">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Вариант
-                                    </label>
-                                    <input
-                                        value={draftItem.variant_query}
-                                        onChange={(e) => {
-                                            const nextQuery = e.target.value;
-                                            setDraftItem((prev) => ({
-                                                ...prev,
-                                                variant_query: nextQuery,
-                                                variant_id: null,
-                                            }));
+                                        {stockHitsLoading
+                                        || stockHits.length > 0
+                                        || debouncedProductQuery.trim().length >= 2 ? (
+                                            <div className="mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                {stockHitsLoading ? (
+                                                    <div className="px-3 py-2 text-xs text-slate-500">Поиск…</div>
+                                                ) : stockHits.length === 0 ? (
+                                                    <div className="px-3 py-2 text-xs text-slate-500">Ничего не найдено</div>
+                                                ) : (
+                                                    stockHits.slice(0, 12).map((item) => {
+                                                        const q = draftItem.product_query;
+                                                        const productLabel =
+                                                            [item.brand_name, item.product_name]
+                                                                .filter(Boolean)
+                                                                .join(" ")
+                                                            || item.product_name
+                                                            || "—";
+                                                        const variantId = item.variant_id ?? item.id;
 
-                                            if (draftItem.product_id) {
-                                                void searchVariants(draftItem.product_id, nextQuery, draftItem.stock_source);
-                                            }
-                                        }}
-                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                        placeholder="Поиск варианта"
-                                    />
-
-                                    {draftItem.variant_query.trim() !== "" && variantOptions.length > 0 ? (
-                                        <div className="mt-2 max-h-44 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                            {variantOptions.slice(0, 12).map((variant) => (
-                                                <button
-                                                    key={variant.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setDraftItem((prev) => ({
-                                                            ...prev,
-                                                            variant_id: variant.variant_id ?? variant.id,
-                                                            variant_query: variant.variant_title,
-                                                            stock_lot_id: null,
-                                                            price: variant.price != null ? String(variant.price) : prev.price,
-                                                        }));
-                                                        setVariantOptions([]);
-                                                    }}
-                                                    className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50"
-                                                >
-                                                    <span className="min-w-0 truncate">{variant.variant_title}</span>
-                                                    <span className="ml-3 shrink-0 text-[11px] text-slate-600">
-                                                        св. {variant.available_stock} · рез. {variant.reserved_stock}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    ) : null}
-                                </div>
+                                                        return (
+                                                            <button
+                                                                key={`${item.product_id}-${variantId}-${item.warehouse_id ?? 0}`}
+                                                                type="button"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => pickStockItem(item)}
+                                                                className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-slate-50"
+                                                            >
+                                                                <span className="min-w-0">
+                                                                    <span className="tabular-nums text-slate-400">
+                                                                        {highlightAdminSearchTerms(String(item.product_id), q)}
+                                                                    </span>
+                                                                    <span className="text-slate-300"> — </span>
+                                                                    <span className="font-medium text-slate-900">
+                                                                        {highlightAdminSearchTerms(productLabel, q, item.brand_name)}
+                                                                    </span>
+                                                                    <span className="text-slate-300"> </span>
+                                                                    <span className="text-slate-700">
+                                                                        {highlightAdminSearchTerms(item.variant_title, q, item.brand_name)}
+                                                                    </span>
+                                                                </span>
+                                                                <span className="ml-3 shrink-0 text-[11px] text-slate-600">
+                                                                    св. {item.available_stock} · рез. {item.reserved_stock}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </>
+                                )}
                             </div>
 
-                            {form.document_kind === "writeoff" && draftItem.variant_id ? (
+                            {draftItem.variant_id ? (
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Партия (лот)
@@ -834,54 +801,52 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                     ) : lotOptions.length === 0 ? (
                                         <p className="text-sm text-amber-800">Нет открытых партий для этого варианта.</p>
                                     ) : (
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5">
                                             {lotOptions.map((lot) => {
                                                 const lotId = lot.lot_id!;
-                                                const maxQty =
-                                                    draftItem.stock_source === "reserved"
-                                                        ? Math.max(0, Number(lot.reserved_qty ?? 0))
-                                                        : Math.max(0, Number(lot.available ?? 0));
+                                                const maxQty = Math.max(0, Number(lot.available ?? 0));
                                                 const selected = draftItem.stock_lot_id === lotId;
+                                                const leftLabel = [
+                                                    `#${lotId}`,
+                                                    lot.supplier_name?.trim() || "—",
+                                                    lot.supplier_sku?.trim() || "—",
+                                                    lot.supplier_product_name?.trim() || "—",
+                                                ].join(" - ");
+                                                const rightLabel = [
+                                                    lot.available ?? "—",
+                                                    lot.supplier_price != null ? String(lot.supplier_price) : "—",
+                                                ].join(" / ");
                                                 return (
                                                     <label
                                                         key={`lot-${lotId}`}
-                                                        className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2 text-sm ${
+                                                        className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
                                                             selected
                                                                 ? "border-admin-primary bg-white"
                                                                 : "border-slate-200 bg-white/80"
                                                         }`}
                                                     >
-                                                        <span className="flex items-center gap-2">
-                                                            <input
-                                                                type="radio"
-                                                                name="writeoff-lot"
-                                                                checked={selected}
-                                                                onChange={() =>
-                                                                    setDraftItem((prev) => ({
-                                                                        ...prev,
-                                                                        stock_lot_id: lotId,
-                                                                        price:
-                                                                            lot.supplier_price != null
-                                                                                ? String(lot.supplier_price)
-                                                                                : prev.price,
-                                                                        qty: Math.min(prev.qty, Math.max(1, maxQty || 1)),
-                                                                    }))
-                                                                }
-                                                            />
-                                                            <span className="font-medium">#{lotId}</span>
-                                                            <span className="text-slate-600">
-                                                                {lot.supplier_price != null
-                                                                    ? String(lot.supplier_price)
-                                                                    : "—"}{" "}
-                                                                · св. {lot.available ?? "—"} / рез.{" "}
-                                                                {lot.reserved_qty ?? "—"}
-                                                            </span>
+                                                        <input
+                                                            type="radio"
+                                                            name="writeoff-lot"
+                                                            className={adminCheckbox}
+                                                            checked={selected}
+                                                            onChange={() =>
+                                                                setDraftItem((prev) => ({
+                                                                    ...prev,
+                                                                    stock_lot_id: lotId,
+                                                                    price:
+                                                                        lot.supplier_price != null
+                                                                            ? String(lot.supplier_price)
+                                                                            : prev.price,
+                                                                    qty: Math.min(prev.qty, Math.max(1, maxQty || 1)),
+                                                                }))
+                                                            }
+                                                        />
+                                                        <span className="min-w-0 flex-1 truncate text-slate-800" title={leftLabel}>
+                                                            {leftLabel}
                                                         </span>
-                                                        <span className="pl-6 text-xs text-slate-600">
-                                                            {[lot.supplier_name, lot.supplier_sku]
-                                                                .filter(Boolean)
-                                                                .join(" · ") || "—"}
-                                                            {lot.comment?.trim() ? ` · ${lot.comment.trim()}` : ""}
+                                                        <span className="shrink-0 tabular-nums text-slate-600">
+                                                            {rightLabel}
                                                         </span>
                                                     </label>
                                                 );
@@ -891,39 +856,24 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                                 </div>
                             ) : null}
 
-                            <div className="flex flex-nowrap items-end gap-3">
-                                <div className="min-w-0 flex-1">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Цена
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step="0.01"
-                                        value={draftItem.price}
-                                        onChange={(e) => setDraftItem((prev) => ({ ...prev, price: e.target.value }))}
-                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                    />
-                                </div>
-                                <div className="w-[120px] min-w-[120px] shrink-0">
-                                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                        Кол-во
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        max={Math.max(1, draftLotMaxQty || 1)}
-                                        value={draftItem.qty}
-                                        onChange={(e) => {
-                                            const cap = Math.max(1, draftLotMaxQty || 1);
-                                            setDraftItem((prev) => ({
-                                                ...prev,
-                                                qty: Math.min(Math.max(1, Number(e.target.value || 1)), cap),
-                                            }));
-                                        }}
-                                        className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
-                                    />
-                                </div>
+                            <div className="w-[120px] min-w-[120px]">
+                                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    Кол-во
+                                </label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={Math.max(1, draftLotMaxQty || 1)}
+                                    value={draftItem.qty}
+                                    onChange={(e) => {
+                                        const cap = Math.max(1, draftLotMaxQty || 1);
+                                        setDraftItem((prev) => ({
+                                            ...prev,
+                                            qty: Math.min(Math.max(1, Number(e.target.value || 1)), cap),
+                                        }));
+                                    }}
+                                    className="h-10 w-full rounded-lg border border-admin-border bg-white px-3 text-sm shadow-sm outline-none transition focus:border-admin-primary"
+                                />
                             </div>
                         </div>
 

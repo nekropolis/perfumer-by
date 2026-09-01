@@ -42,6 +42,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/stock')->group(fu
         Route::post('/', [StockWriteoffController::class, 'store']);
         Route::get('/{id}', [StockWriteoffController::class, 'show']);
         Route::post('/{id}/reverse', [StockWriteoffController::class, 'reverse']);
+        Route::post('/{id}/write-off', [StockWriteoffController::class, 'writeOff']);
     });
 
     Route::prefix('reports')->group(function () {

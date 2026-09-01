@@ -12,10 +12,13 @@ class StockWriteoff extends Model
 
     public const STATUS_REVERSED = 'reversed';
 
+    public const STATUS_WRITTEN_OFF = 'written_off';
+
     /** @var list<string> */
     public const STATUSES = [
         self::STATUS_POSTED,
         self::STATUS_REVERSED,
+        self::STATUS_WRITTEN_OFF,
     ];
 
     /**
@@ -26,6 +29,7 @@ class StockWriteoff extends Model
     public const STATUS_LABELS = [
         self::STATUS_POSTED => 'Проведено',
         self::STATUS_REVERSED => 'Отменена',
+        self::STATUS_WRITTEN_OFF => 'Списан',
     ];
 
     protected $fillable = [

@@ -24,11 +24,14 @@ import {
     fetchStockWriteoff,
     fetchWarehouses,
     reverseStockWriteoff,
+    writeOffStockReserve,
     STOCK_WRITEOFF_STATUS,
     getStockWriteoffStatusLabel,
     type StockWriteoffListItem,
     type WarehouseOption,
 } from "@/lib/admin-warehouse-api";
+import { adminBtnSm } from "@/lib/admin-ui-classes";
+import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 
 function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string {
     if (writeoffType === "order") {
@@ -47,18 +50,37 @@ function writeoffLineSourceLabel(writeoffType: string, payload: unknown): string
     return "Свободно";
 }
 
+function canWriteOffReserve(doc: StockWriteoffListItem): boolean {
+    return doc.type === "reserve" && !doc.order_id && doc.status === STOCK_WRITEOFF_STATUS.POSTED;
+}
+
+function parseWriteoffApiError(raw: string, fallback: string): string {
+    try {
+        const parsed = JSON.parse(raw) as {
+            message?: string;
+            errors?: { writeoff?: string[]; items?: string[] };
+        };
+        return parsed.message || parsed.errors?.writeoff?.[0] || parsed.errors?.items?.[0] || raw || fallback;
+    } catch {
+        return raw || fallback;
+    }
+}
+
 function WriteoffDetailsModal({
     row,
     onCloseAction,
     onReversedAction,
+    onWrittenOffAction,
 }: {
     row: StockWriteoffListItem | null;
     onCloseAction: () => void;
     onReversedAction: () => void;
+    onWrittenOffAction: () => void;
 }) {
     const [fetched, setFetched] = useState<StockWriteoffListItem | null>(null);
     const [loading, setLoading] = useState(false);
     const [canReverse, setCanReverse] = useState(false);
+    const [canWriteOff, setCanWriteOff] = useState(false);
     const [busy, setBusy] = useState(false);
     const [modalError, setModalError] = useState("");
 
@@ -66,6 +88,7 @@ function WriteoffDetailsModal({
         if (!row) {
             setFetched(null);
             setCanReverse(false);
+            setCanWriteOff(false);
             setModalError("");
             setLoading(false);
             return;
@@ -82,12 +105,14 @@ function WriteoffDetailsModal({
                 }
                 setFetched(res.data);
                 setCanReverse(res.can_reverse);
+                setCanWriteOff(Boolean(res.can_write_off));
             })
             .catch((e) => {
                 if (!cancelled) {
                     setModalError(e instanceof Error ? e.message : "Не удалось загрузить списание");
                     setFetched(row);
                     setCanReverse(false);
+                    setCanWriteOff(canWriteOffReserve(row));
                 }
             })
             .finally(() => {
@@ -178,8 +203,11 @@ function WriteoffDetailsModal({
                             {doc.type === "reserve" ? "Резерв отменён." : "Списание отменено."}
                         </p>
                     ) : null}
-                    {canReverse ? (
-                        <div className="flex flex-wrap items-center gap-3">
+                    {doc.status === STOCK_WRITEOFF_STATUS.WRITTEN_OFF ? (
+                        <p className="text-sm text-admin-text-secondary">Резерв списан отдельным документом.</p>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-3">
+                        {canWriteOff ? (
                             <button
                                 type="button"
                                 disabled={busy || loading}
@@ -188,46 +216,63 @@ function WriteoffDetailsModal({
                                         setBusy(true);
                                         setModalError("");
                                         try {
-                                            await reverseStockWriteoff(row.id);
-                                            onReversedAction();
+                                            await writeOffStockReserve(row.id);
+                                            onWrittenOffAction();
                                             onCloseAction();
                                         } catch (e) {
-                                            let msg = e instanceof Error
-                                                ? e.message
-                                                : (doc.type === "reserve"
-                                                    ? "Не удалось отменить резерв"
-                                                    : "Не удалось отменить списание");
-                                            try {
-                                                const parsed = JSON.parse(msg) as {
-                                                    message?: string;
-                                                    errors?: { writeoff?: string[] };
-                                                };
-                                                msg = parsed.message || parsed.errors?.writeoff?.[0] || msg;
-                                            } catch {
-                                                /* keep */
-                                            }
-                                            setModalError(msg);
+                                            const raw = e instanceof Error ? e.message : "";
+                                            setModalError(parseWriteoffApiError(raw, "Не удалось списать резерв"));
                                         } finally {
                                             setBusy(false);
                                         }
                                     })();
                                 }}
-                                className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                                className="rounded-lg bg-admin-primary px-4 py-2 text-sm font-medium text-white hover:bg-admin-primary-hover disabled:opacity-50"
                             >
-                                {busy
-                                    ? "Отмена…"
-                                    : doc.type === "reserve"
-                                        ? "Отменить резерв"
-                                        : "Отменить списание"}
+                                {busy ? "Списание…" : "Списать"}
                             </button>
-                            <span className="text-xs text-admin-text-secondary">
-                                {doc.type === "reserve"
-                                    ? "Снимет резерв со склада и пометит документ как отменённый."
-                                    : "Вернёт остаток на физические склады; склад поставщика не меняется."}
-                            </span>
-                        </div>
-                    ) : null}
-                    {!loading && doc.status === STOCK_WRITEOFF_STATUS.POSTED && !canReverse && !modalError ? (
+                        ) : null}
+                        {canReverse ? (
+                            <>
+                                <button
+                                    type="button"
+                                    disabled={busy || loading}
+                                    onClick={() => {
+                                        void (async () => {
+                                            setBusy(true);
+                                            setModalError("");
+                                            try {
+                                                await reverseStockWriteoff(row.id);
+                                                onReversedAction();
+                                                onCloseAction();
+                                            } catch (e) {
+                                                const fallback = doc.type === "reserve"
+                                                    ? "Не удалось отменить резерв"
+                                                    : "Не удалось отменить списание";
+                                                const raw = e instanceof Error ? e.message : "";
+                                                setModalError(parseWriteoffApiError(raw, fallback));
+                                            } finally {
+                                                setBusy(false);
+                                            }
+                                        })();
+                                    }}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+                                >
+                                    {busy
+                                        ? "Отмена…"
+                                        : doc.type === "reserve"
+                                            ? "Отменить резерв"
+                                            : "Отменить списание"}
+                                </button>
+                                <span className="text-xs text-admin-text-secondary">
+                                    {doc.type === "reserve"
+                                        ? "Снимет резерв со склада и пометит документ как отменённый."
+                                        : "Вернёт остаток на физические склады; склад поставщика не меняется."}
+                                </span>
+                            </>
+                        ) : null}
+                    </div>
+                    {!loading && doc.status === STOCK_WRITEOFF_STATUS.POSTED && !canReverse && !canWriteOff && !modalError ? (
                         <p className="text-xs text-admin-text-secondary">
                             {doc.type === "reserve"
                                 ? "Отмена недоступна для этого резерва."
@@ -253,24 +298,23 @@ function formatDate(value?: string | null): string {
 }
 
 function typeLabel(type: string): string {
-    if (type === "order") {
-        return "Заказ";
-    }
-
     if (type === "reserve") {
         return "Резерв";
     }
 
-    if (type === "manual") {
-        return "Ручное";
+    if (type === "order" || type === "manual") {
+        return "Списание";
     }
 
     return type;
 }
 
+function documentLabel(orderId?: number | null): string {
+    return orderId ? `Заказ #${orderId}` : "Ручное";
+}
+
 const WRITEOFF_TYPE_OPTIONS = [
-    { value: "order", label: "Заказ" },
-    { value: "manual", label: "Ручное" },
+    { value: "writeoff", label: "Списание" },
     { value: "reserve", label: "Резерв" },
 ];
 
@@ -292,6 +336,7 @@ export default function AdminWarehouseWriteoffsPage() {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [detailRow, setDetailRow] = useState<StockWriteoffListItem | null>(null);
+    const [writeOffBusyId, setWriteOffBusyId] = useState<number | null>(null);
     const dateFilterRef = useRef<AdminOrdersDateRangeButtonHandle>(null);
     const hasDateFilter = Boolean(dateFrom.trim() || dateTo.trim());
     const dateFilterSummary = useMemo(
@@ -467,19 +512,48 @@ export default function AdminWarehouseWriteoffsPage() {
                                 ) : (
                                     items.map((item) => (
                                         <tr key={item.id} className="border-b last:border-b-0">
-                                            <td className="whitespace-nowrap px-3 py-2 font-medium">#{item.document_no ?? item.id}</td>
+                                            <td className="whitespace-nowrap px-3 py-2 font-medium">
+                                                {highlightAdminSearchTerms(`#${item.document_no ?? item.id}`, debouncedSearch)}
+                                            </td>
                                             <td className="whitespace-nowrap px-3 py-2">
-                                                {item.order_id ? `Заказ #${item.order_id}` : "—"}
+                                                {highlightAdminSearchTerms(documentLabel(item.order_id), debouncedSearch)}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-2">{item.warehouse?.name ?? "—"}</td>
                                             <td className="whitespace-nowrap px-3 py-2">{typeLabel(item.type)}</td>
                                             <td className="whitespace-nowrap px-3 py-2">{getStockWriteoffStatusLabel(item.status)}</td>
                                             <td className="max-w-[240px] truncate px-3 py-2 text-admin-text-secondary" title={item.comment || undefined}>
-                                                {item.comment || "—"}
+                                                {item.comment
+                                                    ? highlightAdminSearchTerms(item.comment, debouncedSearch)
+                                                    : "—"}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-2 text-admin-text-secondary">{formatDate(item.written_off_at)}</td>
                                             <td className="whitespace-nowrap px-3 py-2">
                                                 <div className="flex justify-end gap-1.5">
+                                                    {canWriteOffReserve(item) ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={writeOffBusyId === item.id}
+                                                            onClick={() => {
+                                                                void (async () => {
+                                                                    setWriteOffBusyId(item.id);
+                                                                    setError("");
+                                                                    try {
+                                                                        await writeOffStockReserve(item.id);
+                                                                        setSuccess(`Резерв #${item.document_no ?? item.id} списан`);
+                                                                        void loadItems(page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo);
+                                                                    } catch (e) {
+                                                                        const raw = e instanceof Error ? e.message : "";
+                                                                        setError(parseWriteoffApiError(raw, "Не удалось списать резерв"));
+                                                                    } finally {
+                                                                        setWriteOffBusyId(null);
+                                                                    }
+                                                                })();
+                                                            }}
+                                                            className={adminBtnSm}
+                                                        >
+                                                            {writeOffBusyId === item.id ? "…" : "Списать"}
+                                                        </button>
+                                                    ) : null}
                                                     <button
                                                         type="button"
                                                         onClick={() => setDetailRow(item)}
@@ -515,6 +589,10 @@ export default function AdminWarehouseWriteoffsPage() {
                 onCloseAction={() => setDetailRow(null)}
                 onReversedAction={() => {
                     setSuccess("Списание отменено, остатки на физических складах восстановлены");
+                    void loadItems(page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo);
+                }}
+                onWrittenOffAction={() => {
+                    setSuccess("Резерв списан");
                     void loadItems(page, debouncedSearch, typeFilter, warehouseId, dateFrom, dateTo);
                 }}
             />

@@ -322,7 +322,11 @@ class StockReportController extends Controller
             $query->whereDate('written_off_at', '<=', $dateTo);
         }
         if ($type !== '') {
-            $query->where('type', $type);
+            if ($type === 'writeoff') {
+                $query->whereIn('type', ['order', 'manual']);
+            } else {
+                $query->where('type', $type);
+            }
         }
         if ($productId > 0) {
             $query->whereHas('items', fn ($itemsQuery) => $itemsQuery->where('product_id', $productId));

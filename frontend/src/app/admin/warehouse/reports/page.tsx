@@ -546,8 +546,7 @@ export default function WarehouseReportsPage() {
                             className="rounded-lg border px-3 py-2 text-sm"
                         >
                             <option value="">Все типы</option>
-                            <option value="order">Заказ</option>
-                            <option value="manual">Ручное</option>
+                            <option value="writeoff">Списание</option>
                             <option value="reserve">Резерв</option>
                         </select>
                     </>
@@ -806,7 +805,7 @@ export default function WarehouseReportsPage() {
                                     {writeoffItems.map((item) => (
                                         <tr key={item.id} className="border-b last:border-b-0">
                                             <td className="px-4 py-3 font-medium">{`Списание #${item.document_no ?? item.id}`}</td>
-                                            <td className="px-4 py-3">{item.type}</td>
+                                            <td className="px-4 py-3">{item.type === "reserve" ? "Резерв" : "Списание"}</td>
                                             <td className="px-4 py-3 text-xs text-admin-text-secondary">{formatDate(item.written_off_at)}</td>
                                             <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.items?.length ?? 0}</td>
                                             <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>

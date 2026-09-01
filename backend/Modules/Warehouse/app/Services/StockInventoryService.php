@@ -652,6 +652,106 @@ class StockInventoryService
         });
     }
 
+    public function writeOffManualReserve(int $reserveId): StockWriteoff
+    {
+        return $this->withCatalogCacheCommit(function () use ($reserveId): StockWriteoff {
+            return DB::transaction(function () use ($reserveId): StockWriteoff {
+                $reserve = StockWriteoff::query()
+                    ->lockForUpdate()
+                    ->with('items')
+                    ->findOrFail($reserveId);
+
+                if ($reserve->type !== 'reserve' || $reserve->order_id) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => 'Списать можно только ручной резерв',
+                    ]);
+                }
+
+                if ($reserve->status !== StockWriteoff::STATUS_POSTED) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => 'Списать можно только проведённый резерв',
+                    ]);
+                }
+
+                if ($reserve->items->isEmpty()) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => 'В резерве нет строк для списания',
+                    ]);
+                }
+
+                $items = [];
+                foreach ($reserve->items as $item) {
+                    $payload = is_array($item->payload) ? $item->payload : [];
+                    $lots = is_array($payload['lots'] ?? null) ? $payload['lots'] : [];
+                    $allocations = [];
+                    foreach ($lots as $lot) {
+                        $lotId = (int) ($lot['lot_id'] ?? 0);
+                        $lotQty = (int) ($lot['qty'] ?? 0);
+                        if ($lotId > 0 && $lotQty > 0) {
+                            $allocations[] = [
+                                'lot_id' => $lotId,
+                                'qty' => $lotQty,
+                            ];
+                        }
+                    }
+
+                    if ($allocations === []) {
+                        throw ValidationException::withMessages([
+                            'items' => "У строки резерва нет партии для списания (товар #{$item->product_id})",
+                        ]);
+                    }
+
+                    $line = [
+                        'product_id' => (int) $item->product_id,
+                        'variant_id' => (int) $item->variant_id,
+                        'qty' => (int) $item->qty,
+                        'stock_source' => 'reserved',
+                        'stock_lot_allocations' => $allocations,
+                        'payload' => [
+                            'source_reserve_id' => $reserve->id,
+                            'source_reserve_item_id' => $item->id,
+                        ],
+                    ];
+                    if ($item->price !== null) {
+                        $line['price'] = $item->price;
+                    }
+                    $items[] = $line;
+                }
+
+                $commentParts = array_filter([
+                    'Списание резерва #'.($reserve->document_no ?? $reserve->id),
+                    trim((string) ($reserve->comment ?? '')),
+                ]);
+
+                $writeoff = $this->createManualWriteoffInternal([
+                    'warehouse_id' => $reserve->warehouse_id,
+                    'written_off_at' => now(),
+                    'comment' => implode('. ', $commentParts),
+                    'items' => $items,
+                ]);
+
+                $reserve->update([
+                    'status' => StockWriteoff::STATUS_WRITTEN_OFF,
+                    'updated_by' => Auth::id(),
+                ]);
+
+                $this->writeAudit(
+                    AuditLogService::ENTITY_STOCK_RESERVATION,
+                    $reserve->id,
+                    AuditLogService::ACTION_UPDATED,
+                    "Резерв #{$reserve->document_no} списан документом #{$writeoff->document_no}",
+                    [
+                        'reserve_document_id' => $reserve->id,
+                        'writeoff_id' => $writeoff->id,
+                    ],
+                    (int) $reserve->warehouse_id
+                );
+
+                return $writeoff;
+            });
+        });
+    }
+
     private function createManualReserveInternal(array $validated): StockWriteoff
     {
         return DB::transaction(function () use ($validated) {
@@ -760,6 +860,10 @@ class StockInventoryService
         }
 
         if ($writeoff->type === 'reserve') {
+            if ($writeoff->order_id && $this->orderHasPostedWriteoff((int) $writeoff->order_id)) {
+                return false;
+            }
+
             // Журнальный авто-резерв по заказу (без движений) тоже можно «снять» статусом.
             if ($writeoff->order_id) {
                 return true;
@@ -779,6 +883,15 @@ class StockInventoryService
             ->where('document_id', $writeoff->id)
             ->where('type', self::MOVEMENT_WRITEOFF)
             ->where('warehouse_id', '!=', $supplierId)
+            ->exists();
+    }
+
+    private function orderHasPostedWriteoff(int $orderId): bool
+    {
+        return StockWriteoff::query()
+            ->where('type', 'order')
+            ->where('order_id', $orderId)
+            ->where('status', StockWriteoff::STATUS_POSTED)
             ->exists();
     }
 
@@ -804,6 +917,12 @@ class StockInventoryService
             }
 
             if ($writeoff->type === 'reserve') {
+                if ($writeoff->order_id && $this->orderHasPostedWriteoff((int) $writeoff->order_id)) {
+                    throw ValidationException::withMessages([
+                        'writeoff' => 'Нельзя отменить резерв: заказ уже списан',
+                    ]);
+                }
+
                 return $this->reverseReserveDocumentInternal($writeoff);
             }
 

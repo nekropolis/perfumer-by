@@ -32,7 +32,15 @@ class StockWriteoffController extends Controller
                     }
                 });
             })
-            ->when($type !== '', fn ($query) => $query->where('type', $type))
+            ->when($type !== '', function ($query) use ($type) {
+                if ($type === 'writeoff') {
+                    $query->whereIn('type', ['order', 'manual']);
+
+                    return;
+                }
+
+                $query->where('type', $type);
+            })
             ->when($warehouseId > 0, fn ($query) => $query->where('warehouse_id', $warehouseId))
             ->when($dateFrom !== '', fn ($query) => $query->whereDate('written_off_at', '>=', $dateFrom))
             ->when($dateTo !== '', fn ($query) => $query->whereDate('written_off_at', '<=', $dateTo))
@@ -59,6 +67,10 @@ class StockWriteoffController extends Controller
         return response()->json([
             'data' => $writeoff,
             'can_reverse' => $inventoryService->canReverseWriteoff($writeoff),
+            'can_write_off' => $writeoff->type === 'reserve'
+                && $writeoff->order_id === null
+                && $writeoff->status === StockWriteoff::STATUS_POSTED
+                && $writeoff->items->isNotEmpty(),
         ]);
     }
 
@@ -71,6 +83,17 @@ class StockWriteoffController extends Controller
             'message' => 'Списание отменено, остатки на физических складах восстановлены',
             'data' => $writeoff,
         ]);
+    }
+
+    public function writeOff(int $id, StockInventoryService $service): JsonResponse
+    {
+        $writeoff = $service->writeOffManualReserve($id);
+        $this->enrichWriteoffItemLabels($writeoff);
+
+        return response()->json([
+            'message' => 'Резерв списан',
+            'data' => $writeoff,
+        ], 201);
     }
 
     public function store(Request $request, StockInventoryService $service): JsonResponse

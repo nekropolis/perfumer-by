@@ -304,6 +304,7 @@ export type StockWriteoffPayload = {
 export type StockWriteoffDetailResponse = {
     data: StockWriteoffListItem;
     can_reverse: boolean;
+    can_write_off?: boolean;
 };
 
 export type StockBalanceItem = {
@@ -933,6 +934,23 @@ export async function reverseStockWriteoff(id: number): Promise<{ message?: stri
     if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Reverse stock writeoff API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function writeOffStockReserve(
+    id: number,
+): Promise<{ message?: string; data: StockWriteoffListItem }> {
+    const res = await fetch(`${API_BASE}/admin/stock/writeoffs/${id}/write-off`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Write-off stock reserve API error: ${res.status}`);
     }
 
     return res.json();

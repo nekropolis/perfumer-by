@@ -408,12 +408,17 @@ class StockReceiptXlsImportService
                     continue;
                 }
 
+                $title = trim((string) ($dbRow->source_title ?? ''));
                 $items[] = [
                     'product_id' => (int) $variant->product_id,
                     'variant_id' => $variantId,
                     'qty' => (int) $dbRow->qty,
                     'supplier_price' => (float) ($dbRow->supplier_price ?? 0),
                     'supplier_sku' => $dbRow->supplier_sku,
+                    'payload' => array_filter([
+                        'supplier_product_name' => $title !== '' ? $title : null,
+                        'title' => $title !== '' ? $title : null,
+                    ], static fn ($value) => $value !== null && $value !== ''),
                 ];
                 $rowsForMappings[] = $this->dbRowToAggregate($dbRow);
                 $commitRows[] = $dbRow;
