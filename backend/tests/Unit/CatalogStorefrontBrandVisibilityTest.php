@@ -15,6 +15,7 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipUnlessSqliteDriver();
 
         config()->set('services.catalog_search.enabled', false);
 
@@ -46,9 +47,11 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
 
     protected function tearDown(): void
     {
-        Schema::dropIfExists('product_variant_links');
-        Schema::dropIfExists('products');
-        Schema::dropIfExists('brands');
+        if ($this->sqliteDriverAvailable()) {
+            Schema::dropIfExists('product_variant_links');
+            Schema::dropIfExists('products');
+            Schema::dropIfExists('brands');
+        }
 
         parent::tearDown();
     }

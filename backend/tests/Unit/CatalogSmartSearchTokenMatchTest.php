@@ -3,22 +3,27 @@
 namespace Tests\Unit;
 
 use Modules\Catalog\Http\Controllers\Api\ProductController;
+use Modules\Catalog\Support\CatalogSearchScoring;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use ReflectionMethod;
 
 class CatalogSmartSearchTokenMatchTest extends TestCase
 {
+    private function controllerWithoutConstructor(): ProductController
+    {
+        return (new ReflectionClass(ProductController::class))->newInstanceWithoutConstructor();
+    }
+
     private function invokeMatchInOrder(string $query, string $display): bool
     {
-        $controller = new ProductController();
-        $normalize = new ReflectionMethod($controller, 'normalizeSearchText');
-        $normalize->setAccessible(true);
+        $controller = $this->controllerWithoutConstructor();
         $matchInOrder = new ReflectionMethod($controller, 'smartSearchTokensMatchInOrder');
         $matchInOrder->setAccessible(true);
 
-        $normalizedQuery = $normalize->invoke($controller, $query);
+        $normalizedQuery = CatalogSearchScoring::normalizeSearchText($query);
         $tokens = array_values(array_filter(explode(' ', $normalizedQuery)));
-        $normalizedDisplay = $normalize->invoke($controller, $display);
+        $normalizedDisplay = CatalogSearchScoring::normalizeSearchText($display);
 
         return (bool) $matchInOrder->invoke($controller, $tokens, $normalizedDisplay);
     }
@@ -34,7 +39,7 @@ class CatalogSmartSearchTokenMatchTest extends TestCase
 
     public function test_short_prefix_does_not_match_unrelated_words(): void
     {
-        $controller = new ProductController();
+        $controller = $this->controllerWithoutConstructor();
         $method = new ReflectionMethod($controller, 'smartSearchTokenMatchesDisplayWord');
         $method->setAccessible(true);
 

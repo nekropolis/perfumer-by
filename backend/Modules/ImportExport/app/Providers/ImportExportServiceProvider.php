@@ -15,6 +15,7 @@ use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
 use Modules\ImportExport\Console\Commands\PurgeSellerOneDataCommand;
 use Modules\ImportExport\Console\Commands\ResetSellerOneLinksCommand;
 use Modules\ImportExport\Console\Commands\SyncAllparfumeBrandCommand;
+use Modules\ImportExport\Console\Commands\WatchAllparfumePriceUpdateCommand;
 use Modules\ImportExport\Console\Commands\NormalizeOrderPhonesCommand;
 use Modules\ImportExport\Console\Commands\NormalizeBelarusPhonesCommand;
 use Modules\ImportExport\Console\Commands\PurgeLegacyIncompleteOrdersCommand;
@@ -50,6 +51,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         ResetSellerOneLinksCommand::class,
         PurgeSellerOneDataCommand::class,
         SyncAllparfumeBrandCommand::class,
+        WatchAllparfumePriceUpdateCommand::class,
     ];
 }
 

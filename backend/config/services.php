@@ -83,4 +83,8 @@ return [
         'revalidate_secret' => env('CATALOG_STOREFRONT_REVALIDATE_SECRET'),
     ],
 
+    'allparfume' => [
+        'feed_token' => env('ALLPARFUME_FEED_TOKEN'),
+    ],
+
 ];

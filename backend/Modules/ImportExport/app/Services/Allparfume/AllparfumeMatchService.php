@@ -187,16 +187,28 @@ class AllparfumeMatchService
             'in_stock' => true,
         ];
 
-        $parsed = $this->variantMatcher->parseSupplierRow($row, $brands, $rules, $productsIndex);
+        $pinnedProductIds = $product->catalogProductIds();
+        $pinnedProductId = $pinnedProductIds[0] ?? 0;
+        $matchIndex = $productsIndex;
+        if ($pinnedProductIds !== []) {
+            $matchIndex = $this->productsIndexForPinnedProducts($productsIndex, $pinnedProductIds);
+        }
+
+        $parsed = $this->variantMatcher->parseSupplierRow($row, $brands, $rules, $matchIndex);
         $parsed = $this->variantLinkAutoCreator->apply(
             $parsed,
             $row,
-            $productsIndex,
+            $matchIndex,
             requirePositiveSupplierPrice: false,
         );
 
         $suggestedVariant = is_array($parsed['suggested_variant'] ?? null) ? $parsed['suggested_variant'] : null;
         $suggestedProduct = is_array($parsed['suggested_product'] ?? null) ? $parsed['suggested_product'] : null;
+        if ($pinnedProductIds !== [] && $suggestedVariant
+            && ! in_array((int) ($suggestedVariant['product_id'] ?? 0), $pinnedProductIds, true)
+        ) {
+            $suggestedVariant = null;
+        }
         $confidence = (int) ($suggestedVariant['confidence'] ?? $suggestedProduct['confidence'] ?? 0);
         $breakdown = is_array($suggestedVariant['confidence_breakdown'] ?? null)
             ? $suggestedVariant['confidence_breakdown']
@@ -208,7 +220,7 @@ class AllparfumeMatchService
             'matcher_title' => $title,
             'parsed' => $parsed['parsed'] ?? null,
             'suggested_variant_id' => $suggestedVariant['id'] ?? null,
-            'suggested_product_id' => $suggestedProduct['id'] ?? null,
+            'suggested_product_id' => $pinnedProductId > 0 ? $pinnedProductId : ($suggestedProduct['id'] ?? null),
             'match_confidence' => $confidence > 0 ? $confidence : null,
             'match_confidence_breakdown' => $breakdown,
             'suggested_variant_display' => $suggestedVariant['display'] ?? null,
@@ -242,7 +254,9 @@ class AllparfumeMatchService
             }
         }
 
-        $hasSuggestion = ($suggestedVariant['id'] ?? null) || ($suggestedProduct['id'] ?? null);
+        $hasSuggestion = ($suggestedVariant['id'] ?? null)
+            || ($suggestedProduct['id'] ?? null)
+            || $pinnedProductId > 0;
         $variant->fill([
             'product_variant_link_id' => null,
             'match_status' => $hasSuggestion ? 'suggested' : 'unmatched',
@@ -312,6 +326,16 @@ class AllparfumeMatchService
             ->get();
 
         if ($linked->isEmpty()) {
+            if ($product->external_id && $product->product_id) {
+                $product->fill([
+                    'match_status' => 'suggested',
+                    'match_confidence' => 100,
+                ]);
+                $product->save();
+
+                return;
+            }
+
             $product->fill([
                 'product_id' => null,
                 'match_status' => 'unmatched',
@@ -364,6 +388,30 @@ class AllparfumeMatchService
     }
 
     /**
+     * @param  array<int, list<Product>>  $productsIndex
+     * @param  list<int>  $productIds
+     * @return array<int, list<Product>>
+     */
+    private function productsIndexForPinnedProducts(array $productsIndex, array $productIds): array
+    {
+        $wanted = array_fill_keys($productIds, true);
+        $filtered = [];
+        foreach ($productsIndex as $brandId => $products) {
+            $keep = [];
+            foreach ($products as $catalogProduct) {
+                if ($catalogProduct instanceof Product && isset($wanted[(int) $catalogProduct->id])) {
+                    $keep[] = $catalogProduct;
+                }
+            }
+            if ($keep !== []) {
+                $filtered[$brandId] = $keep;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
      * @param  \Illuminate\Support\Collection<int, ProductVariantLink>|null  $linksById
      * @param  \Illuminate\Support\Collection<int, Product>|null  $productsById
      * @return array<string, mixed>
@@ -378,6 +426,9 @@ class AllparfumeMatchService
 
         $suggestedVariantId = (int) ($payload['suggested_variant_id'] ?? 0);
         $suggestedProductId = (int) ($payload['suggested_product_id'] ?? 0);
+        if ($suggestedProductId <= 0 && $product?->product_id) {
+            $suggestedProductId = (int) $product->product_id;
+        }
         $linkedVariantId = (int) ($variant->product_variant_link_id ?? $payload['linked_variant_id'] ?? 0);
 
         $resolveLink = static function (int $id) use ($linksById): ?ProductVariantLink {
@@ -469,6 +520,7 @@ class AllparfumeMatchService
             'external_name' => $externalName !== '' ? $externalName : ($variant->variant_key ?: '#'.$variant->id),
             'external_slug' => $product?->external_slug,
             'external_url' => $product?->source_url,
+            'external_id' => $product?->external_id !== null ? (int) $product->external_id : null,
             'variant_key' => $variant->variant_key,
             'raw_label' => $variant->raw_label,
             'min_price' => $variant->min_price,

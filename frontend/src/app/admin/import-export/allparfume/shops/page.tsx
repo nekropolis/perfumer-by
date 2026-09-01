@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
+import AllparfumeAdminNav from "@/components/admin/import-export/allparfume-admin-nav";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
-import { adminBtnSm, adminCheckbox } from "@/lib/admin-ui-classes";
+import { adminCheckbox } from "@/lib/admin-ui-classes";
 import {
     fetchAllparfumeShops,
     updateAllparfumeShopActive,
@@ -18,12 +18,6 @@ import {
 
 const PER_PAGE_OPTIONS = [25, 50, 100] as const;
 type PerPageOption = (typeof PER_PAGE_OPTIONS)[number];
-
-const ACTIVE_FILTER_OPTIONS = [
-    { value: "", label: "Все" },
-    { value: "1", label: "Активные" },
-    { value: "0", label: "Выключенные" },
-] as const;
 
 export default function AdminAllparfumeShopsPage() {
     const [page, setPage] = useUrlPage();
@@ -89,16 +83,11 @@ export default function AdminAllparfumeShopsPage() {
     return (
         <AdminPageCard>
             <div className="space-y-4 rounded-2xl border bg-white p-6">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <h1 className="text-lg font-semibold">Allparfume · магазины</h1>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
-                            Какие магазины участвуют в «Обновить цены» и «Парсинг»
-                        </p>
-                    </div>
-                    <Link href="/admin/import-export/allparfume" className={adminBtnSm}>
-                        К линковке
-                    </Link>
+                <div className="flex flex-col gap-3">
+                    <p className="text-sm text-admin-text-secondary">
+                        Какие магазины участвуют в «Обновить цены» и «Парсинг»
+                    </p>
+                    <AllparfumeAdminNav />
                 </div>
 
                 {error ? (
@@ -110,12 +99,16 @@ export default function AdminAllparfumeShopsPage() {
 
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <AdminFilterSelect
-                            className="min-w-0"
+                        <AdminStatusDropdown
                             value={activeFilter}
                             onChangeAction={(v) => setActiveFilter(v as "" | "1" | "0")}
-                            options={[...ACTIVE_FILTER_OPTIONS]}
-                            placeholder="Статус"
+                            options={[
+                                { value: "", label: "Статус" },
+                                { value: "1", label: "Активные" },
+                                { value: "0", label: "Выключенные" },
+                            ]}
+                            widthClassName="w-max shrink-0"
+                            menuWidthClassName="w-max"
                         />
                         {hasActiveFilters ? (
                             <button

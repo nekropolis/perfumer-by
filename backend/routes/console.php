@@ -53,6 +53,12 @@ Schedule::command('catalog:refresh-home-hero')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('allparfume:watch-price-update')
+    ->dailyAt('03:10')
+    ->timezone('Europe/Minsk')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 Schedule::command('orders:notify-overdue-delivery')
     ->dailyAt('07:00')
     ->timezone('Europe/Minsk')

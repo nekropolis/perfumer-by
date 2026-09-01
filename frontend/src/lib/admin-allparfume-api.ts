@@ -24,6 +24,41 @@ async function parseError(res: Response): Promise<string> {
     }
 }
 
+/** Дата последнего crawl Allparfume: день.месяц (Europe/Minsk). */
+export function formatAllparfumeUpdatedAt(value: string | null | undefined): string | null {
+    if (!value) {
+        return null;
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+    const parts = new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        timeZone: "Europe/Minsk",
+    }).formatToParts(date);
+    const day = parts.find((part) => part.type === "day")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    if (!day || !month) {
+        return null;
+    }
+    return `${day}.${month}`;
+}
+
+export async function fetchLastAllparfumeCrawledAt(signal?: AbortSignal): Promise<string | null> {
+    const res = await fetch(`${API_BASE}/admin/import-export/allparfume/last-crawled-at`, {
+        headers: getAdminHeaders(),
+        cache: "no-store",
+        signal,
+    });
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+    const json = (await res.json()) as { data?: { last_crawled_at?: string | null } };
+    return json.data?.last_crawled_at ?? null;
+}
+
 export type AllparfumeBrandOption = {
     brand_slug: string;
     brand_name: string | null;
@@ -46,6 +81,7 @@ export type AllparfumeVariantItem = {
     external_name: string;
     external_slug: string | null;
     external_url: string | null;
+    external_id: number | null;
     variant_key: string;
     raw_label: string;
     min_price: string | number | null;
@@ -121,6 +157,7 @@ export type AllparfumeVariantsResponse = {
         confirmed: number;
         found_unconfirmed: number;
         unlinked: number;
+        last_crawled_at?: string | null;
     };
 };
 
@@ -180,6 +217,33 @@ export async function runAllparfumeAutoMatch(payload?: {
         method: "POST",
         headers: getAdminHeaders(),
         body: JSON.stringify(payload ?? {}),
+    });
+    if (!res.ok) {
+        throw new Error(await parseError(res));
+    }
+    return res.json();
+}
+
+export async function importAllparfumeIds(payload: {
+    items: Array<{
+        perfumer_url: string | string[];
+        allparfume_url: string;
+        allparfume_id: number;
+    }>;
+}): Promise<{
+    message?: string;
+    stats: {
+        updated: number;
+        unmatched_slug: number;
+        unmatched_allparfume_url: number;
+        unmatched_slug_samples?: string[];
+        unmatched_allparfume_url_samples?: string[];
+    };
+}> {
+    const res = await fetch(`${API_BASE}/admin/import-export/allparfume/import-ids`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(payload),
     });
     if (!res.ok) {
         throw new Error(await parseError(res));

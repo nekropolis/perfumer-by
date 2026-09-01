@@ -267,7 +267,7 @@ final class CatalogProductLinkNameTokenizer
             '/\b([a-z])\s*\.\s*([a-z])\s*\.?\b/iu',
             static function (array $matches): string {
                 if ($matches[1] === 'l' && $matches[2] === 'e') {
-                    return ' '.trim((string) ($matches[0] ?? '')).' ';
+                    return ' ';
                 }
 
                 return ' line'.$matches[1].$matches[2].' ';

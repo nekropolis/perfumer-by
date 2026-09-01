@@ -40,12 +40,16 @@ import {
     fetchLastPriceRefreshAt,
     formatPriceRefreshDayMonth,
 } from "@/lib/admin-pricing-api";
+import {
+    fetchLastAllparfumeCrawledAt,
+    formatAllparfumeUpdatedAt,
+} from "@/lib/admin-allparfume-api";
 import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
 import { useSmartPolling } from "@/hooks/use-smart-polling";
 
 type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending" | "seoQueued";
 type AlertBadgeKey = "ordersOverdue";
-type MetaBadgeKey = "priceRefreshLast";
+type MetaBadgeKey = "priceRefreshLast" | "allparfumeLast";
 
 type LinkItem = {
     type: "link";
@@ -132,7 +136,13 @@ const sections: SidebarSection[] = [
         label: "Импорт и парсинг",
         items: [
             { type: "link", href: "/admin/import-export/vanille-parsing", label: "Vanilla", icon: FolderSync },
-            { type: "link", href: "/admin/import-export/allparfume", label: "Allparfume", icon: FolderSync },
+            {
+                type: "link",
+                href: "/admin/import-export/allparfume",
+                label: "Allparfume",
+                icon: FolderSync,
+                metaBadgeKey: "allparfumeLast",
+            },
             { type: "link", href: "/admin/import-export/seller-pars", label: "Парсинг поставщиков", icon: FolderSync },
         ],
     },
@@ -359,6 +369,7 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
     const [seoQueuedCount, setSeoQueuedCount] = useState(0);
     const [priceRefreshLastLabel, setPriceRefreshLastLabel] = useState<string | null>(null);
+    const [allparfumeLastLabel, setAllparfumeLastLabel] = useState<string | null>(null);
 
     const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
     const _hasItems = flatItems.length > 0;
@@ -366,13 +377,14 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
     const loadSidebarBadgeStats = useCallback(
         async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            const [ordersResult, stockResult, reviewsResult, seoResult, priceRefreshResult] =
+            const [ordersResult, stockResult, reviewsResult, seoResult, priceRefreshResult, allparfumeResult] =
                 await Promise.allSettled([
                     fetchOrdersStats(signal),
                     fetchAdminStockNotificationStats(signal),
                     fetchAdminReviewsStats(signal),
                     fetchProductSeoQueueBadge(signal),
                     fetchLastPriceRefreshAt(signal),
+                    fetchLastAllparfumeCrawledAt(signal),
                 ]);
 
             let ordersNew = 0;
@@ -406,6 +418,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
 
             if (priceRefreshResult.status === "fulfilled") {
                 setPriceRefreshLastLabel(formatPriceRefreshDayMonth(priceRefreshResult.value));
+            }
+
+            if (allparfumeResult.status === "fulfilled") {
+                setAllparfumeLastLabel(formatAllparfumeUpdatedAt(allparfumeResult.value));
             }
 
             const active =
@@ -447,9 +463,11 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
     };
     const metaBadgeValues: Record<MetaBadgeKey, string | null> = {
         priceRefreshLast: priceRefreshLastLabel,
+        allparfumeLast: allparfumeLastLabel,
     };
     const metaBadgeLabels: Record<MetaBadgeKey, string> = {
         priceRefreshLast: "Последнее обновление цен",
+        allparfumeLast: "Последнее обновление Allparfume",
     };
 
     return (

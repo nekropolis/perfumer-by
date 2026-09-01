@@ -67,6 +67,13 @@ class CatalogProductLinkNameTokenizerSearchTest extends TestCase
         $this->assertSame(['q', 'intense'], $tokens);
     }
 
+    public function test_limited_edition_abbreviation_is_stripped_from_match_tokens(): void
+    {
+        $tokens = CatalogProductLinkNameTokenizer::variantMatchTokens('Strip L.E.', null);
+
+        $this->assertSame(['strip'], $tokens);
+    }
+
     public function test_split_leading_brand_requires_word_boundary(): void
     {
         $brands = [

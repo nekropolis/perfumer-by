@@ -23,6 +23,7 @@ class ProductSeoGenerationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipUnlessSqliteDriver();
 
         $this->createMinimalSchema();
         config()->set('seo_description.url', 'http://seo.test/api');
@@ -34,6 +35,12 @@ class ProductSeoGenerationTest extends TestCase
 
     protected function tearDown(): void
     {
+        if (! $this->sqliteDriverAvailable()) {
+            parent::tearDown();
+
+            return;
+        }
+
         Schema::dropIfExists('product_seo_generations');
         Schema::dropIfExists('product_attribute_value_options');
         Schema::dropIfExists('product_attribute_values');

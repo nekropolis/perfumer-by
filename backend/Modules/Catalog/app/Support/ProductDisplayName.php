@@ -154,7 +154,7 @@ final class ProductDisplayName
             $prefixPattern = '/^'.preg_quote($variant, '/').'\s*/iu';
             if (preg_match($prefixPattern, $productName) === 1) {
                 $rest = trim((string) preg_replace($prefixPattern, '', $productName, 1));
-                if ($rest !== '' && !self::brandNamesEquivalent($variant, $rest)) {
+                if ($rest !== '') {
                     return self::normalizeSpaces($rest);
                 }
             }
@@ -163,7 +163,7 @@ final class ProductDisplayName
             $inlinePattern = '/(?:^|\s)'.$escaped.'(?:\s|$)/iu';
             if (preg_match($inlinePattern, $productName) === 1) {
                 $rest = self::normalizeSpaces(trim((string) preg_replace($inlinePattern, ' ', $productName)));
-                if ($rest !== '' && !self::brandNamesEquivalent($variant, $rest)) {
+                if ($rest !== '') {
                     return $rest;
                 }
             }

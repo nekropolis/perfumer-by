@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
-import AdminFilterSelect from "@/components/admin/ui/admin-filter-select";
 import AdminSearchableSelect from "@/components/admin/ui/admin-searchable-select";
+import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
+import AllparfumeAdminNav from "@/components/admin/import-export/allparfume-admin-nav";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import useUrlPage, { useResetPageOnChange } from "@/hooks/use-url-page";
 import { adminBtnSecondary, adminCheckbox } from "@/lib/admin-ui-classes";
@@ -31,6 +31,22 @@ function readStoredPerPage(): PerPageOption {
     }
     return parsePerPage(window.localStorage.getItem(PER_PAGE_STORAGE_KEY));
 }
+
+function normalizeImportedPerfumerUrl(value: unknown): string | string[] | null {
+    if (typeof value === "string") {
+        const url = value.trim();
+        return url !== "" ? url : null;
+    }
+    if (!Array.isArray(value)) {
+        return null;
+    }
+    const urls = value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter((item) => item !== "");
+    return urls.length > 0 ? urls : null;
+}
+
 import {
     fetchAllparfumeBrands,
     fetchAllparfumeSyncActive,
@@ -41,6 +57,8 @@ import {
     runAllparfumeAutoMatch,
     startAllparfumeFullSync,
     startAllparfumeRefreshPrices,
+    importAllparfumeIds,
+    formatAllparfumeUpdatedAt,
     type AllparfumeBrandOption,
     type AllparfumeSyncJobStatus,
     type AllparfumeVariantItem,
@@ -115,6 +133,46 @@ type StatusFilter = "" | "confirmed" | "found_unconfirmed" | "unlinked";
 
 function asSellerOneRow(row: AllparfumeVariantItem): SellerOneSupplierProductItem {
     return row as unknown as SellerOneSupplierProductItem;
+}
+
+function catalogProductFromAllparfumeRow(row: AllparfumeVariantItem): ProductAdminItem | null {
+    const source = row.product
+        ? {
+            id: row.product.id,
+            name: row.product.name,
+            slug: row.product.slug,
+            brandName: row.brand?.name ?? null,
+            variantsCount: 0,
+        }
+        : row.suggested_product
+            ? {
+                id: row.suggested_product.id,
+                name: row.suggested_product.name,
+                slug: row.suggested_product.slug ?? "",
+                brandName: row.suggested_product.brand_name,
+                variantsCount: row.suggested_product.variants_count,
+            }
+            : null;
+    if (!source) {
+        return null;
+    }
+
+    return {
+        id: source.id,
+        name: source.name,
+        slug: source.slug,
+        is_active: true,
+        is_new: false,
+        is_hit: false,
+        variants_count: source.variantsCount,
+        brand: source.brandName
+            ? {
+                id: row.brand?.id && row.brand.id > 0 ? row.brand.id : 0,
+                name: source.brandName,
+                slug: "",
+            }
+            : null,
+    };
 }
 
 type ManualLinkSearchHostProps = {
@@ -302,6 +360,8 @@ export default function AllparfumeImportPage() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [autoMatchLoading, setAutoMatchLoading] = useState(false);
+    const [importIdsLoading, setImportIdsLoading] = useState(false);
+    const importIdsFileRef = useRef<HTMLInputElement>(null);
     const [syncJob, setSyncJob] = useState<AllparfumeSyncJobStatus | null>(null);
     const [syncRunning, setSyncRunning] = useState(false);
     const [manualLink, setManualLink] = useState<ManualLinkState | null>(null);
@@ -559,6 +619,58 @@ export default function AllparfumeImportPage() {
         }
     };
 
+    const handleImportIdsFile = async (file: File) => {
+        setImportIdsLoading(true);
+        setError("");
+        setSuccess("");
+        try {
+            const parsed = JSON.parse(await file.text()) as unknown;
+            const rawItems = Array.isArray(parsed)
+                ? parsed
+                : parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
+                    ? (parsed as { items: unknown[] }).items
+                    : null;
+            if (!rawItems || rawItems.length === 0) {
+                setError("В файле нет items");
+                return;
+            }
+            const payloadItems = rawItems.flatMap((row) => {
+                if (!row || typeof row !== "object") {
+                    return [];
+                }
+                const rec = row as {
+                    perfumer_url?: unknown;
+                    allparfume_url?: unknown;
+                    allparfume_id?: unknown;
+                };
+                const id = Number(rec.allparfume_id);
+                const perfumerUrl = normalizeImportedPerfumerUrl(rec.perfumer_url);
+                if (!Number.isInteger(id) || id < 1 || perfumerUrl == null) {
+                    return [];
+                }
+                return [{
+                    perfumer_url: perfumerUrl,
+                    allparfume_url: String(rec.allparfume_url ?? ""),
+                    allparfume_id: id,
+                }];
+            });
+            if (payloadItems.length === 0) {
+                setError("В файле нет корректных строк");
+                return;
+            }
+            const result = await importAllparfumeIds({ items: payloadItems });
+            setSuccess(result.message || "Импорт ID завершён");
+            await loadRows(page);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось загрузить JSON с ID");
+        } finally {
+            setImportIdsLoading(false);
+            if (importIdsFileRef.current) {
+                importIdsFileRef.current.value = "";
+            }
+        }
+    };
+
     const handleRefreshPrices = async () => {
         if (!confirmAllparfumeAction(ALLPARFUME_CONFIRM.refreshPrices)) {
             return;
@@ -617,23 +729,31 @@ export default function AllparfumeImportPage() {
             isVial: Boolean(row.parsed?.is_vial),
             isMiniature: Boolean(row.parsed?.is_miniature),
         };
+        const pinnedProduct = catalogProductFromAllparfumeRow(row);
         setManualLink({
             rowId: row.id,
             rowName: row.external_name,
             linkSearchBrandId: row.brand?.id && row.brand.id > 0 ? row.brand.id : null,
-            productSearch: initialSearch,
+            productSearch: pinnedProduct ? formatCatalogProductLabel(pinnedProduct) : initialSearch,
             sourceHint,
-            products: [],
+            products: pinnedProduct ? [pinnedProduct] : [],
             productsLoading: false,
-            selectedProductId: null,
+            selectedProductId: pinnedProduct?.id ?? null,
             variants: [],
-            variantsLoading: false,
+            variantsLoading: Boolean(pinnedProduct),
             selectedVariantId: null,
             definitionSearch: buildDefinitionSearchFromHint(sourceHint),
             definitions: [],
             definitionsLoading: false,
             attachingDefinition: false,
         });
+        if (pinnedProduct) {
+            void loadManualVariants(
+                pinnedProduct.id,
+                row.suggested_variant?.id ?? row.linked_variant?.id,
+                pinnedProduct,
+            );
+        }
     };
 
     const loadManualVariants = async (
@@ -736,31 +856,28 @@ export default function AllparfumeImportPage() {
         syncRunning || syncJob?.status === "queued" || syncJob?.status === "running";
     const syncTitle =
         syncJob?.job_type === "full" ? "Парсинг Allparfume" : "Обновление цен Allparfume";
+    const pricesUpdatedLabel = formatAllparfumeUpdatedAt(meta?.stats?.last_crawled_at);
 
     return (
         <AdminPageCard>
             <div className="space-y-4 rounded-2xl border bg-white p-6">
-                <nav className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-admin-border bg-admin-muted/60 p-1">
-                    <Link
-                        href="/admin/import-export/allparfume/shops"
-                        className="inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-text"
-                    >
-                        Магазины
-                    </Link>
-                </nav>
-
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <h1 className="text-lg font-semibold">Allparfume</h1>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
-                            Сопоставление вариантов allparfume.by с каталогом
-                        </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                            <p className="text-sm text-admin-text-secondary">
+                                Сопоставление вариантов allparfume.by с каталогом
+                            </p>
+                            {pricesUpdatedLabel ? (
+                                <p className="mt-0.5 text-[11px] font-medium tabular-nums text-emerald-700">
+                                    Обновлено - {pricesUpdatedLabel}
+                                </p>
+                            ) : null}
+                        </div>
+                        <div className="flex flex-wrap items-start gap-2">
                         <button
                             type="button"
                             onClick={() => void handleRefreshPrices()}
-                            disabled={syncRunning || autoMatchLoading || loading}
+                            disabled={syncRunning || autoMatchLoading || importIdsLoading || loading}
                             className={`${adminBtnSecondary} disabled:opacity-50`}
                             title="Обновить цены/офферы только у уже сохранённых после парсинга товаров"
                         >
@@ -769,7 +886,7 @@ export default function AllparfumeImportPage() {
                         <button
                             type="button"
                             onClick={() => void handleFullSync()}
-                            disabled={syncRunning || autoMatchLoading || loading}
+                            disabled={syncRunning || autoMatchLoading || importIdsLoading || loading}
                             className={`${adminBtnSecondary} disabled:opacity-50`}
                             title="Парсинг всех брендов: создать новые товары, варианты и офферы"
                         >
@@ -777,13 +894,36 @@ export default function AllparfumeImportPage() {
                         </button>
                         <button
                             type="button"
+                            onClick={() => importIdsFileRef.current?.click()}
+                            disabled={importIdsLoading || syncRunning || autoMatchLoading || loading}
+                            className={`${adminBtnSecondary} disabled:opacity-50`}
+                            title="Загрузить JSON с allparfume_id, нашим и их URL"
+                        >
+                            {importIdsLoading ? "Загрузка ID…" : "Загрузить ID"}
+                        </button>
+                        <input
+                            ref={importIdsFileRef}
+                            type="file"
+                            accept="application/json,.json"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    void handleImportIdsFile(file);
+                                }
+                            }}
+                        />
+                        <button
+                            type="button"
                             onClick={() => void handleAutoMatch()}
-                            disabled={autoMatchLoading || syncRunning || loading}
+                            disabled={autoMatchLoading || importIdsLoading || syncRunning || loading}
                             className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm text-blue-900 hover:bg-blue-100 disabled:opacity-50"
                         >
                             {autoMatchLoading ? "Автоматчинг…" : "Автоматчинг"}
                         </button>
                     </div>
+                    </div>
+                    <AllparfumeAdminNav />
                 </div>
 
                 {error ? <AlertMessage message={error} onCloseAction={() => setError("")} /> : null}
@@ -817,52 +957,56 @@ export default function AllparfumeImportPage() {
                 ) : null}
 
                 <div className="flex flex-col gap-2 rounded-lg border bg-admin-muted px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-admin-text-secondary">
+                    <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-admin-text-secondary">
                         <span className="font-medium text-admin-text">Всего: {meta?.total ?? 0}</span>
                         <span>Связанные: {meta?.stats?.confirmed ?? 0}</span>
                         <span>Есть кандидат: {meta?.stats?.found_unconfirmed ?? 0}</span>
                         <span>Не связанные: {meta?.stats?.unlinked ?? 0}</span>
                     </div>
-                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-                        <AdminSearchableSelect
-                            className="min-w-0 shrink-0 [&_button]:!w-[9.25rem] [&_button]:md:!w-[9.25rem]"
-                            value={brandSlug}
-                            onChangeAction={setBrandSlug}
-                            options={brandOptions}
-                            placeholder="Бренд"
-                            emptyLabel="Все бренды"
-                            title="Выбор бренда"
-                            subtitle="Найдите бренд allparfume"
-                            searchPlaceholder="Поиск бренда..."
-                        />
-                        <AdminFilterSelect
-                            className="min-w-0 shrink-0 [&_select]:!w-[8.5rem] [&_select]:md:!w-[8.5rem]"
-                            value={status}
-                            onChangeAction={(value) => setStatus(value as StatusFilter)}
-                            options={STATUS_OPTIONS as unknown as Array<{ value: string; label: string }>}
-                            placeholder="Статусы"
-                        />
-                        <AdminSearchInput
-                            className="w-full shrink-0 sm:w-auto [&_.relative]:!w-full [&_.relative]:md:!w-52"
-                            value={searchInput}
-                            onChangeAction={setSearchInput}
-                            placeholder="Поиск: бренд, название, объём"
-                            syncWithUrl={false}
-                        />
-                        {hasActiveFilters ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSearchInput("");
-                                    setStatus("");
-                                    setBrandSlug("");
-                                    setPage(1);
-                                }}
-                                className="inline-flex h-9 shrink-0 items-center rounded-lg border border-admin-border bg-admin-surface px-2.5 text-[11px] whitespace-nowrap text-admin-text-secondary transition hover:bg-white"
-                            >
-                                Сбросить
-                            </button>
-                        ) : null}
+                    <div className="flex min-w-0 w-full items-center justify-end gap-1.5 lg:w-auto lg:flex-1">
+                    <AdminSearchableSelect
+                        className="min-w-0 shrink-0 [&_button]:!w-[9.25rem] [&_button]:md:!w-[9.25rem]"
+                        value={brandSlug}
+                        onChangeAction={setBrandSlug}
+                        options={brandOptions}
+                        placeholder="Бренд"
+                        emptyLabel="Все бренды"
+                        title="Выбор бренда"
+                        subtitle="Найдите бренд allparfume"
+                        searchPlaceholder="Поиск бренда..."
+                    />
+                    <AdminStatusDropdown
+                        value={status}
+                        onChangeAction={(value) => setStatus(value as StatusFilter)}
+                        options={[
+                            { value: "", label: "Статусы" },
+                            ...STATUS_OPTIONS,
+                        ]}
+                        widthClassName="w-max shrink-0"
+                        menuWidthClassName="w-max"
+                    />
+                    <AdminSearchInput
+                        className="min-w-0 w-full lg:w-[35%] lg:min-w-[16rem] lg:shrink-0"
+                        widthClassName="w-full"
+                        value={searchInput}
+                        onChangeAction={setSearchInput}
+                        placeholder="Поиск: бренд, название, объём"
+                        syncWithUrl={false}
+                    />
+                    {hasActiveFilters ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSearchInput("");
+                                setStatus("");
+                                setBrandSlug("");
+                                setPage(1);
+                            }}
+                            className="inline-flex h-9 shrink-0 items-center rounded-lg border border-admin-border bg-admin-surface px-2.5 text-[11px] whitespace-nowrap text-admin-text-secondary transition hover:bg-white"
+                        >
+                            Сбросить
+                        </button>
+                    ) : null}
                     </div>
                 </div>
 
@@ -979,12 +1123,23 @@ export default function AllparfumeImportPage() {
                                                                     : row.raw_label}
                                                             </div>
                                                         ) : null}
+                                                        {row.external_id ? (
+                                                            <div className="text-[11px] tabular-nums text-admin-text-secondary">
+                                                                ID {row.external_id}
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-2 py-3">
                                                     {row.status === "confirmed" ? (
                                                         <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
                                                             Связан
+                                                        </span>
+                                                    ) : row.status === "found_unconfirmed"
+                                                        && row.suggested_product
+                                                        && !row.suggested_variant ? (
+                                                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">
+                                                            Продукт совпал
                                                         </span>
                                                     ) : row.status === "found_unconfirmed" ? (
                                                         <ConfidenceBadge label="Кандидат" confidence={row.match_confidence} />

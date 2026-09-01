@@ -2503,7 +2503,19 @@ class SellerOneVariantMatcher
 
     private static function canQueryGenderFromDatabase(): bool
     {
-        return Product::getConnectionResolver() !== null;
+        try {
+            if (Product::getConnectionResolver() === null || ! app()->bound('config') || ! app()->bound('db')) {
+                return false;
+            }
+
+            if (config('database.default') === 'sqlite' && ! extension_loaded('pdo_sqlite')) {
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function extractGenderMarker(string $title): ?string

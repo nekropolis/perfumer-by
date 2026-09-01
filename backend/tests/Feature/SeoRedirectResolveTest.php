@@ -12,6 +12,7 @@ class SeoRedirectResolveTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipUnlessSqliteDriver();
 
         Schema::create('seo_redirects', function (Blueprint $table): void {
             $table->id();
@@ -26,7 +27,9 @@ class SeoRedirectResolveTest extends TestCase
 
     protected function tearDown(): void
     {
-        Schema::dropIfExists('seo_redirects');
+        if ($this->sqliteDriverAvailable()) {
+            Schema::dropIfExists('seo_redirects');
+        }
 
         parent::tearDown();
     }

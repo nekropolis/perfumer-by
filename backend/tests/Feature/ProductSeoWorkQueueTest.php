@@ -22,6 +22,7 @@ class ProductSeoWorkQueueTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipUnlessSqliteDriver();
 
         $this->createMinimalSchema();
         config()->set('seo_description.url', 'http://seo.test/api');
@@ -34,6 +35,12 @@ class ProductSeoWorkQueueTest extends TestCase
 
     protected function tearDown(): void
     {
+        if (! $this->sqliteDriverAvailable()) {
+            parent::tearDown();
+
+            return;
+        }
+
         Schema::dropIfExists('product_seo_field_receipts');
         Schema::dropIfExists('product_seo_batch_items');
         Schema::dropIfExists('product_seo_batches');

@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use Modules\ImportExport\Services\Allparfume\Parsers\AllparfumeBrandPageParser;
 use Modules\ImportExport\Services\Allparfume\Parsers\AllparfumeBrandsIndexParser;
+use Modules\ImportExport\Services\Allparfume\Parsers\AllparfumeHomepageParser;
 use Modules\ImportExport\Services\Allparfume\Parsers\AllparfumeProductPageParser;
 use PHPUnit\Framework\TestCase;
 
@@ -165,5 +166,36 @@ HTML;
         $this->assertSame('171.00', $offers[0]['price']);
         $this->assertSame('Бесплатная доставка по Минску', $offers[0]['delivery_text']);
         $this->assertSame('https://allparfume.by/out.php?l=abc', $offers[0]['offer_url']);
+    }
+
+    public function test_homepage_parser_reads_prices_updated_date(): void
+    {
+        $html = <<<'HTML'
+<footer>
+  AllParfume.by - купить женские духи.
+  Обновление цен: 25.08.2026 [4 дня назад]
+  Всего ароматов: 7014
+</footer>
+HTML;
+
+        $parser = new AllparfumeHomepageParser();
+
+        $this->assertSame('2026-08-25', $parser->parsePricesUpdatedOn($html));
+    }
+
+    public function test_homepage_parser_reads_date_across_tags(): void
+    {
+        $html = '<p>Обновление цен:</p> <span>25.08.2026</span> [3 дня назад]';
+
+        $parser = new AllparfumeHomepageParser();
+
+        $this->assertSame('2026-08-25', $parser->parsePricesUpdatedOn($html));
+    }
+
+    public function test_homepage_parser_returns_null_without_date(): void
+    {
+        $parser = new AllparfumeHomepageParser();
+
+        $this->assertNull($parser->parsePricesUpdatedOn('<html><body>Каталог</body></html>'));
     }
 }

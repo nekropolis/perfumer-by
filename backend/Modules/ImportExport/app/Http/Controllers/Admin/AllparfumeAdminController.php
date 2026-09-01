@@ -6,7 +6,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogSearchScoring;
@@ -15,6 +14,7 @@ use Modules\ImportExport\Models\AllparfumeProduct;
 use Modules\ImportExport\Models\AllparfumeShop;
 use Modules\ImportExport\Models\AllparfumeShopOffer;
 use Modules\ImportExport\Models\AllparfumeVariant;
+use Modules\ImportExport\Services\Allparfume\AllparfumeIdFileImportService;
 use Modules\ImportExport\Services\Allparfume\AllparfumeMatchService;
 use Modules\ImportExport\Services\Allparfume\Support\AllparfumeShopRegistry;
 
@@ -35,6 +35,15 @@ class AllparfumeAdminController extends Controller
             ->values();
 
         return response()->json(['data' => $brands]);
+    }
+
+    public function lastCrawledAt(): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'last_crawled_at' => AllparfumeProduct::query()->max('last_crawled_at'),
+            ],
+        ]);
     }
 
     public function variants(Request $request, AllparfumeMatchService $matchService): JsonResponse
@@ -172,6 +181,7 @@ class AllparfumeAdminController extends Controller
                         ->whereNull('match_payload->suggested_product_id');
                 })
                 ->count(),
+            'last_crawled_at' => AllparfumeProduct::query()->max('last_crawled_at'),
         ];
 
         $variantIds = [];
@@ -192,6 +202,9 @@ class AllparfumeAdminController extends Controller
             }
             if (! empty($payload['suggested_product_id'])) {
                 $productIds[] = (int) $payload['suggested_product_id'];
+            }
+            if ($item->allparfumeProduct?->product_id) {
+                $productIds[] = (int) $item->allparfumeProduct->product_id;
             }
         }
 
@@ -367,6 +380,23 @@ class AllparfumeAdminController extends Controller
         ]);
     }
 
+    public function importIds(Request $request, AllparfumeIdFileImportService $importService): JsonResponse
+    {
+        $data = $request->validate(AllparfumeIdFileImportService::itemValidationRules());
+
+        $stats = $importService->import($data['items']);
+
+        return response()->json([
+            'message' => sprintf(
+                'Импорт ID: обновлено %d, нет slug %d, нет URL Allparfume %d',
+                $stats['updated'],
+                $stats['unmatched_slug'],
+                $stats['unmatched_allparfume_url'],
+            ),
+            'stats' => $stats,
+        ]);
+    }
+
     public function forceLink(Request $request, AllparfumeMatchService $matchService): JsonResponse
     {
         $data = $request->validate([
@@ -392,24 +422,12 @@ class AllparfumeAdminController extends Controller
 
     private function startSyncJob(string $mode, string $message): JsonResponse
     {
-        if (Cache::get(RunAllparfumeSyncJob::activeKey())) {
+        $jobId = RunAllparfumeSyncJob::queueIfIdle($mode);
+        if ($jobId === null) {
             return response()->json([
                 'message' => 'Синхронизация Allparfume уже выполняется',
             ], 409);
         }
-
-        $jobId = (string) Str::uuid();
-        Cache::put(RunAllparfumeSyncJob::activeKey(), $jobId, now()->addHours(24));
-        Cache::put(RunAllparfumeSyncJob::cacheKey($jobId), [
-            'job_id' => $jobId,
-            'job_type' => $mode,
-            'status' => 'queued',
-            'message' => 'Задача поставлена в очередь',
-            'progress' => 0,
-            'updated_at' => now()->toDateTimeString(),
-        ], now()->addHours(24));
-
-        RunAllparfumeSyncJob::dispatch($jobId, $mode);
 
         return response()->json([
             'message' => $message,

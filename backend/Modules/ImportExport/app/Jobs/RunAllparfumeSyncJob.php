@@ -9,6 +9,9 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Modules\Communications\Jobs\SendTelegramMessageJob;
 use Modules\ImportExport\Services\Allparfume\AllparfumeBrandSyncService;
 use Throwable;
 
@@ -32,6 +35,8 @@ class RunAllparfumeSyncJob implements ShouldQueue
     public function __construct(
         public string $jobId,
         public string $mode,
+        public bool $notifyOnFinish = false,
+        public ?string $sourcePricesDate = null,
     ) {
     }
 
@@ -97,6 +102,8 @@ class RunAllparfumeSyncJob implements ShouldQueue
                 'message' => $doneMessage,
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            $this->notifyCronFinished($stats);
         } catch (Throwable $e) {
             Cache::put($cacheKey, [
                 'job_id' => $this->jobId,
@@ -105,6 +112,8 @@ class RunAllparfumeSyncJob implements ShouldQueue
                 'message' => $e->getMessage(),
                 'updated_at' => now()->toDateTimeString(),
             ], now()->addHours(24));
+
+            $this->notifyCronFailed($e);
 
             throw $e;
         } finally {
@@ -121,6 +130,31 @@ class RunAllparfumeSyncJob implements ShouldQueue
         ];
     }
 
+    public static function queueIfIdle(
+        string $mode,
+        bool $notifyOnFinish = false,
+        ?string $sourcePricesDate = null,
+    ): ?string {
+        if (Cache::get(self::activeKey())) {
+            return null;
+        }
+
+        $jobId = (string) Str::uuid();
+        Cache::put(self::activeKey(), $jobId, now()->addHours(24));
+        Cache::put(self::cacheKey($jobId), [
+            'job_id' => $jobId,
+            'job_type' => $mode,
+            'status' => 'queued',
+            'message' => 'Задача поставлена в очередь',
+            'progress' => 0,
+            'updated_at' => now()->toDateTimeString(),
+        ], now()->addHours(24));
+
+        self::dispatch($jobId, $mode, $notifyOnFinish, $sourcePricesDate);
+
+        return $jobId;
+    }
+
     public static function cacheKey(string $jobId): string
     {
         return 'allparfume_sync_job:'.$jobId;
@@ -135,6 +169,76 @@ class RunAllparfumeSyncJob implements ShouldQueue
     {
         if (Cache::get(self::activeKey()) === $jobId) {
             Cache::forget(self::activeKey());
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $stats
+     */
+    private function notifyCronFinished(array $stats): void
+    {
+        if (! $this->notifyOnFinish) {
+            return;
+        }
+
+        $updated = (int) ($stats['updated_variants'] ?? $stats['updated_products'] ?? 0);
+        $created = (int) ($stats['created_variants'] ?? $stats['created_products'] ?? 0);
+
+        $this->notifyTelegram(implode("\n", [
+            '✅ Крон Allparfume: цены обновлены',
+            'Дата на сайте: '.$this->formatSourceDate(),
+            'Обновлено: '.$updated,
+            'Новых: '.$created,
+            'Офферов обновлено: '.(int) ($stats['updated_offers'] ?? 0)
+                .', новых: '.(int) ($stats['created_offers'] ?? $stats['created_shop_offers'] ?? 0),
+            'Ошибок: '.(int) ($stats['errors'] ?? 0),
+            'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
+        ]), [
+            'type' => 'allparfume_cron_refresh_done',
+            'job_id' => $this->jobId,
+        ]);
+    }
+
+    private function notifyCronFailed(Throwable $e): void
+    {
+        if (! $this->notifyOnFinish) {
+            return;
+        }
+
+        $this->notifyTelegram(implode("\n", [
+            '⚠️ Крон Allparfume: ошибка обновления цен',
+            'Дата на сайте: '.$this->formatSourceDate(),
+            'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
+            'Ошибка: '.$e->getMessage(),
+        ]), [
+            'type' => 'allparfume_cron_refresh_error',
+            'job_id' => $this->jobId,
+        ]);
+    }
+
+    private function formatSourceDate(): string
+    {
+        $raw = trim((string) $this->sourcePricesDate);
+        if ($raw === '') {
+            return '—';
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+
+        return $date instanceof \DateTimeImmutable ? $date->format('d.m.Y') : $raw;
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function notifyTelegram(string $message, array $context): void
+    {
+        try {
+            SendTelegramMessageJob::dispatch($message, $context);
+        } catch (Throwable $e) {
+            Log::warning('Allparfume cron telegram dispatch failed', array_merge($context, [
+                'exception' => $e->getMessage(),
+            ]));
         }
     }
 }

@@ -114,6 +114,7 @@ class AllparfumeBrandSyncService
                         'volume_cards' => $parsed['volume_cards'],
                     ],
                 ]);
+                $this->assignParsedExternalId($product, $parsed['parfume_id'] ?? null);
                 $product->save();
 
                 $stats[$isNewProduct ? 'created_products' : 'updated_products']++;
@@ -167,11 +168,11 @@ class AllparfumeBrandSyncService
                         }
                         $seenOfferKeys[$dedupeKey] = true;
 
-                        if (! $this->upsertShopOffer(
+                        if ($this->upsertShopOffer(
                             (int) $product->id,
                             (int) $variant->id,
                             $offerRow,
-                        )) {
+                        ) === null) {
                             continue;
                         }
                         $offersCount++;
@@ -211,7 +212,9 @@ class AllparfumeBrandSyncService
         $stats = [
             'processed_products' => 0,
             'updated_variants' => 0,
+            'created_variants' => 0,
             'updated_offers' => 0,
+            'created_offers' => 0,
             'errors' => 0,
         ];
 
@@ -459,6 +462,7 @@ class AllparfumeBrandSyncService
                     ],
                 ),
             ]);
+            $this->assignParsedExternalId($product, $parsed['parfume_id'] ?? null);
             $product->save();
 
             foreach ($variantsByKey as $variantKey => $variantRow) {
@@ -482,7 +486,11 @@ class AllparfumeBrandSyncService
                         'last_crawled_at' => now(),
                     ],
                 );
-                $stats['updated_variants']++;
+                if ($variant->wasRecentlyCreated) {
+                    $stats['created_variants']++;
+                } else {
+                    $stats['updated_variants']++;
+                }
 
                 $seenKeys = [];
                 foreach ($variantOffers as $offerRow) {
@@ -495,14 +503,16 @@ class AllparfumeBrandSyncService
                     }
                     $seenKeys[$dedupeKey] = true;
 
-                    if (! $this->upsertShopOffer(
+                    $offerResult = $this->upsertShopOffer(
                         (int) $product->id,
                         (int) $variant->id,
                         $offerRow,
-                    )) {
-                        continue;
+                    );
+                    if ($offerResult === 'created') {
+                        $stats['created_offers']++;
+                    } elseif ($offerResult === 'updated') {
+                        $stats['updated_offers']++;
                     }
-                    $stats['updated_offers']++;
                 }
             }
         });
@@ -512,12 +522,13 @@ class AllparfumeBrandSyncService
      * Register shop and upsert offer only when shop is active for pricing/sync.
      *
      * @param  array<string,mixed>  $offerRow
+     * @return 'created'|'updated'|null
      */
-    private function upsertShopOffer(int $productId, int $variantId, array $offerRow): bool
+    private function upsertShopOffer(int $productId, int $variantId, array $offerRow): ?string
     {
         $shop = $this->shopRegistry->ensureFromOffer($offerRow);
         if (! $shop->is_active) {
-            return false;
+            return null;
         }
 
         $existing = AllparfumeShopOffer::query()
@@ -539,26 +550,28 @@ class AllparfumeBrandSyncService
                 'last_seen_at' => now(),
                 'payload' => $offerRow['payload'],
             ]);
-        } else {
-            AllparfumeShopOffer::query()->create([
-                'allparfume_product_id' => $productId,
-                'allparfume_variant_id' => $variantId,
-                'shop_key' => $offerRow['shop_key'],
-                'shop_name' => $offerRow['shop_name'],
-                'shop_url' => $offerRow['shop_url'],
-                'offer_url' => $offerRow['offer_url'],
-                'offer_url_hash' => $offerRow['offer_url_hash'],
-                'price' => $offerRow['price'],
-                'old_price' => $offerRow['old_price'],
-                'delivery_text' => $offerRow['delivery_text'],
-                'is_active' => true,
-                'include_in_pricing' => true,
-                'last_seen_at' => now(),
-                'payload' => $offerRow['payload'],
-            ]);
+
+            return 'updated';
         }
 
-        return true;
+        AllparfumeShopOffer::query()->create([
+            'allparfume_product_id' => $productId,
+            'allparfume_variant_id' => $variantId,
+            'shop_key' => $offerRow['shop_key'],
+            'shop_name' => $offerRow['shop_name'],
+            'shop_url' => $offerRow['shop_url'],
+            'offer_url' => $offerRow['offer_url'],
+            'offer_url_hash' => $offerRow['offer_url_hash'],
+            'price' => $offerRow['price'],
+            'old_price' => $offerRow['old_price'],
+            'delivery_text' => $offerRow['delivery_text'],
+            'is_active' => true,
+            'include_in_pricing' => true,
+            'last_seen_at' => now(),
+            'payload' => $offerRow['payload'],
+        ]);
+
+        return 'created';
     }
 
     /**
@@ -681,5 +694,29 @@ class AllparfumeBrandSyncService
         }
 
         return $min === null ? null : number_format($min, 2, '.', '');
+    }
+
+    private function assignParsedExternalId(AllparfumeProduct $product, mixed $parfumeId): void
+    {
+        if ($product->external_id !== null) {
+            return;
+        }
+        if (! is_numeric((string) $parfumeId)) {
+            return;
+        }
+        $id = (int) $parfumeId;
+        if ($id <= 0) {
+            return;
+        }
+
+        $taken = AllparfumeProduct::query()
+            ->where('external_id', $id)
+            ->when($product->exists, static fn ($q) => $q->where('id', '!=', $product->id))
+            ->exists();
+        if ($taken) {
+            return;
+        }
+
+        $product->external_id = $id;
     }
 }
