@@ -563,12 +563,38 @@ export default function SellerParsImportPage() {
         setSupplierError("");
     };
 
+    // Строка ушла из текущей выборки — убираем её, иначе подменяем на месте.
+    // Сравниваем со `status`, который посчитал бэкенд, а не пересчитываем правила фильтра.
+    const applyRowMutation = useCallback(
+        (supplierProductId: number, row: SellerOneSupplierProductItem | null | undefined) => {
+            if (!row) {
+                void loadRows(page);
+                return;
+            }
+
+            const stillMatchesFilter =
+                status === "parsing_inactive"
+                    ? !row.link_parsing_active
+                    : row.link_parsing_active && (status === "" || row.status === status);
+
+            setItems((prev) =>
+                stillMatchesFilter
+                    ? prev.map((item) => (item.id === supplierProductId ? row : item))
+                    : prev.filter((item) => item.id !== supplierProductId),
+            );
+        },
+        [loadRows, page, status],
+    );
+
     const doForceLink = async (supplierProductId: number, variantId: number) => {
         setLinkingRowId(supplierProductId);
         setSupplierError("");
         try {
-            await forceLinkSellerOneProduct({ supplier_product_id: supplierProductId, variant_id: variantId });
-            await loadRows(page);
+            const res = await forceLinkSellerOneProduct({
+                supplier_product_id: supplierProductId,
+                variant_id: variantId,
+            });
+            applyRowMutation(supplierProductId, res.row);
             setSupplierSuccess(`Связка сохранена для строки #${supplierProductId}`);
             if (manualLink?.rowId === supplierProductId) {
                 setManualLink(null);
@@ -584,11 +610,11 @@ export default function SellerParsImportPage() {
         setLinkingRowId(row.id);
         setSupplierError("");
         try {
-            await updateSellerOneSupplierProductParsingActive({
+            const res = await updateSellerOneSupplierProductParsingActive({
                 supplier_product_id: row.id,
                 link_parsing_active: checked,
             });
-            await loadRows(page);
+            applyRowMutation(row.id, res.row);
             setSupplierSuccess(
                 checked
                     ? `Парсинг включён для строки #${row.id}`
@@ -605,8 +631,8 @@ export default function SellerParsImportPage() {
         setLinkingRowId(supplierProductId);
         setSupplierError("");
         try {
-            await resetSellerOneProductLink({ supplier_product_id: supplierProductId });
-            await loadRows(page);
+            const res = await resetSellerOneProductLink({ supplier_product_id: supplierProductId });
+            applyRowMutation(supplierProductId, res.row);
             setSupplierSuccess(`Связка сброшена для строки #${supplierProductId}`);
         } catch (e: unknown) {
             setSupplierError(e instanceof Error ? e.message : "Ошибка сброса связки");

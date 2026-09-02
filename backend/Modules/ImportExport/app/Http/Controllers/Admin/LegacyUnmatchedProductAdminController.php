@@ -11,6 +11,7 @@ use Modules\Catalog\Services\CatalogProductLinkSearchService;
 use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
+use Modules\ImportExport\Support\SeoRedirectCache;
 use Modules\Reviews\Models\Review;
 
 class LegacyUnmatchedProductAdminController extends Controller
@@ -243,6 +244,8 @@ class LegacyUnmatchedProductAdminController extends Controller
                     'updated_at' => now(),
                 ]);
             }
+
+            SeoRedirectCache::flush();
 
             $after = [
                 'name' => $target->name,

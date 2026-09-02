@@ -16,20 +16,21 @@ use Modules\Catalog\Models\VanilleImportJobLog;
 use Modules\Catalog\Models\SupplierProduct;
 use Modules\ImportExport\Services\Vanille\SupplierPriceImportService;
 use Modules\Catalog\Models\Supplier;
-use Modules\Catalog\Models\SupplierVariantOffer;
-use Modules\Catalog\Models\Product;
-use Modules\Catalog\Models\ProductVariant;
-use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Models\SellerOneMatchRule;
 use Modules\Catalog\Rules\ValidUploadedSpreadsheet;
-use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\CatalogSearchScoring;
+use Modules\Catalog\Support\SellerOneSupplierProductPresenter;
 use Modules\ImportExport\Services\Vanille\Support\SupplierPriceProfile;
 use Throwable;
 
 
 class VanilleImportController extends Controller
 {
+    /** Версия ключа кэша счётчиков таблицы «Парсинг поставщиков». */
+    private const LIST_STATS_VERSION_KEY = 'seller-one:list-stats:version';
+
+    private const LIST_STATS_TTL_SECONDS = 60;
+
     private function getOrCreateSellerOneSupplier(?string $supplierCode = null): Supplier
     {
         return app(SupplierPriceImportService::class)->getOrCreateSellerOneSupplier($supplierCode);
@@ -769,201 +770,16 @@ class VanilleImportController extends Controller
 
         $items = $query->paginate(50);
 
-        $listStatsBase = clone $baseQuery;
-        $listStatsBase->where('link_parsing_active', true)
-            ->where(function ($q) {
-                $q->where('is_linked', true)
-                    ->orWhereNull('payload->absent_from_parse_table_at');
-            });
+        $stats = $this->sellerOneListStats(
+            $baseQuery,
+            $service,
+            $supplierIds,
+            $request->string('search')->toString()
+        );
 
-        $stats = [
-            'confirmed' => (clone $listStatsBase)
-                ->where('is_linked', true)
-                ->count(),
-            'found_unconfirmed' => (clone $listStatsBase)
-                ->where('is_linked', false)
-                ->where(function ($q) {
-                    $q->whereNotNull('payload->suggested_variant_id')
-                        ->orWhereNotNull('payload->suggested_product_id');
-                })
-                ->where(function ($q) {
-                    $q->whereNull('payload->match_confidence')
-                        ->orWhere('payload->match_confidence', '<', 100);
-                })
-                ->count(),
-            'new' => (clone $listStatsBase)
-                ->where('is_linked', false)
-                ->where('payload->is_new', true)
-                ->count(),
-            'unlinked' => (clone $listStatsBase)
-                ->where('is_linked', false)
-                ->where(function ($q) {
-                    $q->whereNull('payload->suggested_variant_id')
-                        ->whereNull('payload->suggested_product_id');
-                })
-                ->count(),
-            'parsing_inactive' => (clone $baseQuery)
-                ->where('link_parsing_active', false)
-                ->count(),
-            ...$service->getLastPriceApplyMeta(),
-        ];
-
-        $externalCodes = collect($items->items())
-            ->map(fn (SupplierProduct $item) => $item->payload['external_code'] ?? null)
-            ->filter()
-            ->values()
-            ->all();
-
-        $offers = SupplierVariantOffer::query()
-            ->whereIn('supplier_id', $supplierIds)
-            ->whereIn('external_id', $externalCodes)
-            ->with(['productVariant.product.brand'])
-            ->get()
-            ->keyBy(fn (SupplierVariantOffer $offer): string => $offer->supplier_id.'|'.$offer->external_id);
-
-        $suggestedVariantIds = collect($items->items())
-            ->map(fn (SupplierProduct $item) => $item->payload['suggested_variant_id'] ?? null)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $linkedVariantIds = collect($items->items())
-            ->map(fn (SupplierProduct $item) => $item->payload['linked_variant_id'] ?? null)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $suggestedProductIds = collect($items->items())
-            ->map(fn (SupplierProduct $item) => $item->payload['suggested_product_id'] ?? null)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $suggestedVariants = ProductVariant::query()
-            ->whereIn('id', $suggestedVariantIds)
-            ->with(['product.brand'])
-            ->get()
-            ->keyBy('id');
-
-        $linkedVariants = ProductVariant::query()
-            ->whereIn('id', $linkedVariantIds)
-            ->with(['product.brand'])
-            ->get()
-            ->keyBy('id');
-
-        // Продукты-кандидаты без варианта: нужны, чтобы показать «Создать вариант» в UI.
-        // Eager-loadим variants, чтобы отдать их количество — UI решает, что предлагать.
-        $suggestedProducts = Product::query()
-            ->whereIn('id', $suggestedProductIds)
-            ->with(['brand', 'variants'])
-            ->get()
-            ->keyBy('id');
-
-        $items->getCollection()->transform(function (SupplierProduct $item) use ($offers, $suggestedVariants, $linkedVariants, $suggestedProducts) {
-            $payload = is_array($item->payload) ? $item->payload : [];
-            $externalCode = (string) ($payload['external_code'] ?? '');
-            $offer = $externalCode ? $offers->get($item->supplier_id.'|'.$externalCode) : null;
-            $suggestedVariant = isset($payload['suggested_variant_id'])
-                ? $suggestedVariants->get((int) $payload['suggested_variant_id'])
-                : null;
-            $suggestedProduct = isset($payload['suggested_product_id'])
-                ? $suggestedProducts->get((int) $payload['suggested_product_id'])
-                : null;
-            $linkedVariantFromPayload = isset($payload['linked_variant_id'])
-                ? $linkedVariants->get((int) $payload['linked_variant_id'])
-                : null;
-            $linkedVariant = $offer?->productVariant ?? $linkedVariantFromPayload;
-            $catalogSupplierAvailable = $linkedVariant
-                ? CatalogVariantStockPresenter::supplierListingActive($linkedVariant)
-                : null;
-            $supplierModel = $item->supplier;
-
-            return [
-                'id' => $item->id,
-                'supplier' => $supplierModel ? [
-                    'id' => (int) $supplierModel->id,
-                    'name' => (string) $supplierModel->name,
-                    'code' => (string) $supplierModel->code,
-                ] : null,
-                'external_name' => $item->external_name,
-                'external_slug' => $item->external_slug,
-                'external_url' => $item->external_url,
-                'is_linked' => (bool) $item->is_linked,
-                'is_active' => (bool) $item->is_active,
-                'link_parsing_active' => (bool) $item->link_parsing_active,
-                'last_seen_at' => optional($item->last_seen_at)?->toDateTimeString(),
-                'code' => $externalCode,
-                'supplier_price' => $payload['supplier_price'] ?? ($payload['min_price'] ?? null),
-                'price_file_in_stock' => array_key_exists('price_file_in_stock', $payload)
-                    ? $payload['price_file_in_stock']
-                    : null,
-                'catalog_supplier_channel_available' => $catalogSupplierAvailable,
-                'parsed' => $payload['parsed'] ?? null,
-                'is_new' => (bool) ($payload['is_new'] ?? false),
-                'match_confidence' => (int) ($payload['match_confidence'] ?? 0),
-                'match_confidence_breakdown' => $payload['match_confidence_breakdown'] ?? null,
-                'status' => $item->is_linked
-                    ? 'confirmed'
-                    : ((int) ($payload['match_confidence'] ?? 0) >= 1
-                        && (!empty($payload['suggested_variant_id']) || !empty($payload['suggested_product_id']))
-                        ? 'found_unconfirmed'
-                        : ((bool) ($payload['is_new'] ?? false) ? 'new' : 'unlinked')),
-                'brand' => $item->brand ? [
-                    'id' => $item->brand->id,
-                    'name' => $item->brand->name,
-                ] : null,
-                'product' => $item->product ? [
-                    'id' => $item->product->id,
-                    'name' => $item->product->name,
-                    'display_name' => ProductDisplayName::forProduct($item->product),
-                    'slug' => $item->product->slug,
-                ] : null,
-                'suggested_variant' => $suggestedVariant ? [
-                    'id' => $suggestedVariant->id,
-                    'product_id' => $suggestedVariant->product_id,
-                    'product_name' => $suggestedVariant->product?->name,
-                    'display_name' => $suggestedVariant->product
-                        ? ProductDisplayName::forProduct($suggestedVariant->product)
-                        : null,
-                    'brand_name' => $suggestedVariant->product?->brand?->name,
-                    'display' => trim(implode(' / ', array_filter([
-                        $suggestedVariant->volume ? "{$suggestedVariant->volume} {$suggestedVariant->volume_unit}" : null,
-                        $suggestedVariant->concentration ? strtoupper((string) $suggestedVariant->concentration) : null,
-                        $suggestedVariant->edition,
-                    ]))),
-                ] : null,
-                'suggested_product' => $suggestedProduct ? [
-                    'id' => $suggestedProduct->id,
-                    'name' => $suggestedProduct->name,
-                    'display_name' => ProductDisplayName::forProduct($suggestedProduct),
-                    'slug' => $suggestedProduct->slug,
-                    'brand_name' => $suggestedProduct->brand?->name,
-                    'variants_count' => is_countable($suggestedProduct->variants)
-                        ? count($suggestedProduct->variants)
-                        : 0,
-                ] : null,
-                'linked_variant' => $linkedVariant ? [
-                    'id' => $linkedVariant->id,
-                    'product_id' => $linkedVariant->product_id,
-                    'product_name' => $linkedVariant->product?->name,
-                    'display_name' => $linkedVariant->product
-                        ? ProductDisplayName::forProduct($linkedVariant->product)
-                        : null,
-                    'brand_name' => $linkedVariant->product?->brand?->name,
-                    'display' => trim(implode(' / ', array_filter([
-                        $linkedVariant->volume ? "{$linkedVariant->volume} {$linkedVariant->volume_unit}" : null,
-                        $linkedVariant->concentration ? strtoupper((string) $linkedVariant->concentration) : null,
-                        $linkedVariant->edition,
-                    ]))),
-                ] : null,
-            ];
-        });
+        $items->setCollection(
+            collect(SellerOneSupplierProductPresenter::presentMany($items->getCollection(), $supplierIds))
+        );
 
         return response()->json([
             'data' => $items->items(),
@@ -979,6 +795,83 @@ class VanilleImportController extends Controller
         ]);
     }
 
+    /**
+     * Счётчики статусов для шапки таблицы: пять COUNT по JSON-путям, каждый — полный
+     * скан supplier_products. Держим в кэше; точечные операции двигают версию ключа.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<SupplierProduct>  $baseQuery
+     * @param  list<int>  $supplierIds
+     * @return array<string, mixed>
+     */
+    private function sellerOneListStats(
+        $baseQuery,
+        SupplierPriceImportService $service,
+        array $supplierIds,
+        string $search
+    ): array {
+        $cacheKey = sprintf(
+            'seller-one:list-stats:v%d:%s',
+            (int) Cache::get(self::LIST_STATS_VERSION_KEY, 1),
+            md5(implode(',', $supplierIds).'|'.trim($search)),
+        );
+
+        $counts = Cache::remember($cacheKey, self::LIST_STATS_TTL_SECONDS, function () use ($baseQuery): array {
+            $listStatsBase = (clone $baseQuery)
+                ->reorder()
+                ->where('link_parsing_active', true)
+                ->where(function ($q) {
+                    $q->where('is_linked', true)
+                        ->orWhereNull('payload->absent_from_parse_table_at');
+                });
+
+            return [
+                'confirmed' => (clone $listStatsBase)
+                    ->where('is_linked', true)
+                    ->count(),
+                'found_unconfirmed' => (clone $listStatsBase)
+                    ->where('is_linked', false)
+                    ->where(function ($q) {
+                        $q->whereNotNull('payload->suggested_variant_id')
+                            ->orWhereNotNull('payload->suggested_product_id');
+                    })
+                    ->where(function ($q) {
+                        $q->whereNull('payload->match_confidence')
+                            ->orWhere('payload->match_confidence', '<', 100);
+                    })
+                    ->count(),
+                'new' => (clone $listStatsBase)
+                    ->where('is_linked', false)
+                    ->where('payload->is_new', true)
+                    ->count(),
+                'unlinked' => (clone $listStatsBase)
+                    ->where('is_linked', false)
+                    ->where(function ($q) {
+                        $q->whereNull('payload->suggested_variant_id')
+                            ->whereNull('payload->suggested_product_id');
+                    })
+                    ->count(),
+                'parsing_inactive' => (clone $baseQuery)
+                    ->reorder()
+                    ->where('link_parsing_active', false)
+                    ->count(),
+            ];
+        });
+
+        return [
+            ...$counts,
+            ...$service->getLastPriceApplyMeta(),
+        ];
+    }
+
+    private function forgetSellerOneListStats(): void
+    {
+        if (! Cache::has(self::LIST_STATS_VERSION_KEY)) {
+            Cache::forever(self::LIST_STATS_VERSION_KEY, 1);
+        }
+
+        Cache::increment(self::LIST_STATS_VERSION_KEY);
+    }
+
     public function forceLinkSellerOneProduct(Request $request, SupplierPriceImportService $service)
     {
         $validated = $request->validate([
@@ -991,7 +884,12 @@ class VanilleImportController extends Controller
             (int) $validated['variant_id']
         );
 
-        return response()->json($result);
+        $this->forgetSellerOneListStats();
+
+        return response()->json([
+            ...$result,
+            'row' => $this->presentSellerOneRow((int) $validated['supplier_product_id']),
+        ]);
     }
 
     public function resetSellerOneProductLink(Request $request, SupplierPriceImportService $service)
@@ -1002,7 +900,25 @@ class VanilleImportController extends Controller
 
         $result = $service->resetLink((int) $validated['supplier_product_id']);
 
-        return response()->json($result);
+        $this->forgetSellerOneListStats();
+
+        return response()->json([
+            ...$result,
+            'row' => $this->presentSellerOneRow((int) $validated['supplier_product_id']),
+        ]);
+    }
+
+    /**
+     * Строка таблицы после точечной операции — фронт подменяет её на месте,
+     * не перезагружая всю страницу списка.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function presentSellerOneRow(int $supplierProductId): ?array
+    {
+        $item = SupplierProduct::query()->find($supplierProductId);
+
+        return $item ? SellerOneSupplierProductPresenter::presentOne($item) : null;
     }
 
     public function updateSellerOneSupplierProductParsingActive(Request $request)
@@ -1020,12 +936,15 @@ class VanilleImportController extends Controller
             'link_parsing_active' => (bool) $validated['link_parsing_active'],
         ]);
 
+        $this->forgetSellerOneListStats();
+
         return response()->json([
             'message' => 'Участие в парсинге обновлено',
             'data' => [
                 'id' => $supplierProduct->id,
                 'link_parsing_active' => (bool) $supplierProduct->link_parsing_active,
             ],
+            'row' => SellerOneSupplierProductPresenter::presentOne($supplierProduct),
         ]);
     }
 

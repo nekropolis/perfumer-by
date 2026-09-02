@@ -7,6 +7,7 @@ import type {
     SellerOneParseStartResponse,
     SellerOneParseStatus,
     SellerOneMatchRule,
+    SellerOneSupplierProductItem,
     SellerOneSupplierProductsResponse,
     SupplierPriceApplyResponse,
     SupplierPricePreviewResponse,
@@ -703,11 +704,17 @@ export async function fetchSellerOneSupplierProducts(params?: {
     );
 }
 
+/** `row` — обновлённая строка таблицы: фронт подменяет её на месте, без перезагрузки списка. */
+export type SellerOneRowMutationResponse = {
+    message?: string;
+    row?: SellerOneSupplierProductItem | null;
+};
+
 export async function forceLinkSellerOneProduct(payload: {
     supplier_product_id: number;
     variant_id: number;
-}): Promise<{ message?: string }> {
-    return adminVanilleFetchWithFallback<{ message?: string }>(
+}): Promise<SellerOneRowMutationResponse> {
+    return adminVanilleFetchWithFallback<SellerOneRowMutationResponse>(
         [
             "/admin/import-export/seller-pars/supplier-products/force-link",
             "/admin/import-export/vanille/supplier-products/force-link",
@@ -721,8 +728,8 @@ export async function forceLinkSellerOneProduct(payload: {
 
 export async function resetSellerOneProductLink(payload: {
     supplier_product_id: number;
-}): Promise<{ message?: string }> {
-    return adminVanilleFetchWithFallback<{ message?: string }>(
+}): Promise<SellerOneRowMutationResponse> {
+    return adminVanilleFetchWithFallback<SellerOneRowMutationResponse>(
         [
             "/admin/import-export/seller-pars/supplier-products/reset-link",
             "/admin/import-export/vanille/supplier-products/reset-link",
@@ -737,8 +744,8 @@ export async function resetSellerOneProductLink(payload: {
 export async function updateSellerOneSupplierProductParsingActive(payload: {
     supplier_product_id: number;
     link_parsing_active: boolean;
-}): Promise<{ message?: string; data?: { id: number; link_parsing_active: boolean } }> {
-    return adminVanilleFetchWithFallback<{ message?: string; data?: { id: number; link_parsing_active: boolean } }>(
+}): Promise<SellerOneRowMutationResponse & { data?: { id: number; link_parsing_active: boolean } }> {
+    return adminVanilleFetchWithFallback<SellerOneRowMutationResponse & { data?: { id: number; link_parsing_active: boolean } }>(
         [
             "/admin/import-export/seller-pars/supplier-products/parsing-active",
             "/admin/import-export/vanille/supplier-products/parsing-active",

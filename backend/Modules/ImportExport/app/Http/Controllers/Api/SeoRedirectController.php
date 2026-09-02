@@ -5,7 +5,7 @@ namespace Modules\ImportExport\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Modules\ImportExport\Support\SeoRedirectCache;
 
 class SeoRedirectController extends Controller
 {
@@ -20,10 +20,7 @@ class SeoRedirectController extends Controller
             $path = '/'.$path;
         }
 
-        $redirect = DB::table('seo_redirects')
-            ->where('from_path', $path)
-            ->where('is_active', true)
-            ->first(['to_path', 'http_code']);
+        $redirect = SeoRedirectCache::resolve($path);
 
         if (! $redirect) {
             return response()->json(['data' => null]);
@@ -31,8 +28,8 @@ class SeoRedirectController extends Controller
 
         return response()->json([
             'data' => [
-                'to_path' => $redirect->to_path,
-                'http_code' => (int) $redirect->http_code,
+                'to_path' => $redirect['to_path'],
+                'http_code' => $redirect['http_code'],
             ],
         ]);
     }

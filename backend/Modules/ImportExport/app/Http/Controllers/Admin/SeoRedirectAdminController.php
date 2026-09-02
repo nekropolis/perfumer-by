@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Modules\ImportExport\Support\SeoRedirectCache;
 
 class SeoRedirectAdminController extends Controller
 {
@@ -73,6 +74,8 @@ class SeoRedirectAdminController extends Controller
             'updated_at' => now(),
         ]);
 
+        SeoRedirectCache::flush();
+
         return response()->json([
             'message' => 'Редирект создан',
             'data' => DB::table('seo_redirects')->where('id', $id)->first(),
@@ -112,6 +115,8 @@ class SeoRedirectAdminController extends Controller
                 'updated_at' => now(),
             ]);
 
+        SeoRedirectCache::flush();
+
         return response()->json([
             'message' => 'Редирект обновлён',
             'data' => DB::table('seo_redirects')->where('id', $id)->first(),
@@ -124,6 +129,8 @@ class SeoRedirectAdminController extends Controller
         if (! $deleted) {
             return response()->json(['message' => 'Редирект не найден'], 404);
         }
+
+        SeoRedirectCache::flush();
 
         return response()->json(['message' => 'Редирект удалён']);
     }

@@ -454,6 +454,62 @@ final class CatalogVariantStockPresenter
     }
 
     /**
+     * Батч-версия {@see listingEligibleOffers()} для списков: два запроса вместо
+     * запроса на каждый вариант плюс `exists()` на каждый оффер.
+     *
+     * @param  iterable<int, ProductVariantLink>  $variants
+     * @return array<int, list<SupplierVariantOffer>>  id варианта => офферы канала прайса
+     */
+    public static function eligibleOffersForVariants(iterable $variants): array
+    {
+        $productIdByVariant = [];
+        foreach ($variants as $variant) {
+            $productIdByVariant[(int) $variant->id] = (int) $variant->product_id;
+        }
+
+        if ($productIdByVariant === []) {
+            return [];
+        }
+
+        $offers = SupplierVariantOffer::query()
+            ->whereIn('product_variant_id', array_keys($productIdByVariant))
+            ->where('is_active', true)
+            ->get(['id', 'supplier_id', 'product_variant_id', 'price', 'purchase_price', 'payload']);
+
+        if ($offers->isEmpty()) {
+            return array_fill_keys(array_keys($productIdByVariant), []);
+        }
+
+        $linkedPairs = [];
+        SupplierProduct::query()
+            ->whereIn('product_id', array_values(array_unique($productIdByVariant)))
+            ->whereIn('supplier_id', $offers->pluck('supplier_id')->unique()->values()->all())
+            ->where('is_linked', true)
+            ->where('is_active', true)
+            ->where('link_parsing_active', true)
+            ->get(['product_id', 'supplier_id'])
+            ->each(function (SupplierProduct $row) use (&$linkedPairs): void {
+                $linkedPairs[((int) $row->product_id).'|'.((int) $row->supplier_id)] = true;
+            });
+
+        $result = array_fill_keys(array_keys($productIdByVariant), []);
+        foreach ($offers as $offer) {
+            $variantId = (int) $offer->product_variant_id;
+            $payload = is_array($offer->payload) ? $offer->payload : [];
+            if (self::supplierOfferPayloadBlocksListing($payload)) {
+                continue;
+            }
+
+            $pair = ($productIdByVariant[$variantId] ?? 0).'|'.((int) $offer->supplier_id);
+            if (isset($linkedPairs[$pair])) {
+                $result[$variantId][] = $offer;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
      * @return iterable<int, SupplierVariantOffer>
      */
