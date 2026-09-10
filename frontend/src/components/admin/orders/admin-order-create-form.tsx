@@ -3601,12 +3601,33 @@ export default function AdminOrderCreateForm({
                         >
                           <div className="space-y-0.5">
                             <p className="truncate text-sm leading-5 text-admin-text">
-                              <span className="font-medium">
-                                {formatOrderLineProductLabel(line)}
-                              </span>
-                              {line.variant_title ? (
-                                <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
-                              ) : null}
+                              {line.product_slug ? (
+                                <Link
+                                  href={
+                                    line.variant_id
+                                      ? `/${line.product_slug}?variant=${line.variant_id}`
+                                      : `/${line.product_slug}`
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="group font-medium text-admin-text underline-offset-2 hover:text-admin-primary hover:underline"
+                                  title="Открыть карточку товара"
+                                >
+                                  {formatOrderLineProductLabel(line)}
+                                  {line.variant_title ? (
+                                    <span className="font-normal text-admin-text-secondary group-hover:text-admin-primary"> - {line.variant_title}</span>
+                                  ) : null}
+                                </Link>
+                              ) : (
+                                <>
+                                  <span className="font-medium">
+                                    {formatOrderLineProductLabel(line)}
+                                  </span>
+                                  {line.variant_title ? (
+                                    <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                                  ) : null}
+                                </>
+                              )}
                             </p>
                             {line.availability_issue ? (
                               <p className="text-[11px] font-medium leading-snug text-amber-800">
